@@ -85,7 +85,10 @@ func TestPolicyReplayingWithIndexerData(t *testing.T) {
 
 	params := PolicyHistoryParams{RelayContractAddress: common.HexToAddress("0x97702e350CaEda540935d92aAf213307e9069784"), FlareSystemManagerContractAddress: common.HexToAddress("0xA90Db6D10F856799b10ef2A77EBCbF460aC71e52")}
 
-	req, err := CreateSigningRequest(context.Background(), &params, db)
+	policies, signatures, err := FetchPolicyHistory(context.Background(), &params, db)
+	require.NoError(t, err)
+
+	req, err := CreateSigningRequest(policies, signatures)
 	require.NoError(t, err)
 
 	signingService := ps.NewService()

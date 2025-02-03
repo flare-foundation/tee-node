@@ -2,42 +2,27 @@ package utils
 
 import (
 	"crypto/ecdsa"
-	"encoding/binary"
-	"math/rand"
+	"crypto/rand"
+	"io"
+	insecure_rand "math/rand"
 
 	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
 )
 
-// GenerateRandomUint32 generates a cryptographically secure random uint32
-func GenerateRandomUint32() (uint32, error) {
-	var b [4]byte
-	_, err := rand.Read(b[:])
-	if err != nil {
-		return 0, err
+func GenerateRandomBytes(n int) ([]byte, error) {
+	b := make([]byte, n)
+	if _, err := io.ReadFull(rand.Reader, b); err != nil {
+		return nil, err
 	}
-	return binary.BigEndian.Uint32(b[:]), nil
-}
 
-// GenerateRandomUint16 generates a cryptographically secure random uint16
-func GenerateRandomUint16() (uint16, error) {
-	var b [2]byte
-	_, err := rand.Read(b[:])
-	if err != nil {
-		return 0, err
-	}
-	return binary.BigEndian.Uint16(b[:]), nil
+	return b, nil
 }
 
 // GenerateEthereumPrivateKey generates a new Ethereum private key
 func GenerateEthereumPrivateKey() (*ecdsa.PrivateKey, error) {
 	return crypto.GenerateKey()
-}
-
-// GenerateEthereumPublicKey generates the public key for an Ethereum private key
-func GenerateEthereumPublicKey(privateKey *ecdsa.PrivateKey) *ecdsa.PublicKey {
-	return &privateKey.PublicKey
 }
 
 // PubkeyToAddress converts an Ethereum public key to an Ethereum address
@@ -52,7 +37,7 @@ func VerifySignature(pubKey *ecdsa.PublicKey, msgHash []byte, signature []byte) 
 
 func RandomNormalizedArray(n int, seed int64) []float64 {
 	// Initialize random source with seed
-	r := rand.New(rand.NewSource(seed))
+	r := insecure_rand.New(insecure_rand.NewSource(seed))
 
 	// Generate random numbers
 	numbers := make([]float64, n)

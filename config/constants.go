@@ -1,3 +1,4 @@
 package config
 
-var InitialPolicyHash = "" // Todo: Const? but then test fail
+var InitialPolicyHash = ""
+const Mode = 1

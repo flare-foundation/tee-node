@@ -9,18 +9,22 @@ service WalletsService {
 }  
 
 message NewWalletRequest {  
-  string name = 1; 
+  string name = 1;
+  bytes signature = 2; 
+  string nonce = 3;
 }
+
 message PublicKeyRequest {  
   string name = 1; 
+  string nonce = 2;
 }
 
 message NewWalletResponse { 
-  bool success = 1;
-  string message = 2;  // Error message or Success message
+  bool finalized = 1;
+  string token = 2;
 }
 
 message PublicKeyResponse { 
-  bool success = 1;
-  string address = 2;
+  string address = 1;
+  string token = 2;
 }

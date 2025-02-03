@@ -1,0 +1,14 @@
+[db]
+host = "localhost"
+port = 3306
+database = "flare_ftso_indexer_tee_node"
+username = "root"
+password = "root"
+log_queries = false
+
+[server]
+host = "localhost:50051"
+
+[chain]
+relay_contract_address = "0x97702e350CaEda540935d92aAf213307e9069784"
+flare_system_manager_contract_address = "0xA90Db6D10F856799b10ef2A77EBCbF460aC71e52"

@@ -8,7 +8,10 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"strconv"
 	"strings"
+	"tee-node/internal/node"
+	"time"
 
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -29,7 +32,11 @@ func GetGoogleAttestationToken(nonces []string) ([]byte, error) {
 	if _, err := io.ReadFull(rand.Reader, nonce); err != nil {
 		return nil, fmt.Errorf("failed to create nonce: %w", err)
 	}
-	noncesAll := append(nonces, string(nonce))
+
+	nodeId := node.GetNodeId()
+	timeNow := strconv.Itoa(int(time.Now().Unix()))
+
+	noncesAll := append(nonces, nodeId.Uuid, timeNow, string(nonce))
 
 	// Get the token from the IPC endpoint
 	url := "http://localhost/v1/token"
@@ -60,7 +67,6 @@ func GetGoogleAttestationToken(nonces []string) ([]byte, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to read token body: %w", err)
 	}
-	fmt.Println(string(tokenbytes))
 
 	return tokenbytes, nil
 }

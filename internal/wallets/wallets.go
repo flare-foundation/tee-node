@@ -2,39 +2,43 @@ package wallets
 
 import (
 	"crypto/ecdsa"
-	"crypto/rand"
-	"encoding/hex"
-	"io"
+	"tee-node/internal/utils"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/pkg/errors"
 )
 
+var wallets map[string]Wallet = make(map[string]Wallet)
+
+var walletRequests map[string]WalletRequests = make(map[string]WalletRequests)
+
 type Wallet struct {
-	PublicKey  *ecdsa.PublicKey
 	PrivateKey *ecdsa.PrivateKey
 	Address    common.Address
 }
 
-var wallets map[string]Wallet = make(map[string]Wallet)
+type WalletRequests struct {
+	Request    map[common.Address]bool
+	Weight     int
+	PolicyHash string
+}
 
 func CreateNewWallet(name string) (string, error) {
-	skBytes := make([]byte, 32)
-	n, err := io.ReadFull(rand.Reader, skBytes)
-	if err != nil || n != 32 {
-		return "", err
-	}
-
-	sk, err := crypto.HexToECDSA(hex.EncodeToString(skBytes))
+	sk, err := utils.GenerateEthereumPrivateKey()
 	if err != nil {
 		return "", err
 	}
 
-	newWallet := Wallet{PrivateKey: sk, PublicKey: &sk.PublicKey, Address: crypto.PubkeyToAddress(sk.PublicKey)}
+	newWallet := Wallet{PrivateKey: sk, Address: crypto.PubkeyToAddress(sk.PublicKey)}
 	wallets[name] = newWallet
 
 	return newWallet.Address.Hex(), nil
+}
+
+// TODO: check signature
+func ProcessNewWalletRequest(name string, signature []byte) (bool, string, error) {
+	return true, common.Address{}.Hex(), nil
 }
 
 // todo: add attestation

@@ -132,12 +132,7 @@ func FetchPolicyHistory(ctx context.Context, params *PolicyHistoryParams, db *go
 	return policies, hashToSignatures, nil
 }
 
-func CreateSigningRequest(ctx context.Context, params *PolicyHistoryParams, db *gorm.DB) (*pb.InitializePolicyRequest, error) {
-	policies, signatures, err := FetchPolicyHistory(ctx, params, db)
-	if err != nil {
-		return nil, err
-	}
-
+func CreateSigningRequest(policies []*relay.RelaySigningPolicyInitialized, signatures map[string][]*policy.Signature) (*pb.InitializePolicyRequest, error) {
 	policyRequests := []*pb.SignNewPolicyRequest{}
 
 	// Replay policy signing from the second policy onwards
