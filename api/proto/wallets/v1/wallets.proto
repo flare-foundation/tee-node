@@ -6,6 +6,8 @@ option go_package = "tee-node/gen/go/wallets/v1;walletsv1";
 service WalletsService {  
   rpc NewWallet (NewWalletRequest) returns (NewWalletResponse) {}
   rpc PublicKey (PublicKeyRequest) returns (PublicKeyResponse) {}
+  rpc SplitWallet (SplitWalletRequest) returns (SplitWalletResponse) {}
+  rpc RecoverWallet (RecoverWalletRequest) returns (RecoverWalletResponse) {}
 }  
 
 message NewWalletRequest {  
@@ -19,6 +21,26 @@ message PublicKeyRequest {
   string nonce = 2;
 }
 
+message SplitWalletRequest {  
+  string name = 1;
+  repeated string tee_ids = 2;
+  repeated string hosts = 3;
+  int64 threshold = 4;
+  bytes signature = 5; 
+  string nonce = 6;
+}
+
+message RecoverWalletRequest {  
+  string name = 1; 
+  repeated string tee_ids = 2;
+  repeated string hosts = 3;
+  repeated string share_ids = 4;
+  string address = 5;
+  int64 threshold = 6;
+  bytes signature = 7; 
+  string nonce = 8;
+}
+
 message NewWalletResponse { 
   bool finalized = 1;
   string token = 2;
@@ -26,5 +48,15 @@ message NewWalletResponse {
 
 message PublicKeyResponse { 
   string address = 1;
+  string token = 2;
+}
+
+message SplitWalletResponse { 
+  bool success = 1;
+  string token = 2;
+}
+
+message RecoverWalletResponse { 
+  bool success = 1;
   string token = 2;
 }

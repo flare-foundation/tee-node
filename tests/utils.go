@@ -1,40 +1,41 @@
 package utils
 
 import (
+	"context"
 	"crypto/ecdsa"
+	"encoding/json"
+	"log"
 	"math/big"
 	"math/rand"
-	"testing"
+	"time"
 
 	"tee-node/internal/policy"
 	"tee-node/internal/utils"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/crypto"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/keepalive"
 
 	pb "tee-node/gen/go/policy/v1"
 )
 
-func GenerateRandomValidPolicyAndSigners(t *testing.T, epochId uint32, randSeed int64) (*policy.SigningPolicy, []byte, []common.Address, []*ecdsa.PrivateKey, error) {
-
-	t.Helper() // Mark this as a helper so line numbers in failures point to the test, not the helper
-
+func GenerateRandomValidPolicyAndSigners(epochId uint32, randSeed int64, numVoters int) (*policy.SigningPolicy, []byte, []common.Address, []*ecdsa.PrivateKey, error) {
 	// Generate random voters and corresponding private keys
-	voters, privKeys := GenerateRandomVoters(t)
+	voters, privKeys := GenerateRandomVoters(numVoters)
 
-	initialPolicy := GenerateRandomPolicyData(t, epochId, voters, randSeed)
+	initialPolicy := GenerateRandomPolicyData(epochId, voters, randSeed)
 
 	initialPolicyBytes, err := policy.EncodeSigningPolicy(&initialPolicy)
 	if err != nil {
-		t.Errorf("invalid signing policy hash length %v", err)
+		return nil, nil, nil, nil, err
 	}
 
 	return &initialPolicy, initialPolicyBytes, voters, privKeys, nil
 }
 
-func GenerateRandomSignNewPolicyRequestArrays(t *testing.T, epochId uint32, randSeed int64, voters []common.Address, privKeys []*ecdsa.PrivateKey, numPolicies int) ([]*pb.SignNewPolicyRequest, error) {
-
-	t.Helper()
-
+func GenerateRandomSignNewPolicyRequestArrays(epochId uint32, randSeed int64, voters []common.Address, privKeys []*ecdsa.PrivateKey, numPolicies int) ([]*pb.SignNewPolicyRequest, error) {
 	// Generate a few more policies and their signatures
 	policySignaturesArray := []*pb.SignNewPolicyRequest{}
 
@@ -44,24 +45,21 @@ func GenerateRandomSignNewPolicyRequestArrays(t *testing.T, epochId uint32, rand
 
 		_epochId++
 		_randSeed++
-		nextPolicy := GenerateRandomPolicyData(t, _epochId, voters, _randSeed)
+		nextPolicy := GenerateRandomPolicyData(_epochId, voters, _randSeed)
 
 		nextPolicyBytes, err := policy.EncodeSigningPolicy(&nextPolicy)
 		if err != nil {
-			t.Errorf("Failed to encode policy %v", err)
+			return nil, err
 		}
 
-		policySignatures := BuildPolicySignature(t, nextPolicyBytes, privKeys)
+		policySignatures := BuildPolicySignature(nextPolicyBytes, privKeys)
 		policySignaturesArray = append(policySignaturesArray, policySignatures)
 	}
 
 	return policySignaturesArray, nil
 }
 
-func BuildPolicySignature(t *testing.T, policyBytes []byte, voterPrivKeys []*ecdsa.PrivateKey) *pb.SignNewPolicyRequest {
-
-	t.Helper()
-
+func BuildPolicySignature(policyBytes []byte, voterPrivKeys []*ecdsa.PrivateKey) *pb.SignNewPolicyRequest {
 	PolicySignatureMessages := []*pb.PolicySignatureMessage{}
 
 	for i, voterPrivKey := range voterPrivKeys {
@@ -90,16 +88,11 @@ func BuildPolicySignature(t *testing.T, policyBytes []byte, voterPrivKeys []*ecd
 }
 
 // Always returns the same voters and private keys
-const NUM_VOTERS = 100
+func GenerateRandomVoters(numVoters int) ([]common.Address, []*ecdsa.PrivateKey) {
+	Voters := make([]common.Address, numVoters)
+	privKeys := make([]*ecdsa.PrivateKey, numVoters)
 
-func GenerateRandomVoters(t *testing.T) ([]common.Address, []*ecdsa.PrivateKey) {
-
-	t.Helper()
-
-	Voters := make([]common.Address, NUM_VOTERS)
-	privKeys := make([]*ecdsa.PrivateKey, NUM_VOTERS)
-
-	for i := 0; i < NUM_VOTERS; i++ {
+	for i := 0; i < numVoters; i++ {
 		voterPrivKey, err := utils.GenerateEthereumPrivateKey()
 		if err != nil {
 			panic(err)
@@ -116,10 +109,7 @@ func GenerateRandomVoters(t *testing.T) ([]common.Address, []*ecdsa.PrivateKey) 
 
 const WEIGHT_DENOMINATION = 1<<16 - 1
 
-func GenerateRandomPolicyData(t *testing.T, rewardEpochId uint32, voters []common.Address, seed int64) policy.SigningPolicy {
-
-	t.Helper()
-
+func GenerateRandomPolicyData(rewardEpochId uint32, voters []common.Address, seed int64) policy.SigningPolicy {
 	// Use specific seed for deterministic results
 	rgen := rand.New(rand.NewSource(seed))
 
@@ -129,7 +119,7 @@ func GenerateRandomPolicyData(t *testing.T, rewardEpochId uint32, voters []commo
 	Seed := big.NewInt(rgen.Int63())
 	Weights := []uint16{}
 
-	normalizedWeights := RandomNormalizedArray(NUM_VOTERS, seed)
+	normalizedWeights := RandomNormalizedArray(len(voters), seed)
 	for _, w := range normalizedWeights {
 		Weights = append(Weights, uint16(w*WEIGHT_DENOMINATION))
 	}
@@ -177,4 +167,105 @@ func ResetSigningServiceState() {
 	policy.ValidVoterWeight = make(map[string]uint16)
 	policy.ProcessedPubKeys = make(map[string](map[*ecdsa.PublicKey]bool))
 
+}
+
+// Providers represents a group of voters with private keys.
+type Providers struct {
+	Voters   []common.Address
+	PrivKeys []*ecdsa.PrivateKey
+}
+
+// ProvidersJSON is the struct used for JSON serialization.
+type ProvidersJSON struct {
+	Voters   []string `json:"voters"`   // Ethereum addresses as hex strings
+	PrivKeys []string `json:"privKeys"` // Private keys as hex strings
+}
+
+// MarshalProviders converts Providers struct to a JSON string.
+func MarshalProviders(providers *Providers) ([]byte, error) {
+	var voters []string
+	for _, v := range providers.Voters {
+		voters = append(voters, v.Hex()) // Convert addresses to hex string
+	}
+
+	var privKeys []string
+	for _, key := range providers.PrivKeys {
+		privKeys = append(privKeys, key.D.Text(16)) // Store private key D as hex string
+	}
+
+	jsonData, err := json.Marshal(ProvidersJSON{
+		Voters:   voters,
+		PrivKeys: privKeys,
+	})
+	return jsonData, err
+}
+
+// UnmarshalProviders converts a JSON string back to a Providers struct.
+func UnmarshalProviders(jsonData []byte) (*Providers, error) {
+	var providersJSON ProvidersJSON
+	err := json.Unmarshal(jsonData, &providersJSON)
+	if err != nil {
+		return nil, err
+	}
+
+	var voters []common.Address
+	for _, v := range providersJSON.Voters {
+		voters = append(voters, common.HexToAddress(v))
+	}
+
+	var privKeys []*ecdsa.PrivateKey
+	for _, keyStr := range providersJSON.PrivKeys {
+		d := new(big.Int)
+		d.SetString(keyStr, 16) // Convert hex string back to big.Int
+
+		privKey := crypto.ToECDSAUnsafe(d.Bytes())
+
+		privKeys = append(privKeys, privKey)
+	}
+
+	return &Providers{Voters: voters, PrivKeys: privKeys}, nil
+}
+
+func NewGRPCClient(target string) (*grpc.ClientConn, error) {
+	// Create slice for dial options
+	var opts []grpc.DialOption
+
+	// 1. Basic options
+	opts = append(opts,
+		grpc.WithTransportCredentials(insecure.NewCredentials()), // Only for development
+		grpc.WithIdleTimeout(60*time.Second),                     // Idle timeout (close connection if idle)
+		grpc.WithUnaryInterceptor(ClientLoggingInterceptor),      // Log requests
+		grpc.WithKeepaliveParams(keepalive.ClientParameters{
+			Time:                10 * time.Second, // send pings every 10 seconds if there is no activity
+			Timeout:             5 * time.Second,  // wait 5 seconds for ping response
+			PermitWithoutStream: true,             // allow pings even without active streams
+		}),
+		grpc.WithDefaultServiceConfig(`{  
+            "methodConfig": [{  
+                 "name": [  
+                {"service": "signing.SigningService"},  
+                {"service": "attestation.AttestationService"}  
+            ],  
+                "waitForReady": true,  
+                "retryPolicy": {  
+                    "MaxAttempts": 3,  
+                    "InitialBackoff": "0.1s",  
+                    "MaxBackoff": "1s",  
+                    "BackoffMultiplier": 2.0,  
+                    "RetryableStatusCodes": ["UNAVAILABLE"]  
+                }  
+            }]  
+        }`), // Retry policy
+	)
+
+	// Connect to the server
+	return grpc.NewClient(target, opts...)
+}
+
+// ClientLoggingInterceptor logs client requests
+func ClientLoggingInterceptor(ctx context.Context, method string, req, reply interface{}, cc *grpc.ClientConn, invoker grpc.UnaryInvoker, opts ...grpc.CallOption) error {
+	start := time.Now()
+	err := invoker(ctx, method, req, reply, cc, opts...)
+	log.Printf("method: %s, duration: %v, error: %v", method, time.Since(start), err)
+	return err
 }

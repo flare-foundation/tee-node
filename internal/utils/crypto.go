@@ -3,6 +3,7 @@ package utils
 import (
 	"crypto/ecdsa"
 	"crypto/rand"
+	"fmt"
 	"io"
 	insecure_rand "math/rand"
 
@@ -28,6 +29,18 @@ func GenerateEthereumPrivateKey() (*ecdsa.PrivateKey, error) {
 // PubkeyToAddress converts an Ethereum public key to an Ethereum address
 func PubkeyToAddress(pubkey *ecdsa.PublicKey) common.Address {
 	return crypto.PubkeyToAddress(*pubkey)
+}
+
+func Sign(msgHash []byte, privKey *ecdsa.PrivateKey) ([]byte, error) {
+	if len(msgHash) != 32 {
+		return nil, fmt.Errorf("invalid signing policy hash length")
+	}
+
+	hashSignature, err := crypto.Sign(accounts.TextHash(msgHash), privKey)
+	if err != nil {
+		return nil, err
+	}
+	return hashSignature, nil
 }
 
 // VerifySignature verifies a signature against a message hash

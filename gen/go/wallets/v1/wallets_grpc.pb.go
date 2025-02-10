@@ -19,8 +19,10 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	WalletsService_NewWallet_FullMethodName = "/wallets.v1.WalletsService/NewWallet"
-	WalletsService_PublicKey_FullMethodName = "/wallets.v1.WalletsService/PublicKey"
+	WalletsService_NewWallet_FullMethodName     = "/wallets.v1.WalletsService/NewWallet"
+	WalletsService_PublicKey_FullMethodName     = "/wallets.v1.WalletsService/PublicKey"
+	WalletsService_SplitWallet_FullMethodName   = "/wallets.v1.WalletsService/SplitWallet"
+	WalletsService_RecoverWallet_FullMethodName = "/wallets.v1.WalletsService/RecoverWallet"
 )
 
 // WalletsServiceClient is the client API for WalletsService service.
@@ -29,6 +31,8 @@ const (
 type WalletsServiceClient interface {
 	NewWallet(ctx context.Context, in *NewWalletRequest, opts ...grpc.CallOption) (*NewWalletResponse, error)
 	PublicKey(ctx context.Context, in *PublicKeyRequest, opts ...grpc.CallOption) (*PublicKeyResponse, error)
+	SplitWallet(ctx context.Context, in *SplitWalletRequest, opts ...grpc.CallOption) (*SplitWalletResponse, error)
+	RecoverWallet(ctx context.Context, in *RecoverWalletRequest, opts ...grpc.CallOption) (*RecoverWalletResponse, error)
 }
 
 type walletsServiceClient struct {
@@ -59,12 +63,34 @@ func (c *walletsServiceClient) PublicKey(ctx context.Context, in *PublicKeyReque
 	return out, nil
 }
 
+func (c *walletsServiceClient) SplitWallet(ctx context.Context, in *SplitWalletRequest, opts ...grpc.CallOption) (*SplitWalletResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(SplitWalletResponse)
+	err := c.cc.Invoke(ctx, WalletsService_SplitWallet_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *walletsServiceClient) RecoverWallet(ctx context.Context, in *RecoverWalletRequest, opts ...grpc.CallOption) (*RecoverWalletResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(RecoverWalletResponse)
+	err := c.cc.Invoke(ctx, WalletsService_RecoverWallet_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // WalletsServiceServer is the server API for WalletsService service.
 // All implementations must embed UnimplementedWalletsServiceServer
 // for forward compatibility.
 type WalletsServiceServer interface {
 	NewWallet(context.Context, *NewWalletRequest) (*NewWalletResponse, error)
 	PublicKey(context.Context, *PublicKeyRequest) (*PublicKeyResponse, error)
+	SplitWallet(context.Context, *SplitWalletRequest) (*SplitWalletResponse, error)
+	RecoverWallet(context.Context, *RecoverWalletRequest) (*RecoverWalletResponse, error)
 	mustEmbedUnimplementedWalletsServiceServer()
 }
 
@@ -80,6 +106,12 @@ func (UnimplementedWalletsServiceServer) NewWallet(context.Context, *NewWalletRe
 }
 func (UnimplementedWalletsServiceServer) PublicKey(context.Context, *PublicKeyRequest) (*PublicKeyResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method PublicKey not implemented")
+}
+func (UnimplementedWalletsServiceServer) SplitWallet(context.Context, *SplitWalletRequest) (*SplitWalletResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method SplitWallet not implemented")
+}
+func (UnimplementedWalletsServiceServer) RecoverWallet(context.Context, *RecoverWalletRequest) (*RecoverWalletResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method RecoverWallet not implemented")
 }
 func (UnimplementedWalletsServiceServer) mustEmbedUnimplementedWalletsServiceServer() {}
 func (UnimplementedWalletsServiceServer) testEmbeddedByValue()                        {}
@@ -138,6 +170,42 @@ func _WalletsService_PublicKey_Handler(srv interface{}, ctx context.Context, dec
 	return interceptor(ctx, in, info, handler)
 }
 
+func _WalletsService_SplitWallet_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SplitWalletRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(WalletsServiceServer).SplitWallet(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: WalletsService_SplitWallet_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(WalletsServiceServer).SplitWallet(ctx, req.(*SplitWalletRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _WalletsService_RecoverWallet_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RecoverWalletRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(WalletsServiceServer).RecoverWallet(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: WalletsService_RecoverWallet_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(WalletsServiceServer).RecoverWallet(ctx, req.(*RecoverWalletRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // WalletsService_ServiceDesc is the grpc.ServiceDesc for WalletsService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -152,6 +220,14 @@ var WalletsService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "PublicKey",
 			Handler:    _WalletsService_PublicKey_Handler,
+		},
+		{
+			MethodName: "SplitWallet",
+			Handler:    _WalletsService_SplitWallet_Handler,
+		},
+		{
+			MethodName: "RecoverWallet",
+			Handler:    _WalletsService_RecoverWallet_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

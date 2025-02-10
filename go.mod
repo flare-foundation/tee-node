@@ -9,9 +9,11 @@ require (
 	github.com/ethereum/go-ethereum v1.14.12
 	github.com/flare-foundation/go-flare-common v1.0.1
 	github.com/google/go-tpm-tools v0.4.4
+	github.com/gorilla/mux v1.8.1
 	github.com/naoina/toml v0.1.2-0.20170918210437-9fafd6967416
 	github.com/pkg/errors v0.9.1
 	github.com/stretchr/testify v1.9.0
+	golang.org/x/exp v0.0.0-20231110203233-9a3e6036ecaa
 	google.golang.org/grpc v1.68.1
 	google.golang.org/protobuf v1.35.2
 	gorm.io/gorm v1.25.9
@@ -58,7 +60,6 @@ require (
 	go.uber.org/multierr v1.11.0 // indirect
 	go.uber.org/zap v1.27.0 // indirect
 	golang.org/x/crypto v0.30.0 // indirect
-	golang.org/x/exp v0.0.0-20231110203233-9a3e6036ecaa // indirect
 	golang.org/x/net v0.32.0 // indirect
 	golang.org/x/sync v0.10.0 // indirect
 	golang.org/x/sys v0.28.0 // indirect

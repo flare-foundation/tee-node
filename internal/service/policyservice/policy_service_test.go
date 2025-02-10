@@ -16,16 +16,18 @@ import (
 	pb "tee-node/gen/go/policy/v1"
 )
 
+var numVoters int
+
 func TestInitializePolicy(t *testing.T) {
 	defer testutils.ResetSigningServiceState() // Reset the state of the TEE after the test
 
 	// Generate random voters and corresponding private keys
-	voters, privKeys := testutils.GenerateRandomVoters(t)
+	voters, privKeys := testutils.GenerateRandomVoters(numVoters)
 
 	// Generate a random initial policy
 	randSeed := int64(12345)
 	epochId := uint32(1)
-	initialPolicy := testutils.GenerateRandomPolicyData(t, epochId, voters, randSeed)
+	initialPolicy := testutils.GenerateRandomPolicyData(epochId, voters, randSeed)
 
 	initialPolicyBytes, err := policy.EncodeSigningPolicy(&initialPolicy)
 	if err != nil {
@@ -42,14 +44,14 @@ func TestInitializePolicy(t *testing.T) {
 	for i := 0; i < numPolicies; i++ {
 		epochId++
 		randSeed++
-		nextPolicy := testutils.GenerateRandomPolicyData(t, epochId, voters, randSeed)
+		nextPolicy := testutils.GenerateRandomPolicyData(epochId, voters, randSeed)
 
 		nextPolicyBytes, err := policy.EncodeSigningPolicy(&nextPolicy)
 		if err != nil {
 			t.Errorf("Failed to encode the policy")
 		}
 
-		policySignatures := testutils.BuildPolicySignature(t, nextPolicyBytes, privKeys)
+		policySignatures := testutils.BuildPolicySignature(nextPolicyBytes, privKeys)
 		policySignaturesArray = append(policySignaturesArray, policySignatures)
 
 	}
@@ -73,12 +75,12 @@ func TestSignNewPolicy(t *testing.T) {
 	defer testutils.ResetSigningServiceState() // Reset the state of the TEE after the test
 
 	// Generate random voters and corresponding private keys
-	voters, voterPrivKeys := testutils.GenerateRandomVoters(t)
+	voters, voterPrivKeys := testutils.GenerateRandomVoters(numVoters)
 
 	// Generate a random initial policy
 	randSeed := int64(12345)
 	epochId := uint32(1)
-	initialPolicy := testutils.GenerateRandomPolicyData(t, epochId, voters, randSeed)
+	initialPolicy := testutils.GenerateRandomPolicyData(epochId, voters, randSeed)
 
 	initialPolicyBytes, err := policy.EncodeSigningPolicy(&initialPolicy)
 	if err != nil {
@@ -106,7 +108,7 @@ func TestSignNewPolicy(t *testing.T) {
 	// Generate a new policy and sign it
 	epochId++
 	randSeed++
-	nextPolicy := testutils.GenerateRandomPolicyData(t, epochId, voters, randSeed)
+	nextPolicy := testutils.GenerateRandomPolicyData(epochId, voters, randSeed)
 
 	nextPolicyBytes, err := policy.EncodeSigningPolicy(&nextPolicy)
 	if err != nil {
@@ -214,7 +216,7 @@ func TestInitializingThePolicyTwice(t *testing.T) {
 
 	epochId, randSeed := uint32(1), int64(12345)
 
-	_, initialPolicyBytes, voters, privKeys, err := testutils.GenerateRandomValidPolicyAndSigners(t, epochId, randSeed)
+	_, initialPolicyBytes, voters, privKeys, err := testutils.GenerateRandomValidPolicyAndSigners(epochId, randSeed, numVoters)
 	if err != nil {
 		t.Errorf("Failed to generate the initial policy")
 	}
@@ -223,7 +225,7 @@ func TestInitializingThePolicyTwice(t *testing.T) {
 	setInitialPolicyHash(initialPolicyBytes)
 
 	numPolicies := 1
-	policySignaturesArray, err := testutils.GenerateRandomSignNewPolicyRequestArrays(t, epochId, randSeed, voters, privKeys, numPolicies)
+	policySignaturesArray, err := testutils.GenerateRandomSignNewPolicyRequestArrays(epochId, randSeed, voters, privKeys, numPolicies)
 	if err != nil {
 		t.Errorf("Failed to generate the policy signatures")
 	}
@@ -243,12 +245,12 @@ func TestInitializingThePolicyTwice(t *testing.T) {
 	// & Try to initialize the policy again ------------------------------------------- //
 	epochId2, randSeed2 := uint32(2), int64(54321)
 
-	_, initialPolicyBytes2, _, _, err := testutils.GenerateRandomValidPolicyAndSigners(t, epochId2, randSeed2)
+	_, initialPolicyBytes2, _, _, err := testutils.GenerateRandomValidPolicyAndSigners(epochId2, randSeed2, numVoters)
 	if err != nil {
 		t.Errorf("Failed to generate the initial policy")
 	}
 
-	policySignaturesArray2, err := testutils.GenerateRandomSignNewPolicyRequestArrays(t, epochId2, randSeed2, voters, privKeys, numPolicies)
+	policySignaturesArray2, err := testutils.GenerateRandomSignNewPolicyRequestArrays(epochId2, randSeed2, voters, privKeys, numPolicies)
 	if err != nil {
 		t.Errorf("Failed to generate the policy signatures")
 	}
@@ -284,7 +286,7 @@ func TestSendingInvalidReardEpochId(t *testing.T) {
 
 	epochId, randSeed := uint32(10), int64(12345)
 
-	_, initialPolicyBytes, voters, privKeys, err := testutils.GenerateRandomValidPolicyAndSigners(t, epochId, randSeed)
+	_, initialPolicyBytes, voters, privKeys, err := testutils.GenerateRandomValidPolicyAndSigners(epochId, randSeed, numVoters)
 	if err != nil {
 		t.Errorf("Failed to generate the initial policy")
 	}
@@ -295,7 +297,7 @@ func TestSendingInvalidReardEpochId(t *testing.T) {
 	numPolicies := 1
 
 	// Decrease the reward epoch id to test if the policy is rejected
-	policySignaturesArray, err := testutils.GenerateRandomSignNewPolicyRequestArrays(t, epochId-1, randSeed, voters, privKeys, numPolicies)
+	policySignaturesArray, err := testutils.GenerateRandomSignNewPolicyRequestArrays(epochId-1, randSeed, voters, privKeys, numPolicies)
 	if err != nil {
 		t.Errorf("Failed to generate the policy signatures")
 	}

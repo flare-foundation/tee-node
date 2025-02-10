@@ -12,10 +12,12 @@ var P = secp256k1.S256().N
 var Zero = big.NewInt(0)
 
 type ShamirShare struct {
-	X         *big.Int
-	Y         *big.Int
-	Threshold int
-	NumShares int
+	X *big.Int
+	Y *big.Int
+}
+
+func (s *ShamirShare) ID() string {
+	return s.X.String()
 }
 
 func SplitToShamirShares(val *big.Int, numShares int, threshold int) ([]ShamirShare, error) {
@@ -39,10 +41,8 @@ func SplitToShamirShares(val *big.Int, numShares int, threshold int) ([]ShamirSh
 	shamirShares := make([]ShamirShare, numShares)
 	for i := 0; i < numShares; i++ {
 		shamirShares[i] = ShamirShare{
-			X:         big.NewInt(int64(i + 1)),
-			Y:         evalPolynomial(polynomial, big.NewInt(int64(i+1))),
-			Threshold: threshold,
-			NumShares: numShares,
+			X: big.NewInt(int64(i + 1)),
+			Y: evalPolynomial(polynomial, big.NewInt(int64(i+1))),
 		}
 	}
 

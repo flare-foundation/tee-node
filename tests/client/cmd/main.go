@@ -2,12 +2,20 @@ package main
 
 import (
 	"context"
+	"encoding/hex"
+	"fmt"
 	"log"
-	"time"
+	"os"
+	"strconv"
 
 	attestationv1 "tee-node/gen/go/attestation/v1"
 	policyv1 "tee-node/gen/go/policy/v1"
 	walletsv1 "tee-node/gen/go/wallets/v1"
+	policyserver "tee-node/internal/policy"
+	"tee-node/internal/requests"
+	utilsserver "tee-node/internal/utils"
+	"tee-node/internal/wallets"
+	utils "tee-node/tests"
 	"tee-node/tests/client/config"
 	"tee-node/tests/client/policy"
 
@@ -15,9 +23,6 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/flare-foundation/go-flare-common/pkg/database"
 	"github.com/flare-foundation/go-flare-common/pkg/logger"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
-	"google.golang.org/grpc/keepalive"
 )
 
 const GCP_INSTANCE_IP = "localhost"
@@ -40,7 +45,7 @@ func main() {
 	}
 
 	// Create a connection to the server using grpc.NewClient
-	clientConn, err := NewGRPCClient(config.Server.Host)
+	clientConn, err := utils.NewGRPCClient(config.Server.Host)
 	if err != nil {
 		log.Fatalf("failed to create client connection: %v", err)
 	}
@@ -49,6 +54,34 @@ func main() {
 	ctx := context.Background()
 
 	switch args.Call {
+	case "generate_voters":
+		var numVoters int
+		if args.Arg1 == "" {
+			numVoters = 3
+		} else {
+			numVoters, err = strconv.Atoi(args.Arg1)
+			if err != nil {
+				log.Fatalf("%v", err)
+			}
+		}
+		voters, privKeys := utils.GenerateRandomVoters(numVoters)
+
+		providers := &utils.Providers{Voters: voters, PrivKeys: privKeys}
+
+		// Marshal Providers
+		jsonStr, err := utils.MarshalProviders(providers)
+		if err != nil {
+			log.Fatalf("%v", err)
+		}
+		f, err := os.Create("tests/test_providers.json")
+		if err != nil {
+			log.Fatalf("%v", err)
+		}
+		_, err = f.Write(jsonStr)
+		if err != nil {
+			log.Fatalf("%v", err)
+		}
+
 	case "initial_policy":
 		db, err := database.Connect(&config.DB)
 		if err != nil {
@@ -73,31 +106,225 @@ func main() {
 			log.Fatalf("could not initialize policy: %v", err)
 		}
 
+		logger.Info("fetched and initialized policies")
+	case "initial_policy_simulate":
+		providersBytes, err := os.ReadFile("tests/test_providers.json")
+		if err != nil {
+			log.Fatalf("%v", err)
+		}
+		providers, err := utils.UnmarshalProviders(providersBytes)
+		if err != nil {
+			log.Fatalf("%v", err)
+		}
+
+		epochId, randSeed := uint32(1), int64(12345)
+		initialPolicy := utils.GenerateRandomPolicyData(epochId, providers.Voters, randSeed)
+		initialPolicyBytes, err := policyserver.EncodeSigningPolicy(&initialPolicy)
+		if err != nil {
+			log.Fatalf("%v", err)
+		}
+
+		hash := policyserver.SigningPolicyHash(initialPolicyBytes)
+		fmt.Println(hex.EncodeToString(hash))
+
+		numPolicies := 5
+		policySignaturesArray, err := utils.GenerateRandomSignNewPolicyRequestArrays(epochId, randSeed, providers.Voters, providers.PrivKeys, numPolicies)
+		if err != nil {
+			log.Fatalf("could not generate random policy policy: %v", err)
+		}
+
+		req := &policyv1.InitializePolicyRequest{
+			InitialPolicyBytes: initialPolicyBytes,
+			NewPolicyRequests:  policySignaturesArray,
+		}
+
+		// Create a gRPC wallet client
+		policyClient := policyv1.NewPolicyServiceClient(clientConn)
+
+		_, err = policyClient.InitializePolicy(ctx, req)
+		if err != nil {
+			log.Fatalf("could not initialize policy: %v", err)
+		}
+
 		logger.Info("initialized policies")
 	case "new_wallet":
 		// Create a gRPC wallet client
 		walletClient := walletsv1.NewWalletsServiceClient(clientConn)
 
-		walletName := args.Arg1
-		nonce := args.Arg2
-		resp, err := walletClient.NewWallet(ctx, &walletsv1.NewWalletRequest{Name: walletName, Nonce: nonce})
+		var providerNum int
+		if args.Arg1 == "" {
+			providerNum = 0
+		} else {
+			providerNum, err = strconv.Atoi(args.Arg1)
+			if err != nil {
+				log.Fatalf("%v", err)
+			}
+		}
+		providersBytes, err := os.ReadFile("tests/test_providers.json")
+		if err != nil {
+			log.Fatalf("%v", err)
+		}
+		providers, err := utils.UnmarshalProviders(providersBytes)
+		if err != nil {
+			log.Fatalf("%v", err)
+		}
+		providerPrivKey := providers.PrivKeys[providerNum]
+
+		walletName := args.Arg2
+		nonceBytes, err := utilsserver.GenerateRandomBytes(32)
+		if err != nil {
+			log.Fatalf("%v", err)
+		}
+
+		newWalletRequest := wallets.NewNewWalletRequest(walletName)
+		signature, err := requests.Sign(newWalletRequest, providerPrivKey)
+		if err != nil {
+			log.Fatalf("%v", err)
+		}
+
+		resp, err := walletClient.NewWallet(ctx, &walletsv1.NewWalletRequest{Name: walletName, Nonce: hex.EncodeToString(nonceBytes), Signature: signature})
 		if err != nil {
 			log.Fatalf("could not create a new wallet: %v", err)
 		}
 
-		logger.Infof("created a wallet, attestation token %s", resp.Token)
+		logger.Infof("sent request to create wallet, is finalized %v, attestation token %s", resp.Finalized, resp.Token)
 
 	case "pub_key":
 		// Create a gRPC wallet client
 		walletClient := walletsv1.NewWalletsServiceClient(clientConn)
 
 		walletName := args.Arg1
-		nonce := args.Arg2
-		pubKeyResp, err := walletClient.PublicKey(ctx, &walletsv1.PublicKeyRequest{Name: walletName, Nonce: nonce})
+		nonceBytes, err := utilsserver.GenerateRandomBytes(32)
+		if err != nil {
+			log.Fatalf("%v", err)
+		}
+
+		pubKeyResp, err := walletClient.PublicKey(ctx, &walletsv1.PublicKeyRequest{Name: walletName, Nonce: hex.EncodeToString(nonceBytes)})
 		if err != nil {
 			log.Fatalf("could not create a new wallet: %v", err)
 		}
 		logger.Infof("public key: %s, attestation token %s", pubKeyResp.Address, pubKeyResp.Token)
+
+	case "split_wallet":
+		// Create a gRPC wallet client
+		walletClient := walletsv1.NewWalletsServiceClient(clientConn)
+
+		var providerNum int
+		if args.Arg1 == "" {
+			providerNum = 0
+		} else {
+			providerNum, err = strconv.Atoi(args.Arg1)
+			if err != nil {
+				log.Fatalf("%v", err)
+			}
+		}
+		providersBytes, err := os.ReadFile("tests/test_providers.json")
+		if err != nil {
+			log.Fatalf("%v", err)
+		}
+		providers, err := utils.UnmarshalProviders(providersBytes)
+		if err != nil {
+			log.Fatalf("%v", err)
+		}
+		providerPrivKey := providers.PrivKeys[providerNum]
+
+		walletName := args.Arg2
+		nonceBytes, err := utilsserver.GenerateRandomBytes(32)
+		if err != nil {
+			log.Fatalf("%v", err)
+		}
+
+		numBackups := len(config.Server.Backups)
+		newSplitWalletRequest, err := wallets.NewSplitWalletRequest(walletName, make([]string, numBackups), config.Server.Backups, config.Server.BackupsThreshold)
+		if err != nil {
+			log.Fatalf("%v", err)
+		}
+		signature, err := requests.Sign(newSplitWalletRequest, providerPrivKey)
+		if err != nil {
+			log.Fatalf("%v", err)
+		}
+
+		resp, err := walletClient.SplitWallet(
+			ctx,
+			&walletsv1.SplitWalletRequest{
+				Name:      walletName,
+				TeeIds:    newSplitWalletRequest.IDs,
+				Hosts:     newSplitWalletRequest.Hosts,
+				Threshold: int64(newSplitWalletRequest.Threshold),
+				Signature: signature,
+				Nonce:     hex.EncodeToString(nonceBytes),
+			},
+		)
+		if err != nil {
+			log.Fatalf("could not create a new wallet: %v", err)
+		}
+
+		logger.Infof("sent request to split wallet, is finalized %v, attestation token %s", resp.Success, resp.Token)
+
+	case "recover_wallet":
+		// Create a gRPC wallet client
+		walletClient := walletsv1.NewWalletsServiceClient(clientConn)
+
+		var providerNum int
+		if args.Arg1 == "" {
+			providerNum = 0
+		} else {
+			providerNum, err = strconv.Atoi(args.Arg1)
+			if err != nil {
+				log.Fatalf("%v", err)
+			}
+		}
+		providersBytes, err := os.ReadFile("tests/test_providers.json")
+		if err != nil {
+			log.Fatalf("%v", err)
+		}
+		providers, err := utils.UnmarshalProviders(providersBytes)
+		if err != nil {
+			log.Fatalf("%v", err)
+		}
+		providerPrivKey := providers.PrivKeys[providerNum]
+
+		walletName := args.Arg2
+		address := args.Arg3
+
+		nonceBytes, err := utilsserver.GenerateRandomBytes(32)
+		if err != nil {
+			log.Fatalf("%v", err)
+		}
+
+		numBackups := len(config.Server.Backups)
+
+		shareIds := make([]string, numBackups)
+		for i := range shareIds {
+			shareIds[i] = strconv.Itoa(i + 1)
+		}
+
+		newRecoverWalletRequest, err := wallets.NewRecoverWalletRequest(walletName, make([]string, numBackups), config.Server.Backups, shareIds)
+		if err != nil {
+			log.Fatalf("%v", err)
+		}
+		signature, err := requests.Sign(newRecoverWalletRequest, providerPrivKey)
+		if err != nil {
+			log.Fatalf("%v", err)
+		}
+
+		resp, err := walletClient.RecoverWallet(
+			ctx,
+			&walletsv1.RecoverWalletRequest{
+				Name:      walletName,
+				TeeIds:    newRecoverWalletRequest.IDs,
+				Hosts:     newRecoverWalletRequest.Hosts,
+				Address:   address,
+				Threshold: int64(config.Server.BackupsThreshold),
+				Signature: signature,
+				Nonce:     hex.EncodeToString(nonceBytes),
+			},
+		)
+		if err != nil {
+			log.Fatalf("could not create a new wallet: %v", err)
+		}
+
+		logger.Infof("sent request to recover wallet, is finalized %v, attestation token %s", resp.Success, resp.Token)
 
 	case "hardware_attestation":
 		attestationClient := attestationv1.NewAttestationServiceClient(clientConn)
@@ -116,48 +343,4 @@ func main() {
 		logger.Warn("call not recognized")
 	}
 
-}
-
-func NewGRPCClient(target string) (*grpc.ClientConn, error) {
-	// Create slice for dial options
-	var opts []grpc.DialOption
-
-	// 1. Basic options
-	opts = append(opts,
-		grpc.WithTransportCredentials(insecure.NewCredentials()), // Only for development
-		grpc.WithIdleTimeout(60*time.Second),                     // Idle timeout (close connection if idle)
-		grpc.WithUnaryInterceptor(ClientLoggingInterceptor),      // Log requests
-		grpc.WithKeepaliveParams(keepalive.ClientParameters{
-			Time:                10 * time.Second, // send pings every 10 seconds if there is no activity
-			Timeout:             5 * time.Second,  // wait 5 seconds for ping response
-			PermitWithoutStream: true,             // allow pings even without active streams
-		}),
-		grpc.WithDefaultServiceConfig(`{  
-            "methodConfig": [{  
-                 "name": [  
-                {"service": "signing.SigningService"},  
-                {"service": "attestation.AttestationService"}  
-            ],  
-                "waitForReady": true,  
-                "retryPolicy": {  
-                    "MaxAttempts": 3,  
-                    "InitialBackoff": "0.1s",  
-                    "MaxBackoff": "1s",  
-                    "BackoffMultiplier": 2.0,  
-                    "RetryableStatusCodes": ["UNAVAILABLE"]  
-                }  
-            }]  
-        }`), // Retry policy
-	)
-
-	// Connect to the server
-	return grpc.NewClient(target, opts...)
-}
-
-// ClientLoggingInterceptor logs client requests
-func ClientLoggingInterceptor(ctx context.Context, method string, req, reply interface{}, cc *grpc.ClientConn, invoker grpc.UnaryInvoker, opts ...grpc.CallOption) error {
-	start := time.Now()
-	err := invoker(ctx, method, req, reply, cc, opts...)
-	log.Printf("method: %s, duration: %v, error: %v", method, time.Since(start), err)
-	return err
 }

@@ -17,7 +17,9 @@ type ClientConfig struct {
 }
 
 type Server struct {
-	Host string `toml:"host"`
+	Host             string   `toml:"host"`
+	Backups          []string `toml:"backups"`
+	BackupsThreshold int      `toml:"backups_threshold"`
 }
 
 type Chain struct {

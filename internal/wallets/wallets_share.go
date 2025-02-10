@@ -9,34 +9,46 @@ import (
 	"github.com/pkg/errors"
 )
 
-type WalletSplit struct {
-	Address common.Address
-	Share   utils.ShamirShare
+type WalletShare struct {
+	WalletName string
+	Address    common.Address
+	Share      utils.ShamirShare
+	Threshold  int
+	NumShares  int
 }
 
-func SplitWallet(wallet *Wallet, numShares, threshold int) ([]*WalletSplit, error) {
+func SplitWalletByName(name string, numShares, threshold int) ([]*WalletShare, error) {
+	wallet, ok := wallets[name]
+	if !ok {
+		return nil, errors.New("wallet non-existent")
+	}
+
+	return SplitWallet(wallet, numShares, threshold)
+}
+
+func SplitWallet(wallet *Wallet, numShares, threshold int) ([]*WalletShare, error) {
 	shares, err := utils.SplitToShamirShares(wallet.PrivateKey.D, numShares, threshold)
 	if err != nil {
 		return nil, err
 	}
 
-	splits := make([]*WalletSplit, numShares)
+	splits := make([]*WalletShare, numShares)
 
 	for i, share := range shares {
-		splits[i] = &WalletSplit{Address: wallet.Address, Share: share}
+		splits[i] = &WalletShare{WalletName: wallet.Name, Address: wallet.Address, Share: share, Threshold: threshold, NumShares: numShares}
 	}
 
 	return splits, nil
 }
 
-func JointWallet(splits []*WalletSplit, address common.Address, threshold int) (*Wallet, error) {
+func JointWallet(splits []*WalletShare, name string, address common.Address, threshold int) (*Wallet, error) {
 	if len(splits) < threshold {
 		return nil, errors.New("not enough splits")
 	}
 
 	candidatesIndexes := make([]int, 0)
 	for i, split := range splits {
-		if split.Address.Hex() == address.Hex() && split.Share.Threshold == threshold {
+		if split.Address.Hex() == address.Hex() && split.WalletName == name && split.Threshold == threshold {
 			candidatesIndexes = append(candidatesIndexes, i)
 		}
 	}
@@ -62,7 +74,7 @@ func JointWallet(splits []*WalletSplit, address common.Address, threshold int) (
 			continue
 		}
 
-		return &Wallet{PrivateKey: privateKey, Address: address}, nil
+		return &Wallet{Name: name, PrivateKey: privateKey, Address: address}, nil
 	}
 
 	return nil, errors.New("unable to join shares")
