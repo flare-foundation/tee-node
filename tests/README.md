@@ -64,8 +64,8 @@ go run tests/client/cmd/main.go --call initial_policy_simulate --config tests/co
 and recover the wallet, by running the following commands replacing the address with the address obtained before
 
 ```bash
-go run tests/client/cmd/main.go --call split_wallet --arg1 0 --arg2 foo --arg3 0xb06023c32B5326293bccf78BFf4Be42FD9554c7a --config tests/configs/config_client.toml
-go run tests/client/cmd/main.go --call split_wallet --arg1 1 --arg2 foo --arg3 0xb06023c32B5326293bccf78BFf4Be42FD9554c7a --config tests/configs/config_client.toml
+go run tests/client/cmd/main.go --call recover_wallet --arg1 0 --arg2 foo --arg3 0xb06023c32B5326293bccf78BFf4Be42FD9554c7a --config tests/configs/config_client.toml
+go run tests/client/cmd/main.go --call recover_wallet --arg1 1 --arg2 foo --arg3 0xb06023c32B5326293bccf78BFf4Be42FD9554c7a --config tests/configs/config_client.toml
 ```
 
 Check if the wallet is on the server

@@ -64,6 +64,4 @@ func LaunchServer(port int) {
 	if err := listener.Close(); err != nil {
 		log.Fatalf("Failed to close listener: %v", err)
 	}
-	// Serve connections
-	http.Serve(listener, server)
 }

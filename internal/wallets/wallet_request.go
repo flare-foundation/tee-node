@@ -18,6 +18,18 @@ func (w NewWalletRequest) Message() string {
 	return fmt.Sprintf("NewWalletRequest(%s)", w.Name)
 }
 
+type DeleteWalletRequest struct {
+	Name string
+}
+
+func NewDeleteWalletRequest(name string) DeleteWalletRequest {
+	return DeleteWalletRequest{Name: name}
+}
+
+func (w DeleteWalletRequest) Message() string {
+	return fmt.Sprintf("DeleteWalletRequest(%s)", w.Name)
+}
+
 type SplitWalletRequest struct {
 	Name      string
 	IDs       []string

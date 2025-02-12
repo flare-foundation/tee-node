@@ -16,6 +16,17 @@ type PublicKeyRequest struct {
 	Nonce string
 }
 
+type DeleteWalletRequest struct {
+	Name      string
+	Signature []byte
+	Nonce     string
+}
+
+type DeleteWalletResponse struct {
+	Finalized bool
+	Token     string
+}
+
 type PublicKeyResponse struct {
 	Address string
 	Token   string
@@ -31,8 +42,8 @@ type SplitWalletRequest struct {
 }
 
 type SplitWalletResponse struct {
-	Success bool
-	Token   string
+	Finalized bool
+	Token     string
 }
 
 type RecoverWalletRequest struct {
@@ -47,6 +58,6 @@ type RecoverWalletRequest struct {
 }
 
 type RecoverWalletResponse struct {
-	Success bool
-	Token   string
+	Finalized bool
+	Token     string
 }

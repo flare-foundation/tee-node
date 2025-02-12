@@ -15,9 +15,10 @@ import (
 	"golang.org/x/exp/slices"
 )
 
-// The following variables are the main storage holding requests that need to reach a threshold
+// The following variables are the main storage, holding requests that need to reach a threshold
 // before being executed. Each request should have a unique string message.
 var NewWalletRequestsStorage = make(RequestCounterStorage[wallets.NewWalletRequest])
+var DeleteWalletRequestsStorage = make(RequestCounterStorage[wallets.DeleteWalletRequest])
 var SplitWalletRequestsStorage = make(RequestCounterStorage[wallets.SplitWalletRequest])
 var RecoverWalletRequestsStorage = make(RequestCounterStorage[wallets.RecoverWalletRequest])
 

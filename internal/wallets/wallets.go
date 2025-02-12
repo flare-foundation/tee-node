@@ -40,8 +40,11 @@ func GetPublicKey(name string) (string, error) {
 }
 
 func AddWallet(wallet *Wallet) error {
-
 	wallets[wallet.Name] = wallet
 
 	return nil
+}
+
+func RemoveWallet(walletName string) {
+	delete(wallets, walletName)
 }

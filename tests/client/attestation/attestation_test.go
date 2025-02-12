@@ -26,7 +26,9 @@ func TestVerifyOIDCToken(t *testing.T) {
 	t.Logf("Token claims: %v", tokenClaims)
 
 	jwtData, err := attestation.DecodeAttestationToken(tokenClaims)
-
+	if err != nil {
+		t.Errorf("Error decoding token: %v", err)
+	}
 	fmt.Println("Image Digest:", jwtData.Submods.Container.ImageDigest)
 	fmt.Println("Dbgstat:", jwtData.Dbgstat)
 	fmt.Println("Support Attributes:", jwtData.Submods.ConfidentialSpace.SupportAttributes)
