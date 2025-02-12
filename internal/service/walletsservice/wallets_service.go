@@ -2,8 +2,8 @@ package walletsservice
 
 import (
 	"context"
+	api "tee-node/api/types"
 	"tee-node/config"
-	pb "tee-node/gen/go/wallets/v1"
 	"tee-node/internal/attestation"
 	"tee-node/internal/requests"
 	"tee-node/internal/wallets"
@@ -12,11 +12,7 @@ import (
 	"github.com/gorilla/websocket"
 )
 
-// Service implements the generated SigningServiceServer interface
 type Service struct {
-	// Embed the generated UnimplementedSigningServiceServer
-	pb.UnimplementedWalletsServiceServer
-	// Add any dependencies your service needs
 }
 
 // NewService creates a new signing service
@@ -25,7 +21,7 @@ func NewService() *Service {
 }
 
 // todo: add attestation, add signature check
-func (s *Service) NewWallet(ctx context.Context, req *pb.NewWalletRequest) (*pb.NewWalletResponse, error) {
+func (s *Service) NewWallet(ctx context.Context, req *api.NewWalletRequest) (*api.NewWalletResponse, error) {
 	walletRequest := wallets.NewNewWalletRequest(req.Name)
 	requestCounter, thresholdReached, err := requests.ProcessRequest(walletRequest, req.Signature, requests.NewWalletRequestsStorage)
 	if err != nil {
@@ -49,13 +45,13 @@ func (s *Service) NewWallet(ctx context.Context, req *pb.NewWalletRequest) (*pb.
 		}
 	}
 
-	return &pb.NewWalletResponse{
+	return &api.NewWalletResponse{
 		Finalized: thresholdReached,
 		Token:     string(tokenBytes),
 	}, nil
 }
 
-func (s *Service) PublicKey(ctx context.Context, req *pb.PublicKeyRequest) (*pb.PublicKeyResponse, error) {
+func (s *Service) PublicKey(ctx context.Context, req *api.PublicKeyRequest) (*api.PublicKeyResponse, error) {
 	address, err := wallets.GetPublicKey(req.Name)
 	if err != nil {
 		return nil, err
@@ -71,13 +67,13 @@ func (s *Service) PublicKey(ctx context.Context, req *pb.PublicKeyRequest) (*pb.
 		}
 	}
 
-	return &pb.PublicKeyResponse{
+	return &api.PublicKeyResponse{
 		Address: address,
 		Token:   string(tokenBytes),
 	}, nil
 }
 
-func (s *Service) SplitWallet(ctx context.Context, req *pb.SplitWalletRequest) (*pb.SplitWalletResponse, error) {
+func (s *Service) SplitWallet(ctx context.Context, req *api.SplitWalletRequest) (*api.SplitWalletResponse, error) {
 	splitWalletRequest, err := wallets.NewSplitWalletRequest(req.Name, req.TeeIds, req.Hosts, int(req.Threshold))
 	if err != nil {
 		return nil, err
@@ -122,13 +118,13 @@ func (s *Service) SplitWallet(ctx context.Context, req *pb.SplitWalletRequest) (
 		}
 	}
 
-	return &pb.SplitWalletResponse{
+	return &api.SplitWalletResponse{
 		Success: true,
 		Token:   string(tokenBytes),
 	}, nil
 }
 
-func (s *Service) RecoverWallet(ctx context.Context, req *pb.RecoverWalletRequest) (*pb.RecoverWalletResponse, error) {
+func (s *Service) RecoverWallet(ctx context.Context, req *api.RecoverWalletRequest) (*api.RecoverWalletResponse, error) {
 	recoverWalletRequest, err := wallets.NewRecoverWalletRequest(req.Name, req.TeeIds, req.Hosts, req.ShareIds)
 	if err != nil {
 		return nil, err
@@ -179,7 +175,7 @@ func (s *Service) RecoverWallet(ctx context.Context, req *pb.RecoverWalletReques
 		}
 	}
 
-	return &pb.RecoverWalletResponse{
+	return &api.RecoverWalletResponse{
 		Success: true,
 		Token:   string(tokenBytes),
 	}, nil

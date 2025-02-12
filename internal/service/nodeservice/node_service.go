@@ -2,8 +2,8 @@ package nodeservice
 
 import (
 	"context"
+	api "tee-node/api/types"
 	"tee-node/config"
-	nd "tee-node/gen/go/node/v1"
 	"tee-node/internal/attestation"
 	"tee-node/internal/node"
 
@@ -11,11 +11,7 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-// Service implements the generated SigningServiceServer interface
 type Service struct {
-	// Embed the generated UnimplementedSigningServiceServer
-	nd.UnimplementedNodeServiceServer
-	// Add any dependencies your service needs
 }
 
 // NewService creates a new signing service
@@ -23,7 +19,7 @@ func NewService() *Service {
 	return &Service{}
 }
 
-func (s *Service) GetNodeAttestationToken(ctx context.Context, req *nd.GetNodeAttestationTokenRequest) (*nd.GetNodeAttestationTokenResponse, error) {
+func (s *Service) GetNodeAttestationToken(ctx context.Context, req *api.GetNodeAttestationTokenRequest) (*api.GetNodeAttestationTokenResponse, error) {
 	// Check if context is cancelled
 	select {
 	case <-ctx.Done():
@@ -43,7 +39,7 @@ func (s *Service) GetNodeAttestationToken(ctx context.Context, req *nd.GetNodeAt
 		}
 	}
 
-	return &nd.GetNodeAttestationTokenResponse{
+	return &api.GetNodeAttestationTokenResponse{
 		Uuid:  nodeId.Uuid,
 		Token: string(tokenBytes),
 	}, nil

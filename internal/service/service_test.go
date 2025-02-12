@@ -6,8 +6,8 @@ import (
 	"log"
 	"os"
 	"strconv"
-	policyv1 "tee-node/gen/go/policy/v1"
-	walletsv1 "tee-node/gen/go/wallets/v1"
+
+	api "tee-node/api/types"
 	utilsserver "tee-node/internal/utils"
 
 	"tee-node/internal/policy"
@@ -16,6 +16,7 @@ import (
 	utils "tee-node/tests"
 	"testing"
 
+	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/flare-foundation/go-flare-common/pkg/logger"
 	"github.com/stretchr/testify/require"
 )
@@ -23,10 +24,10 @@ import (
 func TestServiceEndToEnd(t *testing.T) {
 	ctx := context.Background()
 
-	go LaunchServer(50060)
+	go LaunchServer(8545)
 	go LaunchWSServer(50061)
 
-	clientConn, err := utils.NewGRPCClient("localhost:50060")
+	client, err := rpc.Dial("http://0.0.0.0:8545")
 	if err != nil {
 		log.Fatalf("failed to create client connection: %v", err)
 	}
@@ -54,21 +55,19 @@ func TestServiceEndToEnd(t *testing.T) {
 		log.Fatalf("could not generate random policy policy: %v", err)
 	}
 
-	req := &policyv1.InitializePolicyRequest{
+	req := &api.InitializePolicyRequest{
 		InitialPolicyBytes: initialPolicyBytes,
 		NewPolicyRequests:  policySignaturesArray,
 	}
 
-	policyClient := policyv1.NewPolicyServiceClient(clientConn)
-
-	_, err = policyClient.InitializePolicy(ctx, req)
+	var resp api.InitializePolicyResponse
+	err = client.Call(&resp, "policyservice_initializePolicy", req)
 	if err != nil {
 		log.Fatalf("could not initialize policy: %v", err)
 	}
 
 	// generate a new wallet
 	walletName := "newWallet"
-	walletClient := walletsv1.NewWalletsServiceClient(clientConn)
 
 	newWalletRequest := wallets.NewNewWalletRequest(walletName)
 
@@ -84,7 +83,8 @@ func TestServiceEndToEnd(t *testing.T) {
 			log.Fatalf("%v", err)
 		}
 
-		resp, err := walletClient.NewWallet(ctx, &walletsv1.NewWalletRequest{Name: walletName, Nonce: hex.EncodeToString(nonceBytes), Signature: signature})
+		var resp api.NewWalletResponse
+		err = client.CallContext(ctx, &resp, "walletsservice_newWallet", &api.NewWalletRequest{Name: walletName, Nonce: hex.EncodeToString(nonceBytes), Signature: signature})
 		if err != nil {
 			log.Fatalf("could not create a new wallet: %v", err)
 		}
@@ -96,7 +96,9 @@ func TestServiceEndToEnd(t *testing.T) {
 	if err != nil {
 		log.Fatalf("%v", err)
 	}
-	pubKeyResp, err := walletClient.PublicKey(ctx, &walletsv1.PublicKeyRequest{Name: walletName, Nonce: hex.EncodeToString(nonceBytes)})
+
+	var pubKeyResp api.PublicKeyResponse
+	err = client.CallContext(ctx, &pubKeyResp, "walletsservice_publicKey", &api.PublicKeyRequest{Name: walletName, Nonce: hex.EncodeToString(nonceBytes)})
 	if err != nil {
 		log.Fatalf("could not create a new wallet: %v", err)
 	}
@@ -122,9 +124,12 @@ func TestServiceEndToEnd(t *testing.T) {
 			log.Fatalf("%v", err)
 		}
 
-		resp, err := walletClient.SplitWallet(
+		var resp api.SplitWalletResponse
+		err = client.CallContext(
 			ctx,
-			&walletsv1.SplitWalletRequest{
+			&resp,
+			"walletsservice_splitWallet",
+			&api.SplitWalletRequest{
 				Name:      walletName,
 				TeeIds:    newSplitWalletRequest.IDs,
 				Hosts:     newSplitWalletRequest.Hosts,
@@ -165,9 +170,12 @@ func TestServiceEndToEnd(t *testing.T) {
 			log.Fatalf("%v", err)
 		}
 
-		resp, err := walletClient.RecoverWallet(
+		var resp api.RecoverWalletResponse
+		err = client.CallContext(
 			ctx,
-			&walletsv1.RecoverWalletRequest{
+			&resp,
+			"walletsservice_recoverWallet",
+			&api.RecoverWalletRequest{
 				Name:      walletName,
 				TeeIds:    newRecoverWalletRequest.IDs,
 				Hosts:     newRecoverWalletRequest.Hosts,
@@ -189,7 +197,8 @@ func TestServiceEndToEnd(t *testing.T) {
 	if err != nil {
 		log.Fatalf("%v", err)
 	}
-	finalPubKeyResp, err := walletClient.PublicKey(ctx, &walletsv1.PublicKeyRequest{Name: walletName, Nonce: hex.EncodeToString(nonceBytes)})
+	var finalPubKeyResp api.PublicKeyResponse
+	err = client.CallContext(ctx, &finalPubKeyResp, "walletsservice_publicKey", &api.PublicKeyRequest{Name: walletName, Nonce: hex.EncodeToString(nonceBytes)})
 	if err != nil {
 		log.Fatalf("could not create a new wallet: %v", err)
 	}

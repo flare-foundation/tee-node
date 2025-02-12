@@ -185,7 +185,7 @@ Validates and activates the initial policy configuration.
 **Function:**
 
 ```go
-InitializePolicy(ctx context.Context, req *pb.InitializePolicyRequest) (*pb.InitializePolicyResponse, error)
+InitializePolicy(ctx context.Context, req *api.InitializePolicyRequest) (*api.InitializePolicyResponse, error)
 ```
 
 **Purpose:**
@@ -201,7 +201,7 @@ Handles signature verification and policy updates.
 **Function:**
 
 ```go
-SignNewPolicy(ctx context.Context, req *pb.SignNewPolicyRequest) (*pb.SignNewPolicyResponse, error)
+SignNewPolicy(ctx context.Context, req *api.SignNewPolicyRequest) (*api.SignNewPolicyResponse, error)
 ```
 
 **Purpose:**
@@ -218,7 +218,7 @@ Provides TEE attestation verification.
 **Function:**
 
 ```go
-GetAttestationToken(ctx context.Context, req *pb.GetAttestationTokenRequest) (*pb.GetAttestationTokenResponse, error)
+GetAttestationToken(ctx context.Context, req *api.GetAttestationTokenRequest) (*api.GetAttestationTokenResponse, error)
 ```
 
 **Purpose:**

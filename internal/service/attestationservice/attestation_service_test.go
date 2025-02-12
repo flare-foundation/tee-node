@@ -3,12 +3,12 @@ package attestationservice
 import (
 	"context"
 	"fmt"
-	pb "tee-node/gen/go/attestation/v1"
+	api "tee-node/api/types"
 	"testing"
 )
 
 func TestGetAttestationToken(t *testing.T) {
-	req := pb.GetAttestationTokenRequest{
+	req := api.GetAttestationTokenRequest{
 		Nonces: []string{"bla"},
 	}
 

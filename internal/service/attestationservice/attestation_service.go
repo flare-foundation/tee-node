@@ -6,18 +6,14 @@ import (
 
 	// Import your generated proto package
 
-	pb "tee-node/gen/go/attestation/v1"
+	api "tee-node/api/types"
 	"tee-node/internal/attestation"
 
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
 
-// Service implements the generated SigningServiceServer interface
 type Service struct {
-	// Embed the generated UnimplementedSigningServiceServer
-	pb.UnimplementedAttestationServiceServer
-	// Add any dependencies your service needs
 }
 
 // NewService creates a new signing service
@@ -26,7 +22,7 @@ func NewService() *Service {
 }
 
 // TODO: req should not have
-func (s *Service) GetAttestationToken(ctx context.Context, req *pb.GetAttestationTokenRequest) (*pb.GetAttestationTokenResponse, error) {
+func (s *Service) GetAttestationToken(ctx context.Context, req *api.GetAttestationTokenRequest) (*api.GetAttestationTokenResponse, error) {
 	// Check if context is cancelled
 	select {
 	case <-ctx.Done():
@@ -39,12 +35,12 @@ func (s *Service) GetAttestationToken(ctx context.Context, req *pb.GetAttestatio
 		return nil, err
 	}
 
-	return &pb.GetAttestationTokenResponse{
+	return &api.GetAttestationTokenResponse{
 		JwtBytes: string(tokenbytes),
 	}, nil
 }
 
-func (s *Service) GetHardwareAttestation(ctx context.Context, req *pb.GetHardwareAttestationRequest) (*pb.GetHardwareAttestationResponse, error) {
+func (s *Service) GetHardwareAttestation(ctx context.Context, req *api.GetHardwareAttestationRequest) (*api.GetHardwareAttestationResponse, error) {
 	// Check if context is cancelled
 	select {
 	case <-ctx.Done():
@@ -67,7 +63,7 @@ func (s *Service) GetHardwareAttestation(ctx context.Context, req *pb.GetHardwar
 		return nil, fmt.Errorf("failed to encode attestation: %w", err)
 	}
 
-	return &pb.GetHardwareAttestationResponse{
+	return &api.GetHardwareAttestationResponse{
 		JsonAttestation: json_attestation,
 	}, nil
 }

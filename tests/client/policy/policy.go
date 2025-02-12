@@ -5,7 +5,7 @@ import (
 	"encoding/hex"
 	"tee-node/internal/policy"
 
-	pb "tee-node/gen/go/policy/v1"
+	api "tee-node/api/types"
 	pd "tee-node/internal/policy"
 
 	"github.com/ethereum/go-ethereum/accounts"
@@ -132,8 +132,8 @@ func FetchPolicyHistory(ctx context.Context, params *PolicyHistoryParams, db *go
 	return policies, hashToSignatures, nil
 }
 
-func CreateSigningRequest(policies []*relay.RelaySigningPolicyInitialized, signatures map[string][]*policy.Signature) (*pb.InitializePolicyRequest, error) {
-	policyRequests := []*pb.SignNewPolicyRequest{}
+func CreateSigningRequest(policies []*relay.RelaySigningPolicyInitialized, signatures map[string][]*policy.Signature) (*api.InitializePolicyRequest, error) {
+	policyRequests := []*api.SignNewPolicyRequest{}
 
 	// Replay policy signing from the second policy onwards
 	for _, policy := range policies[1:] {
@@ -144,7 +144,7 @@ func CreateSigningRequest(policies []*relay.RelaySigningPolicyInitialized, signa
 			return nil, err
 		}
 
-		policySignatureRequests := []*pb.PolicySignatureMessage{}
+		policySignatureRequests := []*api.PolicySignatureMessage{}
 		for _, sig := range policySignatures {
 			pubKey, err := crypto.UnmarshalPubkey(sig.PubKey)
 			if err != nil {
@@ -156,8 +156,8 @@ func CreateSigningRequest(policies []*relay.RelaySigningPolicyInitialized, signa
 				continue
 			}
 
-			mes := pb.PolicySignatureMessage{
-				PublicKey: &pb.ECDSAPublicKey{
+			mes := api.PolicySignatureMessage{
+				PublicKey: &api.ECDSAPublicKey{
 					X: pubKey.X.String(),
 					Y: pubKey.Y.String(),
 				},
@@ -166,14 +166,14 @@ func CreateSigningRequest(policies []*relay.RelaySigningPolicyInitialized, signa
 			policySignatureRequests = append(policySignatureRequests, &mes)
 		}
 
-		signNewPolicyRequest := pb.SignNewPolicyRequest{
+		signNewPolicyRequest := api.SignNewPolicyRequest{
 			PolicyBytes:             policy.SigningPolicyBytes,
 			PolicySignatureMessages: policySignatureRequests,
 		}
 
 		policyRequests = append(policyRequests, &signNewPolicyRequest)
 	}
-	req := &pb.InitializePolicyRequest{
+	req := &api.InitializePolicyRequest{
 		InitialPolicyBytes: policies[0].SigningPolicyBytes,
 		NewPolicyRequests:  policyRequests,
 	}

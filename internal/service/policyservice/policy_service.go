@@ -2,33 +2,26 @@ package policyservice
 
 import (
 	"context"
-
-	pb "tee-node/gen/go/policy/v1"
 	"tee-node/internal/policy"
 
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
+	api "tee-node/api/types"
+
+	"github.com/ethereum/go-ethereum/rpc"
 )
 
-// Service implements the generated SigningServiceServer interface
-type Service struct {
-	// Embed the generated UnimplementedSigningServiceServer
-	pb.UnimplementedPolicyServiceServer
-	// Add any dependencies your service needs
-}
+// Service struct implements the JSON-RPC methods
+type Service struct{}
 
-// NewService creates a new signing service
+// NewService creates a new policy service
 func NewService() *Service {
 	return &Service{}
 }
 
-// Implement the Sign method defined in your proto
-func (s *Service) InitializePolicy(ctx context.Context, req *pb.InitializePolicyRequest) (*pb.InitializePolicyResponse, error) {
-
-	// Check if context is cancelled
+// InitializePolicy handles the InitializePolicy request
+func (s *Service) InitializePolicy(ctx context.Context, req *api.InitializePolicyRequest) (*api.InitializePolicyResponse, error) {
 	select {
 	case <-ctx.Done():
-		return nil, status.Error(codes.Canceled, "request cancelled")
+		return nil, rpc.ErrClientQuit
 	default:
 	}
 
@@ -36,16 +29,14 @@ func (s *Service) InitializePolicy(ctx context.Context, req *pb.InitializePolicy
 	if err != nil {
 		return nil, err
 	}
-
-	return &pb.InitializePolicyResponse{}, nil
+	return &api.InitializePolicyResponse{}, nil
 }
 
-func (s *Service) SignNewPolicy(ctx context.Context, req *pb.SignNewPolicyRequest) (*pb.SignNewPolicyResponse, error) {
-
-	// Check if context is cancelled
+// SignNewPolicy handles the SignNewPolicy request
+func (s *Service) SignNewPolicy(ctx context.Context, req *api.SignNewPolicyRequest) (*api.SignNewPolicyResponse, error) {
 	select {
 	case <-ctx.Done():
-		return nil, status.Error(codes.Canceled, "request cancelled")
+		return nil, rpc.ErrClientQuit
 	default:
 	}
 
@@ -54,30 +45,29 @@ func (s *Service) SignNewPolicy(ctx context.Context, req *pb.SignNewPolicyReques
 		return nil, err
 	}
 
-	return &pb.SignNewPolicyResponse{
+	return &api.SignNewPolicyResponse{
 		ActivePolicy: policy.EncodeToHex(policy.ActiveSigningPolicyHash),
 	}, nil
-
 }
 
-func (s *Service) GetActivePolicy(ctx context.Context, req *pb.GetActivePolicyRequest) (*pb.GetActivePolicyResponse, error) {
-	// Check if context is cancelled
+// GetActivePolicy handles the GetActivePolicy request
+func (s *Service) GetActivePolicy(ctx context.Context, req *api.GetActivePolicyRequest) (*api.GetActivePolicyResponse, error) {
 	select {
 	case <-ctx.Done():
-		return nil, status.Error(codes.Canceled, "request cancelled")
+		return nil, rpc.ErrClientQuit
 	default:
 	}
 
 	if policy.ActiveSigningPolicy == nil {
-		return nil, status.Error(codes.NotFound, "No active policy found")
+		return nil, rpc.ErrNoResult
 	}
 
 	activePolicyBytes, err := policy.EncodeSigningPolicy(policy.ActiveSigningPolicy)
 	if err != nil {
-		return nil, status.Error(codes.Internal, "Failed to encode the active policy")
+		return nil, err
 	}
 
-	return &pb.GetActivePolicyResponse{
+	return &api.GetActivePolicyResponse{
 		ActivePolicy:     activePolicyBytes,
 		ActivePolicyHash: policy.EncodeToHex(policy.ActiveSigningPolicyHash),
 	}, nil

@@ -7,7 +7,7 @@ password = "root"
 log_queries = false
 
 [server]
-host = "localhost:50051"
+host = "http://0.0.0.0:8545"
 backups = ["ws://localhost:50060", "ws://localhost:50061"]
 backups_threshold = 2
 

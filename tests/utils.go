@@ -18,7 +18,7 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/keepalive"
 
-	pb "tee-node/gen/go/policy/v1"
+	api "tee-node/api/types"
 )
 
 func GenerateRandomValidPolicyAndSigners(epochId uint32, randSeed int64, numVoters int) (*policy.SigningPolicy, []byte, []common.Address, []*ecdsa.PrivateKey, error) {
@@ -35,9 +35,9 @@ func GenerateRandomValidPolicyAndSigners(epochId uint32, randSeed int64, numVote
 	return &initialPolicy, initialPolicyBytes, voters, privKeys, nil
 }
 
-func GenerateRandomSignNewPolicyRequestArrays(epochId uint32, randSeed int64, voters []common.Address, privKeys []*ecdsa.PrivateKey, numPolicies int) ([]*pb.SignNewPolicyRequest, error) {
+func GenerateRandomSignNewPolicyRequestArrays(epochId uint32, randSeed int64, voters []common.Address, privKeys []*ecdsa.PrivateKey, numPolicies int) ([]*api.SignNewPolicyRequest, error) {
 	// Generate a few more policies and their signatures
-	policySignaturesArray := []*pb.SignNewPolicyRequest{}
+	policySignaturesArray := []*api.SignNewPolicyRequest{}
 
 	_epochId, _randSeed := epochId, randSeed
 
@@ -59,8 +59,8 @@ func GenerateRandomSignNewPolicyRequestArrays(epochId uint32, randSeed int64, vo
 	return policySignaturesArray, nil
 }
 
-func BuildPolicySignature(policyBytes []byte, voterPrivKeys []*ecdsa.PrivateKey) *pb.SignNewPolicyRequest {
-	PolicySignatureMessages := []*pb.PolicySignatureMessage{}
+func BuildPolicySignature(policyBytes []byte, voterPrivKeys []*ecdsa.PrivateKey) *api.SignNewPolicyRequest {
+	PolicySignatureMessages := []*api.PolicySignatureMessage{}
 
 	for i, voterPrivKey := range voterPrivKeys {
 
@@ -71,8 +71,8 @@ func BuildPolicySignature(policyBytes []byte, voterPrivKeys []*ecdsa.PrivateKey)
 			panic(err)
 		}
 
-		PolicySignatureMessages = append(PolicySignatureMessages, &pb.PolicySignatureMessage{
-			PublicKey: &pb.ECDSAPublicKey{
+		PolicySignatureMessages = append(PolicySignatureMessages, &api.PolicySignatureMessage{
+			PublicKey: &api.ECDSAPublicKey{
 				X: voterPubKey.X.String(),
 				Y: voterPubKey.Y.String(),
 			},
@@ -81,7 +81,7 @@ func BuildPolicySignature(policyBytes []byte, voterPrivKeys []*ecdsa.PrivateKey)
 
 	}
 
-	return &pb.SignNewPolicyRequest{
+	return &api.SignNewPolicyRequest{
 		PolicyBytes:             policyBytes,
 		PolicySignatureMessages: PolicySignatureMessages,
 	}

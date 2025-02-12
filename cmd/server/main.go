@@ -3,6 +3,7 @@ package main
 import (
 	"log"
 	"tee-node/internal/config"
+
 	"tee-node/internal/node"
 	"tee-node/internal/service"
 
@@ -27,7 +28,8 @@ func main() {
 		logger.Fatalf("failed to initialize: %v", err)
 	}
 
-	// Launch the gRPC server
+	// Launch the json rpc server
 	go service.LaunchServer(config.Server.Port)
+	// Launch the websocket server
 	service.LaunchWSServer(config.Server.WSPort)
 }

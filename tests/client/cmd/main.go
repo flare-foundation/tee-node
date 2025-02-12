@@ -8,9 +8,8 @@ import (
 	"os"
 	"strconv"
 
-	attestationv1 "tee-node/gen/go/attestation/v1"
-	policyv1 "tee-node/gen/go/policy/v1"
-	walletsv1 "tee-node/gen/go/wallets/v1"
+	api "tee-node/api/types"
+
 	policyserver "tee-node/internal/policy"
 	"tee-node/internal/requests"
 	utilsserver "tee-node/internal/utils"
@@ -19,6 +18,8 @@ import (
 	"tee-node/tests/client/attestation"
 	"tee-node/tests/client/config"
 	"tee-node/tests/client/policy"
+
+	"github.com/ethereum/go-ethereum/rpc"
 
 	"github.com/alexflint/go-arg"
 	"github.com/ethereum/go-ethereum/common"
@@ -45,12 +46,11 @@ func main() {
 		log.Fatalf("failed to read config: %v", err)
 	}
 
-	// Create a connection to the server using grpc.NewClient
-	clientConn, err := utils.NewGRPCClient(config.Server.Host)
+	client, err := rpc.Dial(config.Server.Host)
 	if err != nil {
-		log.Fatalf("failed to create client connection: %v", err)
+		log.Fatalf("Failed to connect to RPC server: %v", err)
 	}
-	defer clientConn.Close()
+	defer client.Close()
 
 	ctx := context.Background()
 
@@ -99,15 +99,13 @@ func main() {
 			log.Fatalf("could not create signing request: %v", err)
 		}
 
-		// Create a gRPC wallet client
-		policyClient := policyv1.NewPolicyServiceClient(clientConn)
-
-		_, err = policyClient.InitializePolicy(ctx, req)
+		var resp api.InitializePolicyResponse
+		err = client.Call(&resp, "policyservice_initializePolicy", req)
 		if err != nil {
 			log.Fatalf("could not initialize policy: %v", err)
 		}
-
 		logger.Info("fetched and initialized policies")
+
 	case "initial_policy_simulate":
 		providersBytes, err := os.ReadFile("tests/test_providers.json")
 		if err != nil {
@@ -134,24 +132,19 @@ func main() {
 			log.Fatalf("could not generate random policy policy: %v", err)
 		}
 
-		req := &policyv1.InitializePolicyRequest{
+		req := &api.InitializePolicyRequest{
 			InitialPolicyBytes: initialPolicyBytes,
 			NewPolicyRequests:  policySignaturesArray,
 		}
 
-		// Create a gRPC wallet client
-		policyClient := policyv1.NewPolicyServiceClient(clientConn)
-
-		_, err = policyClient.InitializePolicy(ctx, req)
+		var resp api.InitializePolicyResponse
+		err = client.Call(&resp, "policyservice_initializePolicy", req)
 		if err != nil {
 			log.Fatalf("could not initialize policy: %v", err)
 		}
-
 		logger.Info("initialized policies")
-	case "new_wallet":
-		// Create a gRPC wallet client
-		walletClient := walletsv1.NewWalletsServiceClient(clientConn)
 
+	case "new_wallet":
 		var providerNum int
 		if args.Arg1 == "" {
 			providerNum = 0
@@ -183,41 +176,46 @@ func main() {
 			log.Fatalf("%v", err)
 		}
 
-		resp, err := walletClient.NewWallet(ctx, &walletsv1.NewWalletRequest{Name: walletName, Nonce: hex.EncodeToString(nonceBytes), Signature: signature})
+		req := &api.NewWalletRequest{
+			Name:      walletName,
+			Nonce:     hex.EncodeToString(nonceBytes),
+			Signature: signature,
+		}
+		var resp api.NewWalletResponse
+		err = client.Call(&resp, "walletsservice_newWallet", req)
 		if err != nil {
 			log.Fatalf("could not create a new wallet: %v", err)
 		}
 
-		logger.Infof("sent request to create wallet, is finalized %v, attestation token %s", resp.Finalized, resp.Token)
+		logger.Infof("created a wallet, attestation token %s", resp.Token)
 
 	case "pub_key":
-		// Create a gRPC wallet client
-		walletClient := walletsv1.NewWalletsServiceClient(clientConn)
-
 		walletName := args.Arg1
 		nonceBytes, err := utilsserver.GenerateRandomBytes(32)
 		if err != nil {
 			log.Fatalf("%v", err)
 		}
 
-		pubKeyResp, err := walletClient.PublicKey(ctx, &walletsv1.PublicKeyRequest{Name: walletName, Nonce: hex.EncodeToString(nonceBytes)})
+		req := &api.PublicKeyRequest{
+			Name:  walletName,
+			Nonce: hex.EncodeToString(nonceBytes),
+		}
+
+		var pubKeyResp api.PublicKeyResponse
+		err = client.Call(&pubKeyResp, "walletsservice_publicKey", req)
 		if err != nil {
 			log.Fatalf("could not create a new wallet: %v", err)
 		}
 		logger.Infof("public key: %s, attestation token %s", pubKeyResp.Address, pubKeyResp.Token)
 
 	case "google_attestation":
-		attestationClient := attestationv1.NewAttestationServiceClient(clientConn)
-
-		// var nonces []string =
-		attestationTokenResponse, err := attestationClient.GetAttestationToken(ctx, &attestationv1.GetAttestationTokenRequest{
-			Nonces: []string{args.Arg1},
-		})
+		var resp api.GetAttestationTokenResponse
+		err = client.Call(&resp, "attestationservice_getAttestationToken", &api.GetAttestationTokenRequest{Nonces: []string{args.Arg1}})
 		if err != nil {
 			log.Fatalf("could not sign: %v", err)
 		}
 
-		jwtBytes := []byte(attestationTokenResponse.JwtBytes)
+		jwtBytes := []byte(resp.JwtBytes)
 		tokenClaims, err := attestation.VerifyAttestationToken(jwtBytes)
 
 		if err != nil {
@@ -232,9 +230,6 @@ func main() {
 		log.Printf("Hwmodel: %v\n", jwtData.Hwmodel)
 
 	case "split_wallet":
-		// Create a gRPC wallet client
-		walletClient := walletsv1.NewWalletsServiceClient(clientConn)
-
 		var providerNum int
 		if args.Arg1 == "" {
 			providerNum = 0
@@ -270,17 +265,16 @@ func main() {
 			log.Fatalf("%v", err)
 		}
 
-		resp, err := walletClient.SplitWallet(
-			ctx,
-			&walletsv1.SplitWalletRequest{
-				Name:      walletName,
-				TeeIds:    newSplitWalletRequest.IDs,
-				Hosts:     newSplitWalletRequest.Hosts,
-				Threshold: int64(newSplitWalletRequest.Threshold),
-				Signature: signature,
-				Nonce:     hex.EncodeToString(nonceBytes),
-			},
-		)
+		req := &api.SplitWalletRequest{
+			Name:      walletName,
+			TeeIds:    newSplitWalletRequest.IDs,
+			Hosts:     newSplitWalletRequest.Hosts,
+			Threshold: int64(newSplitWalletRequest.Threshold),
+			Signature: signature,
+			Nonce:     hex.EncodeToString(nonceBytes),
+		}
+		var resp api.SplitWalletResponse
+		err = client.Call(&resp, "walletsservice_splitWallet", req)
 		if err != nil {
 			log.Fatalf("could not create a new wallet: %v", err)
 		}
@@ -288,9 +282,6 @@ func main() {
 		logger.Infof("sent request to split wallet, is finalized %v, attestation token %s", resp.Success, resp.Token)
 
 	case "recover_wallet":
-		// Create a gRPC wallet client
-		walletClient := walletsv1.NewWalletsServiceClient(clientConn)
-
 		var providerNum int
 		if args.Arg1 == "" {
 			providerNum = 0
@@ -334,18 +325,17 @@ func main() {
 			log.Fatalf("%v", err)
 		}
 
-		resp, err := walletClient.RecoverWallet(
-			ctx,
-			&walletsv1.RecoverWalletRequest{
-				Name:      walletName,
-				TeeIds:    newRecoverWalletRequest.IDs,
-				Hosts:     newRecoverWalletRequest.Hosts,
-				Address:   address,
-				Threshold: int64(config.Server.BackupsThreshold),
-				Signature: signature,
-				Nonce:     hex.EncodeToString(nonceBytes),
-			},
-		)
+		req := &api.RecoverWalletRequest{
+			Name:      walletName,
+			TeeIds:    newRecoverWalletRequest.IDs,
+			Hosts:     newRecoverWalletRequest.Hosts,
+			Address:   address,
+			Threshold: int64(config.Server.BackupsThreshold),
+			Signature: signature,
+			Nonce:     hex.EncodeToString(nonceBytes),
+		}
+		var resp api.RecoverWalletResponse
+		err = client.Call(&resp, "walletsservice_recoverWallet", req)
 		if err != nil {
 			log.Fatalf("could not create a new wallet: %v", err)
 		}
@@ -353,12 +343,13 @@ func main() {
 		logger.Infof("sent request to recover wallet, is finalized %v, attestation token %s", resp.Success, resp.Token)
 
 	case "hardware_attestation":
-		attestationClient := attestationv1.NewAttestationServiceClient(clientConn)
-
 		nonce := args.Arg1
-		hardwareResp, err := attestationClient.GetHardwareAttestation(ctx, &attestationv1.GetHardwareAttestationRequest{
+
+		req := &api.GetHardwareAttestationRequest{
 			Nonce: nonce,
-		})
+		}
+		var hardwareResp api.GetHardwareAttestationResponse
+		err = client.Call(&hardwareResp, "attestationservice_getHardwareAttestation", req)
 		if err != nil {
 			log.Fatalf("could not sign: %v", err)
 		}

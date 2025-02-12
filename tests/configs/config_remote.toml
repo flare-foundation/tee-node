@@ -9,7 +9,8 @@ password = "root"
 log_queries = false
 
 [server]
-host = "34.44.127.9:50051"
+# The deployed server currently uses gRPC so this will not work
+host = "34.44.127.9:8545"
 
 [chain]
 relay_contract_address = "0x97702e350CaEda540935d92aAf213307e9069784"

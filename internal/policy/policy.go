@@ -10,7 +10,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
-	pb "tee-node/gen/go/policy/v1"
+	api "tee-node/api/types"
 	"tee-node/internal/utils"
 )
 
@@ -27,7 +27,7 @@ type Signature struct {
 	PubKey []byte
 }
 
-func DecodeSignPolicyRequest(request *pb.PolicySignatureMessage) ([]byte, *ecdsa.PublicKey, error) {
+func DecodeSignPolicyRequest(request *api.PolicySignatureMessage) ([]byte, *ecdsa.PublicKey, error) {
 	policySignature := request.Signature
 	_pubKey := request.PublicKey
 
@@ -107,7 +107,7 @@ func SigningPolicyHash(signingPolicy []byte) []byte {
 // the signature against activeSigningPolicy and counts the weights of valid signatures.
 // It returns the policy with the highest weight, the hash of the policy, the total weight
 // of the valid signatures, and a map of the public keys that have been used to sign the policy.
-func CountValidSignatures(newSigningPolicy *SigningPolicy, policySignatureMessages []*pb.PolicySignatureMessage, activeSigningPolicy *SigningPolicy) (uint16, map[*ecdsa.PublicKey]bool, error) {
+func CountValidSignatures(newSigningPolicy *SigningPolicy, policySignatureMessages []*api.PolicySignatureMessage, activeSigningPolicy *SigningPolicy) (uint16, map[*ecdsa.PublicKey]bool, error) {
 	newPolicyEncoded, err := EncodeSigningPolicy(newSigningPolicy)
 	if err != nil {
 		return 0, nil, status.Error(codes.InvalidArgument, "Failed to encode the policy")

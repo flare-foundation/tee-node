@@ -52,6 +52,7 @@ type RecoverWalletRequest struct {
 
 func NewRecoverWalletRequest(name string, ids []string, hosts []string, shareIds []string) (RecoverWalletRequest, error) {
 	if len(ids) != len(hosts) || len(ids) != len(shareIds) {
+		fmt.Printf("len(ids): %d, len(hosts): %d, len(shareIds): %d\n", len(ids), len(hosts), len(shareIds))
 		return RecoverWalletRequest{}, errors.New("length of tees' IDs, hosts and shares' ids do not match")
 	}
 
