@@ -1,0 +1,53 @@
+variables:
+    GOLANG_VERSION: "1.23.0"
+    GOLINT_VERSION: "v1.60.3"
+    COVERAGE_FILE: "coverage.out"
+    COBERTURA_FILE: "coverage.xml"
+
+.gocache:
+    variables:
+        GOPATH: ${CI_PROJECT_DIR}/.go
+    before_script:
+        - mkdir -p ${GOPATH}
+    cache:
+        paths:
+            - ${GOPATH}/pkg/mod/
+            - ${GOPATH}/bin
+
+build:
+    stage: build
+    image: golang:${GOLANG_VERSION}
+    extends: .gocache
+    needs: []
+    script:
+        - go mod download
+        - go build ./...
+
+lint:
+    stage: test
+    needs: [build]
+    image: golangci/golangci-lint:${GOLINT_VERSION}
+    extends: .gocache
+    script:
+        - "! gofmt -l . | grep -q ."
+        - golangci-lint run --timeout 5m0s
+
+test:
+    stage: test
+    image: golang:${GOLANG_VERSION}
+    needs: [build]
+    extends: .gocache
+    before_script:
+        - go get github.com/boumenot/gocover-cobertura
+    script:
+        - go test -v -coverpkg=github.com/flare-foundation/tee-node/... -coverprofile=${COVERAGE_FILE} -covermode count ./internal/...
+        - go tool cover -func=${COVERAGE_FILE}
+        - go run github.com/boumenot/gocover-cobertura < ${COVERAGE_FILE} > ${COBERTURA_FILE}
+    artifacts:
+        paths:
+            - ${COVERAGE_FILE}
+        reports:
+            coverage_report:
+                coverage_format: cobertura
+                path: ${COBERTURA_FILE}
+    coverage: '/total:\s+\(statements\)\s+(\d+\.\d+)%/'

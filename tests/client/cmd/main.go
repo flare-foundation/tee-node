@@ -217,12 +217,14 @@ func main() {
 
 		jwtBytes := []byte(resp.JwtBytes)
 		tokenClaims, err := attestation.VerifyAttestationToken(jwtBytes)
-
 		if err != nil {
-			log.Fatalf("could not verify attestation token: %v", err)
+			log.Fatalf("could not verify the attestation token: %v", err)
 		}
 
 		jwtData, err := attestation.DecodeAttestationToken(tokenClaims)
+		if err != nil {
+			log.Fatalf("could not decode the token: %v", err)
+		}
 
 		log.Printf("Image Digest: %v\n", jwtData.Submods.Container.ImageDigest)
 		log.Printf("Dbgstat: %v\n", jwtData.Dbgstat)
@@ -279,7 +281,7 @@ func main() {
 			log.Fatalf("could not create a new wallet: %v", err)
 		}
 
-		logger.Infof("sent request to split wallet, is finalized %v, attestation token %s", resp.Success, resp.Token)
+		logger.Infof("sent request to split wallet, is finalized %v, attestation token %s", resp.Finalized, resp.Token)
 
 	case "recover_wallet":
 		var providerNum int
@@ -329,6 +331,7 @@ func main() {
 			Name:      walletName,
 			TeeIds:    newRecoverWalletRequest.IDs,
 			Hosts:     newRecoverWalletRequest.Hosts,
+			ShareIds:  shareIds,
 			Address:   address,
 			Threshold: int64(config.Server.BackupsThreshold),
 			Signature: signature,
@@ -340,7 +343,7 @@ func main() {
 			log.Fatalf("could not create a new wallet: %v", err)
 		}
 
-		logger.Infof("sent request to recover wallet, is finalized %v, attestation token %s", resp.Success, resp.Token)
+		logger.Infof("sent request to recover wallet, is finalized %v, attestation token %s", resp.Finalized, resp.Token)
 
 	case "hardware_attestation":
 		nonce := args.Arg1

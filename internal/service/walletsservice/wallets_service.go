@@ -20,7 +20,6 @@ func NewService() *Service {
 	return &Service{}
 }
 
-// todo: add attestation, add signature check
 func (s *Service) NewWallet(ctx context.Context, req *api.NewWalletRequest) (*api.NewWalletResponse, error) {
 	walletRequest := wallets.NewNewWalletRequest(req.Name)
 	requestCounter, thresholdReached, err := requests.ProcessRequest(walletRequest, req.Signature, requests.NewWalletRequestsStorage)
@@ -33,6 +32,33 @@ func (s *Service) NewWallet(ctx context.Context, req *api.NewWalletRequest) (*ap
 		if err != nil {
 			return nil, err
 		}
+		requestCounter.Done = true
+	}
+
+	nonces := []string{req.Nonce, requestCounter.Request.Message()}
+	var tokenBytes []byte
+	if config.Mode == 0 {
+		tokenBytes, err = attestation.GetGoogleAttestationToken(nonces)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return &api.NewWalletResponse{
+		Finalized: thresholdReached,
+		Token:     string(tokenBytes),
+	}, nil
+}
+
+func (s *Service) DeleteWallet(ctx context.Context, req *api.NewWalletRequest) (*api.NewWalletResponse, error) {
+	walletRequest := wallets.NewDeleteWalletRequest(req.Name)
+	requestCounter, thresholdReached, err := requests.ProcessRequest(walletRequest, req.Signature, requests.DeleteWalletRequestsStorage)
+	if err != nil {
+		return nil, err
+	}
+
+	if thresholdReached && !requestCounter.Done {
+		wallets.RemoveWallet(requestCounter.Request.Name)
 		requestCounter.Done = true
 	}
 
@@ -119,8 +145,8 @@ func (s *Service) SplitWallet(ctx context.Context, req *api.SplitWalletRequest) 
 	}
 
 	return &api.SplitWalletResponse{
-		Success: true,
-		Token:   string(tokenBytes),
+		Finalized: requestCounter.Done,
+		Token:     string(tokenBytes),
 	}, nil
 }
 
@@ -176,7 +202,7 @@ func (s *Service) RecoverWallet(ctx context.Context, req *api.RecoverWalletReque
 	}
 
 	return &api.RecoverWalletResponse{
-		Success: true,
-		Token:   string(tokenBytes),
+		Finalized: requestCounter.Done,
+		Token:     string(tokenBytes),
 	}, nil
 }

@@ -77,7 +77,10 @@ func SignNewPolicyInternal(req *api.SignNewPolicyRequest) error {
 	}
 
 	// Get the rewardEpochId from the proposed policy
-	VerifyPolicyFreshness(proposedPolicy, ActiveSigningPolicy.RewardEpochId, EncodeToHex(proposedPolicyHash))
+	err = VerifyPolicyFreshness(proposedPolicy, ActiveSigningPolicy.RewardEpochId, EncodeToHex(proposedPolicyHash))
+	if err != nil {
+		return err
+	}
 
 	policyHashString := EncodeToHex(proposedPolicyHash)
 	err = PreventDoubleSigning(messagePubKeys, policyHashString)

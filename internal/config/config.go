@@ -10,12 +10,17 @@ import (
 
 type NodeConfig struct {
 	Logging logger.Config `toml:"logger"`
-	Server  Server        `toml:"server"`
+	Server  ServerConfig  `toml:"server"`
 }
 
-type Server struct {
+type ServerConfig struct {
 	Port   int `toml:"port"`
 	WSPort int `toml:"ws_port"`
+}
+
+var DefaultServerConfig = ServerConfig{
+	Port:   8545,
+	WSPort: 50040,
 }
 
 // ReadConfigs reads user and system configurations from userFilePath and systemDirectoryPath.
@@ -27,7 +32,9 @@ func ReadConfig(filePath string) (*NodeConfig, error) {
 		return nil, fmt.Errorf("failed reading file %s with: %s", filePath, err)
 	}
 
-	config := NodeConfig{}
+	config := NodeConfig{
+		Server: DefaultServerConfig,
+	}
 	err = toml.Unmarshal(file, &config)
 	if err != nil {
 		return nil, fmt.Errorf("failed unmarshaling file %s with: %s", filePath, err)

@@ -59,7 +59,11 @@ func getWellKnownFile() (wellKnown, error) {
 	}
 
 	wk := wellKnown{}
-	json.Unmarshal(wellKnownJSON, &wk)
+	err = json.Unmarshal(wellKnownJSON, &wk)
+	if err != nil {
+		return wellKnown{}, fmt.Errorf("failed to unmarshal .well-known response: %w", err)
+	}
+
 	return wk, nil
 }
 
