@@ -150,13 +150,6 @@ func VerifyPolicyFreshness(sigPolicy *SigningPolicy, currentRewardEpochId uint32
 		// Note: This should be redundant, but just in case
 		return status.Error(codes.InvalidArgument, "Policy already exists for the reward epoch")
 	}
-
-	// We know that there aren't any duplicate public keys yet since this is the initialization function
-	// Any dublicate keys in the message are cought by the CountValidSignatures function
-	// This should be redundant, but just in case
-	if ProcessedPubKeys[policyHashString] != nil {
-		return status.Error(codes.InvalidArgument, "Unexpected error: duplicate public keys")
-	}
 	return nil
 }
 

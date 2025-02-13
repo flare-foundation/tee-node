@@ -33,12 +33,17 @@ func InitializePolicyInternal(req *api.InitializePolicyRequest) error {
 		}
 		policyHash := SigningPolicyHash(policyRequest.PolicyBytes)
 
-		validVoterWeight, _, err := CountValidSignatures(sigPolicy, policyRequest.PolicySignatureMessages, currentPolicy)
+		validVoterWeight, messagePubKeys, err := CountValidSignatures(sigPolicy, policyRequest.PolicySignatureMessages, currentPolicy)
 		if err != nil {
 			return err
 		}
 
 		err = VerifyPolicyFreshness(sigPolicy, currentPolicy.RewardEpochId, EncodeToHex(policyHash))
+		if err != nil {
+			return err
+		}
+
+		err = PreventDoubleSigning(messagePubKeys, EncodeToHex(policyHash))
 		if err != nil {
 			return err
 		}
