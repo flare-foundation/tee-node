@@ -65,15 +65,29 @@ The server supports two types of Confidential Computing hardware:
 
 ### Build Docker container
 
+On Intel arm64 based machines
 ```bash
 docker build -t <IMAGE-TAG> --no-cache .
 ```
+
+On Apple silicon (M1, M2, M3 processors)
+```
+docker buildx create --use
+docker buildx build --platform linux/amd64 -t us-west1-docker.pkg.dev/flare-network-sandbox/quickstart-docker-repo/quickstart-image:latest . --push
+```
+
 
 ```bash
 docker tag <IMAGE-TAG> \
 us-west1-docker.pkg.dev/flare-network-sandbox/quickstart-docker-repo/quickstart-image:latest
 ```
 
+Set up Docker authetication
+```bash
+gcloud auth configure-docker us-west1-docker.pkg.dev
+```
+
+Add image to Artifact Registry
 ```bash
 docker push us-west1-docker.pkg.dev/flare-network-sandbox/quickstart-docker-repo/quickstart-image:latest
 ```
