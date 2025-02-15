@@ -106,7 +106,7 @@ gcloud compute instances create <INSTANCE-NAME> \
     --image-project=confidential-space-images \
     --image-family=<IMAGE-FAMILY> \
     --service-account=confidential-sa@flare-network-sandbox.iam.gserviceaccount.com \
-    --tags=grpc-server \
+    --tags=rpc-server \
     --metadata="^~^tee-image-reference=us-docker.pkg.dev/flare-network-sandbox/flare-tee/tee-node:latest"
 ```
 
@@ -132,14 +132,14 @@ gcloud compute instances create <INSTANCE-NAME> \
 The following command creates a firewall rule to allow gRPC traffic on port 50051. This needs to be executed only once per project.
 
 ```bash
-gcloud compute firewall-rules create allow-grpc-port-50051 \
+gcloud compute firewall-rules create allow-port-8545 \
     --network=default \
     --priority=1000 \
     --direction=INGRESS \
     --action=ALLOW \
-    --rules=tcp:50051 \
+    --rules=tcp:8545 \
     --source-ranges=0.0.0.0/0 \
-    --target-tags=grpc-server
+    --target-tags=<CUSTOM_TAG>
 ```
 
 ⚠️ **Security Note**: The current firewall rule allows access from any IP (`0.0.0.0/0`). For production environments, we would restrict this to only specific IPs (data provider or other TEEs).
