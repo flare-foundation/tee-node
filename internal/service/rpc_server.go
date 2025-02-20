@@ -12,6 +12,7 @@ import (
 	"tee-node/internal/service/attestationservice"
 	"tee-node/internal/service/nodeservice"
 	"tee-node/internal/service/policyservice"
+	"tee-node/internal/service/signingservice"
 	"tee-node/internal/service/walletsservice"
 
 	"github.com/ethereum/go-ethereum/rpc"
@@ -31,6 +32,10 @@ func LaunchServer(port int) {
 		log.Fatalf("Failed to register attestation service: %v", err)
 	}
 	err = server.RegisterName("walletsservice", walletsservice.NewService())
+	if err != nil {
+		log.Fatalf("Failed to register wallets service: %v", err)
+	}
+	err = server.RegisterName("signingservice", signingservice.NewService())
 	if err != nil {
 		log.Fatalf("Failed to register wallets service: %v", err)
 	}

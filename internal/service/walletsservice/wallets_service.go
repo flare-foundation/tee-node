@@ -2,10 +2,13 @@ package walletsservice
 
 import (
 	"context"
+	"encoding/hex"
+	"fmt"
 	api "tee-node/api/types"
 	"tee-node/config"
 	"tee-node/internal/attestation"
 	"tee-node/internal/requests"
+	"tee-node/internal/utils"
 	"tee-node/internal/wallets"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -78,12 +81,13 @@ func (s *Service) DeleteWallet(ctx context.Context, req *api.NewWalletRequest) (
 }
 
 func (s *Service) PublicKey(ctx context.Context, req *api.PublicKeyRequest) (*api.PublicKeyResponse, error) {
-	address, err := wallets.GetPublicKey(req.Name)
-	if err != nil {
-		return nil, err
+	ethAddress, err := wallets.GetEthAddress(req.Name)
+	publicKey, err2 := wallets.GetPublicKey(req.Name)
+	if err != nil || err2 != nil {
+		return nil, fmt.Errorf("wallet non-existent")
 	}
 
-	nonces := []string{req.Nonce, "PublicKey", address}
+	nonces := []string{req.Nonce, "PublicKey", ethAddress, publicKey.X.String()}
 
 	var tokenBytes []byte
 	if config.Mode == 0 {
@@ -94,8 +98,37 @@ func (s *Service) PublicKey(ctx context.Context, req *api.PublicKeyRequest) (*ap
 	}
 
 	return &api.PublicKeyResponse{
-		Address: address,
-		Token:   string(tokenBytes),
+		EthAddress: ethAddress,
+		PublicKey: api.ECDSAPublicKey{
+			X: publicKey.X.String(),
+			Y: publicKey.Y.String(),
+		},
+		Token: string(tokenBytes),
+	}, nil
+}
+
+func (s *Service) MultisigAccountInfo(ctx context.Context, req *api.PublicKeyRequest) (*api.MultisigAccountInfoResponse, error) {
+	xrpAddress, err := wallets.GetXrpAddress(req.Name)
+	publicKey, err2 := wallets.GetPublicKey(req.Name)
+	sec1PubKeyBytes := utils.SerializeCompressed(publicKey)
+	sec1PubKey := hex.EncodeToString(sec1PubKeyBytes)
+	if err != nil || err2 != nil {
+		return nil, fmt.Errorf("wallet non-existent")
+	}
+
+	nonces := []string{req.Nonce, "PublicKey", xrpAddress, sec1PubKey}
+	var tokenBytes []byte
+	if config.Mode == 0 {
+		tokenBytes, err = attestation.GetGoogleAttestationToken(nonces)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return &api.MultisigAccountInfoResponse{
+		XrpAddress: xrpAddress,
+		PublicKey:  sec1PubKey,
+		Token:      string(tokenBytes),
 	}, nil
 }
 

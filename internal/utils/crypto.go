@@ -5,11 +5,15 @@ import (
 	"crypto/rand"
 	"fmt"
 	"io"
-	insecure_rand "math/rand"
 
+	"github.com/btcsuite/btcd/btcec/v2"
 	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
+
+	"tee-node/config"
+
+	btcecdsa "github.com/btcsuite/btcd/btcec/v2/ecdsa"
 )
 
 func GenerateRandomBytes(n int) ([]byte, error) {
@@ -48,24 +52,63 @@ func VerifySignature(pubKey *ecdsa.PublicKey, msgHash []byte, signature []byte) 
 	return crypto.VerifySignature(crypto.CompressPubkey(pubKey), accounts.TextHash(msgHash), signature[:len(signature)-1])
 }
 
-func RandomNormalizedArray(n int, seed int64) []float64 {
-	// Initialize random source with seed
-	r := insecure_rand.New(insecure_rand.NewSource(seed))
+// NOTE: XRP and EVM signing might be combinable into one function, but it fails for now
+// NOTE: I leave them seperately for now and I will research later if they can be merged.
+func XrpSign(txHash []byte, privKey *ecdsa.PrivateKey) []byte {
+	priv, _ := btcec.PrivKeyFromBytes(privKey.D.Bytes())
+	sig2 := btcecdsa.Sign(priv, txHash)
 
-	// Generate random numbers
-	numbers := make([]float64, n)
-	sum := 0.0
+	return sig2.Serialize()
+}
 
-	for i := 0; i < n; i++ {
-		// Generate random float between 0 and 1
-		numbers[i] = r.Float64()
-		sum += numbers[i]
+func XrpVerifySig(txHash []byte, txSignature []byte, pubKey *ecdsa.PublicKey) (bool, error) {
+	pubKeyBytes := SerializeCompressed(pubKey) // NOTE: Do we need to compress the public key or not?
+
+	sig, err := btcecdsa.ParseDERSignature(txSignature)
+	if err != nil {
+		return false, err
+	}
+	pk, err := btcec.ParsePubKey(pubKeyBytes)
+	if err != nil {
+		return false, nil
+	}
+	return sig.Verify(txHash, pk), nil
+}
+
+// SerializeCompressed serializes the public key to the compressed format.
+// Reference1: https://crypto.stackexchange.com/questions/96104/what-is-was-sec1-ecc-public-key-leading-octet-0x01-for
+// Reference2: https://www.secg.org/sec1-v2.pdf Chapter 2.3.3
+// Reference3: https://en.bitcoin.it/wiki/Elliptic_Curve_Digital_Signature_Algorithm
+func SerializeCompressed(pubKey *ecdsa.PublicKey) []byte {
+	// 0x02 or 0x03 || 32-byte x coordinate
+	var prefix []byte
+	if pubKey.Y.Bit(0) == 0 {
+		prefix = []byte{0x02}
+	} else {
+		prefix = []byte{0x03}
 	}
 
-	// Normalize to sum to 1
-	for i := 0; i < n; i++ {
-		numbers[i] /= sum
+	pubKeyBytes := pubKey.X.Bytes()
+
+	// 0x02 or 0x03 || 32-byte x coordinate
+	final := append(prefix, pubKeyBytes...)
+	return final
+}
+
+// This should be a sec1 encoded public key
+// You can use SerializeCompressed to get the sec1 encoded public key
+func GetXrpAddressFromPubkey(publicKey []byte) (string, error) {
+	if len(publicKey) != 33 {
+		return "", fmt.Errorf("invalid public key length")
 	}
 
-	return numbers
+	account := Sha256RipeMD160(publicKey)
+
+	var accBytes = make([]byte, 0, 20+1)
+	accBytes = append(accBytes, byte(0))
+	accBytes = append(accBytes, account[:]...)
+
+	address := Base58Encode(accBytes, config.XRP_ALPHABET)
+
+	return address, nil
 }

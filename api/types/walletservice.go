@@ -3,7 +3,7 @@ package types
 type NewWalletRequest struct {
 	Name      string
 	Signature []byte
-	Nonce     string
+	Nonce     string // Note: Challenge?
 }
 
 type NewWalletResponse struct {
@@ -19,7 +19,7 @@ type PublicKeyRequest struct {
 type DeleteWalletRequest struct {
 	Name      string
 	Signature []byte
-	Nonce     string
+	Nonce     string // Note: Challenge?
 }
 
 type DeleteWalletResponse struct {
@@ -28,8 +28,16 @@ type DeleteWalletResponse struct {
 }
 
 type PublicKeyResponse struct {
-	Address string
-	Token   string
+	PublicKey  ECDSAPublicKey
+	EthAddress string
+	Token      string
+}
+
+// Note: I know this isn't the best, but we need to discuss the APIs we want
+type MultisigAccountInfoResponse struct {
+	PublicKey  string // SEC1 encoded public key
+	XrpAddress string
+	Token      string
 }
 
 type SplitWalletRequest struct {
@@ -38,7 +46,7 @@ type SplitWalletRequest struct {
 	Hosts     []string
 	Threshold int64
 	Signature []byte
-	Nonce     string
+	Nonce     string // Note: Challenge?
 }
 
 type SplitWalletResponse struct {
@@ -54,7 +62,7 @@ type RecoverWalletRequest struct {
 	Address   string
 	Threshold int64
 	Signature []byte
-	Nonce     string
+	Nonce     string // Note: Challenge?
 }
 
 type RecoverWalletResponse struct {

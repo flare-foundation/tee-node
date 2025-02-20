@@ -20,11 +20,6 @@ func InitializePolicyInternal(req *api.InitializePolicyRequest) error {
 	currentPolicyHash := SigningPolicyHash(req.InitialPolicyBytes)
 	SigningPolicies[currentPolicy.RewardEpochId] = currentPolicy
 
-	// TODO: find out a way to set hardcodded initial policy hash for testing
-	// if config.InitialPolicyHash != EncodeToHex(currentPolicyHash) {
-	// 	return status.Error(codes.InvalidArgument, "initial policy hash does not match the expect base value")
-	// }
-
 	// Go through the policies for each reward epoch and update the current policy
 	for _, policyRequest := range req.NewPolicyRequests {
 		sigPolicy, err := DecodeSigningPolicy(policyRequest.PolicyBytes)
@@ -77,7 +72,6 @@ func SignNewPolicyInternal(req *api.SignNewPolicyRequest) error {
 
 	msgVoterWeight, messagePubKeys, err := CountValidSignatures(proposedPolicy, req.PolicySignatureMessages, ActiveSigningPolicy)
 	if err != nil {
-		// Todo: Do we want to return an error or an unsuccessful result?
 		return err
 	}
 
@@ -102,7 +96,7 @@ func SignNewPolicyInternal(req *api.SignNewPolicyRequest) error {
 	ValidVoterWeight[policyHashString] += msgVoterWeight
 
 	// If the weight is greater than the threshold, update the active policy
-	if ValidVoterWeight[policyHashString] >= proposedPolicy.Threshold {
+	if ValidVoterWeight[policyHashString] >= ActiveSigningPolicy.Threshold {
 		ActiveSigningPolicy = proposedPolicy
 		ActiveSigningPolicyHash = proposedPolicyHash
 		SigningPolicies[proposedPolicy.RewardEpochId] = proposedPolicy
