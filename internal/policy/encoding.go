@@ -187,7 +187,6 @@ func DecodeSigningPolicy(data []byte) (*SigningPolicy, error) {
 	return policy, nil
 }
 
-// TODO: What if we just combine Voters and Weights into a map instead of 2 arrays?
 type SigningPolicy struct {
 	RewardEpochId      uint32           `json:"rewardEpochId"`
 	StartVotingRoundId uint32           `json:"startVotingRoundId"`

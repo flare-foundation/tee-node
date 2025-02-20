@@ -7,17 +7,7 @@ type InitializePolicyRequest struct {
 
 type SignNewPolicyRequest struct {
 	PolicyBytes             []byte // The new policy bytes being proposed/signed
-	PolicySignatureMessages []*PolicySignatureMessage
-}
-
-type PolicySignatureMessage struct {
-	Signature []byte
-	PublicKey *ECDSAPublicKey
-}
-
-type ECDSAPublicKey struct {
-	X string
-	Y string
+	PolicySignatureMessages []*SignatureMessage
 }
 
 type InitializePolicyResponse struct {

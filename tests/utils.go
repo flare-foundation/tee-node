@@ -9,8 +9,12 @@ import (
 	"math/rand"
 	"time"
 
+	"tee-node/config"
 	"tee-node/internal/policy"
+	"tee-node/internal/requests"
+	"tee-node/internal/signing"
 	"tee-node/internal/utils"
+	"tee-node/internal/wallets"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
@@ -60,7 +64,7 @@ func GenerateRandomSignNewPolicyRequestArrays(epochId uint32, randSeed int64, vo
 }
 
 func BuildPolicySignature(policyBytes []byte, voterPrivKeys []*ecdsa.PrivateKey) *api.SignNewPolicyRequest {
-	PolicySignatureMessages := []*api.PolicySignatureMessage{}
+	PolicySignatureMessages := []*api.SignatureMessage{}
 
 	for i, voterPrivKey := range voterPrivKeys {
 
@@ -71,7 +75,7 @@ func BuildPolicySignature(policyBytes []byte, voterPrivKeys []*ecdsa.PrivateKey)
 			panic(err)
 		}
 
-		PolicySignatureMessages = append(PolicySignatureMessages, &api.PolicySignatureMessage{
+		PolicySignatureMessages = append(PolicySignatureMessages, &api.SignatureMessage{
 			PublicKey: &api.ECDSAPublicKey{
 				X: voterPubKey.X.String(),
 				Y: voterPubKey.Y.String(),
@@ -159,7 +163,7 @@ func RandomNormalizedArray(n int, seed int64) []float64 {
 }
 
 // Resets the state of the TEE between tests
-func ResetSigningServiceState() {
+func ResetTEEState() {
 	policy.ActiveSigningPolicy = nil
 	policy.ActiveSigningPolicyHash = nil
 	policy.SigningPolicies = make(map[uint32]*policy.SigningPolicy)
@@ -167,6 +171,46 @@ func ResetSigningServiceState() {
 	policy.ValidVoterWeight = make(map[string]uint16)
 	policy.ProcessedPubKeys = make(map[string](map[*ecdsa.PublicKey]bool))
 
+	wallets.DestroyState()
+
+	requests.NewWalletRequestsStorage = make(requests.RequestCounterStorage[wallets.NewWalletRequest])
+	requests.DeleteWalletRequestsStorage = make(requests.RequestCounterStorage[wallets.DeleteWalletRequest])
+	requests.SplitWalletRequestsStorage = make(requests.RequestCounterStorage[wallets.SplitWalletRequest])
+	requests.RecoverWalletRequestsStorage = make(requests.RequestCounterStorage[wallets.RecoverWalletRequest])
+
+	requests.SignPaymentRequestsStorage = make(requests.RequestCounterStorage[signing.SignPaymentRequest])
+
+	// TODO: Reset any other state that might break the tests
+}
+
+// Set the initial policy hash in the config
+// We need this to make the tests work for randomly generated policies
+func SetInitialPolicyHash(initialPolicyBytes []byte) {
+	// Set the initial policy hash in the config
+	config.InitialPolicyHash = policy.EncodeToHex(policy.SigningPolicyHash(initialPolicyBytes))
+}
+
+// This will construct a Mock Signing Policy, set it on the Tee and return the policy
+func GenerateAndSetInitialPolicy(numVoters int, randSeed int64, epochId uint32) (policy.SigningPolicy, []common.Address, []*ecdsa.PrivateKey) {
+
+	// Generate random voters and corresponding private keys
+	voters, privKeys := GenerateRandomVoters(numVoters)
+
+	// Generate a random initial policy
+	initialPolicy := GenerateRandomPolicyData(epochId, voters, randSeed)
+
+	initialPolicyBytes, _ := policy.EncodeSigningPolicy(&initialPolicy)
+
+	// Set the initial policy hash in the config
+	SetInitialPolicyHash(initialPolicyBytes)
+
+	// Set the Active Signing Policy
+	policy.ActiveSigningPolicy = &initialPolicy
+	policy.ActiveSigningPolicyHash = policy.SigningPolicyHash(initialPolicyBytes)
+	policy.SigningPolicies = make(map[uint32]*policy.SigningPolicy)
+	policy.SigningPolicies[epochId] = &initialPolicy
+
+	return initialPolicy, voters, privKeys
 }
 
 // Providers represents a group of voters with private keys.

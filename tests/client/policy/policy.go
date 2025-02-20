@@ -144,7 +144,7 @@ func CreateSigningRequest(policies []*relay.RelaySigningPolicyInitialized, signa
 			return nil, err
 		}
 
-		policySignatureRequests := []*api.PolicySignatureMessage{}
+		policySignatureRequests := []*api.SignatureMessage{}
 		for _, sig := range policySignatures {
 			pubKey, err := crypto.UnmarshalPubkey(sig.PubKey)
 			if err != nil {
@@ -156,7 +156,7 @@ func CreateSigningRequest(policies []*relay.RelaySigningPolicyInitialized, signa
 				continue
 			}
 
-			mes := api.PolicySignatureMessage{
+			mes := api.SignatureMessage{
 				PublicKey: &api.ECDSAPublicKey{
 					X: pubKey.X.String(),
 					Y: pubKey.Y.String(),

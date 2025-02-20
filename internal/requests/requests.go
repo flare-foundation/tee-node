@@ -3,8 +3,8 @@ package requests
 import (
 	"crypto/ecdsa"
 	"encoding/hex"
-	"fmt"
 	"tee-node/internal/policy"
+	"tee-node/internal/signing"
 	"tee-node/internal/utils"
 	"tee-node/internal/wallets"
 
@@ -22,12 +22,15 @@ var DeleteWalletRequestsStorage = make(RequestCounterStorage[wallets.DeleteWalle
 var SplitWalletRequestsStorage = make(RequestCounterStorage[wallets.SplitWalletRequest])
 var RecoverWalletRequestsStorage = make(RequestCounterStorage[wallets.RecoverWalletRequest])
 
+var SignPaymentRequestsStorage = make(RequestCounterStorage[signing.SignPaymentRequest])
+
 type RequestCounter[T Request] struct {
 	Request T
 
-	Requesters map[common.Address]bool
+	Requesters map[common.Address]bool // Note: Maybe Signers would be a better name?
 	PolicyHash string
 	Done       bool
+	Result     []byte
 }
 
 type RequestCounterStorage[T Request] map[string]*RequestCounter[T]
@@ -55,9 +58,9 @@ func CheckSignature(r Request, signature []byte) (common.Address, error) {
 		return common.Address{}, err
 	}
 	address := crypto.PubkeyToAddress(*pubKey)
-	fmt.Println(address)
+
 	if !slices.Contains(policy.ActiveSigningPolicy.Voters, address) {
-		return common.Address{}, err
+		return common.Address{}, errors.New("not a voter")
 	}
 
 	return address, nil
@@ -67,6 +70,7 @@ func ProcessRequest[T Request](request T, signature []byte, requestCounterStorag
 	if _, ok := requestCounterStorage[request.Message()]; !ok {
 		requestCounterStorage[request.Message()] = NewRequestCounter(request)
 	}
+
 	requestCounter := requestCounterStorage[request.Message()]
 	if !requestCounter.CheckActive() {
 		return nil, false, errors.New("not active")
@@ -76,6 +80,7 @@ func ProcessRequest[T Request](request T, signature []byte, requestCounterStorag
 	if err != nil {
 		return nil, false, err
 	}
+
 	requestCounter.AddRequester(providerAddress)
 
 	thresholdReached := requestCounter.ThresholdReached()
@@ -92,6 +97,8 @@ func NewRequestCounter[T Request](request T) *RequestCounter[T] {
 }
 
 func (r *RequestCounter[T]) CheckActive() bool {
+	// Note: What if we initialize the request with a policy, but then the active signing policy changes?
+	// Note: Then this would fail, but it probably shouldn't, or we should have a way to handle it.
 	return hex.EncodeToString(policy.ActiveSigningPolicyHash) == r.PolicyHash
 }
 
@@ -113,7 +120,6 @@ func (r *RequestCounter[T]) CurrentWeight() uint16 {
 func (r *RequestCounter[T]) ThresholdReached() bool {
 	currentWeight := r.CurrentWeight()
 	threshold := r.Threshold()
-	fmt.Println(currentWeight, threshold)
 
 	return currentWeight >= threshold
 }

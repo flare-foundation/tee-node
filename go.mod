@@ -6,6 +6,7 @@ toolchain go1.23.4
 
 require (
 	github.com/alexflint/go-arg v1.5.1
+	github.com/btcsuite/btcd/btcec/v2 v2.2.0
 	github.com/ethereum/go-ethereum v1.14.12
 	github.com/flare-foundation/go-flare-common v1.0.1
 	github.com/golang-jwt/jwt/v4 v4.5.1

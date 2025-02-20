@@ -2,7 +2,9 @@ package main
 
 import (
 	"context"
+	"crypto/ecdsa"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"log"
 	"os"
@@ -12,12 +14,14 @@ import (
 
 	policyserver "tee-node/internal/policy"
 	"tee-node/internal/requests"
+	"tee-node/internal/signing"
 	utilsserver "tee-node/internal/utils"
 	"tee-node/internal/wallets"
 	utils "tee-node/tests"
 	"tee-node/tests/client/attestation"
 	"tee-node/tests/client/config"
 	"tee-node/tests/client/policy"
+	"tee-node/tests/client/xrpl"
 
 	"github.com/ethereum/go-ethereum/rpc"
 
@@ -143,24 +147,10 @@ func main() {
 		logger.Info("initialized policies")
 
 	case "new_wallet":
-		var providerNum int
-		if args.Arg1 == "" {
-			providerNum = 0
-		} else {
-			providerNum, err = strconv.Atoi(args.Arg1)
-			if err != nil {
-				log.Fatalf("%v", err)
-			}
-		}
-		providersBytes, err := os.ReadFile("tests/test_providers.json")
+		providerPrivKey, err := getProviderPrivKey(args.Arg1)
 		if err != nil {
-			log.Fatalf("%v", err)
+			log.Fatalf("could not get provider private key: %v", err)
 		}
-		providers, err := utils.UnmarshalProviders(providersBytes)
-		if err != nil {
-			log.Fatalf("%v", err)
-		}
-		providerPrivKey := providers.PrivKeys[providerNum]
 
 		walletName := args.Arg2
 		nonceBytes, err := utilsserver.GenerateRandomBytes(32)
@@ -204,7 +194,26 @@ func main() {
 		if err != nil {
 			log.Fatalf("could not create a new wallet: %v", err)
 		}
-		logger.Infof("public key: %s, attestation token %s", pubKeyResp.Address, pubKeyResp.Token)
+		logger.Infof("ethAddress: %s, public key: %s, attestation token %s", pubKeyResp.EthAddress, pubKeyResp.PublicKey, pubKeyResp.Token)
+
+	case "multisig_account_info":
+		walletName := args.Arg1
+		nonceBytes, err := utilsserver.GenerateRandomBytes(32)
+		if err != nil {
+			log.Fatalf("%v", err)
+		}
+
+		req := &api.PublicKeyRequest{
+			Name:  walletName,
+			Nonce: hex.EncodeToString(nonceBytes),
+		}
+
+		var accInfoResp api.MultisigAccountInfoResponse
+		err = client.Call(&accInfoResp, "walletsservice_multisigAccountInfo", req)
+		if err != nil {
+			log.Fatalf("could not create a new wallet: %v", err)
+		}
+		logger.Infof("xrpAddress: %s, public key: %s, attestation token %s", accInfoResp.XrpAddress, accInfoResp.PublicKey, accInfoResp.Token)
 
 	case "google_attestation":
 		var resp api.GetAttestationTokenResponse
@@ -229,25 +238,114 @@ func main() {
 		log.Printf("Support Attributes: %v\n", jwtData.Submods.ConfidentialSpace.SupportAttributes)
 		log.Printf("Hwmodel: %v\n", jwtData.Hwmodel)
 
+	case "hash_payment":
+		// ---------- Parse arguments ---------- //
+
+		type PaymentFields struct {
+			Amount             uint64 `json:"amount"`
+			Fee                uint64 `json:"fee"`
+			SpenderAccount     string `json:"spenderAccount"`
+			DestinationAccount string `json:"destinationAccount"`
+			Sequence           uint32 `json:"sequence"`
+			LastLedgerSeq      uint32 `json:"lastLedgerSeq"`
+			SignerAddress      string `json:"signerAddress"`
+		}
+
+		// Unmarshal JSON
+		var paymentFields PaymentFields
+		err = json.Unmarshal([]byte(args.Arg1), &paymentFields)
+		if err != nil {
+			log.Fatalf("Failed to parse JSON: %v", err)
+		}
+
+		// ---------- Encode and Hash the transaction ---------- //
+
+		payment, err := xrpl.ConstructPaymentTransaction(paymentFields.Amount, paymentFields.Fee, paymentFields.SpenderAccount, paymentFields.DestinationAccount, paymentFields.Sequence, paymentFields.LastLedgerSeq)
+		if err != nil {
+			log.Fatalf("could not construct payment transaction: %v", err)
+		}
+
+		encodedTx, _ := xrpl.EncodeTransaction(payment, paymentFields.SignerAddress)
+		if err != nil {
+			log.Fatalf("could not construct payment transaction: %v", err)
+		}
+
+		txHash := xrpl.HashXRPMessage(encodedTx)
+
+		logger.Infof("Payment hash: %v", hex.EncodeToString(txHash))
+
+	case "sign_payment":
+		// ---------- Parse arguments ---------- //
+		providerPrivKey, err := getProviderPrivKey(args.Arg1)
+		if err != nil {
+			log.Fatalf("could not get provider private key: %v", err)
+		}
+
+		walletName := args.Arg2
+
+		txHash, err := hex.DecodeString(args.Arg3)
+		if err != nil {
+			log.Fatalf("could not decode tx hash: %v", err)
+		}
+
+		// ---------- Sign the message request ---------- //
+		paymentSigRequest, err := signing.NewSignPaymentRequest(walletName, args.Arg3)
+		if err != nil {
+			log.Fatalf("could not create sign payment request: %v", err)
+		}
+		signature, err := requests.Sign(paymentSigRequest, providerPrivKey)
+		if err != nil {
+			log.Fatalf("could not sign: %v", err)
+		}
+
+		// ---------- Send the transaction to the signing service ---------- //
+		nonceBytes, _ := utilsserver.GenerateRandomBytes(32)
+
+		req := &api.SignPaymentTransactionRequest{
+			WalletName:  walletName,
+			PaymentHash: hex.EncodeToString(txHash),
+			Signature:   signature,
+			Challenge:   hex.EncodeToString(nonceBytes),
+		}
+
+		var resp api.ResponseMessage
+		err = client.Call(&resp, "signingservice_signPaymentTransaction", req)
+		if err != nil {
+			log.Fatalf("could not sign payment transaction: %v", err)
+		}
+
+		logger.Info("Payment hash: %v", hex.EncodeToString(txHash))
+		logger.Infof("sent request to SignPaymentTransaction, is ThresholdReached %v, Message %s, Token %v", resp.ThresholdReached, resp.Message, resp.Token)
+
+	case "get_payment_signature":
+
+		walletName := args.Arg1
+		PaymentHash := args.Arg2
+
+		nonceBytes, _ := utilsserver.GenerateRandomBytes(32)
+
+		req := &api.GetPaymentSignatureRequest{
+			WalletName:  walletName,
+			PaymentHash: PaymentHash,
+			Challenge:   hex.EncodeToString(nonceBytes),
+		}
+
+		var resp api.GetPaymentSignatureResponse
+		err = client.Call(&resp, "signingservice_getPaymentSignature", req)
+		if err != nil {
+			log.Fatalf("could not get thepayment signature : %v", err)
+		}
+
+		txnSignature := hex.EncodeToString(resp.TxnSignature)
+		signingPubKey := hex.EncodeToString(resp.SigningPubKey)
+
+		logger.Infof("sent request to GetPaymentSignature, is Account %v, TxnSignature %s, PublicKey %s, Token %v", resp.Account, txnSignature, signingPubKey, resp.Token)
+
 	case "split_wallet":
-		var providerNum int
-		if args.Arg1 == "" {
-			providerNum = 0
-		} else {
-			providerNum, err = strconv.Atoi(args.Arg1)
-			if err != nil {
-				log.Fatalf("%v", err)
-			}
-		}
-		providersBytes, err := os.ReadFile("tests/test_providers.json")
+		providerPrivKey, err := getProviderPrivKey(args.Arg1)
 		if err != nil {
-			log.Fatalf("%v", err)
+			log.Fatalf("could not get provider private key: %v", err)
 		}
-		providers, err := utils.UnmarshalProviders(providersBytes)
-		if err != nil {
-			log.Fatalf("%v", err)
-		}
-		providerPrivKey := providers.PrivKeys[providerNum]
 
 		walletName := args.Arg2
 		nonceBytes, err := utilsserver.GenerateRandomBytes(32)
@@ -282,24 +380,10 @@ func main() {
 		logger.Infof("sent request to split wallet, is finalized %v, attestation token %s", resp.Finalized, resp.Token)
 
 	case "recover_wallet":
-		var providerNum int
-		if args.Arg1 == "" {
-			providerNum = 0
-		} else {
-			providerNum, err = strconv.Atoi(args.Arg1)
-			if err != nil {
-				log.Fatalf("%v", err)
-			}
-		}
-		providersBytes, err := os.ReadFile("tests/test_providers.json")
+		providerPrivKey, err := getProviderPrivKey(args.Arg1)
 		if err != nil {
-			log.Fatalf("%v", err)
+			log.Fatalf("could not get provider private key: %v", err)
 		}
-		providers, err := utils.UnmarshalProviders(providersBytes)
-		if err != nil {
-			log.Fatalf("%v", err)
-		}
-		providerPrivKey := providers.PrivKeys[providerNum]
 
 		walletName := args.Arg2
 		address := args.Arg3
@@ -361,4 +445,28 @@ func main() {
 		logger.Warn("call not recognized")
 	}
 
+}
+
+func getProviderPrivKey(arg1 string) (*ecdsa.PrivateKey, error) {
+	var providerNum int
+	if arg1 == "" {
+		providerNum = 0
+	} else {
+		var err error
+		providerNum, err = strconv.Atoi(arg1)
+		if err != nil {
+			return nil, err
+		}
+	}
+	providersBytes, err := os.ReadFile("tests/test_providers.json")
+	if err != nil {
+		log.Fatalf("%v", err)
+	}
+	providers, err := utils.UnmarshalProviders(providersBytes)
+	if err != nil {
+		log.Fatalf("%v", err)
+	}
+	providerPrivKey := providers.PrivKeys[providerNum]
+
+	return providerPrivKey, nil
 }

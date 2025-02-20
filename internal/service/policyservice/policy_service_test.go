@@ -8,7 +8,6 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
-	"tee-node/config"
 	"tee-node/internal/policy"
 
 	testutils "tee-node/tests"
@@ -19,7 +18,7 @@ import (
 var numVoters int
 
 func TestInitializePolicy(t *testing.T) {
-	defer testutils.ResetSigningServiceState() // Reset the state of the TEE after the test
+	defer testutils.ResetTEEState() // Reset the state of the TEE after the test
 
 	// Generate random voters and corresponding private keys
 	numVoters = 100
@@ -36,7 +35,7 @@ func TestInitializePolicy(t *testing.T) {
 	}
 
 	// Set the initial policy hash in the config
-	setInitialPolicyHash(initialPolicyBytes)
+	testutils.SetInitialPolicyHash(initialPolicyBytes)
 
 	// Generate a few more policies and their signatures
 	policySignaturesArray := []*api.SignNewPolicyRequest{}
@@ -73,7 +72,7 @@ func TestInitializePolicy(t *testing.T) {
 }
 
 func TestSignNewPolicy(t *testing.T) {
-	defer testutils.ResetSigningServiceState() // Reset the state of the TEE after the test
+	defer testutils.ResetTEEState() // Reset the state of the TEE after the test
 
 	// Generate random voters and corresponding private keys
 	numVoters = 100
@@ -90,7 +89,7 @@ func TestSignNewPolicy(t *testing.T) {
 	}
 
 	// Set the initial policy hash in the config
-	setInitialPolicyHash(initialPolicyBytes)
+	testutils.SetInitialPolicyHash(initialPolicyBytes)
 
 	// Generate a few more policies and their signatures
 	policySignaturesArray := []*api.SignNewPolicyRequest{}
@@ -123,7 +122,7 @@ func TestSignNewPolicy(t *testing.T) {
 	thrIndex := getTresholdRechedVoterIndex(&nextPolicy, voterPrivKeys)
 
 	// ! First batch of signatures //
-	newPolicySigRequests := []*api.PolicySignatureMessage{}
+	newPolicySigRequests := []*api.SignatureMessage{}
 	for i := 0; i < thrIndex; i++ {
 
 		sig, err := policy.SignNewSigningPolicy(policy.SigningPolicyHash(nextPolicyBytes), voterPrivKeys[i])
@@ -131,7 +130,7 @@ func TestSignNewPolicy(t *testing.T) {
 			panic(err)
 		}
 
-		req := api.PolicySignatureMessage{
+		req := api.SignatureMessage{
 			PublicKey: &api.ECDSAPublicKey{
 				X: voterPrivKeys[i].PublicKey.X.String(),
 				Y: voterPrivKeys[i].PublicKey.Y.String(),
@@ -154,7 +153,7 @@ func TestSignNewPolicy(t *testing.T) {
 	}
 
 	// ! Second batch of signatures //
-	newPolicySigRequests = []*api.PolicySignatureMessage{}
+	newPolicySigRequests = []*api.SignatureMessage{}
 	for i := thrIndex; i < len(voterPrivKeys); i++ {
 
 		sig, err := policy.SignNewSigningPolicy(policy.SigningPolicyHash(nextPolicyBytes), voterPrivKeys[i])
@@ -162,7 +161,7 @@ func TestSignNewPolicy(t *testing.T) {
 			panic(err)
 		}
 
-		req := api.PolicySignatureMessage{
+		req := api.SignatureMessage{
 			PublicKey: &api.ECDSAPublicKey{
 				X: voterPrivKeys[i].PublicKey.X.String(),
 				Y: voterPrivKeys[i].PublicKey.Y.String(),
@@ -214,7 +213,7 @@ func TestSignNewPolicy(t *testing.T) {
 
 // * Test initializing the policy after it has already been initialized  ----------------- //
 func TestInitializingThePolicyTwice(t *testing.T) {
-	defer testutils.ResetSigningServiceState() // Reset the state of the TEE after the test
+	defer testutils.ResetTEEState() // Reset the state of the TEE after the test
 
 	epochId, randSeed := uint32(1), int64(12345)
 
@@ -225,7 +224,7 @@ func TestInitializingThePolicyTwice(t *testing.T) {
 	}
 
 	// Set the initial policy hash in the config
-	setInitialPolicyHash(initialPolicyBytes)
+	testutils.SetInitialPolicyHash(initialPolicyBytes)
 
 	numPolicies := 1
 	policySignaturesArray, err := testutils.GenerateRandomSignNewPolicyRequestArrays(epochId, randSeed, voters, privKeys, numPolicies)
@@ -285,7 +284,7 @@ func TestInitializingThePolicyTwice(t *testing.T) {
 
 // * Test sending a signature with a wrong reward epoch id, less or equal to a previos one -- //
 func TestSendingInvalidReardEpochId(t *testing.T) {
-	defer testutils.ResetSigningServiceState() // Reset the state of the TEE after the test
+	defer testutils.ResetTEEState() // Reset the state of the TEE after the test
 
 	epochId, randSeed := uint32(10), int64(12345)
 
@@ -296,7 +295,7 @@ func TestSendingInvalidReardEpochId(t *testing.T) {
 	}
 
 	// Set the initial policy hash in the config
-	setInitialPolicyHash(initialPolicyBytes)
+	testutils.SetInitialPolicyHash(initialPolicyBytes)
 
 	numPolicies := 1
 
@@ -339,7 +338,7 @@ func TestSendingInvalidReardEpochId(t *testing.T) {
 // * Verify that if two signatures use the same public key, it throws an error -- //
 // TODO:
 
-// * Test should fail if we don't ser setInitialPolicyHash(initialPolicyBytes) in the function -- //
+// * Test should fail if we don't ser testutils.SetInitialPolicyHash(initialPolicyBytes) in the function -- //
 
 // ! SignNewPolicy Tests ———————————————————————————————————————————————————————————————————————— //
 
@@ -353,13 +352,6 @@ func TestSendingInvalidReardEpochId(t *testing.T) {
 
 // * UTILS ================================================================================================ * //
 // * ====================================================================================================== * //
-
-// Set the initial policy hash in the config
-// We need this to make the tests work for randomly generated policies
-func setInitialPolicyHash(initialPolicyBytes []byte) {
-	// Set the initial policy hash in the config
-	config.InitialPolicyHash = policy.EncodeToHex(policy.SigningPolicyHash(initialPolicyBytes))
-}
 
 // Loop through the voters and weights and calculate the total weight
 // return the index of the voter at which the accumulaterd voterWeight passes the threshold

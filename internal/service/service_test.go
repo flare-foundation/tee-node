@@ -115,9 +115,9 @@ func getAddress(t *testing.T, walletName string, client *rpc.Client, ctx context
 	err = client.CallContext(ctx, &pubKeyResp, "walletsservice_publicKey", &api.PublicKeyRequest{Name: walletName, Nonce: hex.EncodeToString(nonceBytes)})
 	require.NoError(t, err, "could not obtain the address")
 
-	logger.Infof("public key: %s, attestation token %s", pubKeyResp.Address, pubKeyResp.Token)
+	logger.Infof("ethAddress: %s, public key: %s, attestation token %s", pubKeyResp.EthAddress, pubKeyResp.PublicKey, pubKeyResp.Token)
 
-	return pubKeyResp.Address
+	return pubKeyResp.EthAddress
 }
 
 func backupWallet(t *testing.T, walletName string, backups []string, threshold int, client *rpc.Client, providers *utils.Providers, ctx context.Context) {
