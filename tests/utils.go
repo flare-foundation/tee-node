@@ -173,12 +173,12 @@ func ResetTEEState() {
 
 	wallets.DestroyState()
 
-	requests.NewWalletRequestsStorage = make(requests.RequestCounterStorage[wallets.NewWalletRequest])
-	requests.DeleteWalletRequestsStorage = make(requests.RequestCounterStorage[wallets.DeleteWalletRequest])
-	requests.SplitWalletRequestsStorage = make(requests.RequestCounterStorage[wallets.SplitWalletRequest])
-	requests.RecoverWalletRequestsStorage = make(requests.RequestCounterStorage[wallets.RecoverWalletRequest])
+	requests.NewWalletRequestsStorage = requests.InitRequestCounterStorage[wallets.NewWalletRequest]()
+	requests.DeleteWalletRequestsStorage = requests.InitRequestCounterStorage[wallets.DeleteWalletRequest]()
+	requests.SplitWalletRequestsStorage = requests.InitRequestCounterStorage[wallets.SplitWalletRequest]()
+	requests.RecoverWalletRequestsStorage = requests.InitRequestCounterStorage[wallets.RecoverWalletRequest]()
 
-	requests.SignPaymentRequestsStorage = make(requests.RequestCounterStorage[signing.SignPaymentRequest])
+	requests.SignPaymentRequestsStorage = requests.InitRequestCounterStorage[signing.SignPaymentRequest]()
 
 	// TODO: Reset any other state that might break the tests
 }

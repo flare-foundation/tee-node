@@ -19,6 +19,8 @@ type ClientConfig struct {
 type Server struct {
 	Host             string   `toml:"host"`
 	Backups          []string `toml:"backups"`
+	PubKeys          []string `toml:"pub_keys"`
+	PubKey           string   `toml:"pub_key"`
 	BackupsThreshold int      `toml:"backups_threshold"`
 }
 

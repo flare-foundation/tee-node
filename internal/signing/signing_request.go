@@ -35,3 +35,8 @@ func (sp SignPaymentRequest) Message() string {
 
 	return fmt.Sprintf("SignPaymentRequest(%s-%s)", sp.WalletName, paymentString)
 }
+
+func (sp SignPaymentRequest) Check() error {
+
+	return nil
+}

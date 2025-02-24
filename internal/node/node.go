@@ -6,13 +6,19 @@ import (
 	"tee-node/internal/utils"
 )
 
-type NodeId struct {
-	Uuid   string
-	SecKey *ecdsa.PrivateKey
-	PubKey *ecdsa.PublicKey
-}
-
 var nodeId = NodeId{}
+
+const (
+	operationalStatus     = "operational"
+	pausedForUpdateStatus = "paused_for_update"
+)
+
+type NodeId struct {
+	Uuid          string
+	Status        string
+	EncryptionKey utils.EncryptionKey
+	SignatureKey  *ecdsa.PrivateKey
+}
 
 func InitNode() error {
 	idBytes, err := utils.GenerateRandomBytes(32)
@@ -21,11 +27,17 @@ func InitNode() error {
 	}
 	nodeId.Uuid = hex.EncodeToString(idBytes)
 
-	nodeId.SecKey, err = utils.GenerateEthereumPrivateKey()
+	nodeId.EncryptionKey, err = utils.GenerateEncryptionKeyPair()
 	if err != nil {
 		return err
 	}
-	nodeId.PubKey = &nodeId.SecKey.PublicKey
+
+	nodeId.SignatureKey, err = utils.GenerateEthereumPrivateKey()
+	if err != nil {
+		return err
+	}
+
+	nodeId.Status = operationalStatus
 
 	return nil
 }

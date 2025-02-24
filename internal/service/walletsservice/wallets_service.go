@@ -25,7 +25,7 @@ func NewService() *Service {
 
 func (s *Service) NewWallet(ctx context.Context, req *api.NewWalletRequest) (*api.NewWalletResponse, error) {
 	walletRequest := wallets.NewNewWalletRequest(req.Name)
-	requestCounter, thresholdReached, err := requests.ProcessRequest(walletRequest, req.Signature, requests.NewWalletRequestsStorage)
+	requestCounter, thresholdReached, err := requests.ProcessRequest(walletRequest, req.Signature, &requests.NewWalletRequestsStorage)
 	if err != nil {
 		return nil, err
 	}
@@ -41,7 +41,7 @@ func (s *Service) NewWallet(ctx context.Context, req *api.NewWalletRequest) (*ap
 	nonces := []string{req.Nonce, requestCounter.Request.Message()}
 	var tokenBytes []byte
 	if config.Mode == 0 {
-		tokenBytes, err = attestation.GetGoogleAttestationToken(nonces)
+		tokenBytes, err = attestation.GetGoogleAttestationToken(nonces, attestation.OIDCTokenType)
 		if err != nil {
 			return nil, err
 		}
@@ -55,7 +55,7 @@ func (s *Service) NewWallet(ctx context.Context, req *api.NewWalletRequest) (*ap
 
 func (s *Service) DeleteWallet(ctx context.Context, req *api.NewWalletRequest) (*api.NewWalletResponse, error) {
 	walletRequest := wallets.NewDeleteWalletRequest(req.Name)
-	requestCounter, thresholdReached, err := requests.ProcessRequest(walletRequest, req.Signature, requests.DeleteWalletRequestsStorage)
+	requestCounter, thresholdReached, err := requests.ProcessRequest(walletRequest, req.Signature, &requests.DeleteWalletRequestsStorage)
 	if err != nil {
 		return nil, err
 	}
@@ -68,7 +68,7 @@ func (s *Service) DeleteWallet(ctx context.Context, req *api.NewWalletRequest) (
 	nonces := []string{req.Nonce, requestCounter.Request.Message()}
 	var tokenBytes []byte
 	if config.Mode == 0 {
-		tokenBytes, err = attestation.GetGoogleAttestationToken(nonces)
+		tokenBytes, err = attestation.GetGoogleAttestationToken(nonces, attestation.OIDCTokenType)
 		if err != nil {
 			return nil, err
 		}
@@ -91,7 +91,7 @@ func (s *Service) PublicKey(ctx context.Context, req *api.PublicKeyRequest) (*ap
 
 	var tokenBytes []byte
 	if config.Mode == 0 {
-		tokenBytes, err = attestation.GetGoogleAttestationToken(nonces)
+		tokenBytes, err = attestation.GetGoogleAttestationToken(nonces, attestation.OIDCTokenType)
 		if err != nil {
 			return nil, err
 		}
@@ -119,7 +119,7 @@ func (s *Service) MultisigAccountInfo(ctx context.Context, req *api.PublicKeyReq
 	nonces := []string{req.Nonce, "PublicKey", xrpAddress, sec1PubKey}
 	var tokenBytes []byte
 	if config.Mode == 0 {
-		tokenBytes, err = attestation.GetGoogleAttestationToken(nonces)
+		tokenBytes, err = attestation.GetGoogleAttestationToken(nonces, attestation.OIDCTokenType)
 		if err != nil {
 			return nil, err
 		}
@@ -133,11 +133,11 @@ func (s *Service) MultisigAccountInfo(ctx context.Context, req *api.PublicKeyReq
 }
 
 func (s *Service) SplitWallet(ctx context.Context, req *api.SplitWalletRequest) (*api.SplitWalletResponse, error) {
-	splitWalletRequest, err := wallets.NewSplitWalletRequest(req.Name, req.TeeIds, req.Hosts, int(req.Threshold))
+	splitWalletRequest, err := wallets.NewSplitWalletRequest(req.Name, req.TeeIds, req.Hosts, req.PublicKeys, int(req.Threshold))
 	if err != nil {
 		return nil, err
 	}
-	requestCounter, thresholdReached, err := requests.ProcessRequest(splitWalletRequest, req.Signature, requests.SplitWalletRequestsStorage)
+	requestCounter, thresholdReached, err := requests.ProcessRequest(splitWalletRequest, req.Signature, &requests.SplitWalletRequestsStorage)
 	if err != nil {
 		return nil, err
 	}
@@ -158,7 +158,7 @@ func (s *Service) SplitWallet(ctx context.Context, req *api.SplitWalletRequest) 
 		}
 		// todo attest others, itd.
 		for i, conn := range wsConns {
-			err = SendShare(conn, splits[i])
+			err = SendShare(conn, splits[i], req.TeeIds[i], req.PublicKeys[i])
 			if err != nil {
 				return nil, err
 			}
@@ -171,7 +171,7 @@ func (s *Service) SplitWallet(ctx context.Context, req *api.SplitWalletRequest) 
 	nonces := []string{req.Nonce, requestCounter.Request.Message()}
 	var tokenBytes []byte
 	if config.Mode == 0 {
-		tokenBytes, err = attestation.GetGoogleAttestationToken(nonces)
+		tokenBytes, err = attestation.GetGoogleAttestationToken(nonces, attestation.OIDCTokenType)
 		if err != nil {
 			return nil, err
 		}
@@ -184,11 +184,11 @@ func (s *Service) SplitWallet(ctx context.Context, req *api.SplitWalletRequest) 
 }
 
 func (s *Service) RecoverWallet(ctx context.Context, req *api.RecoverWalletRequest) (*api.RecoverWalletResponse, error) {
-	recoverWalletRequest, err := wallets.NewRecoverWalletRequest(req.Name, req.TeeIds, req.Hosts, req.ShareIds)
+	recoverWalletRequest, err := wallets.NewRecoverWalletRequest(req.Name, req.TeeIds, req.Hosts, req.ShareIds, req.PublicKey)
 	if err != nil {
 		return nil, err
 	}
-	requestCounter, thresholdReached, err := requests.ProcessRequest(recoverWalletRequest, req.Signature, requests.RecoverWalletRequestsStorage)
+	requestCounter, thresholdReached, err := requests.ProcessRequest(recoverWalletRequest, req.Signature, &requests.RecoverWalletRequestsStorage)
 	if err != nil {
 		return nil, err
 	}
@@ -205,7 +205,7 @@ func (s *Service) RecoverWallet(ctx context.Context, req *api.RecoverWalletReque
 		// todo send splits, attest others, itd.
 		splits := make([]*wallets.WalletShare, 0)
 		for i, conn := range wsConns {
-			share, err := RequestShare(conn, req.Name, req.ShareIds[i])
+			share, err := RequestShare(conn, req.Name, req.ShareIds[i], req.TeeIds[i])
 			if err != nil {
 				return nil, err // todo: just skip
 			}
@@ -228,7 +228,7 @@ func (s *Service) RecoverWallet(ctx context.Context, req *api.RecoverWalletReque
 	nonces := []string{req.Nonce, requestCounter.Request.Message()}
 	var tokenBytes []byte
 	if config.Mode == 0 {
-		tokenBytes, err = attestation.GetGoogleAttestationToken(nonces)
+		tokenBytes, err = attestation.GetGoogleAttestationToken(nonces, attestation.OIDCTokenType)
 		if err != nil {
 			return nil, err
 		}

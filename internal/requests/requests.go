@@ -3,6 +3,7 @@ package requests
 import (
 	"crypto/ecdsa"
 	"encoding/hex"
+	"sync"
 	"tee-node/internal/policy"
 	"tee-node/internal/signing"
 	"tee-node/internal/utils"
@@ -17,12 +18,12 @@ import (
 
 // The following variables are the main storage, holding requests that need to reach a threshold
 // before being executed. Each request should have a unique string message.
-var NewWalletRequestsStorage = make(RequestCounterStorage[wallets.NewWalletRequest])
-var DeleteWalletRequestsStorage = make(RequestCounterStorage[wallets.DeleteWalletRequest])
-var SplitWalletRequestsStorage = make(RequestCounterStorage[wallets.SplitWalletRequest])
-var RecoverWalletRequestsStorage = make(RequestCounterStorage[wallets.RecoverWalletRequest])
+var NewWalletRequestsStorage = InitRequestCounterStorage[wallets.NewWalletRequest]()
+var DeleteWalletRequestsStorage = InitRequestCounterStorage[wallets.DeleteWalletRequest]()
+var SplitWalletRequestsStorage = InitRequestCounterStorage[wallets.SplitWalletRequest]()
+var RecoverWalletRequestsStorage = InitRequestCounterStorage[wallets.RecoverWalletRequest]()
 
-var SignPaymentRequestsStorage = make(RequestCounterStorage[signing.SignPaymentRequest])
+var SignPaymentRequestsStorage = InitRequestCounterStorage[signing.SignPaymentRequest]()
 
 type RequestCounter[T Request] struct {
 	Request T
@@ -33,11 +34,20 @@ type RequestCounter[T Request] struct {
 	Result     []byte
 }
 
-type RequestCounterStorage[T Request] map[string]*RequestCounter[T]
+type RequestCounterStorage[T Request] struct {
+	Storage map[string]*RequestCounter[T]
+
+	sync.Mutex
+}
+
+func InitRequestCounterStorage[T Request]() RequestCounterStorage[T] {
+	return RequestCounterStorage[T]{Storage: make(map[string]*RequestCounter[T])}
+}
 
 // todo: not sure if this makes sense, just trying to unify
 type Request interface {
 	Message() string
+	Check() error
 }
 
 func Sign(r Request, privKey *ecdsa.PrivateKey) ([]byte, error) {
@@ -58,7 +68,6 @@ func CheckSignature(r Request, signature []byte) (common.Address, error) {
 		return common.Address{}, err
 	}
 	address := crypto.PubkeyToAddress(*pubKey)
-
 	if !slices.Contains(policy.ActiveSigningPolicy.Voters, address) {
 		return common.Address{}, errors.New("not a voter")
 	}
@@ -66,12 +75,17 @@ func CheckSignature(r Request, signature []byte) (common.Address, error) {
 	return address, nil
 }
 
-func ProcessRequest[T Request](request T, signature []byte, requestCounterStorage map[string]*RequestCounter[T]) (*RequestCounter[T], bool, error) {
-	if _, ok := requestCounterStorage[request.Message()]; !ok {
-		requestCounterStorage[request.Message()] = NewRequestCounter(request)
+func ProcessRequest[T Request](request T, signature []byte, requestCounterStorage *RequestCounterStorage[T]) (*RequestCounter[T], bool, error) {
+	err := request.Check()
+	if err != nil {
+		return nil, false, err
 	}
 
-	requestCounter := requestCounterStorage[request.Message()]
+	requestCounterStorage.Lock()
+	if _, ok := requestCounterStorage.Storage[request.Message()]; !ok {
+		requestCounterStorage.Storage[request.Message()] = NewRequestCounter(request)
+	}
+	requestCounter := requestCounterStorage.Storage[request.Message()]
 	if !requestCounter.CheckActive() {
 		return nil, false, errors.New("not active")
 	}
@@ -84,6 +98,7 @@ func ProcessRequest[T Request](request T, signature []byte, requestCounterStorag
 	requestCounter.AddRequester(providerAddress)
 
 	thresholdReached := requestCounter.ThresholdReached()
+	requestCounterStorage.Unlock()
 
 	return requestCounter, thresholdReached, nil
 }

@@ -24,13 +24,13 @@ RUN CGO_ENABLED=0 GOOS=linux go build -o /app/server cmd/server/main.go
 # Final stage  
 FROM alpine:latest
 
-COPY /config/config.toml /config/config.toml
-
 # Import certificates from builder  
 COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/  
 
 # Copy binary from builder  
 COPY --from=builder /app/server /app/server  
+COPY --from=builder /app/config.toml /app/config.toml  
+COPY --from=builder /app/google_confidential_space_root.crt /app/google_confidential_space_root.crt
 
 # Set environment variables  
 ENV TZ=UTC  
@@ -39,7 +39,8 @@ ENV TZ=UTC
 EXPOSE 80
 EXPOSE 443/tcp
 EXPOSE 81/udp
-EXPOSE 8545
+EXPOSE 8545  
 
-# Run the application  
-CMD ["/app/server", "--config", "config/config.toml"]
+# Run the application
+WORKDIR /app  
+CMD ["./server"]

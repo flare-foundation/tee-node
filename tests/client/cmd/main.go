@@ -12,6 +12,7 @@ import (
 
 	api "tee-node/api/types"
 
+	attestationserver "tee-node/internal/attestation"
 	policyserver "tee-node/internal/policy"
 	"tee-node/internal/requests"
 	"tee-node/internal/signing"
@@ -55,6 +56,10 @@ func main() {
 	defer client.Close()
 
 	ctx := context.Background()
+	nonceBytes, err := utilsserver.GenerateRandomBytes(32)
+	if err != nil {
+		log.Fatalf("%v", err)
+	}
 
 	switch args.Call {
 	case "generate_voters":
@@ -153,10 +158,6 @@ func main() {
 		}
 
 		walletName := args.Arg2
-		nonceBytes, err := utilsserver.GenerateRandomBytes(32)
-		if err != nil {
-			log.Fatalf("%v", err)
-		}
 
 		newWalletRequest := wallets.NewNewWalletRequest(walletName)
 		signature, err := requests.Sign(newWalletRequest, providerPrivKey)
@@ -179,10 +180,6 @@ func main() {
 
 	case "pub_key":
 		walletName := args.Arg1
-		nonceBytes, err := utilsserver.GenerateRandomBytes(32)
-		if err != nil {
-			log.Fatalf("%v", err)
-		}
 
 		req := &api.PublicKeyRequest{
 			Name:  walletName,
@@ -217,7 +214,7 @@ func main() {
 
 	case "google_attestation":
 		var resp api.GetAttestationTokenResponse
-		err = client.Call(&resp, "attestationservice_getAttestationToken", &api.GetAttestationTokenRequest{Nonces: []string{args.Arg1}})
+		err = client.Call(&resp, "attestationservice_getAttestationToken", &api.GetAttestationTokenRequest{Nonces: []string{string(nonceBytes)}})
 		if err != nil {
 			log.Fatalf("could not sign: %v", err)
 		}
@@ -237,6 +234,38 @@ func main() {
 		log.Printf("Dbgstat: %v\n", jwtData.Dbgstat)
 		log.Printf("Support Attributes: %v\n", jwtData.Submods.ConfidentialSpace.SupportAttributes)
 		log.Printf("Hwmodel: %v\n", jwtData.Hwmodel)
+
+	case "node_attestation":
+		var resp api.GetNodeInfoResponse
+		err = client.Call(&resp, "nodeservice_getNodeInfo", &api.GetNodeInfoRequest{Nonce: string(nonceBytes)})
+		if err != nil {
+			log.Fatalf("could not get attestation: %v", err)
+		}
+
+		logger.Infof("node info: %v", resp.Data)
+
+		if resp.Token != "" {
+			// fmt.Println(resp.Token)
+			cert, err := attestationserver.LoadRootCert("google_confidential_space_root.crt")
+			if err != nil {
+				log.Fatalf("could not load certificate: %v", err)
+			}
+			token, err := attestationserver.ValidatePKIToken(*cert, resp.Token)
+			if err != nil {
+				log.Fatalf("failed validating PKI token: %v", err)
+			}
+
+			hash, err := resp.Data.Hash()
+			if err != nil {
+				log.Fatalf("failed validating PKI token: %v", err)
+			}
+			ok, err := attestationserver.ValidateClaims(token, []string{string(nonceBytes), "GetNodeInfo", hash})
+			if err != nil || !ok {
+				log.Fatalf("failed validating PKI token: %v", err)
+			}
+		} else {
+			logger.Infof("no token")
+		}
 
 	case "hash_payment":
 		// ---------- Parse arguments ---------- //
@@ -348,13 +377,9 @@ func main() {
 		}
 
 		walletName := args.Arg2
-		nonceBytes, err := utilsserver.GenerateRandomBytes(32)
-		if err != nil {
-			log.Fatalf("%v", err)
-		}
 
 		numBackups := len(config.Server.Backups)
-		newSplitWalletRequest, err := wallets.NewSplitWalletRequest(walletName, make([]string, numBackups), config.Server.Backups, config.Server.BackupsThreshold)
+		newSplitWalletRequest, err := wallets.NewSplitWalletRequest(walletName, make([]string, numBackups), config.Server.Backups, config.Server.PubKeys, config.Server.BackupsThreshold)
 		if err != nil {
 			log.Fatalf("%v", err)
 		}
@@ -388,11 +413,6 @@ func main() {
 		walletName := args.Arg2
 		address := args.Arg3
 
-		nonceBytes, err := utilsserver.GenerateRandomBytes(32)
-		if err != nil {
-			log.Fatalf("%v", err)
-		}
-
 		numBackups := len(config.Server.Backups)
 
 		shareIds := make([]string, numBackups)
@@ -400,7 +420,7 @@ func main() {
 			shareIds[i] = strconv.Itoa(i + 1)
 		}
 
-		newRecoverWalletRequest, err := wallets.NewRecoverWalletRequest(walletName, make([]string, numBackups), config.Server.Backups, shareIds)
+		newRecoverWalletRequest, err := wallets.NewRecoverWalletRequest(walletName, make([]string, numBackups), config.Server.Backups, shareIds, config.Server.PubKey)
 		if err != nil {
 			log.Fatalf("%v", err)
 		}
@@ -413,7 +433,8 @@ func main() {
 			Name:      walletName,
 			TeeIds:    newRecoverWalletRequest.IDs,
 			Hosts:     newRecoverWalletRequest.Hosts,
-			ShareIds:  shareIds,
+			ShareIds:  newRecoverWalletRequest.ShareIds,
+			PublicKey: newRecoverWalletRequest.PubKey,
 			Address:   address,
 			Threshold: int64(config.Server.BackupsThreshold),
 			Signature: signature,
@@ -428,10 +449,8 @@ func main() {
 		logger.Infof("sent request to recover wallet, is finalized %v, attestation token %s", resp.Finalized, resp.Token)
 
 	case "hardware_attestation":
-		nonce := args.Arg1
-
 		req := &api.GetHardwareAttestationRequest{
-			Nonce: nonce,
+			Nonce: string(nonceBytes),
 		}
 		var hardwareResp api.GetHardwareAttestationResponse
 		err = client.Call(&hardwareResp, "attestationservice_getHardwareAttestation", req)
@@ -444,7 +463,6 @@ func main() {
 	default:
 		logger.Warn("call not recognized")
 	}
-
 }
 
 func getProviderPrivKey(arg1 string) (*ecdsa.PrivateKey, error) {

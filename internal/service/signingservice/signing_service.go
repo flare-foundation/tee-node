@@ -40,7 +40,7 @@ func (s *Service) SignPaymentTransaction(ctx context.Context, req *api.SignPayme
 		return nil, err
 	}
 
-	requestCounter, thresholdReached, err := requests.ProcessRequest(signPaymentRequest, req.Signature, requests.SignPaymentRequestsStorage)
+	requestCounter, thresholdReached, err := requests.ProcessRequest(signPaymentRequest, req.Signature, &requests.SignPaymentRequestsStorage)
 	if err != nil {
 		return nil, err
 	}
@@ -64,7 +64,7 @@ func (s *Service) SignPaymentTransaction(ctx context.Context, req *api.SignPayme
 	nonces := []string{req.Challenge, requestCounter.Request.Message()}
 	var tokenBytes []byte
 	if config.Mode == 0 {
-		tokenBytes, err = attestation.GetGoogleAttestationToken(nonces)
+		tokenBytes, err = attestation.GetGoogleAttestationToken(nonces, attestation.OIDCTokenType)
 		if err != nil {
 			return nil, err
 		}
@@ -91,7 +91,9 @@ func (s *Service) GetPaymentSignature(ctx context.Context, req *api.GetPaymentSi
 		return nil, err
 	}
 
-	requestCounter, ok := requests.SignPaymentRequestsStorage[signPaymentRequest.Message()]
+	requests.SignPaymentRequestsStorage.Lock()
+	requestCounter, ok := requests.SignPaymentRequestsStorage.Storage[signPaymentRequest.Message()]
+	requests.SignPaymentRequestsStorage.Unlock()
 	if !ok {
 		return nil, status.Error(codes.NotFound, "request not found")
 	}
@@ -109,7 +111,7 @@ func (s *Service) GetPaymentSignature(ctx context.Context, req *api.GetPaymentSi
 	nonces := []string{req.Challenge, requestCounter.Request.Message()}
 	var tokenBytes []byte
 	if config.Mode == 0 {
-		tokenBytes, err = attestation.GetGoogleAttestationToken(nonces)
+		tokenBytes, err = attestation.GetGoogleAttestationToken(nonces, attestation.OIDCTokenType)
 		if err != nil {
 			return nil, err
 		}

@@ -10,6 +10,7 @@ import (
 	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
+	"golang.org/x/crypto/nacl/box"
 
 	"tee-node/config"
 
@@ -111,4 +112,22 @@ func GetXrpAddressFromPubkey(publicKey []byte) (string, error) {
 	address := Base58Encode(accBytes, config.XRP_ALPHABET)
 
 	return address, nil
+}
+
+type EncryptionKey struct {
+	PrivateKey [32]byte
+	PublicKey  [32]byte
+}
+
+// GenerateEncryptionKeyPair generates a new private key for
+// encryption.
+func GenerateEncryptionKeyPair() (EncryptionKey, error) {
+	pubKey, privKey, err := box.GenerateKey(rand.Reader)
+	if err != nil {
+		return EncryptionKey{}, err
+	}
+
+	key := EncryptionKey{PrivateKey: *privKey, PublicKey: *pubKey}
+
+	return key, nil
 }

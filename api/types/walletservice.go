@@ -41,12 +41,13 @@ type MultisigAccountInfoResponse struct {
 }
 
 type SplitWalletRequest struct {
-	Name      string
-	TeeIds    []string
-	Hosts     []string
-	Threshold int64
-	Signature []byte
-	Nonce     string // Note: Challenge?
+	Name       string
+	TeeIds     []string
+	Hosts      []string
+	PublicKeys []string
+	Threshold  int64
+	Signature  []byte
+	Nonce      string // Note: Challenge?
 }
 
 type SplitWalletResponse struct {
@@ -59,6 +60,7 @@ type RecoverWalletRequest struct {
 	TeeIds    []string
 	Hosts     []string
 	ShareIds  []string
+	PublicKey string
 	Address   string
 	Threshold int64
 	Signature []byte

@@ -8,6 +8,7 @@ import (
 	"strconv"
 
 	api "tee-node/api/types"
+	"tee-node/internal/node"
 	utilsserver "tee-node/internal/utils"
 
 	"tee-node/internal/policy"
@@ -22,6 +23,11 @@ import (
 )
 
 func TestServiceEndToEnd(t *testing.T) {
+	err := node.InitNode()
+	if err != nil {
+		log.Fatalf("failed to init node: %v", err)
+	}
+
 	ctx := context.Background()
 
 	go LaunchServer(8545)
@@ -45,23 +51,26 @@ func TestServiceEndToEnd(t *testing.T) {
 	numPolicies := 5
 	initializePolicy(t, numPolicies, client, providers, ctx)
 
+	nodeId, pubKey := getNodeInfo(t, client, ctx)
+
 	// generate a new wallet
 	walletName := "newWallet"
 	createWallet(t, walletName, client, providers, ctx)
-
 	// get address
 	address := getAddress(t, walletName, client, ctx)
 
 	// backup wallet to yourself
+	ids := []string{nodeId, nodeId}
 	backups := []string{"ws://localhost:50061", "ws://localhost:50061"}
+	pubKeys := []string{pubKey, pubKey}
 	threshold := len(backups)
-	backupWallet(t, walletName, backups, threshold, client, providers, ctx)
+	backupWallet(t, walletName, ids, backups, pubKeys, threshold, client, providers, ctx)
 
 	// delete wallet
 	deleteWallet(t, walletName, client, providers, ctx)
 
 	// recover key
-	recoverWallet(t, walletName, address, backups, threshold, client, providers, ctx)
+	recoverWallet(t, walletName, address, ids, backups, pubKey, threshold, client, providers, ctx)
 
 	// get recovered address
 	recoveredAddress := getAddress(t, walletName, client, ctx)
@@ -107,6 +116,19 @@ func createWallet(t *testing.T, walletName string, client *rpc.Client, providers
 	}
 }
 
+func getNodeInfo(t *testing.T, client *rpc.Client, ctx context.Context) (string, string) {
+	nonceBytes, err := utilsserver.GenerateRandomBytes(32)
+	require.NoError(t, err)
+
+	var nodeResp api.GetNodeInfoResponse
+	err = client.CallContext(ctx, &nodeResp, "nodeservice_getNodeInfo", &api.GetNodeInfoRequest{Nonce: hex.EncodeToString(nonceBytes)})
+	require.NoError(t, err, "could not obtain node info")
+
+	logger.Infof("NodeId: %s, attestation token %s", nodeResp.Data.Uuid, nodeResp.Token)
+
+	return nodeResp.Data.Uuid, nodeResp.Data.EncryptionPublicKey
+}
+
 func getAddress(t *testing.T, walletName string, client *rpc.Client, ctx context.Context) string {
 	nonceBytes, err := utilsserver.GenerateRandomBytes(32)
 	require.NoError(t, err)
@@ -120,12 +142,12 @@ func getAddress(t *testing.T, walletName string, client *rpc.Client, ctx context
 	return pubKeyResp.EthAddress
 }
 
-func backupWallet(t *testing.T, walletName string, backups []string, threshold int, client *rpc.Client, providers *utils.Providers, ctx context.Context) {
+func backupWallet(t *testing.T, walletName string, ids, backups, pubKeys []string, threshold int, client *rpc.Client, providers *utils.Providers, ctx context.Context) {
 	for i := 0; i < 2; i++ {
 		nonceBytes, err := utilsserver.GenerateRandomBytes(32)
 		require.NoError(t, err)
 
-		newSplitWalletRequest, err := wallets.NewSplitWalletRequest(walletName, make([]string, threshold), backups, threshold)
+		newSplitWalletRequest, err := wallets.NewSplitWalletRequest(walletName, ids, backups, pubKeys, threshold)
 		require.NoError(t, err)
 
 		providerPrivKey := providers.PrivKeys[i]
@@ -138,12 +160,13 @@ func backupWallet(t *testing.T, walletName string, backups []string, threshold i
 			&resp,
 			"walletsservice_splitWallet",
 			&api.SplitWalletRequest{
-				Name:      walletName,
-				TeeIds:    newSplitWalletRequest.IDs,
-				Hosts:     newSplitWalletRequest.Hosts,
-				Threshold: int64(newSplitWalletRequest.Threshold),
-				Signature: signature,
-				Nonce:     hex.EncodeToString(nonceBytes),
+				Name:       walletName,
+				TeeIds:     newSplitWalletRequest.IDs,
+				Hosts:      newSplitWalletRequest.Hosts,
+				PublicKeys: newSplitWalletRequest.PublicKeys,
+				Threshold:  int64(newSplitWalletRequest.Threshold),
+				Signature:  signature,
+				Nonce:      hex.EncodeToString(nonceBytes),
 			},
 		)
 		require.NoError(t, err, "could not split a wallet")
@@ -178,7 +201,7 @@ func deleteWallet(t *testing.T, walletName string, client *rpc.Client, providers
 	require.Error(t, err)
 }
 
-func recoverWallet(t *testing.T, walletName string, address string, backups []string, threshold int, client *rpc.Client, providers *utils.Providers, ctx context.Context) {
+func recoverWallet(t *testing.T, walletName string, address string, ids, backups []string, pubKey string, threshold int, client *rpc.Client, providers *utils.Providers, ctx context.Context) {
 	for i := 0; i < 2; i++ {
 		nonceBytes, err := utilsserver.GenerateRandomBytes(32)
 		require.NoError(t, err)
@@ -188,7 +211,7 @@ func recoverWallet(t *testing.T, walletName string, address string, backups []st
 			shareIds[i] = strconv.Itoa(i + 1)
 		}
 
-		newRecoverWalletRequest, err := wallets.NewRecoverWalletRequest(walletName, make([]string, threshold), backups, shareIds)
+		newRecoverWalletRequest, err := wallets.NewRecoverWalletRequest(walletName, ids, backups, shareIds, pubKey)
 		require.NoError(t, err)
 
 		providerPrivKey := providers.PrivKeys[i]
@@ -205,6 +228,7 @@ func recoverWallet(t *testing.T, walletName string, address string, backups []st
 				TeeIds:    newRecoverWalletRequest.IDs,
 				Hosts:     newRecoverWalletRequest.Hosts,
 				ShareIds:  newRecoverWalletRequest.ShareIds,
+				PublicKey: newRecoverWalletRequest.PubKey,
 				Address:   address,
 				Threshold: int64(threshold),
 				Signature: signature,

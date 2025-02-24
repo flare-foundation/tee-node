@@ -1,10 +1,43 @@
 package types
 
-type GetNodeAttestationTokenRequest struct {
+import (
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
+)
+
+type GetNodeInfoRequest struct {
 	Nonce string
 }
 
-type GetNodeAttestationTokenResponse struct {
-	Uuid  string
+type GetNodeInfoData struct {
+	Uuid   string
+	Status string
+
+	EncryptionPublicKey string
+	SigningPublicKey    ECDSAPublicKey
+
+	SigningPolicyHash string
+}
+
+type GetNodeInfoResponse struct {
+	Data  GetNodeInfoData
 	Token string
+}
+
+func (d *GetNodeInfoData) Hash() (string, error) {
+	hashFunc := sha256.New()
+	dBytes, err := json.Marshal(d)
+	if err != nil {
+		return "", err
+	}
+
+	_, err = hashFunc.Write(dBytes)
+	if err != nil {
+		return "", err
+	}
+
+	hashBytes := hashFunc.Sum(nil)
+
+	return hex.EncodeToString(hashBytes), nil
 }

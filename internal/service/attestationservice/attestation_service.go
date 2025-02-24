@@ -30,7 +30,7 @@ func (s *Service) GetAttestationToken(ctx context.Context, req *api.GetAttestati
 	default:
 	}
 
-	tokenbytes, err := attestation.GetGoogleAttestationToken(req.Nonces)
+	tokenbytes, err := attestation.GetGoogleAttestationToken(req.Nonces, attestation.OIDCTokenType)
 	if err != nil {
 		return nil, err
 	}
