@@ -30,10 +30,10 @@ func init() {
 type RequestCounter[T Request] struct {
 	Request T
 
-	RewardEpochId  uint32
-	RequestSigners map[common.Address]bool
-	Done           bool
-	Result         []byte
+	RequestSignatures map[common.Address][]byte
+	RewardEpochId     uint32
+	Done              bool
+	Result            []byte
 }
 
 type RequestCounterStorage[T Request] struct {
@@ -46,7 +46,6 @@ func InitRequestCounterStorage[T Request]() *RequestCounterStorage[T] {
 	return &RequestCounterStorage[T]{Storage: make(map[string]*RequestCounter[T])}
 }
 
-// todo: not sure if this makes sense, just trying to unify
 type Request interface {
 	Identifier() string // A unique identifier for the request
 	Hash() []byte       // Note: Policies need to be signed a specific way, the same way they are onchain
@@ -81,7 +80,6 @@ func CheckSignature(r Request, signature []byte, requestPolicy *policy.SigningPo
 // ------------------------------------------------------------------------------------------
 
 func ProcessRequest[T Request](request T, signature []byte) (*RequestCounter[T], bool, error) {
-
 	requestCounterStorage, err := getRequestCounterStorage[T](request.RequestType())
 	if err != nil {
 		return nil, false, err
@@ -91,7 +89,7 @@ func ProcessRequest[T Request](request T, signature []byte) (*RequestCounter[T],
 
 	requestCounterStorage.Lock()
 	if _, ok := requestCounterStorage.Storage[requestHash]; !ok {
-		requestCounterStorage.Storage[requestHash] = newRequestCounter(request)
+		requestCounterStorage.Storage[requestHash] = NewRequestCounter(request)
 	}
 
 	requestCounter := requestCounterStorage.Storage[requestHash]
@@ -114,7 +112,7 @@ func ProcessRequest[T Request](request T, signature []byte) (*RequestCounter[T],
 		return nil, false, err
 	}
 
-	requestCounter.AddRequestSigner(providerAddress)
+	requestCounter.AddRequestSignature(providerAddress, signature)
 
 	thresholdReached := requestCounter.ThresholdReached(requestPolicy)
 
@@ -142,16 +140,15 @@ func GetRequestCounter[T Request](requestHash string, requestType types.RequestT
 	return requestCounter, nil
 }
 
-func newRequestCounter[T Request](request T) *RequestCounter[T] {
+func NewRequestCounter[T Request](request T) *RequestCounter[T] {
 
 	return &RequestCounter[T]{
-		Request:        request,
-		RequestSigners: make(map[common.Address]bool),
+		Request:           request,
+		RequestSignatures: make(map[common.Address][]byte),
 	}
 }
 
 func (r *RequestCounter[T]) GetRequestPolicy() (*policy.SigningPolicy, error) {
-
 	if policy := policy.GetSigningPolicy(r.Request.RewardEpochId()); policy != nil {
 		return policy, nil
 	}
@@ -171,7 +168,7 @@ func (r *RequestCounter[T]) CurrentWeight(requestPolicy *policy.SigningPolicy) u
 
 	currentWeight := uint16(0)
 	for i, voter := range requestPolicy.Voters {
-		if _, ok := r.RequestSigners[voter]; ok {
+		if _, ok := r.RequestSignatures[voter]; ok {
 			currentWeight += requestPolicy.Weights[i]
 		}
 	}
@@ -186,9 +183,17 @@ func (r *RequestCounter[T]) ThresholdReached(requestPolicy *policy.SigningPolicy
 	return currentWeight >= threshold
 }
 
-func (r *RequestCounter[T]) AddRequestSigner(reqSigner common.Address) {
+func (r *RequestCounter[T]) AddRequestSignature(reqSigner common.Address, reqSignature []byte) {
+	r.RequestSignatures[reqSigner] = reqSignature
+}
 
-	r.RequestSigners[reqSigner] = true
+func (r *RequestCounter[T]) Signatures() [][]byte {
+	signatures := make([][]byte, 0)
+	for _, e := range r.RequestSignatures {
+		signatures = append(signatures, e)
+	}
+
+	return signatures
 }
 
 // Note: We need this for distributing rewards to the signers
@@ -196,7 +201,7 @@ func (r *RequestCounter[T]) AddRequestSigner(reqSigner common.Address) {
 func (r *RequestCounter[T]) GetRequestSigners() []*common.Address {
 
 	var signers []*common.Address = make([]*common.Address, 0)
-	for signer := range r.RequestSigners {
+	for signer := range r.RequestSignatures {
 		signers = append(signers, &signer)
 	}
 	return signers

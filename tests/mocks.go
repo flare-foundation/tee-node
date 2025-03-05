@@ -18,7 +18,7 @@ import (
 
 // Todo: I want to extract some logic for generating mock policies, wallets, etc. into this file.
 
-func BuildMockInstruction(OpType string, OpCommand string, request interface{}, privKey *ecdsa.PrivateKey, instructionId string) (*api.Instruction, error) {
+func BuildMockInstruction(OpType string, OpCommand string, request interface{}, privKey *ecdsa.PrivateKey, teeId, instructionId string) (*api.Instruction, error) {
 
 	OriginalMessage, err := json.Marshal(request)
 	if err != nil {
@@ -28,7 +28,7 @@ func BuildMockInstruction(OpType string, OpCommand string, request interface{}, 
 
 	instructionData := api.InstructionData{
 		InstructionId:             instructionId,
-		TeeId:                     "1234",
+		TeeId:                     teeId,
 		RewardEpochid:             policy.ActiveSigningPolicy.RewardEpochId,
 		OpType:                    OpType,
 		OpCommand:                 OpCommand,
@@ -60,6 +60,7 @@ func CreateMockWallet(t *testing.T, walletName string, privKeys []*ecdsa.Private
 		"KEY_GENERATE",
 		api.NewWalletRequest{Name: walletName},
 		privKeys[0],
+		"1234",
 		hex.EncodeToString(instructionIdBytes),
 	)
 	require.NoError(t, err)

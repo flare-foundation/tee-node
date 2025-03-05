@@ -45,6 +45,7 @@ func TestSendManyPaymentInstructions(t *testing.T) {
 			"PAY",
 			api.SignPaymentRequest{WalletName: mockWallet, PaymentHash: paymentHash},
 			privKeys[i],
+			"1234",
 			hex.EncodeToString(instructionIdBytes),
 		)
 		require.NoError(t, err)
@@ -91,6 +92,7 @@ func TestGetInstructionResult(t *testing.T) {
 			"PAY",
 			api.SignPaymentRequest{WalletName: mockWallet, PaymentHash: paymentHash},
 			privKeys[i],
+			"1234",
 			hex.EncodeToString(instructionIdBytes),
 		)
 		require.NoError(t, err)
@@ -128,6 +130,7 @@ func TestGetInstructionResult(t *testing.T) {
 		"PAY",
 		api.SignPaymentRequest{WalletName: mockWallet, PaymentHash: paymentHash},
 		privKeys[thresholdIdx],
+		"1234",
 		hex.EncodeToString(instructionIdBytes),
 	)
 	require.NoError(t, err)
@@ -169,6 +172,7 @@ func TestGetInstructionStatus(t *testing.T) {
 			"PAY",
 			api.SignPaymentRequest{WalletName: mockWallet, PaymentHash: paymentHash},
 			privKeys[i],
+			"1234",
 			hex.EncodeToString(instructionIdBytes),
 		)
 		require.NoError(t, err)
@@ -201,6 +205,7 @@ func TestGetInstructionStatus(t *testing.T) {
 		"PAY",
 		api.SignPaymentRequest{WalletName: mockWallet, PaymentHash: paymentHash},
 		privKeys[thresholdIdx],
+		"1234",
 		hex.EncodeToString(instructionIdBytes),
 	)
 	require.NoError(t, err)
@@ -253,6 +258,7 @@ func TestGetResultWithDifferentInstructionForSameId(t *testing.T) {
 			"PAY",
 			api.SignPaymentRequest{WalletName: mockWallet, PaymentHash: paymentHash1},
 			privKeys[i],
+			"1234",
 			hex.EncodeToString(instructionIdBytes),
 		)
 		require.NoError(t, err)
@@ -281,6 +287,7 @@ func TestGetResultWithDifferentInstructionForSameId(t *testing.T) {
 			"PAY",
 			api.SignPaymentRequest{WalletName: mockWallet, PaymentHash: paymentHash2},
 			privKeys[i],
+			"1234",
 			hex.EncodeToString(instructionIdBytes),
 		)
 		require.NoError(t, err)
@@ -305,6 +312,7 @@ func TestGetResultWithDifferentInstructionForSameId(t *testing.T) {
 			"PAY",
 			api.SignPaymentRequest{WalletName: mockWallet, PaymentHash: paymentHash3},
 			privKeys[i],
+			"1234",
 			hex.EncodeToString(instructionIdBytes),
 		)
 		require.NoError(t, err)
@@ -355,6 +363,7 @@ func TestGetResultWithDifferentInstructionForSameId(t *testing.T) {
 		"PAY",
 		api.SignPaymentRequest{WalletName: mockWallet, PaymentHash: paymentHash1},
 		privKeys[thresholdIdx],
+		"1234",
 		hex.EncodeToString(instructionIdBytes),
 	)
 	require.NoError(t, err)

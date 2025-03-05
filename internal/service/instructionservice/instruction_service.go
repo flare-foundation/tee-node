@@ -74,7 +74,7 @@ func (s *InstructionService) SendSignedInstruction(ctx context.Context, instruct
 			requestCounter.Result, err = handleRegPostRequest(instructionMessage.Data)
 
 		case "WALLET":
-			requestCounter.Result, err = handleWalletPostRequest(instructionMessage.Data)
+			requestCounter.Result, err = handleWalletPostRequest(instructionMessage.Data, requestCounter.Signatures())
 
 		case "XRP":
 			requestCounter.Result, err = handleXrpPostRequest(instructionMessage.Data)
@@ -225,7 +225,7 @@ func (s *InstructionService) InstructionStatus(ctx context.Context, instructionQ
 		}
 
 		voteResults = append(voteResults, api.VoteResult{
-			NumberOfVotes: uint16(len(requestCounter.RequestSigners)),
+			NumberOfVotes: uint16(len(requestCounter.RequestSignatures)),
 			TotalWeight:   requestCounter.CurrentWeight(requestPolicy),
 		})
 

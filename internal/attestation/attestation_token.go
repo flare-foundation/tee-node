@@ -26,6 +26,7 @@ import (
 
 const PKITokenType = "PKI"
 const OIDCTokenType = "OIDC"
+const MagicPass = "magic_pass"
 
 // This code is slightly modified from Google documentation
 type GoogleTeeClaims struct {
@@ -51,6 +52,9 @@ type container struct {
 }
 
 func GetGoogleAttestationToken(nonces []string, tokenType string) ([]byte, error) {
+	if config.Mode != 0 {
+		return []byte(MagicPass), nil
+	}
 	httpClient := http.Client{
 		Transport: &http.Transport{
 			// Set the DialContext field to a function that creates
@@ -98,11 +102,9 @@ func CreateAttestation(nonces []string, tokenType string) (string, error) {
 
 	var tokenBytes []byte
 	var err error
-	if config.Mode == 0 {
-		tokenBytes, err = GetGoogleAttestationToken(nonces, tokenType)
-		if err != nil {
-			return "", err
-		}
+	tokenBytes, err = GetGoogleAttestationToken(nonces, tokenType)
+	if err != nil {
+		return "", err
 	}
 
 	return string(tokenBytes), nil
@@ -110,7 +112,11 @@ func CreateAttestation(nonces []string, tokenType string) (string, error) {
 
 // ValidatePKIToken validates the PKI token returned from the attestation service is valid.
 // Returns a valid jwt.Token or returns an error if invalid.
-func ValidatePKIToken(storedRootCertificate x509.Certificate, attestationToken string) (jwt.Token, error) {
+func ValidatePKIToken(storedRootCertificate *x509.Certificate, attestationToken string) (jwt.Token, error) {
+	if config.Mode != 0 {
+		return jwt.Token{}, nil
+	}
+
 	// IMPORTANT: The attestation token should be considered untrusted until the certificate chain and
 	// the signature is verified.
 
@@ -152,7 +158,7 @@ func ValidatePKIToken(storedRootCertificate x509.Certificate, attestationToken s
 	// Verify the storedRootCertificate is the same as the root certificate returned in the token.
 	// storedRootCertificate is downloaded from the confidential computing well known endpoint
 	// https://confidentialcomputing.googleapis.com/.well-known/attestation-pki-root
-	err = CompareCertificates(storedRootCertificate, *certificates.RootCert)
+	err = CompareCertificates(storedRootCertificate, certificates.RootCert)
 	if err != nil {
 		return jwt.Token{}, fmt.Errorf("failed to verify certificate chain: %v", err)
 	}
@@ -308,7 +314,7 @@ func isCertificateLifetimeValid(certificate *x509.Certificate) bool {
 }
 
 // CompareCertificates compares two certificate fingerprints.
-func CompareCertificates(cert1 x509.Certificate, cert2 x509.Certificate) error {
+func CompareCertificates(cert1 *x509.Certificate, cert2 *x509.Certificate) error {
 	fingerprint1 := sha256.Sum256(cert1.Raw)
 	fingerprint2 := sha256.Sum256(cert2.Raw)
 	if fingerprint1 != fingerprint2 {
@@ -329,13 +335,17 @@ func LoadRootCert(fileName string) (*x509.Certificate, error) {
 }
 
 func ValidateClaims(token jwt.Token, nonces []string) (bool, error) {
+	if config.Mode != 0 {
+		return true, nil
+	}
+
 	if !token.Valid {
 		return false, errors.New("token not valid")
 	}
 
 	claims, ok := token.Claims.(*GoogleTeeClaims)
 	if !ok {
-		return false, errors.New("token not valid")
+		return false, errors.New("cannot parse claims")
 	}
 
 	// todo check claims

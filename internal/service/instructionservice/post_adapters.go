@@ -31,7 +31,7 @@ func handleRegPostRequest(instructionData *api.InstructionData) ([]byte, error) 
 
 // * ----- WALLET OpType ----- * //
 
-func handleWalletPostRequest(instructionData *api.InstructionData) ([]byte, error) {
+func handleWalletPostRequest(instructionData *api.InstructionData, signatures [][]byte) ([]byte, error) {
 	switch instructionData.OpCommand {
 
 	case "KEY_GENERATE":
@@ -41,10 +41,10 @@ func handleWalletPostRequest(instructionData *api.InstructionData) ([]byte, erro
 		return []byte{}, walletsservice.DeleteWallet(instructionData)
 
 	case "KEY_MACHINE_BACKUP":
-		return []byte{}, walletsservice.SplitWallet(instructionData)
+		return []byte{}, walletsservice.SplitWallet(instructionData, signatures)
 
 	case "KEY_MACHINE_RESTORE":
-		return []byte{}, walletsservice.RecoverWallet(instructionData)
+		return []byte{}, walletsservice.RecoverWallet(instructionData, signatures)
 
 	case "KEY_MACHINE_BACKUP_REMOVE":
 		return walletsservice.KeyMachineBackupRemove(instructionData)

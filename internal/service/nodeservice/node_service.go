@@ -5,7 +5,6 @@ import (
 	"encoding/hex"
 	api "tee-node/api/types"
 	"tee-node/internal/attestation"
-	"tee-node/internal/config"
 	"tee-node/internal/node"
 	"tee-node/internal/policy"
 
@@ -48,11 +47,9 @@ func (s *Service) GetNodeInfo(ctx context.Context, req *api.GetNodeInfoRequest) 
 	}
 	nonces := []string{req.Nonce, "GetNodeInfo", hash}
 	var tokenBytes []byte
-	if config.Mode == 0 {
-		tokenBytes, err = attestation.GetGoogleAttestationToken(nonces, attestation.PKITokenType)
-		if err != nil {
-			return nil, err
-		}
+	tokenBytes, err = attestation.GetGoogleAttestationToken(nonces, attestation.PKITokenType)
+	if err != nil {
+		return nil, err
 	}
 
 	return &api.GetNodeInfoResponse{Data: responseData, Token: string(tokenBytes)}, nil

@@ -29,6 +29,7 @@ func TestInvalidRequestSignature(t *testing.T) {
 		"KEY_GENERATE",
 		api.NewWalletRequest{Name: walletName},
 		privKeys[0],
+		"1234",
 		hex.EncodeToString(instructionIdBytes),
 	)
 	require.NoError(t, err)
@@ -59,6 +60,7 @@ func TestRequestCheckActive(t *testing.T) {
 		"KEY_GENERATE",
 		api.NewWalletRequest{Name: walletName},
 		privKeys[0],
+		"1234",
 		hex.EncodeToString(instructionIdBytes),
 	)
 	require.NoError(t, err)

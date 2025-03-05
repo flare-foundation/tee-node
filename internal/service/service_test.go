@@ -55,7 +55,7 @@ func TestServiceEndToEnd(t *testing.T) {
 
 	// generate a new wallet
 	walletName := "newWallet"
-	createWallet(t, walletName, client, providers, ctx)
+	createWallet(t, nodeId, walletName, client, providers, ctx)
 	// get address
 	address := getAddress(t, walletName, client, ctx)
 
@@ -64,13 +64,13 @@ func TestServiceEndToEnd(t *testing.T) {
 	backups := []string{"ws://localhost:50061", "ws://localhost:50061"}
 	pubKeys := []string{pubKey, pubKey}
 	threshold := len(backups)
-	backupWallet(t, walletName, ids, backups, pubKeys, threshold, client, providers, ctx)
+	backupWallet(t, nodeId, walletName, ids, backups, pubKeys, threshold, client, providers, ctx)
 
 	// delete wallet
-	deleteWallet(t, walletName, client, providers, ctx)
+	deleteWallet(t, nodeId, walletName, client, providers, ctx)
 
 	// recover key
-	recoverWallet(t, walletName, address, ids, backups, pubKey, threshold, client, providers, ctx)
+	recoverWallet(t, nodeId, walletName, address, ids, backups, pubKey, threshold, client, providers, ctx)
 
 	// get recovered address
 	recoveredAddress := getAddress(t, walletName, client, ctx)
@@ -78,7 +78,7 @@ func TestServiceEndToEnd(t *testing.T) {
 
 	// sign transaction
 	paymentHash := "560ccd6e79ba7166e82dbf2a5b9a52283a509b63c39d4a4cc7164db3e43484c4"
-	instructionId := signTransaction(t, walletName, paymentHash, client, providers, ctx)
+	instructionId := signTransaction(t, nodeId, walletName, paymentHash, client, providers, ctx)
 	getSignatureResult(t, instructionId, client, ctx)
 }
 
@@ -102,17 +102,18 @@ func initializePolicy(t *testing.T, numPolicies int, client *rpc.Client, provide
 	require.NoError(t, err, "could not initialize policy")
 }
 
-func createWallet(t *testing.T, walletName string, client *rpc.Client, providers *utils.Providers, ctx context.Context) {
+func createWallet(t *testing.T, nodeId, walletName string, client *rpc.Client, providers *utils.Providers, ctx context.Context) {
 
 	instructionId, _ := utilsserver.GenerateRandomBytes(32)
 
-	for i := 0; i < 2; i++ {
+	for i := range 2 {
 		providerPrivKey := providers.PrivKeys[i]
 
 		instruction, err := utils.BuildMockInstruction("WALLET",
 			"KEY_GENERATE",
 			api.NewWalletRequest{Name: walletName},
 			providerPrivKey,
+			nodeId,
 			hex.EncodeToString(instructionId),
 		)
 		if err != nil {
@@ -153,11 +154,10 @@ func getAddress(t *testing.T, walletName string, client *rpc.Client, ctx context
 	return pubKeyResp.EthAddress
 }
 
-func backupWallet(t *testing.T, walletName string, ids, backups, pubKeys []string, threshold int, client *rpc.Client, providers *utils.Providers, ctx context.Context) {
+func backupWallet(t *testing.T, nodeId, walletName string, ids, backups, pubKeys []string, threshold int, client *rpc.Client, providers *utils.Providers, ctx context.Context) {
 
 	instructionId, _ := utilsserver.GenerateRandomBytes(32)
-	for i := 0; i < 2; i++ {
-
+	for i := range 2 {
 		providerPrivKey := providers.PrivKeys[i]
 
 		instruction, err := utils.BuildMockInstruction("WALLET", "KEY_MACHINE_BACKUP", api.SplitWalletRequest{
@@ -167,6 +167,7 @@ func backupWallet(t *testing.T, walletName string, ids, backups, pubKeys []strin
 			PublicKeys: pubKeys,
 			Threshold:  int64(threshold),
 		}, providerPrivKey,
+			nodeId,
 			hex.EncodeToString(instructionId),
 		)
 		if err != nil {
@@ -186,15 +187,16 @@ func backupWallet(t *testing.T, walletName string, ids, backups, pubKeys []strin
 	}
 }
 
-func deleteWallet(t *testing.T, walletName string, client *rpc.Client, providers *utils.Providers, ctx context.Context) {
+func deleteWallet(t *testing.T, nodeId, walletName string, client *rpc.Client, providers *utils.Providers, ctx context.Context) {
 
 	instructionId, _ := utilsserver.GenerateRandomBytes(32)
-	for i := 0; i < 2; i++ {
+	for i := range 2 {
 		providerPrivKey := providers.PrivKeys[i]
 
 		instruction, err := utils.BuildMockInstruction("WALLET", "KEY_DELETE", api.DeleteWalletRequest{
 			Name: walletName,
 		}, providerPrivKey,
+			nodeId,
 			hex.EncodeToString(instructionId),
 		)
 		if err != nil {
@@ -217,9 +219,9 @@ func deleteWallet(t *testing.T, walletName string, client *rpc.Client, providers
 	require.Error(t, err)
 }
 
-func recoverWallet(t *testing.T, walletName string, address string, ids, backups []string, pubKey string, threshold int, client *rpc.Client, providers *utils.Providers, ctx context.Context) {
+func recoverWallet(t *testing.T, nodeId, walletName string, address string, ids, backups []string, pubKey string, threshold int, client *rpc.Client, providers *utils.Providers, ctx context.Context) {
 	instructionId, _ := utilsserver.GenerateRandomBytes(32)
-	for i := 0; i < 2; i++ {
+	for i := range 2 {
 		shareIds := make([]string, threshold)
 		for i := range shareIds {
 			shareIds[i] = strconv.Itoa(i + 1)
@@ -236,6 +238,7 @@ func recoverWallet(t *testing.T, walletName string, address string, ids, backups
 			Address:   address,
 			Threshold: int64(threshold),
 		}, providerPrivKey,
+			nodeId,
 			hex.EncodeToString(instructionId),
 		)
 		if err != nil {
@@ -255,15 +258,16 @@ func recoverWallet(t *testing.T, walletName string, address string, ids, backups
 	}
 }
 
-func signTransaction(t *testing.T, walletName, paymentHash string, client *rpc.Client, providers *utils.Providers, ctx context.Context) string {
+func signTransaction(t *testing.T, nodeId, walletName, paymentHash string, client *rpc.Client, providers *utils.Providers, ctx context.Context) string {
 	instructionId, _ := utilsserver.GenerateRandomBytes(32)
-	for i := 0; i < 2; i++ {
+	for i := range 2 {
 		providerPrivKey := providers.PrivKeys[i]
 
 		instruction, err := utils.BuildMockInstruction("XRP",
 			"PAY",
 			api.SignPaymentRequest{WalletName: walletName, PaymentHash: paymentHash},
 			providerPrivKey,
+			nodeId,
 			hex.EncodeToString(instructionId),
 		)
 

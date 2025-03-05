@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/hex"
 	"tee-node/internal/attestation"
-	"tee-node/internal/config"
 	"tee-node/internal/policy"
 	"tee-node/internal/requests"
 
@@ -52,7 +51,6 @@ func (s *Service) SignNewPolicy(ctx context.Context, req *api.SignNewPolicyReque
 	}
 
 	if thresholdReached && !requestCounter.Done {
-
 		err = policy.SetNewPolicyInternal(req)
 		if err != nil {
 			return nil, err
@@ -63,12 +61,9 @@ func (s *Service) SignNewPolicy(ctx context.Context, req *api.SignNewPolicyReque
 
 	// Get the attestation token
 	nonces := []string{req.Challenge, requestCounter.Request.Identifier()}
-	var tokenBytes []byte
-	if config.Mode == 0 {
-		tokenBytes, err = attestation.GetGoogleAttestationToken(nonces, attestation.OIDCTokenType)
-		if err != nil {
-			return nil, err
-		}
+	tokenBytes, err := attestation.GetGoogleAttestationToken(nonces, attestation.OIDCTokenType)
+	if err != nil {
+		return nil, err
 	}
 
 	return &api.SignNewPolicyResponse{
@@ -98,11 +93,9 @@ func (s *Service) GetActivePolicy(ctx context.Context, req *api.GetActivePolicyR
 	// Get the attestation token
 	nonces := []string{req.Challenge, hex.EncodeToString(activePolicyBytes)}
 	var tokenBytes []byte
-	if config.Mode == 0 {
-		tokenBytes, err = attestation.GetGoogleAttestationToken(nonces, attestation.OIDCTokenType)
-		if err != nil {
-			return nil, err
-		}
+	tokenBytes, err = attestation.GetGoogleAttestationToken(nonces, attestation.OIDCTokenType)
+	if err != nil {
+		return nil, err
 	}
 
 	return &api.GetActivePolicyResponse{

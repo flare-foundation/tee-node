@@ -16,7 +16,6 @@ import (
 	policyserver "tee-node/internal/policy"
 	utilsserver "tee-node/internal/utils"
 	utils "tee-node/tests"
-	"tee-node/tests/client/attestation"
 	"tee-node/tests/client/config"
 	"tee-node/tests/client/policy"
 	"tee-node/tests/client/xrpl"
@@ -162,6 +161,7 @@ func main() {
 			"KEY_GENERATE",
 			api.NewWalletRequest{Name: walletName},
 			providerPrivKey,
+			"1234",
 			instructionId)
 		if err != nil {
 			log.Fatalf("could not initialize policy: %v", err)
@@ -210,29 +210,6 @@ func main() {
 		}
 		logger.Infof("EthAddress: %s, XrpAddress: %s, PublicKey: %s, Attestation Token %s", accInfoResp.EthAddress, accInfoResp.XrpAddress, accInfoResp.XrpPublicKey, accInfoResp.Token)
 
-	case "google_attestation":
-		var resp api.GetAttestationTokenResponse
-		err = client.Call(&resp, "attestationservice_getAttestationToken", &api.GetAttestationTokenRequest{Nonces: []string{string(nonceBytes)}})
-		if err != nil {
-			log.Fatalf("could not sign: %v", err)
-		}
-
-		jwtBytes := []byte(resp.JwtBytes)
-		tokenClaims, err := attestation.VerifyAttestationToken(jwtBytes)
-		if err != nil {
-			log.Fatalf("could not verify the attestation token: %v", err)
-		}
-
-		jwtData, err := attestation.DecodeAttestationToken(tokenClaims)
-		if err != nil {
-			log.Fatalf("could not decode the token: %v", err)
-		}
-
-		log.Printf("Image Digest: %v\n", jwtData.Submods.Container.ImageDigest)
-		log.Printf("Dbgstat: %v\n", jwtData.Dbgstat)
-		log.Printf("Support Attributes: %v\n", jwtData.Submods.ConfidentialSpace.SupportAttributes)
-		log.Printf("Hwmodel: %v\n", jwtData.Hwmodel)
-
 	case "node_attestation":
 		var resp api.GetNodeInfoResponse
 		err = client.Call(&resp, "nodeservice_getNodeInfo", &api.GetNodeInfoRequest{Nonce: string(nonceBytes)})
@@ -252,7 +229,7 @@ func main() {
 			if err != nil {
 				log.Fatalf("could not load certificate: %v", err)
 			}
-			token, err := attestationserver.ValidatePKIToken(*cert, resp.Token)
+			token, err := attestationserver.ValidatePKIToken(cert, resp.Token)
 			if err != nil {
 				log.Fatalf("failed validating PKI token: %v", err)
 			}
@@ -328,6 +305,7 @@ func main() {
 			"PAY",
 			api.SignPaymentRequest{WalletName: walletName, PaymentHash: paymentHash},
 			providerPrivKey,
+			"1234",
 			instructionId,
 		)
 		if err != nil {
@@ -410,6 +388,7 @@ func main() {
 				Threshold:  int64(config.Server.BackupsThreshold),
 			},
 			providerPrivKey,
+			"1234",
 			instructionId,
 		)
 		if err != nil {
@@ -461,6 +440,7 @@ func main() {
 			Address:   recoverInfo.Address,
 			Threshold: int64(config.Server.BackupsThreshold),
 		}, providerPrivKey,
+			"1234",
 			instructionId,
 		)
 		if err != nil {
@@ -474,18 +454,6 @@ func main() {
 		}
 
 		logger.Infof("sent request to recover wallet, is finalized %v, attestation token %s", resp.Finalized, resp.Token)
-
-	case "hardware_attestation":
-		req := &api.GetHardwareAttestationRequest{
-			Nonce: string(nonceBytes),
-		}
-		var hardwareResp api.GetHardwareAttestationResponse
-		err = client.Call(&hardwareResp, "attestationservice_getHardwareAttestation", req)
-		if err != nil {
-			log.Fatalf("could not sign: %v", err)
-		}
-
-		log.Printf("Hardware Attestation response: %v", hardwareResp.JsonAttestation)
 
 	default:
 		logger.Warn("call not recognized")
