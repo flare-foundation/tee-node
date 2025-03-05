@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"testing"
 
+	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
@@ -177,17 +178,7 @@ func TestSignNewPolicy(t *testing.T) {
 
 		// TODO: This part below is very ackward, it should be refactored, however we need to refactor the request first!
 		newRes, err := signingService.SignNewPolicy(context.Background(), signNewPolicyReq)
-		if err != nil {
-			// Convert error to RPC status
-			st, _ := status.FromError(err)
-
-			// Check error message/description
-			if st.Message() != "not active" {
-				t.Errorf("expected 'not active', got %v", st.Message())
-			}
-
-			break
-		}
+		require.NoError(t, err)
 
 		res3 = newRes
 	}
@@ -323,23 +314,30 @@ func TestSendingInvalidReardEpochId(t *testing.T) {
 
 	_, err = signingService.InitializePolicy(context.Background(), req)
 
-	// Convert error to gRPC status
-	st, ok := status.FromError(err)
-	if !ok {
-		t.Fatal("expected gRPC error status")
-	}
+	if err.Error() != "policy not found" {
 
-	// Check error code
-	if st.Code() != codes.InvalidArgument {
-		t.Errorf("expected InvalidArgument, got %v", st.Code())
-	}
+		// Convert error to gRPC status
+		st, ok := status.FromError(err)
+		if !ok {
+			t.Fatal("expected gRPC error status")
+		}
 
-	// Check error message/description
-	if st.Message() != "Trying to initialize policy for an invalid reward epoch Id" {
-		t.Errorf("expected 'Trying to initialize policy for an invalid reward epoch Id', got %v", st.Message())
+		// Check error code
+		if st.Code() != codes.InvalidArgument {
+			t.Errorf("expected InvalidArgument, got %v", st.Code())
+		}
+
+		// Check error message/description
+		if st.Message() != "Trying to initialize policy for an invalid reward epoch Id" {
+			t.Errorf("expected 'Trying to initialize policy for an invalid reward epoch Id' or 'policy not found', got %v", st.Message())
+		}
+
 	}
 
 }
+
+// * Check that the request work only if requestPolicy is within config.ACTIVE_POLICY_COUNT of the active policy reward epoch id -- //
+// TODO: CheckActive() function
 
 // * Verify that that the function fails if the voter weight is less than the Threshold -- //
 // TODO: Implement this test

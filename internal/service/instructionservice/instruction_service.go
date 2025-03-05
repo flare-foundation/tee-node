@@ -219,9 +219,14 @@ func (s *InstructionService) InstructionStatus(ctx context.Context, instructionQ
 			return nil, status.Error(codes.NotFound, err.Error()) // TODO: is an error to strict here?
 		}
 
+		requestPolicy, err := requestCounter.GetRequestPolicy()
+		if err != nil {
+			return nil, status.Error(codes.NotFound, err.Error())
+		}
+
 		voteResults = append(voteResults, api.VoteResult{
 			NumberOfVotes: uint16(len(requestCounter.RequestSigners)),
-			TotalWeight:   requestCounter.CurrentWeight(),
+			TotalWeight:   requestCounter.CurrentWeight(requestPolicy),
 		})
 
 		if requestCounter.Done {

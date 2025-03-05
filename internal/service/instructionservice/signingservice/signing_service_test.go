@@ -25,8 +25,6 @@ func TestSendManyPaymentSignatures(t *testing.T) {
 	numVoters, randSeed, epochId := 100, int64(12345), uint32(1)
 	_, _, privKeys := testutils.GenerateAndSetInitialPolicy(numVoters, randSeed, epochId)
 
-	_ = privKeys
-
 	testutils.CreateMockWallet(t, mockWallet, privKeys)
 
 	paymentHash := "560ccd6e79ba7166e82dbf2a5b9a52283a509b63c39d4a4cc7164db3e43484c4"

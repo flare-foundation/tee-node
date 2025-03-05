@@ -53,11 +53,9 @@ func (d InstructionData) RequestType() RequestType {
 	return InstructionRequest
 }
 
-// type InstructionResponse struct {
-// 	Status string
-// 	Data   []byte // TODO: is it needed?
-// 	Token  string // Google OIDC token (Attestation token)
-// }
+func (d InstructionData) RewardEpochId() uint32 {
+	return d.RewardEpochid
+}
 
 type InstructionResponse struct {
 	ResponseBase

@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"tee-node/internal/policy"
 	"tee-node/internal/requests"
 	"tee-node/internal/service/instructionservice/walletsservice"
 	"tee-node/internal/utils"
@@ -28,7 +29,7 @@ func BuildMockInstruction(OpType string, OpCommand string, request interface{}, 
 	instructionData := api.InstructionData{
 		InstructionId:             instructionId,
 		TeeId:                     "1234",
-		RewardEpochid:             1,
+		RewardEpochid:             policy.ActiveSigningPolicy.RewardEpochId,
 		OpType:                    OpType,
 		OpCommand:                 OpCommand,
 		OriginalMessage:           OriginalMessage,

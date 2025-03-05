@@ -11,4 +11,5 @@ const XRP_ALPHABET = "rpshnaf39wBUDNEGHJKLM4PQRST7VWXYZ2bcdeCg65jkm8oFqi1tuvAxyz
 // - 1 local (no attestation)
 const Mode = 1
 
-
+// The number of latest policies that are considered active enough to be used for signing
+const ACTIVE_POLICY_COUNT = 3

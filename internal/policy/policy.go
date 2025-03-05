@@ -48,6 +48,7 @@ func SigningPolicyHash(signingPolicy []byte) []byte {
 }
 
 func VerifyPolicyFreshness(sigPolicy *SigningPolicy, currentRewardEpochId uint32, policyHashString string) error {
+
 	// Verify the policy is new and for a valid rewards epoch Id
 	if sigPolicy.RewardEpochId <= currentRewardEpochId {
 
@@ -64,6 +65,10 @@ func SetSigningPolicy(policy *SigningPolicy, policyHash []byte) {
 	ActiveSigningPolicy = policy
 	ActiveSigningPolicyHash = policyHash
 	signingPolicies[policy.RewardEpochId] = policy
+}
+
+func GetSigningPolicy(epochId uint32) *SigningPolicy {
+	return signingPolicies[epochId]
 }
 
 // Note: This is useful for tests, but it would also be useful for upgrades, where a TEE get's shutdown.

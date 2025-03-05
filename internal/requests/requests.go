@@ -3,8 +3,8 @@ package requests
 import (
 	"crypto/ecdsa"
 	"encoding/hex"
-	"fmt"
 	"sync"
+	"tee-node/internal/config"
 	"tee-node/internal/policy"
 	"tee-node/internal/utils"
 
@@ -30,8 +30,8 @@ func init() {
 type RequestCounter[T Request] struct {
 	Request T
 
+	RewardEpochId  uint32
 	RequestSigners map[common.Address]bool
-	PolicyHash     string
 	Done           bool
 	Result         []byte
 }
@@ -51,7 +51,7 @@ type Request interface {
 	Identifier() string // A unique identifier for the request
 	Hash() []byte       // Note: Policies need to be signed a specific way, the same way they are onchain
 	RequestType() types.RequestType
-	// Check() error  // Todo: Removing this for now and we can add it back after
+	RewardEpochId() uint32
 }
 
 func Sign(r Request, privKey *ecdsa.PrivateKey) ([]byte, error) {
@@ -64,25 +64,26 @@ func Sign(r Request, privKey *ecdsa.PrivateKey) ([]byte, error) {
 	return signature, nil
 }
 
-func CheckSignature(r Request, signature []byte) (common.Address, error) {
+func CheckSignature(r Request, signature []byte, requestPolicy *policy.SigningPolicy) (common.Address, error) {
 	hash := r.Hash()
 	pubKey, err := crypto.SigToPub(accounts.TextHash(hash), signature)
 	if err != nil {
 		return common.Address{}, err
 	}
 	address := crypto.PubkeyToAddress(*pubKey)
-	if !slices.Contains(policy.ActiveSigningPolicy.Voters, address) {
+	if !slices.Contains(requestPolicy.Voters, address) {
 		return common.Address{}, errors.New("not a voter")
 	}
 
 	return address, nil
 }
 
+// ------------------------------------------------------------------------------------------
+
 func ProcessRequest[T Request](request T, signature []byte) (*RequestCounter[T], bool, error) {
 
 	requestCounterStorage, err := getRequestCounterStorage[T](request.RequestType())
 	if err != nil {
-		fmt.Printf("2\n")
 		return nil, false, err
 	}
 
@@ -94,13 +95,19 @@ func ProcessRequest[T Request](request T, signature []byte) (*RequestCounter[T],
 	}
 
 	requestCounter := requestCounterStorage.Storage[requestHash]
-	if !requestCounter.CheckActive() {
-		requestCounterStorage.Unlock()
 
+	requestPolicy, err := requestCounter.GetRequestPolicy()
+	if err != nil {
+		requestCounterStorage.Unlock()
+		return nil, false, err
+	}
+
+	if !requestCounter.CheckActive(requestPolicy) {
+		requestCounterStorage.Unlock()
 		return nil, false, errors.New("not active")
 	}
 
-	providerAddress, err := CheckSignature(request, signature)
+	providerAddress, err := CheckSignature(request, signature, requestPolicy)
 	if err != nil {
 		requestCounterStorage.Unlock()
 
@@ -109,7 +116,8 @@ func ProcessRequest[T Request](request T, signature []byte) (*RequestCounter[T],
 
 	requestCounter.AddRequestSigner(providerAddress)
 
-	thresholdReached := requestCounter.ThresholdReached()
+	thresholdReached := requestCounter.ThresholdReached(requestPolicy)
+
 	requestCounterStorage.Unlock()
 
 	return requestCounter, thresholdReached, nil
@@ -129,53 +137,57 @@ func GetRequestCounter[T Request](requestHash string, requestType types.RequestT
 		return nil, errors.New("request not found")
 	}
 
-	// Todo: Do we need this?
-	// if !requestCounter.CheckActive() {
-	// 	return nil, errors.New("not active")
-	// }
-
 	requestCounterStorage.Unlock()
 
 	return requestCounter, nil
 }
 
 func newRequestCounter[T Request](request T) *RequestCounter[T] {
+
 	return &RequestCounter[T]{
 		Request:        request,
 		RequestSigners: make(map[common.Address]bool),
-		PolicyHash:     hex.EncodeToString(policy.ActiveSigningPolicyHash), // todo, maybe make requestSigner specify this
 	}
 }
 
-func (r *RequestCounter[T]) CheckActive() bool {
-	// Note: What if we initialize the request with a policy, but then the active signing policy changes?
-	// Note: Then this would fail, but it probably shouldn't, or we should have a way to handle it.
-	return hex.EncodeToString(policy.ActiveSigningPolicyHash) == r.PolicyHash
+func (r *RequestCounter[T]) GetRequestPolicy() (*policy.SigningPolicy, error) {
+
+	if policy := policy.GetSigningPolicy(r.Request.RewardEpochId()); policy != nil {
+		return policy, nil
+	}
+	return nil, errors.New("policy not found")
 }
 
-func (r *RequestCounter[T]) Threshold() uint16 {
-	return policy.ActiveSigningPolicy.Threshold
+// Check that the request policy is still active (within config.ACTIVE_POLICY_COUNT) of the active policy reward epoch id
+func (r *RequestCounter[T]) CheckActive(requestPolicy *policy.SigningPolicy) bool {
+	return policy.ActiveSigningPolicy.RewardEpochId-requestPolicy.RewardEpochId <= config.ACTIVE_POLICY_COUNT
 }
 
-func (r *RequestCounter[T]) CurrentWeight() uint16 {
+func (r *RequestCounter[T]) Threshold(requestPolicy *policy.SigningPolicy) uint16 {
+	return requestPolicy.Threshold
+}
+
+func (r *RequestCounter[T]) CurrentWeight(requestPolicy *policy.SigningPolicy) uint16 {
+
 	currentWeight := uint16(0)
-	for i, voter := range policy.ActiveSigningPolicy.Voters {
+	for i, voter := range requestPolicy.Voters {
 		if _, ok := r.RequestSigners[voter]; ok {
-			currentWeight += policy.ActiveSigningPolicy.Weights[i]
+			currentWeight += requestPolicy.Weights[i]
 		}
 	}
 
 	return currentWeight
 }
 
-func (r *RequestCounter[T]) ThresholdReached() bool {
-	currentWeight := r.CurrentWeight()
-	threshold := r.Threshold()
+func (r *RequestCounter[T]) ThresholdReached(requestPolicy *policy.SigningPolicy) bool {
+	currentWeight := r.CurrentWeight(requestPolicy)
+	threshold := r.Threshold(requestPolicy)
 
 	return currentWeight >= threshold
 }
 
 func (r *RequestCounter[T]) AddRequestSigner(reqSigner common.Address) {
+
 	r.RequestSigners[reqSigner] = true
 }
 
