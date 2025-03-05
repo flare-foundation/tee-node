@@ -3,7 +3,6 @@ package attestation
 import (
 	"crypto/x509"
 	"fmt"
-	"tee-node/internal/config"
 
 	"github.com/pkg/errors"
 )
@@ -21,17 +20,13 @@ func SetGoogleCert() error {
 }
 
 func SelfAttest() error {
-	if config.Mode != 0 {
-		return nil
-	}
-
 	tokeBytes, err := GetGoogleAttestationToken([]string{}, "PKI")
 	fmt.Println(tokeBytes, err)
 	if err != nil {
 		return err
 	}
 
-	token, err := ValidatePKIToken(*GoogleCert, string(tokeBytes))
+	token, err := ValidatePKIToken(GoogleCert, string(tokeBytes))
 	if err != nil {
 		return err
 	}

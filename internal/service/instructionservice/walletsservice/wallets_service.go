@@ -3,12 +3,12 @@ package walletsservice
 import (
 	"encoding/hex"
 
+	"github.com/google/logger"
 	"github.com/pkg/errors"
 
 	"fmt"
 	api "tee-node/api/types"
 	"tee-node/internal/attestation"
-	"tee-node/internal/config"
 	"tee-node/internal/node"
 	"tee-node/internal/utils"
 	"tee-node/internal/wallets"
@@ -42,8 +42,7 @@ func DeleteWallet(instructionData *api.InstructionData) error {
 	return nil
 }
 
-func SplitWallet(instructionData *api.InstructionData) error {
-
+func SplitWallet(instructionData *api.InstructionData, signatures [][]byte) error {
 	splitWalletRequest, err := api.NewSplitWalletRequest(instructionData)
 	if err != nil {
 		return err
@@ -66,7 +65,7 @@ func SplitWallet(instructionData *api.InstructionData) error {
 
 	// todo attest others, itd.
 	for i, conn := range wsConns {
-		err = SendShare(conn, splits[i], splitWalletRequest.TeeIds[i], splitWalletRequest.PublicKeys[i])
+		err = wallets.SendShare(conn, splits[i], splitWalletRequest.TeeIds[i], splitWalletRequest.PublicKeys[i], instructionData, signatures)
 		if err != nil {
 			return err
 		}
@@ -76,7 +75,7 @@ func SplitWallet(instructionData *api.InstructionData) error {
 	return nil
 }
 
-func RecoverWallet(instructionData *api.InstructionData) error {
+func RecoverWallet(instructionData *api.InstructionData, signatures [][]byte) error {
 	recoverWalletRequest, err := api.NewRecoverWalletRequest(instructionData)
 	if err != nil {
 		return err
@@ -101,11 +100,19 @@ func RecoverWallet(instructionData *api.InstructionData) error {
 	// todo send splits, attest others, itd.
 	splits := make([]*wallets.WalletShare, 0)
 	for i, conn := range wsConns {
-		share, err := RequestShare(conn, recoverWalletRequest.Name, recoverWalletRequest.ShareIds[i], recoverWalletRequest.TeeIds[i])
+		share, err := wallets.RequestShare(
+			conn,
+			recoverWalletRequest.TeeIds[i],
+			i,
+			instructionData,
+			signatures,
+		)
 		if err != nil {
 			return err
 		}
 		splits = append(splits, share)
+
+		logger.Infof("obtained a share for wallet %s", recoverWalletRequest.Name)
 
 		conn.Close()
 	}
@@ -156,11 +163,9 @@ func WalletInfo(req *api.WalletInfoRequest) (*api.WalletInfoResponse, error) {
 	nonces := []string{req.Challenge, "WalletInfo", ethAddress, xrpAddress}
 
 	var tokenBytes []byte
-	if config.Mode == 0 {
-		tokenBytes, err = attestation.GetGoogleAttestationToken(nonces, attestation.OIDCTokenType)
-		if err != nil {
-			return nil, err
-		}
+	tokenBytes, err = attestation.GetGoogleAttestationToken(nonces, attestation.OIDCTokenType)
+	if err != nil {
+		return nil, err
 	}
 
 	return &api.WalletInfoResponse{

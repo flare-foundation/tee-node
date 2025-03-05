@@ -34,6 +34,7 @@ func TestSendManyPaymentSignatures(t *testing.T) {
 		"PAY",
 		api.SignPaymentRequest{WalletName: mockWallet, PaymentHash: paymentHash},
 		privKeys[0],
+		"1234",
 		hex.EncodeToString(instructionIdBytes),
 	)
 	require.NoError(t, err)
@@ -67,6 +68,7 @@ func TestGetSignatureApi(t *testing.T) {
 		"PAY",
 		api.SignPaymentRequest{WalletName: mockWallet, PaymentHash: paymentHash},
 		privKeys[0],
+		"1234",
 		hex.EncodeToString(instructionIdBytes),
 	)
 	require.NoError(t, err)
