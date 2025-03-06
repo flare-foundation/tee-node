@@ -29,12 +29,17 @@ import (
 )
 
 var args struct {
-	Call   string
-	Arg1   string
-	Arg2   string
-	Arg3   string
-	Arg4   string
-	Config string `default:"tests/configs/config_client.toml"`
+	Call          string
+	Arg1          string
+	Provider      int
+	WalletName    string
+	PubKey        string
+	TeeId         string
+	InstructionId string
+	TeeIds        []string
+	Address       string
+	RewardEpochId uint32
+	Config        string `default:"tests/configs/config_client.toml"`
 }
 
 // TODO: make cli configurable calls
@@ -149,20 +154,20 @@ func main() {
 		logger.Info("initialized policies")
 
 	case "new_wallet":
-		providerPrivKey, err := getProviderPrivKey(args.Arg1)
+		providerPrivKey, err := getProviderPrivKey(args.Provider)
 		if err != nil {
 			log.Fatalf("could not get provider private key: %v", err)
 		}
 
-		walletName := args.Arg2
-		instructionId := args.Arg3
-
 		instruction, err := utils.BuildMockInstruction("WALLET",
 			"KEY_GENERATE",
-			api.NewWalletRequest{Name: walletName},
+			api.NewWalletRequest{
+				Name: args.WalletName},
 			providerPrivKey,
-			"1234",
-			instructionId)
+			args.TeeId,
+			args.InstructionId,
+			args.RewardEpochId,
+		)
 		if err != nil {
 			log.Fatalf("could not initialize policy: %v", err)
 		}
@@ -177,36 +182,34 @@ func main() {
 
 	case "pub_key":
 		// TODO: Remove this function
-		walletName := args.Arg1
 
 		req := &api.WalletInfoRequest{
-			Name:      walletName,
+			Name:      args.WalletName,
 			Challenge: hex.EncodeToString(nonceBytes),
 		}
 
 		var pubKeyResp api.WalletInfoResponse
 		err = client.Call(&pubKeyResp, "instructionservice_walletInfo", req)
 		if err != nil {
-			log.Fatalf("could not create a new wallet: %v", err)
+			log.Fatalf("could not get a public key: %v", err)
 		}
 		logger.Infof("ethAddress: %s, public key: %s, attestation token %s", pubKeyResp.EthAddress, pubKeyResp.EthPublicKey.X, pubKeyResp.Token)
 
 	case "wallet_info":
-		walletName := args.Arg1
 		nonceBytes, err := utilsserver.GenerateRandomBytes(32)
 		if err != nil {
 			log.Fatalf("%v", err)
 		}
 
 		req := &api.WalletInfoRequest{
-			Name:      walletName,
+			Name:      args.WalletName,
 			Challenge: hex.EncodeToString(nonceBytes),
 		}
 
 		var accInfoResp api.WalletInfoResponse
 		err = client.Call(&accInfoResp, "instructionservice_walletInfo", req)
 		if err != nil {
-			log.Fatalf("could not create a new wallet: %v", err)
+			log.Fatalf("could not get wallet info: %v", err)
 		}
 		logger.Infof("EthAddress: %s, XrpAddress: %s, PublicKey: %s, Attestation Token %s", accInfoResp.EthAddress, accInfoResp.XrpAddress, accInfoResp.XrpPublicKey, accInfoResp.Token)
 
@@ -217,14 +220,13 @@ func main() {
 			log.Fatalf("could not get attestation: %v", err)
 		}
 
-		teeId := resp.Data.Uuid
-		pubKey := resp.Data.SigningPublicKey.X
+		teeId := resp.Data.Id
+		pubKey := resp.Data.EncryptionPublicKey
 
 		logger.Infof("TeeId: %v PubKey: %v\n", teeId, pubKey)
 		logger.Infof("node info: %v", resp.Data)
 
-		if resp.Token != "" {
-			// fmt.Println(resp.Token)
+		if resp.Token != "magic_pass" {
 			cert, err := attestationserver.LoadRootCert("google_confidential_space_root.crt")
 			if err != nil {
 				log.Fatalf("could not load certificate: %v", err)
@@ -284,16 +286,14 @@ func main() {
 
 	case "sign_payment":
 		// ---------- Parse arguments ---------- //
-		providerPrivKey, err := getProviderPrivKey(args.Arg1)
+		providerPrivKey, err := getProviderPrivKey(args.Provider)
 		if err != nil {
 			log.Fatalf("could not get provider private key: %v", err)
 		}
 
-		walletName := args.Arg2
-		paymentHash := args.Arg3
-		instructionId := args.Arg4
+		paymentHash := args.Arg1
 
-		txHash, err := hex.DecodeString(args.Arg3)
+		txHash, err := hex.DecodeString(paymentHash)
 		if err != nil {
 			log.Fatalf("could not decode tx hash: %v", err)
 		}
@@ -303,10 +303,11 @@ func main() {
 		instruction, err := utils.BuildMockInstruction(
 			"XRP",
 			"PAY",
-			api.SignPaymentRequest{WalletName: walletName, PaymentHash: paymentHash},
+			api.SignPaymentRequest{WalletName: args.WalletName, PaymentHash: paymentHash},
 			providerPrivKey,
-			"1234",
-			instructionId,
+			args.TeeId,
+			args.InstructionId,
+			args.RewardEpochId,
 		)
 		if err != nil {
 			log.Fatalf("could not initialize policy: %v", err)
@@ -324,11 +325,10 @@ func main() {
 		logger.Infof("sent request to SignPaymentTransaction, is ThresholdReached %v, Data %s, Token %v", resp.Finalized, resp.Data, resp.Token)
 
 	case "get_payment_signature":
-		instructionId := args.Arg1
 		nonceBytes, _ := utilsserver.GenerateRandomBytes(32)
 
 		req := &api.InstructionResultRequest{
-			InstructionId: instructionId,
+			InstructionId: args.InstructionId,
 			Challenge:     hex.EncodeToString(nonceBytes),
 		}
 
@@ -351,13 +351,10 @@ func main() {
 			paymentSigResponse.Account, txnSignature, signingPubKey, resp.Token)
 
 	case "split_wallet":
-		providerPrivKey, err := getProviderPrivKey(args.Arg1)
+		providerPrivKey, err := getProviderPrivKey(args.Provider)
 		if err != nil {
 			log.Fatalf("could not get provider private key: %v", err)
 		}
-
-		walletName := args.Arg2
-		instructionId := args.Arg3
 
 		type NodeInfo struct {
 			TeeId  string `json:"tee_id"`
@@ -366,7 +363,7 @@ func main() {
 
 		// Parse the JSON
 		var nodeInfos []NodeInfo
-		if err := json.Unmarshal([]byte(args.Arg4), &nodeInfos); err != nil {
+		if err := json.Unmarshal([]byte(args.Arg1), &nodeInfos); err != nil {
 			log.Fatalf("Failed to parse JSON: %v", err)
 		}
 
@@ -381,15 +378,16 @@ func main() {
 		instruction, err := utils.BuildMockInstruction("WALLET",
 			"KEY_MACHINE_BACKUP",
 			api.SplitWalletRequest{
-				Name:       walletName,
+				Name:       args.WalletName,
 				TeeIds:     teeIds,
 				Hosts:      config.Server.Backups,
 				PublicKeys: pubKeys,
 				Threshold:  int64(config.Server.BackupsThreshold),
 			},
 			providerPrivKey,
-			"1234",
-			instructionId,
+			args.TeeId,
+			args.InstructionId,
+			args.RewardEpochId,
 		)
 		if err != nil {
 			log.Fatalf("could not initialize policy: %v", err)
@@ -404,24 +402,9 @@ func main() {
 		logger.Infof("sent request to split wallet, is finalized %v", resp.Finalized)
 
 	case "recover_wallet":
-		providerPrivKey, err := getProviderPrivKey(args.Arg1)
+		providerPrivKey, err := getProviderPrivKey(args.Provider)
 		if err != nil {
 			log.Fatalf("could not get provider private key: %v", err)
-		}
-
-		walletName := args.Arg2
-		instructionId := args.Arg3
-
-		type RecoverInfo struct {
-			TeeIds  []string `json:"tee_ids"`
-			PubKey  string   `json:"pub_key"`
-			Address string   `json:"address"`
-		}
-
-		// Parse the JSON
-		var recoverInfo RecoverInfo
-		if err := json.Unmarshal([]byte(args.Arg4), &recoverInfo); err != nil {
-			log.Fatalf("Failed to parse JSON: %v", err)
 		}
 
 		numBackups := len(config.Server.Backups)
@@ -430,18 +413,20 @@ func main() {
 		for i := range shareIds {
 			shareIds[i] = strconv.Itoa(i + 1)
 		}
-
-		instruction, err := utils.BuildMockInstruction("WALLET", "KEY_MACHINE_RESTORE", api.RecoverWalletRequest{
-			Name:      walletName,
-			TeeIds:    recoverInfo.TeeIds,
+		request := api.RecoverWalletRequest{
+			Name:      args.WalletName,
+			TeeIds:    args.TeeIds,
 			Hosts:     config.Server.Backups,
 			ShareIds:  shareIds,
-			PublicKey: recoverInfo.PubKey,
-			Address:   recoverInfo.Address,
+			PublicKey: args.PubKey,
+			Address:   args.Address,
 			Threshold: int64(config.Server.BackupsThreshold),
-		}, providerPrivKey,
-			"1234",
-			instructionId,
+		}
+
+		instruction, err := utils.BuildMockInstruction("WALLET", "KEY_MACHINE_RESTORE", request, providerPrivKey,
+			args.TeeId,
+			args.InstructionId,
+			args.RewardEpochId,
 		)
 		if err != nil {
 			log.Fatalf("could not initialize policy: %v", err)
@@ -450,7 +435,7 @@ func main() {
 		var resp api.InstructionResponse
 		err = client.Call(&resp, "instructionservice_sendSignedInstruction", instruction)
 		if err != nil {
-			log.Fatalf("could not create a new wallet: %v", err)
+			log.Fatalf("could not recover: %v", err)
 		}
 
 		logger.Infof("sent request to recover wallet, is finalized %v, attestation token %s", resp.Finalized, resp.Token)
@@ -460,17 +445,7 @@ func main() {
 	}
 }
 
-func getProviderPrivKey(arg1 string) (*ecdsa.PrivateKey, error) {
-	var providerNum int
-	if arg1 == "" {
-		providerNum = 0
-	} else {
-		var err error
-		providerNum, err = strconv.Atoi(arg1)
-		if err != nil {
-			return nil, err
-		}
-	}
+func getProviderPrivKey(providerNum int) (*ecdsa.PrivateKey, error) {
 	providersBytes, err := os.ReadFile("tests/test_providers.json")
 	if err != nil {
 		log.Fatalf("%v", err)

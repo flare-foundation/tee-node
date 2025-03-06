@@ -8,6 +8,8 @@ import (
 	api "tee-node/api/types"
 	"tee-node/internal/attestation"
 	"tee-node/internal/config"
+	"tee-node/internal/node"
+	"tee-node/internal/policy"
 	"tee-node/internal/requests"
 	"tee-node/internal/service/instructionservice/walletsservice"
 
@@ -41,7 +43,6 @@ func NewService() *InstructionService {
 
 // Call forwards the call to the appropriate service and method
 func (s *InstructionService) SendSignedInstruction(ctx context.Context, instructionMessage *api.Instruction) (*api.InstructionResponse, error) {
-
 	// Check if context is cancelled
 	select {
 	case <-ctx.Done():
@@ -49,15 +50,13 @@ func (s *InstructionService) SendSignedInstruction(ctx context.Context, instruct
 	default:
 	}
 
-	// Check the command is valid
-	valid := IsValidCommand(instructionMessage.Data.OpType, instructionMessage.Data.OpCommand)
-	if !valid {
-		return nil, status.Error(codes.InvalidArgument, "invalid command for operation type")
-	}
-
 	// TODO: Is there any other check that should be done here?
-	// Todo: Checks if InstructionId is valid, if TeeId is correct, rewardEpochId is correct, etc.
+	// Todo: Checks if InstructionId is valid, rewardEpochId is correct, etc.
 	// TODO: Anti DOS checks
+	err := CheckInstruction(instructionMessage.Data)
+	if err != nil {
+		return nil, err
+	}
 
 	requestCounter, thresholdReached, err := requests.ProcessRequest(*instructionMessage.Data, instructionMessage.Signature)
 	if err != nil {
@@ -245,7 +244,7 @@ func (s *InstructionService) InstructionStatus(ctx context.Context, instructionQ
 			Status: "OK",
 			Token:  token,
 		},
-		Data: api.InstrutionStatusData{
+		Data: api.InstructionStatusData{
 			VoteResults: voteResults,
 			Status:      instructionStatus,
 			ErrorLog:    "", // TODO: add error log
@@ -266,6 +265,27 @@ func (s *InstructionService) WalletInfo(ctx context.Context, req *api.WalletInfo
 }
 
 // * HELPERS * ==================================================== // Extract this to a separate file
+func CheckInstruction(instructionData *api.InstructionData) error {
+	nodeId := node.GetNodeId()
+	if instructionData.TeeId != nodeId.Id {
+		return errors.New("invalid TEE id")
+	}
+
+	if policy.ActiveSigningPolicy.RewardEpochId < instructionData.RewardEpochID {
+		return errors.New("reward epoch not started yet")
+	}
+	if policy.ActiveSigningPolicy.RewardEpochId-instructionData.RewardEpochID > config.ACTIVE_POLICY_COUNT {
+		return errors.New("reward epoch id too old")
+	}
+
+	// Check the command is valid
+	valid := IsValidCommand(instructionData.OpType, instructionData.OpCommand)
+	if !valid {
+		return status.Error(codes.InvalidArgument, "invalid command for operation type")
+	}
+
+	return nil
+}
 
 // IsValidSubCommand checks if the OpType and Command is valid for a given operation type
 func IsValidCommand(op, command string) bool {

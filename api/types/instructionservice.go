@@ -24,7 +24,7 @@ type Instruction struct {
 type InstructionData struct {
 	InstructionId string
 	TeeId         string
-	RewardEpochid uint32
+	RewardEpochID uint32
 	OpType        string
 	OpCommand     string
 	// Original binary message from smart contract event
@@ -54,7 +54,7 @@ func (d InstructionData) RequestType() RequestType {
 }
 
 func (d InstructionData) RewardEpochId() uint32 {
-	return d.RewardEpochid
+	return d.RewardEpochID
 }
 
 type InstructionResponse struct {
@@ -77,10 +77,10 @@ type InstructionResultResponse struct {
 
 type InstructionStatusResponse struct {
 	ResponseBase
-	Data InstrutionStatusData
+	Data InstructionStatusData
 }
 
-type InstrutionStatusData struct {
+type InstructionStatusData struct {
 	VoteResults []VoteResult
 	Status      string
 	ErrorLog    string

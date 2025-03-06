@@ -8,6 +8,7 @@ import (
 	"log"
 	"os"
 	"strconv"
+	"time"
 
 	api "tee-node/api/types"
 	"tee-node/internal/node"
@@ -32,6 +33,7 @@ func TestServiceEndToEnd(t *testing.T) {
 
 	go LaunchServer(8545)
 	go LaunchWSServer(50061)
+	time.Sleep(time.Second)
 
 	client, err := rpc.Dial("http://0.0.0.0:8545")
 	if err != nil {
@@ -68,6 +70,8 @@ func TestServiceEndToEnd(t *testing.T) {
 
 	// delete wallet
 	deleteWallet(t, nodeId, walletName, client, providers, ctx)
+
+	time.Sleep(time.Second)
 
 	// recover key
 	recoverWallet(t, nodeId, walletName, address, ids, backups, pubKey, threshold, client, providers, ctx)
@@ -115,6 +119,7 @@ func createWallet(t *testing.T, nodeId, walletName string, client *rpc.Client, p
 			providerPrivKey,
 			nodeId,
 			hex.EncodeToString(instructionId),
+			policy.ActiveSigningPolicy.RewardEpochId,
 		)
 		if err != nil {
 			log.Fatalf("could not initialize policy: %v", err)
@@ -136,9 +141,9 @@ func getNodeInfo(t *testing.T, client *rpc.Client, ctx context.Context) (string,
 	err = client.CallContext(ctx, &nodeResp, "nodeservice_getNodeInfo", &api.GetNodeInfoRequest{Nonce: hex.EncodeToString(nonceBytes)})
 	require.NoError(t, err, "could not obtain node info")
 
-	logger.Infof("NodeId: %s, attestation token %s", nodeResp.Data.Uuid, nodeResp.Token)
+	logger.Infof("NodeId: %s, attestation token %s", nodeResp.Data.Id, nodeResp.Token)
 
-	return nodeResp.Data.Uuid, nodeResp.Data.EncryptionPublicKey
+	return nodeResp.Data.Id, nodeResp.Data.EncryptionPublicKey
 }
 
 func getAddress(t *testing.T, walletName string, client *rpc.Client, ctx context.Context) string {
@@ -169,6 +174,7 @@ func backupWallet(t *testing.T, nodeId, walletName string, ids, backups, pubKeys
 		}, providerPrivKey,
 			nodeId,
 			hex.EncodeToString(instructionId),
+			policy.ActiveSigningPolicy.RewardEpochId,
 		)
 		if err != nil {
 			log.Fatalf("could not initialize policy: %v", err)
@@ -198,6 +204,7 @@ func deleteWallet(t *testing.T, nodeId, walletName string, client *rpc.Client, p
 		}, providerPrivKey,
 			nodeId,
 			hex.EncodeToString(instructionId),
+			policy.ActiveSigningPolicy.RewardEpochId,
 		)
 		if err != nil {
 			log.Fatalf("could not initialize policy: %v", err)
@@ -240,6 +247,7 @@ func recoverWallet(t *testing.T, nodeId, walletName string, address string, ids,
 		}, providerPrivKey,
 			nodeId,
 			hex.EncodeToString(instructionId),
+			policy.ActiveSigningPolicy.RewardEpochId,
 		)
 		if err != nil {
 			log.Fatalf("could not initialize policy: %v", err)
@@ -269,6 +277,7 @@ func signTransaction(t *testing.T, nodeId, walletName, paymentHash string, clien
 			providerPrivKey,
 			nodeId,
 			hex.EncodeToString(instructionId),
+			policy.ActiveSigningPolicy.RewardEpochId,
 		)
 
 		if err != nil {

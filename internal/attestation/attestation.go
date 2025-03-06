@@ -2,7 +2,6 @@ package attestation
 
 import (
 	"crypto/x509"
-	"fmt"
 
 	"github.com/pkg/errors"
 )
@@ -21,7 +20,6 @@ func SetGoogleCert() error {
 
 func SelfAttest() error {
 	tokeBytes, err := GetGoogleAttestationToken([]string{}, "PKI")
-	fmt.Println(tokeBytes, err)
 	if err != nil {
 		return err
 	}

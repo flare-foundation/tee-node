@@ -145,10 +145,7 @@ func getRSAPublicKeyFromJWKsFile(t *jwt.Token) (any, error) {
 
 func decodeAndValidateToken(tokenBytes []byte, keyFunc func(t *jwt.Token) (any, error)) (*jwt.Token, error) {
 	var err error
-	// fmt.Println("Unmarshalling token and checking its validity...")
 	token, err := jwt.NewParser().Parse(string(tokenBytes), keyFunc)
-
-	// fmt.Printf("Token valid: %v\n", token.Valid)
 	if token.Valid {
 		return token, nil
 	}
@@ -187,7 +184,6 @@ func VerifyAttestationToken(tokenbytes []byte) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("failed to marshal claims: %w", err)
 	}
-	// fmt.Println(string(claimsString))
 
 	return string(claimsString), nil
 }

@@ -31,6 +31,7 @@ func TestInvalidRequestSignature(t *testing.T) {
 		privKeys[0],
 		"1234",
 		hex.EncodeToString(instructionIdBytes),
+		1,
 	)
 	require.NoError(t, err)
 
@@ -62,6 +63,7 @@ func TestRequestCheckActive(t *testing.T) {
 		privKeys[0],
 		"1234",
 		hex.EncodeToString(instructionIdBytes),
+		1,
 	)
 	require.NoError(t, err)
 

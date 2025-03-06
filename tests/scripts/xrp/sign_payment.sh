@@ -19,7 +19,9 @@ declare -a client_configs=(
 )  
 # Array of addresses
 declare -a addresses  
-mapfile -t addresses < tests/scripts/addresses.txt
+# mapfile -t addresses < tests/scripts/xrp/addresses.txt
+addresses=$(<"tests/scripts/xrp/addresses.txt")
+node_info_json=$(<"tests/scripts/wallet/node_info.json")
 
 readonly MULTISIG_ACCOUNT="rGumsQrNYzwW4xDPMmC3qXCJ5XqqsDBkat"  
 
@@ -31,17 +33,22 @@ declare -a public_keys=()
 
 
 # Run initial policy simulate for each client config  
-for i in "${!client_configs[@]}"; do  
-    # Create JSON payload  
+for i in "${!client_configs[@]}"; do 
+
+    address= address=$(echo "$addresses" | grep -o "tee0 [a-zA-Z0-9]*" | cut -d' ' -f2)
+    echo $address
+
+    # Create JSON payload
     payment_json='{  
         "amount": 9950000,  
         "fee": 990,  
         "spenderAccount": "'"$MULTISIG_ACCOUNT"'",
-        "destinationAccount": "'"${addresses[0]}"'",  
+        "destinationAccount": "'"$address"'",  
         "sequence": 4979782,  
         "lastLedgerSeq": 5050107,  
-        "signerAddress": "'"${addresses[$i]}"'"  
+        "signerAddress": "'"$address"'"  
     }' 
+    echo $payment_json
 
     # Execute command with JSON payload  
     PAYMENT_HASH=$(go run tests/client/cmd/main.go \
@@ -50,16 +57,19 @@ for i in "${!client_configs[@]}"; do
         --config "${client_configs[$i]}" \
         | grep "Payment hash:" \
         | awk '{print $NF}')  
+    echo $PAYMENT_HASH
 
     payment_hashes+=("$PAYMENT_HASH")
-
+    echo $PAYMENT_HASH
 
     instruction_id=$(shuf -i 1-1000000 -n 1)
     instruction_ids+=("$instruction_id")
+    node_id=$(echo "$node_info_json" | jq -r --argjson idx1 $i '.[$idx1] | .tee_id')
+    echo $node_id
     
-    
-    for signer_idx in {0..1}; do  
-        res=$(go run tests/client/cmd/main.go --call sign_payment --arg1 "$signer_idx" --arg2="foo" --arg3 $PAYMENT_HASH --arg4 $instruction_id --config "${client_configs[$i]}")
+    for signer_idx in {0..2}; do  
+        res=$(go run tests/client/cmd/main.go --call sign_payment --arg1 $signer_idx --arg2 "foo" --arg3 $PAYMENT_HASH --arg4 $instruction_id --arg5 $node_id --rewardepochid 5 --config "${client_configs[$i]}")
+        echo $res
     done  
 
 

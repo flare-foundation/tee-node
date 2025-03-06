@@ -31,7 +31,7 @@ func (s *Service) GetNodeInfo(ctx context.Context, req *api.GetNodeInfoRequest) 
 	nodeId := node.GetNodeId()
 
 	responseData := api.GetNodeInfoData{
-		Uuid:                nodeId.Uuid,
+		Id:                  nodeId.Id,
 		Status:              nodeId.Status,
 		EncryptionPublicKey: hex.EncodeToString(nodeId.EncryptionKey.PublicKey[:]),
 		SigningPublicKey: api.ECDSAPublicKey{

@@ -45,7 +45,7 @@ type AttestationResponse struct {
 func SendShare(conn *websocket.Conn, share *WalletShare, outNodeId, pubKey string, instructionData *api.InstructionData, signatures [][]byte) error {
 	myNode := node.GetNodeId()
 
-	err := StartMutualAttestation(conn, myNode.Uuid, outNodeId)
+	err := StartMutualAttestation(conn, myNode.Id, outNodeId)
 	if err != nil {
 		return err
 	}
@@ -79,7 +79,7 @@ func SendShare(conn *websocket.Conn, share *WalletShare, outNodeId, pubKey strin
 func GetShares(conn *websocket.Conn) error {
 	myNode := node.GetNodeId()
 
-	_, err := ReceiveMutualAttestation(conn, myNode.Uuid)
+	_, err := ReceiveMutualAttestation(conn, myNode.Id)
 	if err != nil {
 		return err
 	}
@@ -162,7 +162,7 @@ func (s shareInfo) Extract() (string, string, string) {
 func RequestShare(conn *websocket.Conn, outNodeId string, i int, instructionData *api.InstructionData, signatures [][]byte) (*WalletShare, error) {
 	myNode := node.GetNodeId()
 
-	err := StartMutualAttestation(conn, myNode.Uuid, outNodeId)
+	err := StartMutualAttestation(conn, myNode.Id, outNodeId)
 	if err != nil {
 		return nil, err
 	}
@@ -199,7 +199,7 @@ func RequestShare(conn *websocket.Conn, outNodeId string, i int, instructionData
 func RecoverShare(conn *websocket.Conn) error {
 	myNode := node.GetNodeId()
 
-	outNodeId, err := ReceiveMutualAttestation(conn, myNode.Uuid)
+	outNodeId, err := ReceiveMutualAttestation(conn, myNode.Id)
 	if err != nil {
 		return err
 	}
@@ -210,7 +210,7 @@ func RecoverShare(conn *websocket.Conn) error {
 		return err
 	}
 
-	err = shareInfo.Check(myNode.Uuid, outNodeId)
+	err = shareInfo.Check(myNode.Id, outNodeId)
 	if err != nil {
 		return err
 	}

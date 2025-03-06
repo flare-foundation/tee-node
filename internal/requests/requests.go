@@ -157,7 +157,7 @@ func (r *RequestCounter[T]) GetRequestPolicy() (*policy.SigningPolicy, error) {
 
 // Check that the request policy is still active (within config.ACTIVE_POLICY_COUNT) of the active policy reward epoch id
 func (r *RequestCounter[T]) CheckActive(requestPolicy *policy.SigningPolicy) bool {
-	return policy.ActiveSigningPolicy.RewardEpochId-requestPolicy.RewardEpochId <= config.ACTIVE_POLICY_COUNT
+	return policy.ActiveSigningPolicy.RewardEpochId-requestPolicy.RewardEpochId <= config.ACTIVE_POLICY_COUNT // todo maybe based on name it should be strictly smaller
 }
 
 func (r *RequestCounter[T]) Threshold(requestPolicy *policy.SigningPolicy) uint16 {

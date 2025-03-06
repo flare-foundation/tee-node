@@ -11,7 +11,7 @@ type GetNodeInfoRequest struct {
 }
 
 type GetNodeInfoData struct {
-	Uuid   string
+	Id     string
 	Status string
 
 	EncryptionPublicKey string

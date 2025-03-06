@@ -10,41 +10,18 @@ cleanup() {
 # Set up trap to catch script termination  
 trap cleanup EXIT  
 
-# Array of client configs  
-declare -a client_configs=(  
-    "tests/configs/config_client.toml"  
-    "tests/configs/config_client2.toml"  
-    "tests/configs/config_client3.toml"  
-)  
+command_output=$(go run tests/client/cmd/main.go --call wallet_info --walletname foo)
+address=$(echo "$command_output" | grep -o "EthAddress: [^,]*" | cut -d' ' -f2)
 
-tee_ids=()
-pub_keys=()
+node_info_json=$(<"tests/scripts/wallet/node_info.json")
+node_id=$(echo "$node_info_json" | jq -r --argjson idx1 0 '.[$idx1] | .tee_id')
+node_pub_key=$(echo "$node_info_json" | jq -r --argjson idx1 0 '.[$idx1] | .pub_key')
+backup_ids=$(echo "$node_info_json" | jq -r --argjson idx1 1 --argjson idx2 2 '.[$idx1].tee_id, .[$idx2].tee_id')
 
-# Run initial policy simulate for each client config  
-for i in "${!client_configs[@]}"; do  
-
-    config="${client_configs[$i]}" 
-
-    node_info_json=$(<"tests/scripts/wallet/node_info.json")
- 
-    tee_ids=$(echo "$node_info_json" | jq '[.[].tee_id]')  
-
-
-    # backup wallet
-    instruction_id=$(shuf -i 1-1000000 -n 1)
-
-#     # Create the RecoverInfo JSON  
-# recover_info=$(jq -n \
-#   --argjson tee_ids "$tee_ids" \
-#   --arg pub_key "$pub_key" \
-#   --arg address "$address" \
-#   '{tee_ids: $tee_ids, pub_key: $pub_key, address: $address}')  
-
-    for j in {0..1}; do   
-        go run tests/client/cmd/main.go --call split_wallet --arg1 "$j" --arg2 foo --arg3 "$instruction_id" --arg4 "$backup_node_infos" --config "$config"   
-    done
-
-
+# # Restore a wallet
+instruction_id=$(shuf -i 1-1000000 -n 1)
+for i in {0..2}; do   
+    go run tests/client/cmd/main.go --call recover_wallet --provider $i --walletname foo --instructionid $instruction_id --arg1 "$backup_node_infos" --teeid $node_id --pubkey $node_pub_key --teeids $backup_ids --address $address --rewardepochid 5 --config tests/configs/config_client.toml
 done  
 
 

@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"log"
+	"tee-node/internal/node"
 	"tee-node/internal/policy"
 	"tee-node/internal/service/instructionservice"
 	"tee-node/internal/utils"
@@ -24,13 +25,14 @@ const mockWallet = "wallet1"
 // Send enough signatures for the payment hash, to pass the threshold.
 func TestSendManyPaymentInstructions(t *testing.T) {
 	defer testutils.ResetTEEState() // Reset the state of the TEE after the test
+	err := node.InitNode()
+	require.NoError(t, err)
+	myNodeId := node.GetNodeId()
 
 	numVoters, randSeed, epochId := 100, int64(12345), uint32(1)
 	_, _, privKeys := testutils.GenerateAndSetInitialPolicy(numVoters, randSeed, epochId)
 
-	_ = privKeys
-
-	testutils.CreateMockWallet(t, mockWallet, privKeys)
+	testutils.CreateMockWallet(t, myNodeId.Id, mockWallet, privKeys, policy.ActiveSigningPolicy.RewardEpochId)
 
 	paymentHash := "560ccd6e79ba7166e82dbf2a5b9a52283a509b63c39d4a4cc7164db3e43484c4"
 
@@ -45,8 +47,9 @@ func TestSendManyPaymentInstructions(t *testing.T) {
 			"PAY",
 			api.SignPaymentRequest{WalletName: mockWallet, PaymentHash: paymentHash},
 			privKeys[i],
-			"1234",
+			myNodeId.Id,
 			hex.EncodeToString(instructionIdBytes),
+			policy.ActiveSigningPolicy.RewardEpochId,
 		)
 		require.NoError(t, err)
 
@@ -71,11 +74,14 @@ func TestSendManyPaymentInstructions(t *testing.T) {
 // Query the instruction result before and after the threshold was reached and verify the results
 func TestGetInstructionResult(t *testing.T) {
 	defer testutils.ResetTEEState() // Reset the state of the TEE after the test
+	err := node.InitNode()
+	require.NoError(t, err)
+	myNodeId := node.GetNodeId()
 
 	numVoters, randSeed, epochId := 100, int64(12345), uint32(1)
 	_, _, privKeys := testutils.GenerateAndSetInitialPolicy(numVoters, randSeed, epochId)
 
-	testutils.CreateMockWallet(t, mockWallet, privKeys)
+	testutils.CreateMockWallet(t, myNodeId.Id, mockWallet, privKeys, policy.ActiveSigningPolicy.RewardEpochId)
 
 	paymentHash := "560ccd6e79ba7166e82dbf2a5b9a52283a509b63c39d4a4cc7164db3e43484c4"
 
@@ -86,14 +92,14 @@ func TestGetInstructionResult(t *testing.T) {
 	instructionIdBytes, _ := utils.GenerateRandomBytes(32)
 
 	var instruction *api.Instruction
-	var err error
 	for i := 0; i < thresholdIdx; i++ {
 		instruction, err = testutils.BuildMockInstruction("XRP",
 			"PAY",
 			api.SignPaymentRequest{WalletName: mockWallet, PaymentHash: paymentHash},
 			privKeys[i],
-			"1234",
+			myNodeId.Id,
 			hex.EncodeToString(instructionIdBytes),
+			policy.ActiveSigningPolicy.RewardEpochId,
 		)
 		require.NoError(t, err)
 
@@ -130,8 +136,9 @@ func TestGetInstructionResult(t *testing.T) {
 		"PAY",
 		api.SignPaymentRequest{WalletName: mockWallet, PaymentHash: paymentHash},
 		privKeys[thresholdIdx],
-		"1234",
+		myNodeId.Id,
 		hex.EncodeToString(instructionIdBytes),
+		policy.ActiveSigningPolicy.RewardEpochId,
 	)
 	require.NoError(t, err)
 
@@ -151,11 +158,14 @@ func TestGetInstructionResult(t *testing.T) {
 
 func TestGetInstructionStatus(t *testing.T) {
 	defer testutils.ResetTEEState() // Reset the state of the TEE after the test
+	err := node.InitNode()
+	require.NoError(t, err)
+	myNodeId := node.GetNodeId()
 
 	numVoters, randSeed, epochId := 100, int64(12345), uint32(1)
 	_, _, privKeys := testutils.GenerateAndSetInitialPolicy(numVoters, randSeed, epochId)
 
-	testutils.CreateMockWallet(t, mockWallet, privKeys)
+	testutils.CreateMockWallet(t, myNodeId.Id, mockWallet, privKeys, policy.ActiveSigningPolicy.RewardEpochId)
 
 	paymentHash := "560ccd6e79ba7166e82dbf2a5b9a52283a509b63c39d4a4cc7164db3e43484c4"
 
@@ -166,14 +176,14 @@ func TestGetInstructionStatus(t *testing.T) {
 	instructionIdBytes, _ := utils.GenerateRandomBytes(32)
 
 	var instruction *api.Instruction
-	var err error
 	for i := 0; i < thresholdIdx; i++ {
 		instruction, err = testutils.BuildMockInstruction("XRP",
 			"PAY",
 			api.SignPaymentRequest{WalletName: mockWallet, PaymentHash: paymentHash},
 			privKeys[i],
-			"1234",
+			myNodeId.Id,
 			hex.EncodeToString(instructionIdBytes),
+			policy.ActiveSigningPolicy.RewardEpochId,
 		)
 		require.NoError(t, err)
 
@@ -205,8 +215,9 @@ func TestGetInstructionStatus(t *testing.T) {
 		"PAY",
 		api.SignPaymentRequest{WalletName: mockWallet, PaymentHash: paymentHash},
 		privKeys[thresholdIdx],
-		"1234",
+		myNodeId.Id,
 		hex.EncodeToString(instructionIdBytes),
+		policy.ActiveSigningPolicy.RewardEpochId,
 	)
 	require.NoError(t, err)
 
@@ -230,13 +241,15 @@ func TestGetInstructionStatus(t *testing.T) {
 }
 
 func TestGetResultWithDifferentInstructionForSameId(t *testing.T) {
-
 	defer testutils.ResetTEEState() // Reset the state of the TEE after the test
+	err := node.InitNode()
+	require.NoError(t, err)
+	myNodeId := node.GetNodeId()
 
 	numVoters, randSeed, epochId := 100, int64(12345), uint32(1)
 	_, _, privKeys := testutils.GenerateAndSetInitialPolicy(numVoters, randSeed, epochId)
 
-	testutils.CreateMockWallet(t, mockWallet, privKeys)
+	testutils.CreateMockWallet(t, myNodeId.Id, mockWallet, privKeys, policy.ActiveSigningPolicy.RewardEpochId)
 
 	paymentHash1 := "560ccd6e79ba7166e82dbf2a5b9a52283a509b63c39d4a4cc7164db3e43484c4"
 	paymentHash2 := "1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef"
@@ -249,8 +262,6 @@ func TestGetResultWithDifferentInstructionForSameId(t *testing.T) {
 	thresholdIdx, thresholdWeight := testutils.GetTresholdRechedVoterIndex(policy.ActiveSigningPolicy, privKeys)
 
 	var instruction *api.Instruction
-	var err error
-
 	// Loop up to the threshold index and sign the first payment hash
 	voterWeight1 := 0
 	for i := 0; i < thresholdIdx; i++ {
@@ -258,8 +269,9 @@ func TestGetResultWithDifferentInstructionForSameId(t *testing.T) {
 			"PAY",
 			api.SignPaymentRequest{WalletName: mockWallet, PaymentHash: paymentHash1},
 			privKeys[i],
-			"1234",
+			myNodeId.Id,
 			hex.EncodeToString(instructionIdBytes),
+			policy.ActiveSigningPolicy.RewardEpochId,
 		)
 		require.NoError(t, err)
 
@@ -287,8 +299,9 @@ func TestGetResultWithDifferentInstructionForSameId(t *testing.T) {
 			"PAY",
 			api.SignPaymentRequest{WalletName: mockWallet, PaymentHash: paymentHash2},
 			privKeys[i],
-			"1234",
+			myNodeId.Id,
 			hex.EncodeToString(instructionIdBytes),
+			policy.ActiveSigningPolicy.RewardEpochId,
 		)
 		require.NoError(t, err)
 
@@ -312,8 +325,9 @@ func TestGetResultWithDifferentInstructionForSameId(t *testing.T) {
 			"PAY",
 			api.SignPaymentRequest{WalletName: mockWallet, PaymentHash: paymentHash3},
 			privKeys[i],
-			"1234",
+			myNodeId.Id,
 			hex.EncodeToString(instructionIdBytes),
+			policy.ActiveSigningPolicy.RewardEpochId,
 		)
 		require.NoError(t, err)
 
@@ -363,8 +377,9 @@ func TestGetResultWithDifferentInstructionForSameId(t *testing.T) {
 		"PAY",
 		api.SignPaymentRequest{WalletName: mockWallet, PaymentHash: paymentHash1},
 		privKeys[thresholdIdx],
-		"1234",
+		myNodeId.Id,
 		hex.EncodeToString(instructionIdBytes),
+		policy.ActiveSigningPolicy.RewardEpochId,
 	)
 	require.NoError(t, err)
 

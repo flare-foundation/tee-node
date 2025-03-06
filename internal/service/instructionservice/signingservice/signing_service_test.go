@@ -5,6 +5,8 @@ import (
 	"encoding/hex"
 	"testing"
 
+	"tee-node/internal/node"
+	"tee-node/internal/policy"
 	"tee-node/internal/utils"
 	"tee-node/internal/wallets"
 
@@ -21,11 +23,14 @@ const mockWallet = "wallet1"
 // Send enough signatures for the payment hash, to pass the threshold.
 func TestSendManyPaymentSignatures(t *testing.T) {
 	defer testutils.ResetTEEState() // Reset the state of the TEE after the test
+	err := node.InitNode()
+	require.NoError(t, err)
+	myNodeId := node.GetNodeId()
 
 	numVoters, randSeed, epochId := 100, int64(12345), uint32(1)
 	_, _, privKeys := testutils.GenerateAndSetInitialPolicy(numVoters, randSeed, epochId)
 
-	testutils.CreateMockWallet(t, mockWallet, privKeys)
+	testutils.CreateMockWallet(t, myNodeId.Id, mockWallet, privKeys, policy.ActiveSigningPolicy.RewardEpochId)
 
 	paymentHash := "560ccd6e79ba7166e82dbf2a5b9a52283a509b63c39d4a4cc7164db3e43484c4"
 
@@ -36,6 +41,7 @@ func TestSendManyPaymentSignatures(t *testing.T) {
 		privKeys[0],
 		"1234",
 		hex.EncodeToString(instructionIdBytes),
+		policy.ActiveSigningPolicy.RewardEpochId,
 	)
 	require.NoError(t, err)
 
@@ -51,11 +57,14 @@ func TestSendManyPaymentSignatures(t *testing.T) {
 // Query the signature before and after the threshold was reached and verify the results
 func TestGetSignatureApi(t *testing.T) {
 	defer testutils.ResetTEEState() // Reset the state of the TEE after the test
+	err := node.InitNode()
+	require.NoError(t, err)
+	myNodeId := node.GetNodeId()
 
 	numVoters, randSeed, epochId := 100, int64(12345), uint32(1)
 	_, _, privKeys := testutils.GenerateAndSetInitialPolicy(numVoters, randSeed, epochId)
 
-	testutils.CreateMockWallet(t, mockWallet, privKeys)
+	testutils.CreateMockWallet(t, myNodeId.Id, mockWallet, privKeys, policy.ActiveSigningPolicy.RewardEpochId)
 
 	paymentHash := "560ccd6e79ba7166e82dbf2a5b9a52283a509b63c39d4a4cc7164db3e43484c4"
 
@@ -70,6 +79,7 @@ func TestGetSignatureApi(t *testing.T) {
 		privKeys[0],
 		"1234",
 		hex.EncodeToString(instructionIdBytes),
+		policy.ActiveSigningPolicy.RewardEpochId,
 	)
 	require.NoError(t, err)
 
@@ -104,7 +114,6 @@ func TestSigning(t *testing.T) {
 
 	valid, _ := utils.XrpVerifySig([]byte("123"), txnSignature, ecdsaPubKey)
 	require.True(t, valid)
-
 }
 
 // * —————————————————————————————————————————————————————————————————————————————————————————— * //

@@ -23,17 +23,8 @@ pub_keys=()
 # Run initial policy simulate for each client config  
 for config in "${client_configs[@]}"; do  
     go run tests/client/cmd/main.go --call initial_policy_simulate --config "$config"  
-    
-    # Create a new wallet
-    instruction_id=$(shuf -i 1-1000000 -n 1)
-    for i in {0..1}; do   
-        go run tests/client/cmd/main.go --call new_wallet --arg1 "$i" --arg2 foo --arg3 $instruction_id --config "$config"   
-    done  
 
-    # Run pub key command
-    # go run tests/client/cmd/main.go --call pub_key --arg1 foo --config tests/configs/config_client.toml
-
-    go run tests/client/cmd/main.go --call node_attestation --arg1 foo --config tests/configs/config_client.toml
+    go run tests/client/cmd/main.go --call node_attestation --walletname foo --config tests/configs/config_client.toml
 
     command_output=$(go run tests/client/cmd/main.go \
         --call node_attestation \
@@ -73,4 +64,5 @@ done
     done  
     echo "]"
 } > tests/scripts/wallet/node_info.json  
+
 

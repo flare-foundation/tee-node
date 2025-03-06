@@ -1,14 +1,16 @@
 [
-    {
-        "tee_id": "716f6d875b3e2d6f9f96281231e69dc87e5f188ccbd9d334c15b6c8adb161dfb",
-        "pub_key": "10da66a507a0b2beb5e7fc80cba4f44e35527e23cecc8c900108626ffc8a888c"
-    },
-    {
-        "tee_id": "984b6493e9cbbcdc5629586a95c28be80f541478cb3e94ddc120e360e683ad46",
-        "pub_key": "eec92263f2285b2bc4260909ba44ed167f2ee0226e14bfe9eac3e1a5ea986672"
-    },
-    {
-        "tee_id": "fb14e7a554dc6ca6659386c1ff4a8dc2d8b68b5b232fb9f974fcc63011e1ebda",
-        "pub_key": "f34f9447a13d3b81eb616c794833fcc1dd2166f5e7e24160dcb69bcc345cab8c"
-    }
+{
+    "tee_id": "0xCB1744e49a822F1D162536e1b17197872A0eFAEb",
+    "pub_key": "199c979e744a5600dec7a1aa826faf4e32e991092957efeed6a28a91d00e0f19"
+}
+,
+{
+    "tee_id": "0x9b6A6A3d92D486836541A616790064244Db6FD02",
+    "pub_key": "47efd565ada50174fafa06b9d4f59f8a4e37cdb365bfb4a9e9290246457ec65a"
+}
+,
+{
+    "tee_id": "0xfC9a741c13489Fb8b7bA12c039F8295470B86295",
+    "pub_key": "4b263fe84d587e44d16eb1ce99b61b5f9753c55151546a740a6db059d8f7b877"
+}
 ]

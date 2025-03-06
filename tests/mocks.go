@@ -5,7 +5,6 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"tee-node/internal/policy"
 	"tee-node/internal/requests"
 	"tee-node/internal/service/instructionservice/walletsservice"
 	"tee-node/internal/utils"
@@ -18,8 +17,7 @@ import (
 
 // Todo: I want to extract some logic for generating mock policies, wallets, etc. into this file.
 
-func BuildMockInstruction(OpType string, OpCommand string, request interface{}, privKey *ecdsa.PrivateKey, teeId, instructionId string) (*api.Instruction, error) {
-
+func BuildMockInstruction(OpType string, OpCommand string, request interface{}, privKey *ecdsa.PrivateKey, teeId, instructionId string, rewardEpochId uint32) (*api.Instruction, error) {
 	OriginalMessage, err := json.Marshal(request)
 	if err != nil {
 		fmt.Printf("Error marshalling request: %v\n", err)
@@ -29,7 +27,7 @@ func BuildMockInstruction(OpType string, OpCommand string, request interface{}, 
 	instructionData := api.InstructionData{
 		InstructionId:             instructionId,
 		TeeId:                     teeId,
-		RewardEpochid:             policy.ActiveSigningPolicy.RewardEpochId,
+		RewardEpochID:             rewardEpochId,
 		OpType:                    OpType,
 		OpCommand:                 OpCommand,
 		OriginalMessage:           OriginalMessage,
@@ -53,15 +51,16 @@ func BuildMockInstruction(OpType string, OpCommand string, request interface{}, 
 
 }
 
-func CreateMockWallet(t *testing.T, walletName string, privKeys []*ecdsa.PrivateKey) {
+func CreateMockWallet(t *testing.T, nodeId, walletName string, privKeys []*ecdsa.PrivateKey, rewardEpochId uint32) {
 	instructionIdBytes, _ := utils.GenerateRandomBytes(32)
 
 	instruction, err := BuildMockInstruction("WALLET",
 		"KEY_GENERATE",
 		api.NewWalletRequest{Name: walletName},
 		privKeys[0],
-		"1234",
+		nodeId,
 		hex.EncodeToString(instructionIdBytes),
+		rewardEpochId,
 	)
 	require.NoError(t, err)
 

@@ -6,72 +6,58 @@ Use the client to test the server
 
 ### Deploy TEE nodes
 
-Deploy a TEE node server locally (for `gcloud` deployment configs need to be modified)
+Deploy a TEE node server and two backup TEE nodes locally (for `gcloud` deployment configs need to be modified)
 
 ```bash
-go run cmd/server/main.go --config tests/configs/config_server.toml
-```
-
-Additionally deploy two backup TEE nodes
-
-```bash
-go run cmd/server/main.go --config tests/configs/config_server_backup0.toml & go run cmd/server/main.go --config tests/configs/config_server_backup1.toml
+./tests/scripts/start_server.sh
 ```
 
 ### Initialize a TEE node
 
-Then use the client with its CLI to initialize the TEE node with (simulated) initial policy with 3 data providers
+Initialize the TEE nodes with (simulated) initial policy with 3 data providers
 
 ```bash
-go run tests/client/cmd/main.go --call initial_policy_simulate --config tests/configs/config_client.toml
+./tests/scripts/initialize_policies.sh
 ```
 
 ### Create a new wallet
 
-Use 2 out of 3 data providers to create a new wallet with unique ID `foo` and get its address:
+Use 3 data providers to create a new wallet with unique ID `foo`:
 
 ```bash
-go run tests/client/cmd/main.go --call new_wallet --arg1 0 --arg2 foo --arg3 1234 --config tests/configs/config_client.toml
-go run tests/client/cmd/main.go --call new_wallet --arg1 1 --arg2 foo --arg3 1234 --config tests/configs/config_client.toml
-
-go run tests/client/cmd/main.go --call pub_key --arg1 foo --config tests/configs/config_client.toml
+./tests/scripts/wallet/create_wallet.sh
 ```
 
 ### Back up a wallet
 
-The last command should return the address of the generated wallet. Now backup the wallet with Shamir sharing
-2 out of 2.
+Now backup the wallet with Shamir sharing 2 out of 2 to the backup servers.
 
 ```bash
-go run tests/client/cmd/main.go --call split_wallet --arg1 0 --arg2 foo --arg3 12345 --config tests/configs/config_client.toml
-go run tests/client/cmd/main.go --call split_wallet --arg1 1 --arg2 foo --arg3 12345 --config tests/configs/config_client.toml
+./tests/scripts/wallet/backup_wallet.sh
 ```
 
 ### Recover a wallet
 
-You can now stop the TEE node with the wallet (but not the backup ones). Restart it
+Optionally you can now stop the TEE node with the wallet (but not the backup ones) and restart it.
+
+Recover the wallet, by running the following commands replacing the address with the address obtained before
 
 ```bash
-go run cmd/server/main.go --config tests/configs/config_server.toml
+./tests/scripts/wallet/restore_wallet.sh
 ```
 
-and initialize it again
+### Create multi-sig wallet on multiple TEE nodes
+
+Create a new wallet with unique ID `foo` on all three nodes:
 
 ```bash
-go run tests/client/cmd/main.go --call initial_policy_simulate --config tests/configs/config_client.toml
+./tests/scripts/xrp/create_wallets.sh
 ```
 
-and recover the wallet, by running the following commands replacing the address with the address obtained before
+### Create a transaction and sign it with a multi-sig wallet on multiple TEE nodes
 
 ```bash
-go run tests/client/cmd/main.go --call recover_wallet --arg1 0 --arg2 foo --arg3 0xb06023c32B5326293bccf78BFf4Be42FD9554c7a --arg4 123456 --config tests/configs/config_client.toml
-go run tests/client/cmd/main.go --call recover_wallet --arg1 1 --arg2 foo --arg3 0xb06023c32B5326293bccf78BFf4Be42FD9554c7a --arg4 123456 --config tests/configs/config_client.toml
-```
-
-Check if the wallet is on the server
-
-```bash
-go run tests/client/cmd/main.go --call pub_key --arg1 foo --config tests/configs/config_client.toml
+./tests/scripts/xrp/sign_payment.sh
 ```
 
 ### Get google attestation
@@ -82,7 +68,7 @@ Get google attestation token (you must provide nonce in arg1 otherwise service f
 go run tests/client/cmd/main.go --call google_attestation --arg1 1234567890 --config tests/configs/config_client.toml
 ```
 
-## Unit tests
+## Unit tests of client
 
 Before running policy tests for a client, set up a database with indexed data from
 coston2 blockchain. Navigate to `tests/docker` and run

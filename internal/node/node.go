@@ -2,8 +2,9 @@ package node
 
 import (
 	"crypto/ecdsa"
-	"encoding/hex"
 	"tee-node/internal/utils"
+
+	"github.com/ethereum/go-ethereum/crypto"
 )
 
 var nodeId = NodeId{}
@@ -14,25 +15,23 @@ const (
 )
 
 type NodeId struct {
-	Uuid          string
+	Id            string
 	Status        string
 	EncryptionKey utils.EncryptionKey
 	SignatureKey  *ecdsa.PrivateKey
 }
 
 func InitNode() error {
-	idBytes, err := utils.GenerateRandomBytes(32)
+	var err error
+	nodeId.SignatureKey, err = utils.GenerateEthereumPrivateKey()
 	if err != nil {
 		return err
 	}
-	nodeId.Uuid = hex.EncodeToString(idBytes)
+
+	address := crypto.PubkeyToAddress(nodeId.SignatureKey.PublicKey)
+	nodeId.Id = address.Hex()
 
 	nodeId.EncryptionKey, err = utils.GenerateEncryptionKeyPair()
-	if err != nil {
-		return err
-	}
-
-	nodeId.SignatureKey, err = utils.GenerateEthereumPrivateKey()
 	if err != nil {
 		return err
 	}

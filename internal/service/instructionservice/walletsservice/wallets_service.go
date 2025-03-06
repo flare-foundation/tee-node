@@ -147,9 +147,6 @@ func KeyCustodianRestore(instructionData *api.InstructionData) ([]byte, error) {
 func WalletInfo(req *api.WalletInfoRequest) (*api.WalletInfoResponse, error) {
 	ethAddress, err := wallets.GetEthAddress(req.Name)
 	publicKey, err2 := wallets.GetPublicKey(req.Name)
-
-	fmt.Println("ethAddress", ethAddress)
-	fmt.Println("publicKey", publicKey)
 	if err != nil || err2 != nil {
 		return nil, fmt.Errorf("wallet non-existent")
 	}
