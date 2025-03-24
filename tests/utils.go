@@ -10,11 +10,11 @@ import (
 	"math/rand"
 	"time"
 
-	"tee-node/internal/config"
-	"tee-node/internal/policy"
-	"tee-node/internal/requests"
-	"tee-node/internal/utils"
-	"tee-node/internal/wallets"
+	"tee-node/pkg/config"
+	"tee-node/pkg/policy"
+	"tee-node/pkg/requests"
+	"tee-node/pkg/utils"
+	"tee-node/pkg/wallets"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"

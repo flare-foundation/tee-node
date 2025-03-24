@@ -1,0 +1,133 @@
+package wallets
+
+import (
+	"crypto/ecdsa"
+	"sync"
+	"tee-node/pkg/utils"
+
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/pkg/errors"
+)
+
+var walletsStorage = InitWalletsStorage()
+
+// Wallet is a struct carrying the private key of particular wallet. It
+// should never be modified, after being created. Todo: check this
+type Wallet struct {
+	WalletId   string
+	KeyId      string
+	PrivateKey *ecdsa.PrivateKey
+	Address    common.Address
+	XrpAddress string
+}
+type WalletsStorage struct {
+	// walletId to ShareId to WalletShare
+	Storage map[WalletKeyIdPair]*Wallet
+
+	sync.Mutex
+}
+
+type WalletKeyIdPair struct {
+	WalletId string
+	KeyId    string
+}
+
+func InitWalletsStorage() WalletsStorage {
+	return WalletsStorage{Storage: make(map[WalletKeyIdPair]*Wallet)}
+}
+
+func CreateNewWallet(idPair WalletKeyIdPair) error {
+	sk, err := utils.GenerateEthereumPrivateKey()
+	if err != nil {
+		return err
+	}
+
+	sec1PubKey := utils.SerializeCompressed(&sk.PublicKey)
+	xrpAddress, err := utils.GetXrpAddressFromPubkey(sec1PubKey)
+	if err != nil {
+		return err
+	}
+
+	newWallet := Wallet{WalletId: idPair.WalletId, KeyId: idPair.KeyId, PrivateKey: sk, Address: crypto.PubkeyToAddress(sk.PublicKey), XrpAddress: xrpAddress}
+	walletsStorage.Lock()
+	walletsStorage.Storage[idPair] = &newWallet
+	walletsStorage.Unlock()
+
+	return nil
+}
+
+func GetXrpAddress(idPair WalletKeyIdPair) (string, error) {
+	walletsStorage.Lock()
+	wallet, ok := walletsStorage.Storage[idPair]
+	walletsStorage.Unlock()
+
+	if !ok {
+		return "", errors.New("wallet non-existent")
+	}
+
+	return wallet.XrpAddress, nil
+}
+
+func GetEthAddress(idPair WalletKeyIdPair) (string, error) {
+	walletsStorage.Lock()
+	wallet, ok := walletsStorage.Storage[idPair]
+	walletsStorage.Unlock()
+	if !ok {
+		return "", errors.New("wallet non-existent")
+	}
+
+	return wallet.Address.Hex(), nil
+}
+
+func GetPublicKey(idPair WalletKeyIdPair) (*ecdsa.PublicKey, error) {
+	walletsStorage.Lock()
+	wallet, ok := walletsStorage.Storage[idPair]
+	walletsStorage.Unlock()
+	if !ok {
+		return nil, errors.New("wallet non-existent")
+	}
+
+	return &wallet.PrivateKey.PublicKey, nil
+}
+
+func AddWallet(wallet *Wallet) error {
+	walletsStorage.Lock()
+	walletsStorage.Storage[WalletKeyIdPair{WalletId: wallet.WalletId, KeyId: wallet.KeyId}] = wallet
+	walletsStorage.Unlock()
+
+	return nil
+}
+
+func RemoveWallet(idPair WalletKeyIdPair) {
+	walletsStorage.Lock()
+	delete(walletsStorage.Storage, idPair)
+	walletsStorage.Unlock()
+
+}
+
+func GetWallet(idPair WalletKeyIdPair) (*Wallet, error) {
+	walletsStorage.Lock()
+	wallet, ok := walletsStorage.Storage[idPair]
+	walletsStorage.Unlock()
+	if !ok {
+		return nil, errors.New("wallet non-existent")
+	}
+
+	return wallet, nil
+}
+
+func WalletExists(idPair WalletKeyIdPair) bool {
+	walletsStorage.Lock()
+	_, ok := walletsStorage.Storage[idPair]
+	walletsStorage.Unlock()
+
+	return ok
+}
+
+// Note: This is useful for tests, but it would also be useful for upgrades, where a TEE get's shutdown.
+func DestroyState() {
+	walletsStorage.Lock()
+	walletsStorage.Storage = make(map[WalletKeyIdPair]*Wallet)
+	walletsStorage.Unlock()
+}

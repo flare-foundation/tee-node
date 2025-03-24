@@ -3,7 +3,7 @@ package main
 import (
 	"crypto/ecdsa"
 	"fmt"
-	"tee-node/internal/utils"
+	"tee-node/pkg/utils"
 	"tee-node/tests/client/xrpl"
 
 	xrputils "tee-node/tests/client/xrpl/utils"

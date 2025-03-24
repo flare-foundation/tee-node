@@ -2,11 +2,11 @@ package main
 
 import (
 	"log"
-	"tee-node/internal/attestation"
-	"tee-node/internal/config"
+	"tee-node/pkg/attestation"
+	"tee-node/pkg/config"
 
-	"tee-node/internal/node"
-	"tee-node/internal/service"
+	"tee-node/pkg/node"
+	"tee-node/pkg/service"
 
 	"github.com/alexflint/go-arg"
 	"github.com/flare-foundation/go-flare-common/pkg/logger"
