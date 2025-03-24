@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"tee-node/internal/requests"
 	"tee-node/internal/service/instructionservice/signingservice"
+	"tee-node/internal/utils"
 
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -13,7 +14,7 @@ import (
 
 // TODO: Implement this service and APIs
 func handleRegGetRequest(requestCounter *requests.RequestCounter) ([]byte, error) {
-	switch requestCounter.Request.OpCommand {
+	switch utils.OpHashToString(requestCounter.Request.OPCommand) {
 	case "AVAILABILITY_CHECK":
 		return nil, status.Error(codes.Unimplemented, "REG AVAILABILITY_CHECK command not implemented yet")
 
@@ -32,7 +33,7 @@ func handleRegGetRequest(requestCounter *requests.RequestCounter) ([]byte, error
 // * ----- WALLET OpType ----- * //
 
 func handleWalletGetRequest(requestCounter *requests.RequestCounter) ([]byte, error) {
-	switch requestCounter.Request.OpCommand {
+	switch utils.OpHashToString(requestCounter.Request.OPCommand) {
 
 	case "KEY_GENERATE":
 
@@ -75,7 +76,7 @@ func handleWalletGetRequest(requestCounter *requests.RequestCounter) ([]byte, er
 
 func handleXrpGetRequest(requestCounter *requests.RequestCounter) ([]byte, error) {
 
-	switch requestCounter.Request.OpCommand {
+	switch utils.OpHashToString(requestCounter.Request.OPCommand) {
 	case "PAY":
 
 		response, err := signingservice.GetPaymentSignature(requestCounter.Request, requestCounter.Result)
@@ -100,7 +101,7 @@ func handleXrpGetRequest(requestCounter *requests.RequestCounter) ([]byte, error
 }
 
 func handleBtcGetRequest(requestCounter *requests.RequestCounter) ([]byte, error) {
-	switch requestCounter.Request.OpCommand {
+	switch utils.OpHashToString(requestCounter.Request.OPCommand) {
 	case "PAY":
 		return nil, status.Error(codes.Unimplemented, "BTC PAY command not implemented yet")
 
@@ -114,7 +115,7 @@ func handleBtcGetRequest(requestCounter *requests.RequestCounter) ([]byte, error
 }
 
 func handleFdcGetRequest(requestCounter *requests.RequestCounter) ([]byte, error) {
-	switch requestCounter.Request.OpCommand {
+	switch utils.OpHashToString(requestCounter.Request.OPCommand) {
 	case "PROVE":
 		return nil, status.Error(codes.Unimplemented, "FDC PROVE command not implemented yet")
 

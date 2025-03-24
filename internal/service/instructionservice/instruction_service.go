@@ -6,7 +6,9 @@ import (
 	"tee-node/internal/attestation"
 	"tee-node/internal/requests"
 	"tee-node/internal/service/instructionservice/walletsservice"
+	"tee-node/internal/utils"
 
+	"github.com/flare-foundation/go-flare-common/pkg/tee/instruction"
 	"github.com/pkg/errors"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -22,7 +24,8 @@ func NewService() *InstructionService {
 }
 
 // Call forwards the call to the appropriate service and method
-func (s *InstructionService) SendSignedInstruction(ctx context.Context, instructionMessage *api.Instruction) (*api.InstructionResponse, error) {
+func (s *InstructionService) SendSignedInstruction(ctx context.Context, instructionMessage *instruction.Instruction) (*api.InstructionResponse, error) {
+
 	// Check if context is cancelled
 	select {
 	case <-ctx.Done():
@@ -33,16 +36,16 @@ func (s *InstructionService) SendSignedInstruction(ctx context.Context, instruct
 	// TODO: Is there any other check that should be done here?
 	// Todo: Checks if InstructionId is valid, rewardEpochId is correct, etc.
 	// TODO: Anti DOS checks
-	err := requests.CheckRequest(instructionMessage.Data)
+	err := requests.CheckRequest(&instructionMessage.Data)
 	if err != nil {
 		return nil, err
 	}
 
-	signer, err := requests.CheckSigner(instructionMessage.Data, instructionMessage.Signature)
+	signer, err := requests.CheckSigner(&instructionMessage.Data, instructionMessage.Signature)
 	if err != nil {
 		return nil, err
 	}
-	requestCounter, err := requests.GetRequestCounter(instructionMessage.Data)
+	requestCounter, err := requests.GetRequestCounter(&instructionMessage.Data)
 	if err != nil {
 		return nil, err
 	}
@@ -58,7 +61,7 @@ func (s *InstructionService) SendSignedInstruction(ctx context.Context, instruct
 
 	finalize := thresholdReached && !requestCounter.Done
 	if finalize {
-		switch instructionMessage.Data.OpType {
+		switch utils.OpHashToString(instructionMessage.Data.OPType) {
 		case "REG":
 			requestCounter.Result, err = handleRegPostRequest(requestCounter)
 
@@ -88,7 +91,7 @@ func (s *InstructionService) SendSignedInstruction(ctx context.Context, instruct
 	}
 
 	// TODO: Again what do we put in the nonces beside the challenge?
-	token, err := attestation.CreateAttestation([]string{instructionMessage.Challenge}, attestation.OIDCTokenType) // todo: add response to the attested value?
+	token, err := attestation.CreateAttestation([]string{instructionMessage.Challenge.String()}, attestation.OIDCTokenType) // todo: add response to the attested value?
 	if err != nil {
 		return nil, err
 	}
@@ -150,7 +153,7 @@ func (s *InstructionService) InstructionResult(ctx context.Context, instructionQ
 	var instructionResultData []byte
 	var err error
 
-	switch requestCounterFinalized.Request.OpType {
+	switch utils.OpHashToString(requestCounterFinalized.Request.OPType) {
 	case "REG":
 		instructionResultData, err = handleRegGetRequest(requestCounterFinalized)
 

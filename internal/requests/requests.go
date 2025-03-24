@@ -2,21 +2,24 @@ package requests
 
 import (
 	"crypto/ecdsa"
-	api "tee-node/api/types"
 	"tee-node/internal/config"
 	"tee-node/internal/node"
 	"tee-node/internal/policy"
 	"tee-node/internal/utils"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/flare-foundation/go-flare-common/pkg/tee/instruction"
 	"github.com/pkg/errors"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
 
-func Sign(r *api.InstructionData, privKey *ecdsa.PrivateKey) ([]byte, error) {
-	hash := r.Hash()
-	signature, err := utils.Sign(hash, privKey)
+func Sign(r *instruction.Data, privKey *ecdsa.PrivateKey) ([]byte, error) {
+	hash, err := r.HashForSigning()
+	if err != nil {
+		return nil, err
+	}
+	signature, err := utils.Sign(hash[:], privKey)
 	if err != nil {
 		return nil, err
 	}
@@ -24,14 +27,17 @@ func Sign(r *api.InstructionData, privKey *ecdsa.PrivateKey) ([]byte, error) {
 	return signature, nil
 }
 
-func CheckSignature(r *api.InstructionData, signature []byte, requestPolicy *policy.SigningPolicy) (common.Address, error) {
-	hash := r.Hash()
+func CheckSignature(r *instruction.Data, signature []byte, requestPolicy *policy.SigningPolicy) (common.Address, error) {
+	hash, err := r.HashForSigning()
+	if err != nil {
+		return common.Address{}, err
+	}
 
-	return utils.CheckSignature(hash, signature, requestPolicy.Voters)
+	return utils.CheckSignature(hash[:], signature, requestPolicy.Voters)
 }
 
-func CheckSigner(request *api.InstructionData, signature []byte) (common.Address, error) {
-	requestPolicy := policy.GetSigningPolicy(request.RewardEpochID)
+func CheckSigner(request *instruction.Data, signature []byte) (common.Address, error) {
+	requestPolicy := policy.GetSigningPolicy(uint32(request.RewardEpochID.Uint64()))
 	if requestPolicy == nil {
 		return common.Address{}, nil
 	}
@@ -44,21 +50,21 @@ func CheckSigner(request *api.InstructionData, signature []byte) (common.Address
 	return providerAddress, nil
 }
 
-func CheckRequest(instructionData *api.InstructionData) error {
+func CheckRequest(instructionData *instruction.Data) error {
 	nodeId := node.GetNodeId()
-	if instructionData.TeeId != nodeId.Id {
+	if instructionData.TeeID.Hex() != nodeId.Id {
 		return errors.New("invalid TEE id")
 	}
 
-	if policy.ActiveSigningPolicy.RewardEpochId < instructionData.RewardEpochID {
+	if policy.ActiveSigningPolicy.RewardEpochId < uint32(instructionData.RewardEpochID.Uint64()) {
 		return errors.New("reward epoch not started yet")
 	}
-	if policy.ActiveSigningPolicy.RewardEpochId-instructionData.RewardEpochID > config.ACTIVE_POLICY_COUNT {
+	if policy.ActiveSigningPolicy.RewardEpochId-uint32(instructionData.RewardEpochID.Uint64()) > config.ACTIVE_POLICY_COUNT {
 		return errors.New("reward epoch id too old")
 	}
 
 	// Check the command is valid
-	valid := isValidCommand(instructionData.OpType, instructionData.OpCommand)
+	valid := isValidCommand(utils.OpHashToString(instructionData.OPType), utils.OpHashToString(instructionData.OPCommand))
 	if !valid {
 		return status.Error(codes.InvalidArgument, "invalid command for operation type")
 	}

@@ -5,6 +5,7 @@ import (
 	"tee-node/internal/service/instructionservice/policyservice"
 	"tee-node/internal/service/instructionservice/signingservice"
 	"tee-node/internal/service/instructionservice/walletsservice"
+	"tee-node/internal/utils"
 
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -14,7 +15,7 @@ import (
 
 // TODO: Implement this service and APIs
 func handleRegPostRequest(requestCounter *requests.RequestCounter) ([]byte, error) {
-	switch requestCounter.Request.OpCommand {
+	switch utils.OpHashToString(requestCounter.Request.OPCommand) {
 	case "AVAILABILITY_CHECK":
 		return nil, status.Error(codes.Unimplemented, "REG AVAILABILITY_CHECK command not implemented yet")
 
@@ -30,7 +31,7 @@ func handleRegPostRequest(requestCounter *requests.RequestCounter) ([]byte, erro
 }
 
 func handlePolicyPostRequest(requestCounter *requests.RequestCounter) ([]byte, error) {
-	switch requestCounter.Request.OpCommand {
+	switch utils.OpHashToString(requestCounter.Request.OPCommand) {
 	case "UPDATE_POLICY":
 		return []byte{}, policyservice.UpdatePolicy(requestCounter.Request)
 
@@ -42,7 +43,7 @@ func handlePolicyPostRequest(requestCounter *requests.RequestCounter) ([]byte, e
 // * ----- WALLET OpType ----- * //
 
 func handleWalletPostRequest(requestCounter *requests.RequestCounter) ([]byte, error) {
-	switch requestCounter.Request.OpCommand {
+	switch utils.OpHashToString(requestCounter.Request.OPCommand) {
 
 	case "KEY_GENERATE":
 		return []byte{}, walletsservice.NewWallet(requestCounter.Request)
@@ -76,7 +77,7 @@ func handleWalletPostRequest(requestCounter *requests.RequestCounter) ([]byte, e
 // TODO: Implement this service and APIs
 func handleXrpPostRequest(requestCounter *requests.RequestCounter) ([]byte, error) {
 
-	switch requestCounter.Request.OpCommand {
+	switch utils.OpHashToString(requestCounter.Request.OPCommand) {
 	case "PAY":
 		return signingservice.SignPaymentTransaction(requestCounter.Request)
 
@@ -89,7 +90,7 @@ func handleXrpPostRequest(requestCounter *requests.RequestCounter) ([]byte, erro
 }
 
 func handleBtcPostRequest(requestCounter *requests.RequestCounter) ([]byte, error) {
-	switch requestCounter.Request.OpCommand {
+	switch utils.OpHashToString(requestCounter.Request.OPCommand) {
 	case "PAY":
 		return nil, status.Error(codes.Unimplemented, "BTC PAY command not implemented yet")
 
@@ -103,7 +104,7 @@ func handleBtcPostRequest(requestCounter *requests.RequestCounter) ([]byte, erro
 }
 
 func handleFdcPostRequest(requestCounter *requests.RequestCounter) ([]byte, error) {
-	switch requestCounter.Request.OpCommand {
+	switch utils.OpHashToString(requestCounter.Request.OPCommand) {
 	case "PROVE":
 		return nil, status.Error(codes.Unimplemented, "FDC PROVE command not implemented yet")
 

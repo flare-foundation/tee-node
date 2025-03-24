@@ -1,5 +1,11 @@
 package utils
 
+import (
+	"strings"
+
+	"github.com/ethereum/go-ethereum/common"
+)
+
 // GenerateSubsets generates all subsets of size n from the given nums slice.
 func GenerateSubsets(nums []int, n int) [][]int {
 	if n > len(nums) {
@@ -24,4 +30,12 @@ func GenerateSubsets(nums []int, n int) [][]int {
 	}
 
 	return subsets
+}
+
+func OpHashToString(hash common.Hash) string {
+	return strings.TrimRight(string(hash.Bytes()), "\x00")
+}
+
+func StringToOpHash(str string) common.Hash {
+	return common.BytesToHash(common.RightPadBytes([]byte(str), 32))
 }

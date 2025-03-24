@@ -15,6 +15,7 @@ import (
 	"github.com/pkg/errors"
 
 	"github.com/flare-foundation/go-flare-common/pkg/logger"
+	"github.com/flare-foundation/go-flare-common/pkg/tee/instruction"
 	"github.com/gorilla/websocket"
 	"golang.org/x/crypto/nacl/box"
 )
@@ -49,7 +50,7 @@ type AttestationResponse struct {
 }
 
 // todo: Add instruction and signatures check also by receiving nodes? at least code version of the receiving nodes?
-func SendShare(conn *websocket.Conn, share *WalletShare, outNodeId, pubKey string, instructionData *api.InstructionDataBase, signatures [][]byte) error {
+func SendShare(conn *websocket.Conn, share *WalletShare, outNodeId, pubKey string, instructionData *instruction.DataFixed, signatures [][]byte) error {
 	myNode := node.GetNodeId()
 
 	err := StartMutualAttestation(conn, myNode.Id, outNodeId)
@@ -122,12 +123,12 @@ func GetShares(conn *websocket.Conn) error {
 
 type shareInfo struct {
 	I               int
-	InstructionData api.InstructionDataBase
+	InstructionData instruction.DataFixed
 	Signatures      [][]byte
 }
 
 func (s shareInfo) Check(myNodeId, outNodeId string) error {
-	instructionData := &api.InstructionData{InstructionDataBase: s.InstructionData, AdditionalVariableMessage: []byte("")} // variable part is empty
+	instructionData := &instruction.Data{DataFixed: s.InstructionData, AdditionalVariableMessage: []byte("")} // variable part is empty
 
 	requestCounter := requests.NewRequestCounter(instructionData)
 	for _, signature := range s.Signatures {
@@ -143,7 +144,7 @@ func (s shareInfo) Check(myNodeId, outNodeId string) error {
 		return errors.New("threshold not reached")
 	}
 
-	if outNodeId != s.InstructionData.TeeId {
+	if outNodeId != s.InstructionData.TeeID.String() {
 		return errors.New("Requester's NodeId not matching instructions")
 	}
 
@@ -151,7 +152,7 @@ func (s shareInfo) Check(myNodeId, outNodeId string) error {
 	if err != nil {
 		return err
 	}
-	if recoverWalletRequest.TeeIds[s.I] != myNodeId {
+	if recoverWalletRequest.BackupTeeMachines[s.I].TeeId.String() != myNodeId {
 		return errors.New("My NodeId not matching instructions")
 	}
 
@@ -160,12 +161,17 @@ func (s shareInfo) Check(myNodeId, outNodeId string) error {
 
 func (s shareInfo) Extract() (BackupWalletKeyIdTriple, string, string) {
 	recoverWalletRequest, _ := api.NewRecoverWalletRequest(&s.InstructionData) // error is already checked before
+	var additionalFixedMessage api.RecoverWalletRequestAdditionalFixedMessage
+	err := json.Unmarshal(s.InstructionData.AdditionalFixedMessage, &additionalFixedMessage)
+	if err != nil {
+		logger.Errorf("error unmarshalling additionalFixedMessage: %s", err)
+	}
 
-	return BackupWalletKeyIdTriple{BackupId: recoverWalletRequest.BackupId, WalletId: recoverWalletRequest.WalletId, KeyId: recoverWalletRequest.KeyId},
-		recoverWalletRequest.ShareIds[s.I], recoverWalletRequest.PublicKey
+	return BackupWalletKeyIdTriple{BackupId: recoverWalletRequest.BackupId.String(), WalletId: hex.EncodeToString(recoverWalletRequest.WalletId[:]), KeyId: recoverWalletRequest.KeyId.String()},
+		additionalFixedMessage.ShareIds[s.I], hex.EncodeToString(recoverWalletRequest.PublicKey[:])
 }
 
-func RequestShare(conn *websocket.Conn, outNodeId string, i int, instructionData *api.InstructionDataBase, signatures [][]byte) (*WalletShare, error) {
+func RequestShare(conn *websocket.Conn, outNodeId string, i int, instructionData *instruction.DataFixed, signatures [][]byte) (*WalletShare, error) {
 	myNode := node.GetNodeId()
 
 	err := StartMutualAttestation(conn, myNode.Id, outNodeId)

@@ -3,6 +3,7 @@ package signingservice
 import (
 	"crypto/ecdsa"
 	"encoding/hex"
+	"math/big"
 	"testing"
 
 	"tee-node/internal/node"
@@ -12,14 +13,15 @@ import (
 
 	testutils "tee-node/tests"
 
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/stretchr/testify/require"
 
 	api "tee-node/api/types"
 )
 
-const mockWalletId = "wallet1"
-const mockKeyId = "key1"
+var mockWalletId = hex.EncodeToString(common.HexToHash("0xabcdef").Bytes())
+var mockKeyId = big.NewInt(1).String()
 
 // Send enough signatures for the payment hash, to pass the threshold.
 func TestSendManyPaymentSignatures(t *testing.T) {
@@ -38,7 +40,8 @@ func TestSendManyPaymentSignatures(t *testing.T) {
 	instructionIdBytes, _ := utils.GenerateRandomBytes(32)
 	instruction, err := testutils.BuildMockInstruction("XRP",
 		"PAY",
-		api.SignPaymentRequest{WalletId: mockWalletId, KeyId: mockKeyId, PaymentHash: paymentHash},
+		testutils.BuildMockPaymentOriginalMessage(t, mockWalletId),
+		api.SignPaymentAdditionalFixedMessage{PaymentHash: paymentHash, KeyId: mockKeyId},
 		privKeys[0],
 		"1234",
 		hex.EncodeToString(instructionIdBytes),
@@ -46,7 +49,7 @@ func TestSendManyPaymentSignatures(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	response, err := SignPaymentTransaction(&instruction.Data.InstructionDataBase)
+	response, err := SignPaymentTransaction(&instruction.Data.DataFixed)
 	if err != nil {
 		t.Fatalf("Failed to sign the payment transaction: %v", err)
 	}
@@ -76,7 +79,8 @@ func TestGetSignatureApi(t *testing.T) {
 
 	instruction, err := testutils.BuildMockInstruction("XRP",
 		"PAY",
-		api.SignPaymentRequest{WalletId: mockWalletId, KeyId: mockKeyId, PaymentHash: paymentHash},
+		testutils.BuildMockPaymentOriginalMessage(t, mockWalletId),
+		api.SignPaymentAdditionalFixedMessage{PaymentHash: paymentHash, KeyId: mockKeyId},
 		privKeys[0],
 		"1234",
 		hex.EncodeToString(instructionIdBytes),
@@ -84,13 +88,13 @@ func TestGetSignatureApi(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	signature, err := SignPaymentTransaction(&instruction.Data.InstructionDataBase)
+	signature, err := SignPaymentTransaction(&instruction.Data.DataFixed)
 	if err != nil {
 		t.Fatalf("Failed to sign the payment transaction: %v", err)
 	}
 
 	// Get the signature after the threshold was reached
-	resp, err := GetPaymentSignature(&instruction.Data.InstructionDataBase, signature)
+	resp, err := GetPaymentSignature(&instruction.Data.DataFixed, signature)
 	require.NoError(t, err)
 
 	require.Equal(t, paymentHash, resp.PaymentHash)

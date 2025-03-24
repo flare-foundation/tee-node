@@ -1,97 +1,72 @@
 package types
 
-import "encoding/json"
+import (
+	"github.com/flare-foundation/go-flare-common/pkg/tee/instruction"
+	"github.com/flare-foundation/go-flare-common/pkg/tee/structs"
+	"github.com/flare-foundation/go-flare-common/pkg/tee/structs/wallet"
+)
 
-// * ——————————————— POST Requests ——————————————— * //
-// These will only be available through the InstructionService (not directly)
-
-// * Requests * //
-
-type NewWalletRequest struct {
-	WalletId string
-	KeyId    string
+type KeyGenerateAdditionalFixedMessage struct {
+	Backups []string
 }
 
-func ParseNewWalletRequest(instructionData *InstructionDataBase) (NewWalletRequest, error) {
+func ParseNewWalletRequest(instructionData *instruction.DataFixed) (wallet.ITeeWalletManagerKeyGenerate, error) {
+	arg := wallet.MessageArguments[wallet.KeyGenerate]
 
-	// TODO: I am not sure how this OriginalMessage is going to be encoded/decoded (abi.EncodePacked?)
-	var newWalletRequest NewWalletRequest
-	err := json.Unmarshal(instructionData.OriginalMessage, &newWalletRequest)
+	var unpacked wallet.ITeeWalletManagerKeyGenerate
+	err := structs.DecodeTo(arg, instructionData.OriginalMessage, &unpacked)
 	if err != nil {
-		return NewWalletRequest{}, err
+		return wallet.ITeeWalletManagerKeyGenerate{}, err
 	}
 
-	return newWalletRequest, nil
+	return unpacked, nil
 }
 
-// ----- ----- ----- ------
+func NewDeleteWalletRequest(instructionData *instruction.DataFixed) (wallet.ITeeWalletManagerKeyDelete, error) {
 
-type DeleteWalletRequest struct {
-	WalletId string
-	KeyId    string
-}
-
-func NewDeleteWalletRequest(instructionData *InstructionDataBase) (DeleteWalletRequest, error) {
-
-	// TODO: Decode properly
-	var delWalletRequest DeleteWalletRequest
-	err := json.Unmarshal(instructionData.OriginalMessage, &delWalletRequest)
+	arg := wallet.MessageArguments[wallet.KeyDelete]
+	var unpacked wallet.ITeeWalletManagerKeyDelete
+	err := structs.DecodeTo(arg, instructionData.OriginalMessage, &unpacked)
 	if err != nil {
-		return DeleteWalletRequest{}, err
+		return wallet.ITeeWalletManagerKeyDelete{}, err
 	}
 
-	return delWalletRequest, nil
+	return unpacked, nil
 }
 
-type SplitWalletRequest struct {
-	BackupId   string
-	WalletId   string
-	KeyId      string
-	TeeIds     []string
-	Hosts      []string
+type SplitWalletAdditionalFixedMessage struct {
 	PublicKeys []string
-	Threshold  int64
 }
 
-func NewSplitWalletRequest(instructionData *InstructionDataBase) (SplitWalletRequest, error) {
+func NewSplitWalletRequest(instructionData *instruction.DataFixed) (wallet.ITeeWalletBackupManagerKeyMachineBackup, error) {
 
-	// TODO: Decode properly
-	var splitWalletRequest SplitWalletRequest
-	err := json.Unmarshal(instructionData.OriginalMessage, &splitWalletRequest)
+	arg := wallet.MessageArguments[wallet.KeyMachineBackup]
+
+	var unpacked wallet.ITeeWalletBackupManagerKeyMachineBackup
+	err := structs.DecodeTo(arg, instructionData.OriginalMessage, &unpacked)
 	if err != nil {
-		return SplitWalletRequest{}, err
+		return wallet.ITeeWalletBackupManagerKeyMachineBackup{}, err
 	}
 
-	return splitWalletRequest, nil
+	return unpacked, nil
 }
 
-type RecoverWalletRequest struct {
-	BackupId  string
-	WalletId  string
-	KeyId     string
+type RecoverWalletRequestAdditionalFixedMessage struct {
 	TeeIds    []string
-	Hosts     []string
 	ShareIds  []string
-	PublicKey string
 	Address   string
 	Threshold int64
 }
 
-func NewRecoverWalletRequest(instructionData *InstructionDataBase) (RecoverWalletRequest, error) {
-
-	// TODO: Decode properly
-	var recoverWalletRequest RecoverWalletRequest
-	err := json.Unmarshal(instructionData.OriginalMessage, &recoverWalletRequest)
+func NewRecoverWalletRequest(instructionData *instruction.DataFixed) (wallet.ITeeWalletBackupManagerKeyMachineRestore, error) {
+	arg := wallet.MessageArguments[wallet.KeyMachineRestore]
+	var unpacked wallet.ITeeWalletBackupManagerKeyMachineRestore
+	err := structs.DecodeTo(arg, instructionData.OriginalMessage, &unpacked)
 	if err != nil {
-		return RecoverWalletRequest{}, err
+		return wallet.ITeeWalletBackupManagerKeyMachineRestore{}, err
 	}
-
-	return recoverWalletRequest, nil
+	return unpacked, nil
 }
-
-// * Responses * //
-
-// * ——————————————— GET Requests ——————————————— * //
 
 type WalletInfoRequest struct {
 	WalletId  string

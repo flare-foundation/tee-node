@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"math/big"
 	"os"
 	"strconv"
 
@@ -16,16 +17,20 @@ import (
 	policyserver "tee-node/internal/policy"
 	utilsserver "tee-node/internal/utils"
 	utils "tee-node/tests"
+
 	"tee-node/tests/client/config"
 	"tee-node/tests/client/policy"
 	"tee-node/tests/client/xrpl"
 
+	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/rpc"
 
 	"github.com/alexflint/go-arg"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/flare-foundation/go-flare-common/pkg/database"
 	"github.com/flare-foundation/go-flare-common/pkg/logger"
+	commonpayment "github.com/flare-foundation/go-flare-common/pkg/tee/structs/payment"
+	"github.com/flare-foundation/go-flare-common/pkg/tee/structs/wallet"
 )
 
 var args struct {
@@ -160,13 +165,27 @@ func main() {
 		if err != nil {
 			log.Fatalf("could not get provider private key: %v", err)
 		}
+		// TODO: keyId parameter should probably be big.Int or uint32
+		keyIdParsed, err := strconv.ParseUint(args.KeyId, 10, 32)
+		if err != nil {
+			log.Fatalf("could not parse key id: %v", err)
+		}
+
+		originalMessage := wallet.ITeeWalletManagerKeyGenerate{
+			TeeId:    common.HexToAddress("1234"),
+			WalletId: common.HexToHash(args.WalletId),
+			KeyId:    big.NewInt(int64(keyIdParsed)),
+			OpType:   utilsserver.StringToOpHash("WALLET"),
+		}
+		originalMessageEncoded, err := abi.Arguments{wallet.MessageArguments[wallet.KeyGenerate]}.Pack(originalMessage)
+		if err != nil {
+			log.Fatalf("could not pack original message: %v", err)
+		}
 
 		instruction, err := utils.BuildMockInstruction("WALLET",
 			"KEY_GENERATE",
-			api.NewWalletRequest{
-				WalletId: args.WalletId,
-				KeyId:    args.KeyId,
-			},
+			originalMessageEncoded,
+			interface{}(nil),
 			providerPrivKey,
 			args.TeeId,
 			args.InstructionId,
@@ -306,13 +325,30 @@ func main() {
 
 		// ---------- Sign the message request ---------- //
 
+		originalMessage := commonpayment.ITeePaymentsPaymentInstructionMessage{
+			WalletId:           common.HexToHash(args.WalletId),
+			SenderAddress:      "0x123",
+			RecipientAddress:   "0x456",
+			Amount:             big.NewInt(1000000000),
+			PaymentReference:   [32]byte{},
+			Nonce:              big.NewInt(0),
+			SubNonce:           big.NewInt(0),
+			MaxFee:             big.NewInt(0),
+			MaxFeeTolerancePPM: big.NewInt(0),
+			BatchEndTs:         big.NewInt(0),
+		}
+		originalMessageEncoded, err := abi.Arguments{commonpayment.MessageArguments[commonpayment.Pay]}.Pack(originalMessage)
+		if err != nil {
+			log.Fatalf("could not pack original message: %v", err)
+		}
+
 		instruction, err := utils.BuildMockInstruction(
 			"XRP",
 			"PAY",
-			api.SignPaymentRequest{
-				WalletId:    args.WalletId,
-				KeyId:       args.KeyId,
+			originalMessageEncoded,
+			api.SignPaymentAdditionalFixedMessage{
 				PaymentHash: paymentHash,
+				KeyId:       args.KeyId,
 			},
 			providerPrivKey,
 			args.TeeId,
@@ -385,17 +421,40 @@ func main() {
 		}
 
 		// ---------- Split the wallet request ---------- //
+
+		backupTeeMachines := make([]wallet.ITeeRegistryTeeMachineWithAttestationData, len(teeIds))
+		for i, _ := range teeIds {
+			backupTeeMachines[i] = wallet.ITeeRegistryTeeMachineWithAttestationData{
+				TeeId: common.HexToAddress(pubKeys[i]),
+				Url:   config.Server.Backups[i],
+			}
+		}
+		// TODO: keyId and backupId parameters should probably be big.Int or uint32
+		keyIdParsed, err := strconv.ParseUint(args.KeyId, 10, 32)
+		if err != nil {
+			log.Fatalf("could not parse key id: %v", err)
+		}
+		backupIdParsed, err := strconv.ParseUint(args.BackupId, 10, 32)
+		if err != nil {
+			log.Fatalf("could not parse backup id: %v", err)
+		}
+		originalMessage := wallet.ITeeWalletBackupManagerKeyMachineBackup{
+			TeeMachine:        wallet.ITeeRegistryTeeMachineWithAttestationData{},
+			WalletId:          common.HexToHash(args.WalletId),
+			KeyId:             big.NewInt(int64(keyIdParsed)),
+			BackupId:          big.NewInt(int64(backupIdParsed)),
+			ShamirThreshold:   big.NewInt(int64(config.Server.BackupsThreshold)),
+			BackupTeeMachines: backupTeeMachines,
+		}
+		originalMessageEncoded, err := abi.Arguments{wallet.MessageArguments[wallet.KeyMachineBackup]}.Pack(originalMessage)
+		if err != nil {
+			log.Fatalf("could not pack original message: %v", err)
+		}
+
 		instruction, err := utils.BuildMockInstruction("WALLET",
 			"KEY_MACHINE_BACKUP",
-			api.SplitWalletRequest{
-				BackupId:   args.BackupId,
-				WalletId:   args.WalletId,
-				KeyId:      args.KeyId,
-				TeeIds:     teeIds,
-				Hosts:      config.Server.Backups,
-				PublicKeys: pubKeys,
-				Threshold:  int64(config.Server.BackupsThreshold),
-			},
+			originalMessageEncoded,
+			interface{}(nil),
 			providerPrivKey,
 			args.TeeId,
 			args.InstructionId,
@@ -425,19 +484,49 @@ func main() {
 		for i := range shareIds {
 			shareIds[i] = strconv.Itoa(i + 1)
 		}
-		request := api.RecoverWalletRequest{
-			BackupId:  args.BackupId,
-			WalletId:  args.WalletId,
-			KeyId:     args.KeyId,
-			TeeIds:    args.TeeIds,
-			Hosts:     config.Server.Backups,
-			ShareIds:  shareIds,
-			PublicKey: args.PubKey,
-			Address:   args.Address,
-			Threshold: int64(config.Server.BackupsThreshold),
+
+		backupTeeMachines := make([]wallet.ITeeRegistryTeeMachineWithAttestationData, len(shareIds))
+		for i := range len(shareIds) {
+			backupTeeMachines[i] = wallet.ITeeRegistryTeeMachineWithAttestationData{
+				TeeId:    common.HexToAddress("0x123"),
+				Owner:    common.HexToAddress("0x123"),
+				Url:      config.Server.Backups[i],
+				CodeHash: common.HexToHash("0x123"),
+				Platform: common.HexToHash("0x123"),
+			}
+		}
+		// TODO: keyId and backupId parameters should probably be big.Int or uint32
+		keyIdParsed, err := strconv.ParseUint(args.KeyId, 10, 32)
+		if err != nil {
+			log.Fatalf("could not parse key id: %v", err)
+		}
+		backupIdParsed, err := strconv.ParseUint(args.BackupId, 10, 32)
+		if err != nil {
+			log.Fatalf("could not parse backup id: %v", err)
 		}
 
-		instruction, err := utils.BuildMockInstruction("WALLET", "KEY_MACHINE_RESTORE", request, providerPrivKey,
+		originalMessage := wallet.ITeeWalletBackupManagerKeyMachineRestore{
+			TeeMachine:        wallet.ITeeRegistryTeeMachineWithAttestationData{},
+			WalletId:          common.HexToHash(args.WalletId),
+			KeyId:             big.NewInt(int64(keyIdParsed)),
+			BackupId:          big.NewInt(int64(backupIdParsed)),
+			OpType:            utilsserver.StringToOpHash("WALLET"),
+			PublicKey:         common.Hex2Bytes(args.PubKey),
+			BackupTeeMachines: backupTeeMachines,
+		}
+		originalMessageEncoded, err := abi.Arguments{wallet.MessageArguments[wallet.KeyMachineRestore]}.Pack(originalMessage)
+		if err != nil {
+			log.Fatalf("could not pack original message: %v", err)
+		}
+
+		instruction, err := utils.BuildMockInstruction("WALLET", "KEY_MACHINE_RESTORE", originalMessageEncoded,
+			api.RecoverWalletRequestAdditionalFixedMessage{
+				TeeIds:    args.TeeIds,
+				ShareIds:  shareIds,
+				Address:   args.Address,
+				Threshold: int64(config.Server.BackupsThreshold),
+			},
+			providerPrivKey,
 			args.TeeId,
 			args.InstructionId,
 			args.RewardEpochId,

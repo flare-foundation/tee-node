@@ -1,30 +1,27 @@
 package types
 
-import "encoding/json"
+import (
+	"github.com/flare-foundation/go-flare-common/pkg/tee/instruction"
+	"github.com/flare-foundation/go-flare-common/pkg/tee/structs"
+	commonpayment "github.com/flare-foundation/go-flare-common/pkg/tee/structs/payment"
+)
 
-// * ——————————————— POST Requests ——————————————— * //
-// These will only be available through the InstructionService (not directly)
-
-// * Requests * //
-
-type SignPaymentRequest struct {
-	WalletId    string
-	KeyId       string
+type SignPaymentAdditionalFixedMessage struct {
 	PaymentHash string
+	KeyId       string
 }
 
-func ParseSignPaymentRequest(instructionData *InstructionDataBase) (SignPaymentRequest, error) {
-	// TODO: Decode properly
-	var signPaymentRequest SignPaymentRequest
-	err := json.Unmarshal(instructionData.OriginalMessage, &signPaymentRequest)
+func ParseSignPaymentRequest(instructionData *instruction.DataFixed) (commonpayment.ITeePaymentsPaymentInstructionMessage, error) {
+	arg := commonpayment.MessageArguments[commonpayment.Pay]
+
+	var signPaymentRequest commonpayment.ITeePaymentsPaymentInstructionMessage
+	err := structs.DecodeTo(arg, instructionData.OriginalMessage, &signPaymentRequest)
 	if err != nil {
-		return SignPaymentRequest{}, err
+		return commonpayment.ITeePaymentsPaymentInstructionMessage{}, err
 	}
 
 	return signPaymentRequest, nil
 }
-
-// * Responses * //
 
 type SignPaymentResponse struct {
 	ResponseBase

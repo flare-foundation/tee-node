@@ -3,11 +3,11 @@ package requests
 import (
 	"encoding/hex"
 	"sync"
-	api "tee-node/api/types"
 	"tee-node/internal/config"
 	"tee-node/internal/policy"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/flare-foundation/go-flare-common/pkg/tee/instruction"
 )
 
 // The following is the main requestCounterStorage, holding requests that need to reach a threshold
@@ -26,7 +26,7 @@ type RequestCounterStorage struct {
 }
 
 type RequestCounter struct {
-	Request *api.InstructionDataBase
+	Request *instruction.DataFixed
 
 	RequestVariableMessages map[common.Address][]byte
 	RequestSignatures       map[common.Address][]byte
@@ -43,8 +43,12 @@ func InitRequestCounterStorage() *RequestCounterStorage {
 	return &RequestCounterStorage{Storage: make(map[string]*RequestCounter)}
 }
 
-func GetRequestCounter(request *api.InstructionData) (*RequestCounter, error) {
-	requestHash := hex.EncodeToString(request.InstructionDataBase.Hash())
+func GetRequestCounter(request *instruction.Data) (*RequestCounter, error) {
+	hash, err := request.HashFixed()
+	if err != nil {
+		return nil, err
+	}
+	requestHash := hex.EncodeToString(hash[:])
 
 	requestCounter, exists, err := GetRequestCounterByHash(requestHash)
 	if err != nil {
@@ -68,7 +72,7 @@ func GetRequestCounterByHash(requestHash string) (*RequestCounter, bool, error) 
 	return requestCounter, true, nil
 }
 
-func CreateAndStoreRequestCounter(requestHash string, request *api.InstructionData) (*RequestCounter, error) {
+func CreateAndStoreRequestCounter(requestHash string, request *instruction.Data) (*RequestCounter, error) {
 	requestCounter := NewRequestCounter(request)
 
 	requestCounterStorage.Lock()
@@ -78,12 +82,12 @@ func CreateAndStoreRequestCounter(requestHash string, request *api.InstructionDa
 	return requestCounter, nil
 }
 
-func NewRequestCounter(request *api.InstructionData) *RequestCounter {
-	requestPolicy := policy.GetSigningPolicy(request.RewardEpochID)
+func NewRequestCounter(request *instruction.Data) *RequestCounter {
+	requestPolicy := policy.GetSigningPolicy(uint32(request.RewardEpochID.Uint64()))
 	threshold := requestPolicy.Threshold // todo: for now just read from policy
 
 	return &RequestCounter{
-		Request:                 &request.InstructionDataBase,
+		Request:                 &request.DataFixed,
 		RequestPolicy:           requestPolicy,
 		Threshold:               threshold,
 		RequestSignatures:       make(map[common.Address][]byte),

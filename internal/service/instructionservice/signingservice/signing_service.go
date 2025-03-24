@@ -1,26 +1,36 @@
 package signingservice
 
 import (
+	"encoding/hex"
+	"encoding/json"
 	api "tee-node/api/types"
 	"tee-node/internal/signing"
 	"tee-node/internal/utils"
 	"tee-node/internal/wallets"
 
+	"github.com/flare-foundation/go-flare-common/pkg/tee/instruction"
 	"github.com/pkg/errors"
 )
 
-func SignPaymentTransaction(instructionData *api.InstructionDataBase) ([]byte, error) {
-	signPaymentRequest, err := api.ParseSignPaymentRequest(instructionData)
+func SignPaymentTransaction(instructionData *instruction.DataFixed) ([]byte, error) {
+	// TODO:  ParseSignPaymentRequest must return keyID
+	originalMessage, err := api.ParseSignPaymentRequest(instructionData)
 	if err != nil {
 		return nil, err
 	}
 
-	signingWallet, err := wallets.GetWallet(wallets.WalletKeyIdPair{WalletId: signPaymentRequest.WalletId, KeyId: signPaymentRequest.KeyId})
+	var additionalFixedMessage api.SignPaymentAdditionalFixedMessage
+	err = json.Unmarshal(instructionData.AdditionalFixedMessage, &additionalFixedMessage)
 	if err != nil {
 		return nil, err
 	}
 
-	txnSignature, err := signing.SignXrpPayment(signPaymentRequest.PaymentHash, signingWallet.PrivateKey)
+	signingWallet, err := wallets.GetWallet(wallets.WalletKeyIdPair{WalletId: hex.EncodeToString(originalMessage.WalletId[:]), KeyId: additionalFixedMessage.KeyId})
+	if err != nil {
+		return nil, err
+	}
+
+	txnSignature, err := signing.SignXrpPayment(additionalFixedMessage.PaymentHash, signingWallet.PrivateKey)
 	if err != nil {
 		return nil, err
 	}
@@ -28,17 +38,23 @@ func SignPaymentTransaction(instructionData *api.InstructionDataBase) ([]byte, e
 	return txnSignature, nil
 }
 
-func XrpReissue(instructionData *api.InstructionDataBase) ([]byte, error) {
+func XrpReissue(instructionData *instruction.DataFixed) ([]byte, error) {
 	return nil, errors.New("XRP RESISSUE command not implemented yet")
 }
 
-func GetPaymentSignature(instructionData *api.InstructionDataBase, result []byte) (*api.GetPaymentSignatureResponse, error) {
+func GetPaymentSignature(instructionData *instruction.DataFixed, result []byte) (*api.GetPaymentSignatureResponse, error) {
 	signPaymentRequest, err := api.ParseSignPaymentRequest(instructionData)
 	if err != nil {
 		return nil, err
 	}
 
-	walletKeyIdPair := wallets.WalletKeyIdPair{WalletId: signPaymentRequest.WalletId, KeyId: signPaymentRequest.KeyId}
+	var additionalFixedMessage api.SignPaymentAdditionalFixedMessage
+	err = json.Unmarshal(instructionData.AdditionalFixedMessage, &additionalFixedMessage)
+	if err != nil {
+		return nil, err
+	}
+
+	walletKeyIdPair := wallets.WalletKeyIdPair{WalletId: hex.EncodeToString(signPaymentRequest.WalletId[:]), KeyId: additionalFixedMessage.KeyId}
 	signingWallet, err := wallets.GetWallet(walletKeyIdPair)
 	if err != nil {
 		return nil, err
@@ -50,6 +66,6 @@ func GetPaymentSignature(instructionData *api.InstructionDataBase, result []byte
 	return &api.GetPaymentSignatureResponse{
 		Account:       xrpAccountAddress,
 		TxnSignature:  result,
-		PaymentHash:   signPaymentRequest.PaymentHash,
+		PaymentHash:   additionalFixedMessage.PaymentHash,
 		SigningPubKey: signingPubKey}, nil
 }
