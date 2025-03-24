@@ -13,9 +13,9 @@ import (
 
 	api "tee-node/api/types"
 
-	attestationserver "tee-node/internal/attestation"
-	policyserver "tee-node/internal/policy"
-	utilsserver "tee-node/internal/utils"
+	attestationserver "tee-node/pkg/attestation"
+	policyserver "tee-node/pkg/policy"
+	utilsserver "tee-node/pkg/utils"
 	utils "tee-node/tests"
 
 	"tee-node/tests/client/config"

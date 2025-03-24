@@ -5,7 +5,7 @@ import (
 	"encoding/hex"
 
 	api "tee-node/api/types"
-	pd "tee-node/internal/policy"
+	pd "tee-node/pkg/policy"
 	testutils "tee-node/tests"
 
 	"github.com/ethereum/go-ethereum/accounts"

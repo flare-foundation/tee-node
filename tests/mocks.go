@@ -7,9 +7,9 @@ import (
 	"fmt"
 	"math/big"
 	"strconv"
-	"tee-node/internal/requests"
-	"tee-node/internal/service/instructionservice/walletsservice"
-	"tee-node/internal/utils"
+	"tee-node/pkg/requests"
+	"tee-node/pkg/service/instructionservice/walletsservice"
+	"tee-node/pkg/utils"
 	"testing"
 
 	"github.com/ethereum/go-ethereum/accounts/abi"

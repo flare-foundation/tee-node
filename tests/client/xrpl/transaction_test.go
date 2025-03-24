@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"tee-node/internal/utils"
+	"tee-node/pkg/utils"
 	xrpl "tee-node/tests/client/xrpl"
 	xrputils "tee-node/tests/client/xrpl/utils"
 

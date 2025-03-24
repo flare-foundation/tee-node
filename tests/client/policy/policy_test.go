@@ -11,9 +11,9 @@ import (
 
 	"github.com/flare-foundation/go-flare-common/pkg/database"
 
-	"tee-node/internal/config"
-	pd "tee-node/internal/policy"
-	ps "tee-node/internal/service/policyservice"
+	"tee-node/pkg/config"
+	pd "tee-node/pkg/policy"
+	ps "tee-node/pkg/service/policyservice"
 )
 
 // TestFetchPolicyHistory assumes that a DB with indexed txs and logs
