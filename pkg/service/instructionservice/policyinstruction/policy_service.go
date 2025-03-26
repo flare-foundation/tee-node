@@ -1,4 +1,4 @@
-package policyservice
+package policyinstruction
 
 // todo: maybe rename to policyinstruction ?
 import (

@@ -1,7 +1,6 @@
 package policyservice
 
 import (
-	"context"
 	"encoding/hex"
 	"tee-node/pkg/attestation"
 	"tee-node/pkg/policy"
@@ -11,22 +10,7 @@ import (
 	"github.com/ethereum/go-ethereum/rpc"
 )
 
-// Service struct implements the JSON-RPC methods
-type Service struct{}
-
-// NewService creates a new policy service
-func NewService() *Service {
-	return &Service{}
-}
-
-// InitializePolicy handles the InitializePolicy request
-func (s *Service) InitializePolicy(ctx context.Context, req *api.InitializePolicyRequest) (*api.InitializePolicyResponse, error) {
-	select {
-	case <-ctx.Done():
-		return nil, rpc.ErrClientQuit
-	default:
-	}
-
+func InitializePolicy(req *api.InitializePolicyRequest) (*api.InitializePolicyResponse, error) {
 	err := policy.InitializePolicyRequest(req.InitialPolicyBytes, req.NewPolicyRequests)
 	if err != nil {
 		return nil, err
@@ -35,13 +19,7 @@ func (s *Service) InitializePolicy(ctx context.Context, req *api.InitializePolic
 }
 
 // GetActivePolicy handles the GetActivePolicy request
-func (s *Service) GetActivePolicy(ctx context.Context, req *api.GetActivePolicyRequest) (*api.GetActivePolicyResponse, error) {
-	select {
-	case <-ctx.Done():
-		return nil, rpc.ErrClientQuit
-	default:
-	}
-
+func GetActivePolicy(req *api.GetActivePolicyRequest) (*api.GetActivePolicyResponse, error) {
 	if policy.ActiveSigningPolicy == nil {
 		return nil, rpc.ErrNoResult
 	}

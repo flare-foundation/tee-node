@@ -21,7 +21,6 @@ import (
 
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/flare-foundation/go-flare-common/pkg/logger"
 	commonpayment "github.com/flare-foundation/go-flare-common/pkg/tee/structs/payment"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/structs/wallet"
@@ -32,6 +31,9 @@ var walletId = hex.EncodeToString(common.HexToHash("0xabcdef").Bytes())
 var keyId = big.NewInt(1).String()
 var backupId = big.NewInt(1).String()
 
+var hostPort = 8565
+var hostUrl = "http://localhost:" + strconv.Itoa(hostPort)
+
 func TestServiceEndToEnd(t *testing.T) {
 	err := node.InitNode()
 	if err != nil {
@@ -40,14 +42,9 @@ func TestServiceEndToEnd(t *testing.T) {
 
 	ctx := context.Background()
 
-	go LaunchServer(8565)
+	go LaunchServer(hostPort)
 	go LaunchWSServer(50061)
 	time.Sleep(time.Second)
-
-	client, err := rpc.Dial("http://0.0.0.0:8565")
-	if err != nil {
-		log.Fatalf("failed to create client connection: %v", err)
-	}
 
 	providersBytes, err := os.ReadFile("../../tests/test_providers.json")
 	if err != nil {
@@ -60,41 +57,41 @@ func TestServiceEndToEnd(t *testing.T) {
 
 	// initialize random policies
 	numPolicies := 5
-	initializePolicy(t, numPolicies, client, providers, ctx)
+	initializePolicy(t, numPolicies, providers, ctx)
 
-	nodeId, pubKey := getNodeInfo(t, client, ctx)
+	nodeId, pubKey := getNodeInfo(t, ctx)
 
 	// generate a new wallet
-	createWallet(t, nodeId, walletId, keyId, client, providers, ctx)
+	createWallet(t, nodeId, walletId, keyId, providers, ctx)
 	// get address
-	address := getAddress(t, walletId, keyId, client, ctx)
+	address := getAddress(t, walletId, keyId, ctx)
 
 	// backup wallet to yourself
 	ids := []string{nodeId, nodeId}
 	backups := []string{"ws://localhost:50061", "ws://localhost:50061"}
 	pubKeys := []string{pubKey, pubKey}
 	threshold := len(backups)
-	backupWallet(t, nodeId, walletId, keyId, backupId, ids, backups, pubKeys, threshold, client, providers, ctx)
+	backupWallet(t, nodeId, walletId, keyId, backupId, ids, backups, pubKeys, threshold, providers, ctx)
 
 	// delete wallet
-	deleteWallet(t, nodeId, walletId, keyId, client, providers, ctx)
+	deleteWallet(t, nodeId, walletId, keyId, providers, ctx)
 
 	time.Sleep(time.Second)
 
 	// recover key
-	recoverWallet(t, nodeId, walletId, keyId, backupId, address, ids, backups, pubKey, threshold, client, providers, ctx)
+	recoverWallet(t, nodeId, walletId, keyId, backupId, address, ids, backups, pubKey, threshold, providers, ctx)
 
 	// get recovered address
-	recoveredAddress := getAddress(t, walletId, keyId, client, ctx)
+	recoveredAddress := getAddress(t, walletId, keyId, ctx)
 	require.Equal(t, address, recoveredAddress)
 
 	// sign transaction
 	paymentHash := "560ccd6e79ba7166e82dbf2a5b9a52283a509b63c39d4a4cc7164db3e43484c4"
-	instructionId := signTransaction(t, nodeId, walletId, keyId, paymentHash, client, providers, ctx)
-	getSignatureResult(t, instructionId, client, ctx)
+	instructionId := signTransaction(t, nodeId, walletId, keyId, paymentHash, providers, ctx)
+	getSignatureResult(t, instructionId, ctx)
 }
 
-func initializePolicy(t *testing.T, numPolicies int, client *rpc.Client, providers *utils.Providers, ctx context.Context) {
+func initializePolicy(t *testing.T, numPolicies int, providers *utils.Providers, ctx context.Context) {
 	// initialize policy
 	epochId, randSeed := uint32(1), int64(12345)
 	initialPolicy := utils.GenerateRandomPolicyData(epochId, providers.Voters, randSeed)
@@ -109,12 +106,13 @@ func initializePolicy(t *testing.T, numPolicies int, client *rpc.Client, provide
 		NewPolicyRequests:  policySignaturesArray,
 	}
 
-	var resp api.InitializePolicyResponse
-	err = client.CallContext(ctx, &resp, "policyservice_initializePolicy", req)
-	require.NoError(t, err, "could not initialize policy")
+	resp, err := utils.Post[api.InitializePolicyResponse](hostUrl+"/policies/initialize", req)
+	require.NoError(t, err)
+
+	logger.Infof("sent request to initialize policy, token %v", resp.Token)
 }
 
-func createWallet(t *testing.T, nodeId string, walletId string, keyId string, client *rpc.Client, providers *utils.Providers, ctx context.Context) {
+func createWallet(t *testing.T, nodeId string, walletId string, keyId string, providers *utils.Providers, ctx context.Context) {
 
 	instructionId, _ := utilsserver.GenerateRandomBytes(32)
 
@@ -147,41 +145,46 @@ func createWallet(t *testing.T, nodeId string, walletId string, keyId string, cl
 			log.Fatalf("could not initialize policy: %v", err)
 		}
 
-		var resp api.InstructionResponse
-		err = client.CallContext(ctx, &resp, "instructionservice_sendSignedInstruction", instruction)
-		require.NoError(t, err, "could not create a new wallet")
+		resp, err := utils.Post[api.InstructionResponse](hostUrl+"/instruction", instruction)
+		require.NoError(t, err)
 
 		logger.Infof("sent request to create wallet, status %v", resp.Status)
 	}
 }
 
-func getNodeInfo(t *testing.T, client *rpc.Client, ctx context.Context) (string, string) {
+func getNodeInfo(t *testing.T, ctx context.Context) (string, string) {
 	nonceBytes, err := utilsserver.GenerateRandomBytes(32)
 	require.NoError(t, err)
 
-	var nodeResp api.GetNodeInfoResponse
-	err = client.CallContext(ctx, &nodeResp, "nodeservice_getNodeInfo", &api.GetNodeInfoRequest{Nonce: hex.EncodeToString(nonceBytes)})
-	require.NoError(t, err, "could not obtain node info")
+	req := api.GetNodeInfoRequest{
+		Nonce: hex.EncodeToString(nonceBytes),
+	}
+	nodeResp, err := utils.Post[api.GetNodeInfoResponse](hostUrl+"/info", req)
+	require.NoError(t, err)
 
 	logger.Infof("NodeId: %s, attestation token %s", nodeResp.Data.Id, nodeResp.Token)
 
 	return nodeResp.Data.Id, nodeResp.Data.EncryptionPublicKey
 }
 
-func getAddress(t *testing.T, walletId, keyId string, client *rpc.Client, ctx context.Context) string {
+func getAddress(t *testing.T, walletId, keyId string, ctx context.Context) string {
 	instructionId, err := utilsserver.GenerateRandomBytes(32)
 	require.NoError(t, err)
 
-	var pubKeyResp api.WalletInfoResponse
-	err = client.CallContext(ctx, &pubKeyResp, "instructionservice_walletInfo", &api.WalletInfoRequest{WalletId: walletId, KeyId: keyId, Challenge: hex.EncodeToString(instructionId)})
-	require.NoError(t, err, "could not obtain the address")
+	req := api.WalletInfoRequest{
+		WalletId:  walletId,
+		KeyId:     keyId,
+		Challenge: hex.EncodeToString(instructionId),
+	}
+	pubKeyResp, err := utils.Post[api.WalletInfoResponse](hostUrl+"/wallet", req)
+	require.NoError(t, err)
 
 	logger.Infof("ethAddress: %s, public key: %s, attestation token %s", pubKeyResp.EthAddress, pubKeyResp.EthPublicKey.X, pubKeyResp.Token)
 
 	return pubKeyResp.EthAddress
 }
 
-func backupWallet(t *testing.T, nodeId string, walletId string, keyId string, backupId string, ids, backups, pubKeys []string, threshold int, client *rpc.Client, providers *utils.Providers, ctx context.Context) {
+func backupWallet(t *testing.T, nodeId string, walletId string, keyId string, backupId string, ids, backups, pubKeys []string, threshold int, providers *utils.Providers, ctx context.Context) {
 
 	instructionId, _ := utilsserver.GenerateRandomBytes(32)
 	for i := range 2 {
@@ -228,20 +231,14 @@ func backupWallet(t *testing.T, nodeId string, walletId string, keyId string, ba
 			log.Fatalf("could not initialize policy: %v", err)
 		}
 
-		var resp api.InstructionResponse
-		err = client.CallContext(
-			ctx,
-			&resp,
-			"instructionservice_sendSignedInstruction",
-			instruction,
-		)
-		require.NoError(t, err, "could not split a wallet")
+		resp, err := utils.Post[api.InstructionResponse](hostUrl+"/instruction", instruction)
+		require.NoError(t, err)
 
 		logger.Infof("sent request to split wallet, status %v, attestation token %s", resp.Status, resp.Token)
 	}
 }
 
-func deleteWallet(t *testing.T, nodeId, walletId, keyId string, client *rpc.Client, providers *utils.Providers, ctx context.Context) {
+func deleteWallet(t *testing.T, nodeId, walletId, keyId string, providers *utils.Providers, ctx context.Context) {
 
 	instructionId, _ := utilsserver.GenerateRandomBytes(32)
 	for i := range 2 {
@@ -272,9 +269,8 @@ func deleteWallet(t *testing.T, nodeId, walletId, keyId string, client *rpc.Clie
 			log.Fatalf("could not initialize policy: %v", err)
 		}
 
-		var resp api.InstructionResponse
-		err = client.CallContext(ctx, &resp, "instructionservice_sendSignedInstruction", instruction)
-		require.NoError(t, err, "could not delete a wallet")
+		resp, err := utils.Post[api.InstructionResponse](hostUrl+"/instruction", instruction)
+		require.NoError(t, err)
 
 		logger.Infof("sent request to delete wallet, status %v", resp.Status)
 	}
@@ -283,12 +279,17 @@ func deleteWallet(t *testing.T, nodeId, walletId, keyId string, client *rpc.Clie
 	nonceBytes, err := utilsserver.GenerateRandomBytes(32)
 	require.NoError(t, err)
 
-	var pubKeyResp api.WalletInfoResponse
-	err = client.CallContext(ctx, &pubKeyResp, "instructionservice_walletInfo", &api.WalletInfoRequest{WalletId: walletId, KeyId: keyId, Challenge: hex.EncodeToString(nonceBytes)})
+	req := api.WalletInfoRequest{
+		WalletId:  walletId,
+		KeyId:     keyId,
+		Challenge: hex.EncodeToString(nonceBytes),
+	}
+
+	_, err = utils.Post[api.WalletInfoResponse](hostUrl+"/wallet", req)
 	require.Error(t, err)
 }
 
-func recoverWallet(t *testing.T, nodeId string, walletId string, keyId string, backupId string, address string, ids []string, backups []string, pubKey string, threshold int, client *rpc.Client, providers *utils.Providers, ctx context.Context) {
+func recoverWallet(t *testing.T, nodeId string, walletId string, keyId string, backupId string, address string, ids []string, backups []string, pubKey string, threshold int, providers *utils.Providers, ctx context.Context) {
 	instructionId, _ := utilsserver.GenerateRandomBytes(32)
 	for i := range 2 {
 		shareIds := make([]string, threshold)
@@ -345,20 +346,14 @@ func recoverWallet(t *testing.T, nodeId string, walletId string, keyId string, b
 			log.Fatalf("could not initialize policy: %v", err)
 		}
 
-		var resp api.InstructionResponse
-		err = client.CallContext(
-			ctx,
-			&resp,
-			"instructionservice_sendSignedInstruction",
-			instruction,
-		)
-		require.NoError(t, err, "could not recover a wallet")
+		resp, err := utils.Post[api.InstructionResponse](hostUrl+"/instruction", instruction)
+		require.NoError(t, err)
 
 		logger.Infof("sent request to recover wallet, status %v, attestation token %s", resp.Status, resp.Token)
 	}
 }
 
-func signTransaction(t *testing.T, nodeId, walletId, keyId, paymentHash string, client *rpc.Client, providers *utils.Providers, ctx context.Context) string {
+func signTransaction(t *testing.T, nodeId, walletId, keyId, paymentHash string, providers *utils.Providers, ctx context.Context) string {
 	instructionId, _ := utilsserver.GenerateRandomBytes(32)
 	for i := range 2 {
 		providerPrivKey := providers.PrivKeys[i]
@@ -396,14 +391,8 @@ func signTransaction(t *testing.T, nodeId, walletId, keyId, paymentHash string, 
 			log.Fatalf("could not initialize policy: %v", err)
 		}
 
-		var resp api.InstructionResponse
-		err = client.CallContext(
-			ctx,
-			&resp,
-			"instructionservice_sendSignedInstruction",
-			instruction,
-		)
-		require.NoError(t, err, "could not recover a wallet")
+		resp, err := utils.Post[api.InstructionResponse](hostUrl+"/instruction", instruction)
+		require.NoError(t, err)
 
 		logger.Infof("sent request to sign transaction, status %v, attestation token %s", resp.Status, resp.Token)
 	}
@@ -411,7 +400,7 @@ func signTransaction(t *testing.T, nodeId, walletId, keyId, paymentHash string, 
 	return hex.EncodeToString(instructionId)
 }
 
-func getSignatureResult(t *testing.T, instructionId string, client *rpc.Client, ctx context.Context) {
+func getSignatureResult(t *testing.T, instructionId string, ctx context.Context) {
 	var resp api.InstructionResultResponse
 
 	instruction := api.InstructionResultRequest{
@@ -419,13 +408,8 @@ func getSignatureResult(t *testing.T, instructionId string, client *rpc.Client, 
 		InstructionId: instructionId,
 	}
 
-	err := client.CallContext(
-		ctx,
-		&resp,
-		"instructionservice_instructionResult",
-		instruction,
-	)
-	require.NoError(t, err, "could not get a signature")
+	resp, err := utils.Post[api.InstructionResultResponse](hostUrl+"/instruction/result", instruction)
+	require.NoError(t, err)
 
 	logger.Infof("sent request to get signature of transaction, status %v, attestation token %s, result: %s", resp.Status, resp.Token, string(resp.Data))
 

@@ -1,7 +1,6 @@
 package policyservice
 
 import (
-	"context"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -61,9 +60,7 @@ func TestInitializePolicy(t *testing.T) {
 		NewPolicyRequests:  policySignaturesArray,
 	}
 
-	signingService := NewService()
-
-	response, err := signingService.InitializePolicy(context.Background(), req)
+	response, err := InitializePolicy(req)
 	if err != nil {
 		t.Errorf("Failed to initialize the policy: %v", err)
 	}
@@ -99,9 +96,7 @@ func TestInitializingThePolicyTwice(t *testing.T) {
 		NewPolicyRequests:  policySignaturesArray,
 	}
 
-	signingService := NewService()
-
-	_, err = signingService.InitializePolicy(context.Background(), req)
+	_, err = InitializePolicy(req)
 	if err != nil {
 		t.Errorf("Failed to initialize the policy: %v", err)
 	}
@@ -124,7 +119,7 @@ func TestInitializingThePolicyTwice(t *testing.T) {
 		NewPolicyRequests:  policySignaturesArray2,
 	}
 
-	_, err = signingService.InitializePolicy(context.Background(), req2)
+	_, err = InitializePolicy(req2)
 
 	// Convert error to gRPC status
 	st, ok := status.FromError(err)
@@ -172,9 +167,7 @@ func TestSendingInvalidReardEpochId(t *testing.T) {
 		NewPolicyRequests:  policySignaturesArray,
 	}
 
-	signingService := NewService()
-
-	_, err = signingService.InitializePolicy(context.Background(), req)
+	_, err = InitializePolicy(req)
 	require.Equal(t, err.Error(), "policy is not active")
 }
 

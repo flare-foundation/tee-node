@@ -1,4 +1,4 @@
-package signingservice
+package signinginstruction
 
 import (
 	"crypto/ecdsa"

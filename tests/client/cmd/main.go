@@ -23,7 +23,6 @@ import (
 	"tee-node/tests/client/xrpl"
 
 	"github.com/ethereum/go-ethereum/accounts/abi"
-	"github.com/ethereum/go-ethereum/rpc"
 
 	"github.com/alexflint/go-arg"
 	"github.com/ethereum/go-ethereum/common"
@@ -57,12 +56,6 @@ func main() {
 	if err != nil {
 		log.Fatalf("failed to read config: %v", err)
 	}
-
-	client, err := rpc.Dial(config.Server.Host)
-	if err != nil {
-		log.Fatalf("Failed to connect to RPC server: %v", err)
-	}
-	defer client.Close()
 
 	ctx := context.Background()
 	nonceBytes, err := utilsserver.GenerateRandomBytes(32)
@@ -115,8 +108,7 @@ func main() {
 			log.Fatalf("could not create signing request: %v", err)
 		}
 
-		var resp api.InitializePolicyResponse
-		err = client.Call(&resp, "policyservice_initializePolicy", req)
+		_, err = utils.Post[api.InitializePolicyResponse](config.Server.Host+"/policies/initialize", req)
 		if err != nil {
 			log.Fatalf("could not initialize policy: %v", err)
 		}
@@ -152,9 +144,7 @@ func main() {
 			InitialPolicyBytes: initialPolicyBytes,
 			NewPolicyRequests:  policySignaturesArray,
 		}
-
-		var resp api.InitializePolicyResponse
-		err = client.Call(&resp, "policyservice_initializePolicy", req)
+		_, err = utils.Post[api.InitializePolicyResponse](config.Server.Host+"/policies/initialize", req)
 		if err != nil {
 			log.Fatalf("could not initialize policy: %v", err)
 		}
@@ -195,8 +185,7 @@ func main() {
 			log.Fatalf("could not initialize policy: %v", err)
 		}
 
-		var resp api.InstructionResponse
-		err = client.Call(&resp, "instructionservice_sendSignedInstruction", instruction)
+		resp, err := utils.Post[api.InstructionResponse](config.Server.Host+"/instruction", instruction)
 		if err != nil {
 			log.Fatalf("could not create a new wallet: %v", err)
 		}
@@ -212,8 +201,7 @@ func main() {
 			Challenge: hex.EncodeToString(nonceBytes),
 		}
 
-		var pubKeyResp api.WalletInfoResponse
-		err = client.Call(&pubKeyResp, "instructionservice_walletInfo", req)
+		pubKeyResp, err := utils.Post[api.WalletInfoResponse](config.Server.Host+"/wallet", req)
 		if err != nil {
 			log.Fatalf("could not get a public key: %v", err)
 		}
@@ -230,17 +218,15 @@ func main() {
 			KeyId:     args.KeyId,
 			Challenge: hex.EncodeToString(nonceBytes),
 		}
-
-		var accInfoResp api.WalletInfoResponse
-		err = client.Call(&accInfoResp, "instructionservice_walletInfo", req)
+		accInfoResp, err := utils.Post[api.WalletInfoResponse](config.Server.Host+"/wallet", req)
 		if err != nil {
 			log.Fatalf("could not get wallet info: %v", err)
 		}
 		logger.Infof("EthAddress: %s, XrpAddress: %s, PublicKey: %s, Attestation Token %s", accInfoResp.EthAddress, accInfoResp.XrpAddress, accInfoResp.XrpPublicKey, accInfoResp.Token)
 
 	case "node_attestation":
-		var resp api.GetNodeInfoResponse
-		err = client.Call(&resp, "nodeservice_getNodeInfo", &api.GetNodeInfoRequest{Nonce: string(nonceBytes)})
+		req := &api.GetNodeInfoRequest{Nonce: string(nonceBytes)}
+		resp, err := utils.Post[api.GetNodeInfoResponse](config.Server.Host+"/info", req)
 		if err != nil {
 			log.Fatalf("could not get attestation: %v", err)
 		}
@@ -360,9 +346,7 @@ func main() {
 		}
 
 		// ---------- Send the transaction to the signing service ---------- //
-
-		var resp api.InstructionResponse
-		err = client.Call(&resp, "instructionservice_sendSignedInstruction", instruction)
+		resp, err := utils.Post[api.InstructionResponse](config.Server.Host+"/instruction", instruction)
 		if err != nil {
 			log.Fatalf("could not sign payment transaction: %v", err)
 		}
@@ -378,14 +362,13 @@ func main() {
 			Challenge:     hex.EncodeToString(nonceBytes),
 		}
 
-		var resp api.InstructionResultResponse
-		err = client.Call(&resp, "instructionservice_instructionResult", req)
+		resp, err := utils.Post[api.InstructionResultResponse](config.Server.Host+"/instruction/result", req)
 		if err != nil {
 			log.Fatalf("could not get the payment signature : %v", err)
 		}
 
 		var paymentSigResponse api.GetPaymentSignatureResponse
-		err := json.Unmarshal(resp.Data, &paymentSigResponse)
+		err = json.Unmarshal(resp.Data, &paymentSigResponse)
 		if err != nil {
 			log.Fatalf("could not decode the payment signature : %v", err)
 		}
@@ -464,8 +447,7 @@ func main() {
 			log.Fatalf("could not initialize policy: %v", err)
 		}
 
-		var resp api.InstructionResponse
-		err = client.Call(&resp, "instructionservice_sendSignedInstruction", instruction)
+		resp, err := utils.Post[api.InstructionResponse](config.Server.Host+"/instruction", instruction)
 		if err != nil {
 			log.Fatalf("could not split wallet: %v", err)
 		}
@@ -535,8 +517,7 @@ func main() {
 			log.Fatalf("could not initialize policy: %v", err)
 		}
 
-		var resp api.InstructionResponse
-		err = client.Call(&resp, "instructionservice_sendSignedInstruction", instruction)
+		resp, err := utils.Post[api.InstructionResponse](config.Server.Host+"/instruction", instruction)
 		if err != nil {
 			log.Fatalf("could not recover: %v", err)
 		}

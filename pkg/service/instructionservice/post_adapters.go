@@ -2,9 +2,9 @@ package instructionservice
 
 import (
 	"tee-node/pkg/requests"
-	"tee-node/pkg/service/instructionservice/policyservice"
-	"tee-node/pkg/service/instructionservice/signingservice"
-	"tee-node/pkg/service/instructionservice/walletsservice"
+	"tee-node/pkg/service/instructionservice/policyinstruction"
+	"tee-node/pkg/service/instructionservice/signinginstruction"
+	"tee-node/pkg/service/instructionservice/walletsinstruction"
 	"tee-node/pkg/utils"
 
 	"google.golang.org/grpc/codes"
@@ -33,7 +33,7 @@ func handleRegPostRequest(requestCounter *requests.RequestCounter) ([]byte, erro
 func handlePolicyPostRequest(requestCounter *requests.RequestCounter) ([]byte, error) {
 	switch utils.OpHashToString(requestCounter.Request.OPCommand) {
 	case "UPDATE_POLICY":
-		return []byte{}, policyservice.UpdatePolicy(requestCounter.Request)
+		return []byte{}, policyinstruction.UpdatePolicy(requestCounter.Request)
 
 	default:
 		return nil, status.Error(codes.Unknown, "Unknown OpCommand for WALLET OpType")
@@ -46,25 +46,25 @@ func handleWalletPostRequest(requestCounter *requests.RequestCounter) ([]byte, e
 	switch utils.OpHashToString(requestCounter.Request.OPCommand) {
 
 	case "KEY_GENERATE":
-		return []byte{}, walletsservice.NewWallet(requestCounter.Request)
+		return []byte{}, walletsinstruction.NewWallet(requestCounter.Request)
 
 	case "KEY_DELETE":
-		return []byte{}, walletsservice.DeleteWallet(requestCounter.Request)
+		return []byte{}, walletsinstruction.DeleteWallet(requestCounter.Request)
 
 	case "KEY_MACHINE_BACKUP":
-		return []byte{}, walletsservice.SplitWallet(requestCounter.Request, requestCounter.Signatures())
+		return []byte{}, walletsinstruction.SplitWallet(requestCounter.Request, requestCounter.Signatures())
 
 	case "KEY_MACHINE_RESTORE":
-		return []byte{}, walletsservice.RecoverWallet(requestCounter.Request, requestCounter.Signatures())
+		return []byte{}, walletsinstruction.RecoverWallet(requestCounter.Request, requestCounter.Signatures())
 
 	case "KEY_MACHINE_BACKUP_REMOVE":
-		return walletsservice.KeyMachineBackupRemove(requestCounter.Request)
+		return walletsinstruction.KeyMachineBackupRemove(requestCounter.Request)
 
 	case "KEY_CUSTODIAN_BACKUP":
-		return walletsservice.KeyCustodianBackup(requestCounter.Request)
+		return walletsinstruction.KeyCustodianBackup(requestCounter.Request)
 
 	case "KEY_CUSTODIAN_RESTORE":
-		return walletsservice.KeyCustodianRestore(requestCounter.Request)
+		return walletsinstruction.KeyCustodianRestore(requestCounter.Request)
 
 	default:
 		return nil, status.Error(codes.Unknown, "Unknown OpCommand for WALLET OpType")
@@ -79,10 +79,10 @@ func handleXrpPostRequest(requestCounter *requests.RequestCounter) ([]byte, erro
 
 	switch utils.OpHashToString(requestCounter.Request.OPCommand) {
 	case "PAY":
-		return signingservice.SignPaymentTransaction(requestCounter.Request)
+		return signinginstruction.SignPaymentTransaction(requestCounter.Request)
 
 	case "REISSUE":
-		return signingservice.XrpReissue(requestCounter.Request)
+		return signinginstruction.XrpReissue(requestCounter.Request)
 
 	default:
 		return nil, status.Error(codes.Unknown, "Unknown OpCommand for XRP OpType")
