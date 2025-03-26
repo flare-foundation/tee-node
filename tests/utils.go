@@ -1,13 +1,17 @@
 package utils
 
 import (
+	"bytes"
 	"context"
 	"crypto/ecdsa"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
+	"io"
 	"log"
 	"math/big"
 	"math/rand"
+	"net/http"
 	"time"
 
 	"tee-node/pkg/config"
@@ -334,4 +338,29 @@ func ClientLoggingInterceptor(ctx context.Context, method string, req, reply int
 	err := invoker(ctx, method, req, reply, cc, opts...)
 	log.Printf("method: %s, duration: %v, error: %v", method, time.Since(start), err)
 	return err
+}
+
+func Post[R any](url string, req any) (R, error) {
+	requestBody, err := json.Marshal(req)
+	if err != nil {
+		return *new(R), err
+	}
+	res, err := http.Post(url, "application/json", bytes.NewBuffer(requestBody))
+	if err != nil {
+		return *new(R), err
+	}
+	defer res.Body.Close()
+	body, err := io.ReadAll(res.Body)
+	if err != nil {
+		return *new(R), err
+	}
+	if res.StatusCode != http.StatusOK {
+		return *new(R), fmt.Errorf("unexpected status code: %d, response: %s", res.StatusCode, string(body))
+	}
+	var response R
+	err = json.Unmarshal(body, &response)
+	if err != nil {
+		return *new(R), err
+	}
+	return response, nil
 }

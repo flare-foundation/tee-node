@@ -8,7 +8,7 @@ import (
 	"math/big"
 	"strconv"
 	"tee-node/pkg/requests"
-	"tee-node/pkg/service/instructionservice/walletsservice"
+	"tee-node/pkg/service/instructionservice/walletsinstruction"
 	"tee-node/pkg/utils"
 	"testing"
 
@@ -83,7 +83,7 @@ func CreateMockWallet(t *testing.T, nodeId string, walletId string, keyId string
 	)
 	require.NoError(t, err)
 
-	err = walletsservice.NewWallet(&instruction.Data.DataFixed)
+	err = walletsinstruction.NewWallet(&instruction.Data.DataFixed)
 
 	require.NoError(t, err)
 

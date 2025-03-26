@@ -1,11 +1,9 @@
 package instructionservice
 
 import (
-	"context"
 	api "tee-node/api/types"
 	"tee-node/pkg/attestation"
 	"tee-node/pkg/requests"
-	"tee-node/pkg/service/instructionservice/walletsservice"
 	"tee-node/pkg/utils"
 
 	"github.com/flare-foundation/go-flare-common/pkg/tee/instruction"
@@ -14,25 +12,8 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-// InstructionService handles forwarding JSON-RPC method calls to the appropriate service
-type InstructionService struct {
-}
-
-// NewService initializes the InstructionService with registered services
-func NewService() *InstructionService {
-	return &InstructionService{}
-}
-
 // Call forwards the call to the appropriate service and method
-func (s *InstructionService) SendSignedInstruction(ctx context.Context, instructionMessage *instruction.Instruction) (*api.InstructionResponse, error) {
-
-	// Check if context is cancelled
-	select {
-	case <-ctx.Done():
-		return nil, status.Error(codes.Canceled, "request cancelled")
-	default:
-	}
-
+func SendSignedInstruction(instructionMessage *instruction.Instruction) (*api.InstructionResponse, error) {
 	// TODO: Is there any other check that should be done here?
 	// Todo: Checks if InstructionId is valid, rewardEpochId is correct, etc.
 	// TODO: Anti DOS checks
@@ -114,15 +95,7 @@ func (s *InstructionService) SendSignedInstruction(ctx context.Context, instruct
 
 }
 
-func (s *InstructionService) InstructionResult(ctx context.Context, instructionQuery *api.InstructionResultRequest) (*api.InstructionResultResponse, error) {
-
-	// Check if context is cancelled
-	select {
-	case <-ctx.Done():
-		return nil, status.Error(codes.Canceled, "request cancelled")
-	default:
-	}
-
+func InstructionResult(instructionQuery *api.InstructionResultRequest) (*api.InstructionResultResponse, error) {
 	requestsWithId, ok := requests.GetHashesWithId(instructionQuery.InstructionId)
 	if !ok {
 		return nil, status.Error(codes.NotFound, "request not found")
@@ -190,15 +163,7 @@ func (s *InstructionService) InstructionResult(ctx context.Context, instructionQ
 	}, nil
 }
 
-func (s *InstructionService) InstructionStatus(ctx context.Context, instructionQuery *api.InstructionResultRequest) (*api.InstructionStatusResponse, error) {
-
-	// Check if context is cancelled
-	select {
-	case <-ctx.Done():
-		return nil, status.Error(codes.Canceled, "request cancelled")
-	default:
-	}
-
+func InstructionStatus(instructionQuery *api.InstructionResultRequest) (*api.InstructionStatusResponse, error) {
 	// find the request that was finalized
 	requestsWithId, ok := requests.GetHashesWithId(instructionQuery.InstructionId)
 	if !ok {
@@ -244,16 +209,4 @@ func (s *InstructionService) InstructionStatus(ctx context.Context, instructionQ
 			ErrorLog:    "", // TODO: add error log
 		},
 	}, nil
-}
-
-// TODO: This shouldn't be here, but I don't know where else to put it for now
-func (s *InstructionService) WalletInfo(ctx context.Context, req *api.WalletInfoRequest) (*api.WalletInfoResponse, error) {
-	// Check if context is cancelled
-	select {
-	case <-ctx.Done():
-		return nil, status.Error(codes.Canceled, "request cancelled")
-	default:
-	}
-
-	return walletsservice.WalletInfo(req)
 }

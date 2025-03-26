@@ -90,10 +90,8 @@ func TestPolicyReplayingWithIndexerData(t *testing.T) {
 	req, err := CreateSigningRequest(policies, signatures)
 	require.NoError(t, err)
 
-	signingService := ps.NewService()
-
 	config.InitialPolicyHash = hex.EncodeToString(pd.SigningPolicyHash(req.InitialPolicyBytes))
 
-	_, err = signingService.InitializePolicy(context.Background(), req)
+	_, err = ps.InitializePolicy(req)
 	require.NoError(t, err)
 }

@@ -3,7 +3,7 @@ package instructionservice
 import (
 	"encoding/json"
 	"tee-node/pkg/requests"
-	"tee-node/pkg/service/instructionservice/signingservice"
+	"tee-node/pkg/service/instructionservice/signinginstruction"
 	"tee-node/pkg/utils"
 
 	"google.golang.org/grpc/codes"
@@ -79,7 +79,7 @@ func handleXrpGetRequest(requestCounter *requests.RequestCounter) ([]byte, error
 	switch utils.OpHashToString(requestCounter.Request.OPCommand) {
 	case "PAY":
 
-		response, err := signingservice.GetPaymentSignature(requestCounter.Request, requestCounter.Result)
+		response, err := signinginstruction.GetPaymentSignature(requestCounter.Request, requestCounter.Result)
 		if err != nil {
 			return nil, err
 		}

@@ -1,4 +1,4 @@
-package walletsservice
+package walletsinstruction
 
 import (
 	"encoding/hex"

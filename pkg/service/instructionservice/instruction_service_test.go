@@ -1,7 +1,6 @@
 package instructionservice_test
 
 import (
-	"context"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -46,8 +45,6 @@ func TestSendManyPaymentInstructions(t *testing.T) {
 
 	paymentHash := "560ccd6e79ba7166e82dbf2a5b9a52283a509b63c39d4a4cc7164db3e43484c4"
 
-	instructionService := instructionservice.NewService()
-
 	instructionIdBytes, _ := utils.GenerateRandomBytes(32)
 
 	thresholdIdx := -1
@@ -67,7 +64,7 @@ func TestSendManyPaymentInstructions(t *testing.T) {
 		)
 		require.NoError(t, err)
 
-		response, err := instructionService.SendSignedInstruction(context.Background(), instruction)
+		response, err := instructionservice.SendSignedInstruction(instruction)
 
 		if err != nil {
 			t.Fatalf("Failed to sign the payment transaction: %v", err)
@@ -100,8 +97,6 @@ func TestGetInstructionResult(t *testing.T) {
 
 	thresholdIdx, _ := testutils.GetTresholdRechedVoterIndex(policy.ActiveSigningPolicy, privKeys)
 
-	instructionService := instructionservice.NewService()
-
 	instructionIdBytes, _ := utils.GenerateRandomBytes(32)
 
 	var instruction *instruction.Instruction
@@ -120,7 +115,7 @@ func TestGetInstructionResult(t *testing.T) {
 		)
 		require.NoError(t, err)
 
-		response, err := instructionService.SendSignedInstruction(context.Background(), instruction)
+		response, err := instructionservice.SendSignedInstruction(instruction)
 
 		if err != nil {
 			t.Fatalf("Failed to sign the payment transaction: %v", err)
@@ -136,7 +131,7 @@ func TestGetInstructionResult(t *testing.T) {
 		Challenge:     instruction.Challenge.String(),
 		InstructionId: hex.EncodeToString(instruction.Data.InstructionID[:]),
 	}
-	_, err = instructionService.InstructionResult(context.Background(), &instructionQuery)
+	_, err = instructionservice.InstructionResult(&instructionQuery)
 
 	// Convert error to RPC status and  error code
 	st, ok := status.FromError(err)
@@ -163,7 +158,7 @@ func TestGetInstructionResult(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	response, err := instructionService.SendSignedInstruction(context.Background(), instruction)
+	response, err := instructionservice.SendSignedInstruction(instruction)
 	require.NoError(t, err)
 
 	if !response.Finalized {
@@ -171,7 +166,7 @@ func TestGetInstructionResult(t *testing.T) {
 	}
 
 	// Get the instruction result after the threshold was reached
-	resp, err := instructionService.InstructionResult(context.Background(), &instructionQuery)
+	resp, err := instructionservice.InstructionResult(&instructionQuery)
 	require.NoError(t, err)
 
 	require.Equal(t, "OK", resp.Status)
@@ -192,8 +187,6 @@ func TestGetInstructionStatus(t *testing.T) {
 
 	thresholdIdx, thresholdWeight := testutils.GetTresholdRechedVoterIndex(policy.ActiveSigningPolicy, privKeys)
 
-	instructionService := instructionservice.NewService()
-
 	instructionIdBytes, _ := utils.GenerateRandomBytes(32)
 
 	var instruction *instruction.Instruction
@@ -212,7 +205,7 @@ func TestGetInstructionStatus(t *testing.T) {
 		)
 		require.NoError(t, err)
 
-		response, err := instructionService.SendSignedInstruction(context.Background(), instruction)
+		response, err := instructionservice.SendSignedInstruction(instruction)
 
 		if err != nil {
 			t.Fatalf("Failed to sign the payment transaction: %v", err)
@@ -228,7 +221,7 @@ func TestGetInstructionStatus(t *testing.T) {
 		Challenge:     instruction.Challenge.String(),
 		InstructionId: hex.EncodeToString(instruction.Data.InstructionID[:]),
 	}
-	resp, err := instructionService.InstructionStatus(context.Background(), &instructionQuery)
+	resp, err := instructionservice.InstructionStatus(&instructionQuery)
 	require.NoError(t, err)
 
 	require.Equal(t, "OK", resp.Status)
@@ -250,7 +243,7 @@ func TestGetInstructionStatus(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	response, err := instructionService.SendSignedInstruction(context.Background(), instruction)
+	response, err := instructionservice.SendSignedInstruction(instruction)
 	require.NoError(t, err)
 
 	if !response.Finalized {
@@ -258,7 +251,7 @@ func TestGetInstructionStatus(t *testing.T) {
 	}
 
 	// Get the instruction status after the threshold was reached
-	resp, err = instructionService.InstructionStatus(context.Background(), &instructionQuery)
+	resp, err = instructionservice.InstructionStatus(&instructionQuery)
 	require.NoError(t, err)
 
 	require.Equal(t, "OK", resp.Status)
@@ -284,8 +277,6 @@ func TestGetResultWithDifferentInstructionForSameId(t *testing.T) {
 	paymentHash2 := "1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef"
 	paymentHash3 := "abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890"
 
-	instructionService := instructionservice.NewService()
-
 	instructionIdBytes, _ := utils.GenerateRandomBytes(32)
 
 	thresholdIdx, thresholdWeight := testutils.GetTresholdRechedVoterIndex(policy.ActiveSigningPolicy, privKeys)
@@ -310,7 +301,7 @@ func TestGetResultWithDifferentInstructionForSameId(t *testing.T) {
 
 		voterWeight1 += int(testutils.GetSignerWeight(&privKeys[i].PublicKey, policy.ActiveSigningPolicy))
 
-		response, err := instructionService.SendSignedInstruction(context.Background(), instruction)
+		response, err := instructionservice.SendSignedInstruction(instruction)
 
 		if err != nil {
 			t.Fatalf("Failed to sign the payment transaction: %v", err)
@@ -343,7 +334,7 @@ func TestGetResultWithDifferentInstructionForSameId(t *testing.T) {
 
 		voterWeight2 += int(testutils.GetSignerWeight(&privKeys[i].PublicKey, policy.ActiveSigningPolicy))
 
-		response, err := instructionService.SendSignedInstruction(context.Background(), instruction)
+		response, err := instructionservice.SendSignedInstruction(instruction)
 
 		if err != nil {
 			t.Fatalf("Failed to sign the payment transaction: %v", err)
@@ -373,7 +364,7 @@ func TestGetResultWithDifferentInstructionForSameId(t *testing.T) {
 
 		voterWeight3 += int(testutils.GetSignerWeight(&privKeys[i].PublicKey, policy.ActiveSigningPolicy))
 
-		response, err := instructionService.SendSignedInstruction(context.Background(), instruction)
+		response, err := instructionservice.SendSignedInstruction(instruction)
 
 		if err != nil {
 			t.Fatalf("Failed to sign the payment transaction: %v", err)
@@ -388,7 +379,7 @@ func TestGetResultWithDifferentInstructionForSameId(t *testing.T) {
 		Challenge:     instruction.Challenge.String(),
 		InstructionId: hex.EncodeToString(instruction.Data.InstructionID[:]),
 	}
-	resp, err := instructionService.InstructionStatus(context.Background(), &instructionQuery)
+	resp, err := instructionservice.InstructionStatus(&instructionQuery)
 	require.NoError(t, err)
 
 	require.Equal(t, "OK", resp.Status)
@@ -400,7 +391,7 @@ func TestGetResultWithDifferentInstructionForSameId(t *testing.T) {
 	require.Equal(t, voterWeight2, int(resp.Data.VoteResults[1].TotalWeight))
 	require.Equal(t, voterWeight3, int(resp.Data.VoteResults[2].TotalWeight))
 
-	_, err = instructionService.InstructionResult(context.Background(), &instructionQuery)
+	_, err = instructionservice.InstructionResult(&instructionQuery)
 
 	// Convert error to RPC status and  error code
 	st, ok := status.FromError(err)
@@ -427,21 +418,21 @@ func TestGetResultWithDifferentInstructionForSameId(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	response, err := instructionService.SendSignedInstruction(context.Background(), instruction)
+	response, err := instructionservice.SendSignedInstruction(instruction)
 	require.NoError(t, err)
 
 	if !response.Finalized {
 		t.Fatalf("Threshold should have been reached")
 	}
 
-	resp2, err := instructionService.InstructionStatus(context.Background(), &instructionQuery)
+	resp2, err := instructionservice.InstructionStatus(&instructionQuery)
 	require.NoError(t, err)
 
 	require.Equal(t, "OK", resp2.Status)
 	require.Equal(t, "success", resp2.Data.Status)
 	require.Equal(t, thresholdWeight, resp2.Data.VoteResults[0].TotalWeight)
 
-	resp3, err := instructionService.InstructionResult(context.Background(), &instructionQuery)
+	resp3, err := instructionservice.InstructionResult(&instructionQuery)
 	require.NoError(t, err)
 
 	require.Equal(t, "OK", resp3.Status)
@@ -476,8 +467,7 @@ func TestSignNewPolicy(t *testing.T) {
 		NewPolicyRequests:  nil,
 	}
 
-	signingService := policyservice.NewService()
-	_, err = signingService.InitializePolicy(context.Background(), req)
+	_, err = policyservice.InitializePolicy(req)
 	if err != nil {
 		t.Errorf("Failed to initialize the policy: %v", err)
 	}
@@ -488,7 +478,6 @@ func TestSignNewPolicy(t *testing.T) {
 		t.Errorf("Failed to generate the policy signatures")
 	}
 	instructionIdBytes, _ := utils.GenerateRandomBytes(32)
-	instructionService := instructionservice.NewService()
 
 	for i := 0; i < len(privKeys); i++ {
 		// Sign the payment hash with the last voter to reach the threshold for the first payment hash
@@ -504,7 +493,7 @@ func TestSignNewPolicy(t *testing.T) {
 			policy.ActiveSigningPolicy.RewardEpochId,
 		)
 		require.NoError(t, err)
-		_, err = instructionService.SendSignedInstruction(context.Background(), instruction)
+		_, err = instructionservice.SendSignedInstruction(instruction)
 
 		if err != nil {
 			t.Fatalf("Failed to sign the payment transaction: %v", err)

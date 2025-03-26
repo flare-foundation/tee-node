@@ -1,33 +1,14 @@
 package nodeservice
 
 import (
-	"context"
 	"encoding/hex"
 	api "tee-node/api/types"
 	"tee-node/pkg/attestation"
 	"tee-node/pkg/node"
 	"tee-node/pkg/policy"
-
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 )
 
-type Service struct {
-}
-
-// NewService creates a new signing service
-func NewService() *Service {
-	return &Service{}
-}
-
-func (s *Service) GetNodeInfo(ctx context.Context, req *api.GetNodeInfoRequest) (*api.GetNodeInfoResponse, error) {
-	// Check if context is cancelled
-	select {
-	case <-ctx.Done():
-		return nil, status.Error(codes.Canceled, "request cancelled")
-	default:
-	}
-
+func GetNodeInfo(req *api.GetNodeInfoRequest) (*api.GetNodeInfoResponse, error) {
 	nodeId := node.GetNodeId()
 
 	responseData := api.GetNodeInfoData{
