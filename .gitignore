@@ -2,3 +2,6 @@ node_modules
 tee-node
 
 tests/scripts/logs/*
+
+
+notes.txt

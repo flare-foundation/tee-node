@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	api "tee-node/api/types"
 	"tee-node/pkg/policy"
+	"tee-node/pkg/requests"
 
 	"github.com/flare-foundation/go-flare-common/pkg/tee/instruction"
 )
@@ -23,6 +24,8 @@ func UpdatePolicy(instructionData *instruction.DataFixed) error {
 	if err != nil {
 		return err
 	}
+
+	requests.UpdateRateLimiter(policy.ActiveSigningPolicy.Voters)
 
 	return nil
 }

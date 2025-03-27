@@ -78,7 +78,11 @@ func SetSigningPolicy(policy *SigningPolicy, policyHash []byte) {
 
 // todo mutex
 func GetSigningPolicy(epochId uint32) *SigningPolicy {
-	return signingPolicies[epochId]
+	policy, ok := signingPolicies[epochId]
+	if !ok {
+		return nil
+	}
+	return policy
 }
 
 // Note: This is useful for tests, but it would also be useful for upgrades, where a TEE get's shutdown.

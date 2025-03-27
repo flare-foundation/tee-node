@@ -406,10 +406,10 @@ func main() {
 		// ---------- Split the wallet request ---------- //
 
 		backupTeeMachines := make([]wallet.ITeeRegistryTeeMachineWithAttestationData, len(teeIds))
-		for i, _ := range teeIds {
-			backupTeeMachines[i] = wallet.ITeeRegistryTeeMachineWithAttestationData{
-				TeeId: common.HexToAddress(pubKeys[i]),
-				Url:   config.Server.Backups[i],
+		for id := range teeIds {
+			backupTeeMachines[id] = wallet.ITeeRegistryTeeMachineWithAttestationData{
+				TeeId: common.HexToAddress(pubKeys[id]),
+				Url:   config.Server.Backups[id],
 			}
 		}
 		// TODO: keyId and backupId parameters should probably be big.Int or uint32

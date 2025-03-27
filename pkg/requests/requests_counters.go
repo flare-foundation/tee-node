@@ -2,8 +2,8 @@ package requests
 
 import (
 	"encoding/hex"
+	"errors"
 	"sync"
-	"tee-node/pkg/config"
 	"tee-node/pkg/policy"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -14,7 +14,6 @@ import (
 // before being executed.
 var requestCounterStorage *RequestCounterStorage
 
-// Initialize storages for each request type
 func init() {
 	requestCounterStorage = InitRequestCounterStorage()
 }
@@ -33,8 +32,9 @@ type RequestCounter struct {
 	RequestPolicy           *policy.SigningPolicy
 	Threshold               uint16
 
-	Done   bool
-	Result []byte
+	Proposer common.Address
+	Done     bool
+	Result   []byte
 
 	sync.Mutex
 }
@@ -50,39 +50,46 @@ func GetRequestCounter(request *instruction.Data) (*RequestCounter, error) {
 	}
 	requestHash := hex.EncodeToString(hash[:])
 
-	requestCounter, exists, err := GetRequestCounterByHash(requestHash)
-	if err != nil {
-		return nil, err
+	requestCounter, exists := GetRequestCounterByHash(requestHash)
+	if !exists {
+		return nil, errors.New("request counter not found")
 	}
-	if exists {
-		return requestCounter, nil
-	} else {
-		return CreateAndStoreRequestCounter(requestHash, request)
-	}
+
+	return requestCounter, nil
 }
 
-func GetRequestCounterByHash(requestHash string) (*RequestCounter, bool, error) {
+func GetRequestCounterByHash(requestHash string) (*RequestCounter, bool) {
 	requestCounterStorage.Lock()
 	defer requestCounterStorage.Unlock()
-	requestCounter, ok := requestCounterStorage.Storage[requestHash]
-	if !ok {
-		return nil, false, nil
+	requestCounter, exists := requestCounterStorage.Storage[requestHash]
+	if !exists {
+		return nil, exists
 	}
 
-	return requestCounter, true, nil
+	return requestCounter, exists
 }
 
-func CreateAndStoreRequestCounter(requestHash string, request *instruction.Data) (*RequestCounter, error) {
-	requestCounter := NewRequestCounter(request)
+func RemoveRequestCounterByHash(requestHash string) {
+	requestCounterStorage.Lock()
+	defer requestCounterStorage.Unlock()
+
+	delete(requestCounterStorage.Storage, requestHash)
+}
+
+func CreateAndStoreRequestCounter(request *instruction.Data, proposer common.Address) *RequestCounter {
+	hash, _ := request.HashFixed() // TODO: handle error? I think this is checked implicitly before this call
+	requestHash := hex.EncodeToString(hash[:])
+
+	requestCounter := NewRequestCounter(request, proposer)
 
 	requestCounterStorage.Lock()
 	requestCounterStorage.Storage[requestHash] = requestCounter
 	requestCounterStorage.Unlock()
 
-	return requestCounter, nil
+	return requestCounter
 }
 
-func NewRequestCounter(request *instruction.Data) *RequestCounter {
+func NewRequestCounter(request *instruction.Data, proposer common.Address) *RequestCounter {
 	requestPolicy := policy.GetSigningPolicy(uint32(request.RewardEpochID.Uint64()))
 	threshold := requestPolicy.Threshold // todo: for now just read from policy
 
@@ -92,12 +99,20 @@ func NewRequestCounter(request *instruction.Data) *RequestCounter {
 		Threshold:               threshold,
 		RequestSignatures:       make(map[common.Address][]byte),
 		RequestVariableMessages: make(map[common.Address][]byte),
+		Proposer:                proposer,
 	}
 }
 
-// Check that the request policy is still active (within config.ACTIVE_POLICY_COUNT) of the active policy reward epoch id
-func (r *RequestCounter) CheckActive(requestPolicy *policy.SigningPolicy) bool {
-	return policy.ActiveSigningPolicy.RewardEpochId-requestPolicy.RewardEpochId <= config.ACTIVE_POLICY_COUNT // todo maybe based on name it should be strictly smaller
+// Check that the request policy is still active, meaning either the active policy or the withing the 5 minute transition period
+func (r *RequestCounter) CheckActive() error {
+	rewardEpochId := r.RequestPolicy.RewardEpochId
+	activePolicyId := policy.ActiveSigningPolicy.RewardEpochId
+
+	if rewardEpochId == activePolicyId || rewardEpochId == activePolicyId-1 {
+		return nil
+	}
+
+	return errors.New("policy not active")
 }
 
 func (r *RequestCounter) CurrentWeight() uint16 {
@@ -138,6 +153,9 @@ func (r *RequestCounter) GetRequestSigners() []*common.Address {
 }
 
 // Note: This is useful for tests, but it would also be useful for upgrades, where a TEE get's shutdown.
-func DestoryState() {
+func DestroyState() {
 	requestCounterStorage = InitRequestCounterStorage()
+
+	DestroyGarbageCollector()
+	ClearRateLimiterState()
 }

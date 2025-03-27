@@ -3,7 +3,6 @@ package requests_test
 import (
 	"encoding/hex"
 	"math/big"
-	"tee-node/pkg/config"
 	"tee-node/pkg/node"
 	"tee-node/pkg/policy"
 	"tee-node/pkg/requests"
@@ -96,27 +95,16 @@ func TestRequestCheckActive(t *testing.T) {
 	// Process the request
 	_, err = requests.CheckSigner(&instruction.Data, instruction.Signature)
 	require.NoError(t, err)
-	_, err = requests.GetRequestCounter(&instruction.Data)
+	_, err = requests.CheckRequest(&instruction.Data)
 	require.NoError(t, err)
 
-	// Increase the reward epoch id by config.ACTIVE_POLICY_COUNT (should pass)
-	for i := 0; i < config.ACTIVE_POLICY_COUNT; i++ {
-		sigPolicy.RewardEpochId += 1
-
-		policyBytes, _ := policy.EncodeSigningPolicy(&sigPolicy)
-		policy.SetSigningPolicy(&sigPolicy, policy.SigningPolicyHash(policyBytes))
-	}
-
-	_, err = requests.CheckSigner(&instruction.Data, instruction.Signature)
-	require.NoError(t, err)
-
-	// Increase the reward epoch id by 1 (should fail)
+	// Increase the reward epoch id by 1
 	sigPolicy.RewardEpochId += 1
 
 	policyBytes, _ := policy.EncodeSigningPolicy(&sigPolicy)
 	policy.SetSigningPolicy(&sigPolicy, policy.SigningPolicyHash(policyBytes))
 
-	err = requests.CheckRequest(&instruction.Data)
+	_, err = requests.CheckRequest(&instruction.Data)
 	if assert.Error(t, err) {
 		assert.Equal(t, "reward epoch id too old", err.Error())
 	}

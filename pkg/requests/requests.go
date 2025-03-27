@@ -50,26 +50,33 @@ func CheckSigner(request *instruction.Data, signature []byte) (common.Address, e
 	return providerAddress, nil
 }
 
-func CheckRequest(instructionData *instruction.Data) error {
+func CheckRequest(instructionData *instruction.Data) (bool, error) {
+	if instructionData == nil {
+		return false, errors.New("instruction data is nil")
+	}
+
 	nodeId := node.GetNodeId()
 	if instructionData.TeeID.Hex() != nodeId.Id {
-		return errors.New("invalid TEE id")
+		return false, errors.New("invalid TEE id")
 	}
 
-	if policy.ActiveSigningPolicy.RewardEpochId < uint32(instructionData.RewardEpochID.Uint64()) {
-		return errors.New("reward epoch not started yet")
-	}
-	if policy.ActiveSigningPolicy.RewardEpochId-uint32(instructionData.RewardEpochID.Uint64()) > config.ACTIVE_POLICY_COUNT {
-		return errors.New("reward epoch id too old")
+	activePolicy := policy.ActiveSigningPolicy.RewardEpochId == uint32(instructionData.RewardEpochID.Uint64())
+	if !activePolicy && policy.ActiveSigningPolicy.RewardEpochId != uint32(instructionData.RewardEpochID.Uint64())-1 {
+		return false, errors.New("reward epoch id too old")
 	}
 
-	// Check the command is valid
 	valid := isValidCommand(utils.OpHashToString(instructionData.OPType), utils.OpHashToString(instructionData.OPCommand))
 	if !valid {
-		return status.Error(codes.InvalidArgument, "invalid command for operation type")
+		return false, status.Error(codes.InvalidArgument, "invalid command for operation type")
 	}
 
-	return nil
+	return activePolicy, nil
+}
+
+// Check if the request is new
+func IsProposer(requestHash string) bool {
+	_, exists := GetRequestCounterByHash(requestHash)
+	return !exists
 }
 
 // IsValidSubCommand checks if the OpType and Command is valid for a given operation type
@@ -85,4 +92,44 @@ func isValidCommand(op, command string) bool {
 		}
 	}
 	return false
+}
+
+// validateRequestSize checks the size of the request fields
+func ValidateRequestSize(instruction *instruction.Instruction) error {
+	// Check the size of the challenge and signature
+	if len(instruction.Challenge) > config.MaxChallengeSize {
+		return status.Error(codes.InvalidArgument, "challenge exceeds maximum size")
+	}
+	if len(instruction.Signature) > config.MaxSignatureSize {
+		return status.Error(codes.InvalidArgument, "signature exceeds maximum size")
+	}
+
+	// Check the size of the instruction data fields
+	instructionData := instruction.Data
+	if len(instructionData.InstructionID.Bytes()) > config.MaxInstructionFieldSize {
+		return status.Error(codes.InvalidArgument, "instructionId exceeds maximum size")
+	}
+	if len(instructionData.TeeID.Bytes()) > config.MaxInstructionFieldSize {
+		return status.Error(codes.InvalidArgument, "teeId exceeds maximum size")
+	}
+	if len(instructionData.OPType.Bytes()) > config.MaxInstructionFieldSize {
+		return status.Error(codes.InvalidArgument, "opType exceeds maximum size")
+	}
+	if len(instructionData.OPCommand.Bytes()) > config.MaxInstructionFieldSize {
+		return status.Error(codes.InvalidArgument, "opCommand exceeds maximum size")
+	}
+
+	// Check the size of the different messages
+	messageSizeConstraint := config.MaxRequestSize[utils.OpHashToString(instructionData.OPType)][utils.OpHashToString(instructionData.OPCommand)]
+	if len(instructionData.OriginalMessage) > messageSizeConstraint.MaxOriginalMessageSize {
+		return status.Error(codes.InvalidArgument, "originalMessage exceeds maximum size")
+	}
+	if len(instructionData.AdditionalFixedMessage) > messageSizeConstraint.MaxAdditionalFixedMessageSize {
+		return status.Error(codes.InvalidArgument, "additionalFixedMessage exceeds maximum size")
+	}
+	if len(instructionData.AdditionalVariableMessage) > messageSizeConstraint.MaxAdditionalVariableMessageSize {
+		return status.Error(codes.InvalidArgument, "additionalVariableMessage exceeds maximum size")
+	}
+
+	return nil
 }

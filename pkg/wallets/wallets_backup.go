@@ -12,6 +12,7 @@ import (
 	"tee-node/pkg/node"
 	"tee-node/pkg/requests"
 
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/pkg/errors"
 
 	"github.com/flare-foundation/go-flare-common/pkg/logger"
@@ -130,7 +131,7 @@ type shareInfo struct {
 func (s shareInfo) Check(myNodeId, outNodeId string) error {
 	instructionData := &instruction.Data{DataFixed: s.InstructionData, AdditionalVariableMessage: []byte("")} // variable part is empty
 
-	requestCounter := requests.NewRequestCounter(instructionData)
+	requestCounter := requests.NewRequestCounter(instructionData, common.Address{})
 	for _, signature := range s.Signatures {
 		providerAddress, err := requests.CheckSignature(instructionData, signature, requestCounter.RequestPolicy)
 		if err != nil {

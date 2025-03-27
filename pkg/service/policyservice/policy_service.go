@@ -4,6 +4,7 @@ import (
 	"encoding/hex"
 	"tee-node/pkg/attestation"
 	"tee-node/pkg/policy"
+	"tee-node/pkg/requests"
 
 	api "tee-node/api/types"
 
@@ -15,6 +16,10 @@ func InitializePolicy(req *api.InitializePolicyRequest) (*api.InitializePolicyRe
 	if err != nil {
 		return nil, err
 	}
+
+	// Register the validators from the latest policy for the ratelimiter
+	requests.UpdateRateLimiter(policy.ActiveSigningPolicy.Voters)
+
 	return &api.InitializePolicyResponse{}, nil
 }
 

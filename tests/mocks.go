@@ -86,7 +86,6 @@ func CreateMockWallet(t *testing.T, nodeId string, walletId string, keyId string
 	err = walletsinstruction.NewWallet(&instruction.Data.DataFixed)
 
 	require.NoError(t, err)
-
 }
 
 func BuildMockPaymentOriginalMessage(t *testing.T, mockWallet string) []byte {

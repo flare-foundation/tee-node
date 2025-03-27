@@ -26,6 +26,7 @@ func InitInstructionIdToHashes() *InstructionIdToHashes {
 func GetHashesWithId(instructionId string) ([]string, bool) {
 	instructionIdToHash.Lock()
 	defer instructionIdToHash.Unlock()
+	
 	requestsWithId, ok := instructionIdToHash.Map[instructionId]
 	if !ok {
 		return nil, false

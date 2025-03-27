@@ -1,4 +1,4 @@
-package policy
+package policy_test
 
 // tp "tee-node/client/policy"
 
@@ -23,4 +23,3 @@ package policy
 // ? some basic tests
 
 // ? some basic tests
-
