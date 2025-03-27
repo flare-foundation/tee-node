@@ -1,6 +1,8 @@
 package instructionservice
 
 import (
+	"encoding/hex"
+	"strconv"
 	api "tee-node/api/types"
 	"tee-node/pkg/attestation"
 	"tee-node/pkg/requests"
@@ -17,7 +19,12 @@ func SendSignedInstruction(instructionMessage *instruction.Instruction) (*api.In
 	// TODO: Is there any other check that should be done here?
 	// Todo: Checks if InstructionId is valid, rewardEpochId is correct, etc.
 	// TODO: Anti DOS checks
-	err := requests.CheckRequest(&instructionMessage.Data)
+	inActivePolicy, err := requests.CheckRequest(&instructionMessage.Data)
+	if err != nil {
+		return nil, err
+	}
+
+	err = requests.ValidateRequestSize(instructionMessage)
 	if err != nil {
 		return nil, err
 	}
@@ -26,9 +33,33 @@ func SendSignedInstruction(instructionMessage *instruction.Instruction) (*api.In
 	if err != nil {
 		return nil, err
 	}
-	requestCounter, err := requests.GetRequestCounter(&instructionMessage.Data)
+
+	// Check if the request is a new request proposal and if so, is the signer allowed to propose
+	reqHashFixed, err := instructionMessage.Data.DataFixed.HashFixed()
 	if err != nil {
 		return nil, err
+	}
+	reqHash := hex.EncodeToString(reqHashFixed[:])
+	isProposer := requests.IsProposer(reqHash)
+
+	var requestCounter *requests.RequestCounter
+	if isProposer {
+		err := requests.CanProposeNewRequest(signer, inActivePolicy)
+		if err != nil {
+			return nil, err
+		}
+		err = requests.IncrementRequestCount(signer, inActivePolicy) // Increment the rate limiter counter
+		if err != nil {
+			return nil, err
+		}
+		requests.RequestGarbageCollector.TrackRequest(reqHash, signer) // Track the request for garbage collection
+		requestCounter = requests.CreateAndStoreRequestCounter(&instructionMessage.Data, signer)
+	} else {
+		var exists bool
+		requestCounter, exists = requests.GetRequestCounterByHash(reqHash)
+		if !exists {
+			return nil, errors.New("requests counter has just been deleted")
+		}
 	}
 
 	requestCounter.Lock()
@@ -69,10 +100,21 @@ func SendSignedInstruction(instructionMessage *instruction.Instruction) (*api.In
 		}
 
 		requestCounter.Done = true
+		// Request completed successfully, decrement rate limiter counter
+		err := requests.DecrementRequestCount(requestCounter.Proposer, inActivePolicy)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	// TODO: Again what do we put in the nonces beside the challenge?
-	token, err := attestation.CreateAttestation([]string{instructionMessage.Challenge.String()}, attestation.OIDCTokenType) // todo: add response to the attested value?
+	token, err := attestation.CreateAttestation(
+		[]string{
+			hex.EncodeToString(instructionMessage.Challenge[:]),
+			strconv.FormatUint(utils.GetTimestampInMilliseconds(), 10),
+		},
+		attestation.OIDCTokenType,
+	) // todo: add response to the attested value?
 	if err != nil {
 		return nil, err
 	}
@@ -104,11 +146,8 @@ func InstructionResult(instructionQuery *api.InstructionResultRequest) (*api.Ins
 	// find the request that was finalized
 	var requestCounterFinalized *requests.RequestCounter
 	for _, instructionHash := range requestsWithId {
-		requestCounter, exists, err := requests.GetRequestCounterByHash(instructionHash)
-		// these two errors should not happen
-		if err != nil {
-			return nil, status.Error(codes.NotFound, err.Error())
-		}
+		requestCounter, exists := requests.GetRequestCounterByHash(instructionHash)
+		// these error should not happen
 		if !exists {
 			return nil, errors.New("request non existent")
 		}
@@ -149,7 +188,13 @@ func InstructionResult(instructionQuery *api.InstructionResultRequest) (*api.Ins
 		return nil, err
 	}
 
-	token, err := attestation.CreateAttestation([]string{instructionQuery.Challenge}, attestation.OIDCTokenType) // todo: add response to the attested value?
+	token, err := attestation.CreateAttestation(
+		[]string{
+			instructionQuery.Challenge,
+			strconv.FormatUint(utils.GetTimestampInMilliseconds(), 10),
+		},
+		attestation.OIDCTokenType,
+	) // todo: add response to the attested value?
 	if err != nil {
 		return nil, err
 	}
@@ -174,10 +219,7 @@ func InstructionStatus(instructionQuery *api.InstructionResultRequest) (*api.Ins
 	var voteResults []api.VoteResult = make([]api.VoteResult, 0)
 	instructionStatus := "inProgress"
 	for _, instructionHash := range requestsWithId {
-		requestCounter, exists, err := requests.GetRequestCounterByHash(instructionHash)
-		if err != nil {
-			return nil, status.Error(codes.NotFound, err.Error()) // TODO: is an error to strict here?
-		}
+		requestCounter, exists := requests.GetRequestCounterByHash(instructionHash)
 		if !exists {
 			return nil, errors.New("request non existent")
 		}
@@ -193,7 +235,13 @@ func InstructionStatus(instructionQuery *api.InstructionResultRequest) (*api.Ins
 	}
 
 	// TODO: Again what do we put in the nonces beside the challenge?
-	token, err := attestation.CreateAttestation([]string{instructionQuery.Challenge}, attestation.OIDCTokenType) // todo: add response to the attested value?
+	token, err := attestation.CreateAttestation(
+		[]string{
+			instructionQuery.Challenge,
+			strconv.FormatUint(utils.GetTimestampInMilliseconds(), 10),
+		},
+		attestation.OIDCTokenType,
+	) // todo: add response to the attested value?
 	if err != nil {
 		return nil, err
 	}

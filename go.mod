@@ -7,11 +7,13 @@ toolchain go1.23.4
 require (
 	github.com/alexflint/go-arg v1.5.1
 	github.com/btcsuite/btcd/btcec/v2 v2.2.0
+	github.com/emirpasic/gods v1.18.1
 	github.com/ethereum/go-ethereum v1.14.12
 	github.com/flare-foundation/go-flare-common v1.2.1-0.20250319150409-3b3aa47920f1
 	github.com/golang-jwt/jwt v3.2.2+incompatible
 	github.com/golang-jwt/jwt/v4 v4.5.1
 	github.com/google/go-tpm-tools v0.4.4
+	github.com/google/logger v1.1.1
 	github.com/gorilla/mux v1.8.1
 	github.com/gorilla/websocket v1.5.3
 	github.com/naoina/toml v0.1.2-0.20170918210437-9fafd6967416
@@ -46,7 +48,6 @@ require (
 	github.com/google/go-sev-guest v0.9.3 // indirect
 	github.com/google/go-tdx-guest v0.3.1 // indirect
 	github.com/google/go-tpm v0.9.0 // indirect
-	github.com/google/logger v1.1.1 // indirect
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/holiman/uint256 v1.3.2 // indirect
 	github.com/jinzhu/inflection v1.0.0 // indirect

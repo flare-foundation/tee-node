@@ -38,7 +38,6 @@ func PubkeyToAddress(pubkey *ecdsa.PublicKey) common.Address {
 
 func Sign(msgHash []byte, privKey *ecdsa.PrivateKey) ([]byte, error) {
 	if len(msgHash) != 32 {
-		fmt.Printf("invalid message hash length: %d\n", msgHash)
 		return nil, fmt.Errorf("invalid message hash length")
 	}
 

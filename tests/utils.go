@@ -206,7 +206,9 @@ func RandomNormalizedArray(n int, seed int64) []float64 {
 // Resets the state of the TEE between tests
 func ResetTEEState() {
 	policy.DestoryState()
-	requests.DestoryState()
+	requests.DestroyState()
+	requests.DestroyGarbageCollector()
+	requests.ClearRateLimiterState()
 	wallets.DestroyState()
 
 	// TODO: Reset any other state that might interfere with the tests
@@ -235,6 +237,9 @@ func GenerateAndSetInitialPolicy(numVoters int, randSeed int64, epochId uint32) 
 
 	// Set the Active Signing Policy
 	policy.SetSigningPolicy(&initialPolicy, policy.SigningPolicyHash(initialPolicyBytes))
+
+	// Register the validators for the rate limiter
+	requests.UpdateRateLimiter(voters)
 
 	return initialPolicy, voters, privKeys
 }
