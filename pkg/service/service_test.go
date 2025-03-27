@@ -17,6 +17,7 @@ import (
 
 	"tee-node/pkg/policy"
 	utils "tee-node/tests"
+
 	"testing"
 
 	"github.com/ethereum/go-ethereum/accounts/abi"
@@ -414,4 +415,39 @@ func getSignatureResult(t *testing.T, instructionId string, ctx context.Context)
 	logger.Infof("sent request to get signature of transaction, status %v, attestation token %s, result: %s", resp.Status, resp.Token, string(resp.Data))
 
 	// todo: check signature
+}
+
+func TestHttpServerRequestSizeLimit(t *testing.T) {
+	// This test uses server launched with go LaunchServer
+	// which was lauched in the previous test TestServiceEndToEnd
+	providersBytes, err := os.ReadFile("../../tests/test_providers.json")
+	if err != nil {
+		log.Fatalf("%v", err)
+	}
+	providers, err := utils.UnmarshalProviders(providersBytes)
+	if err != nil {
+		log.Fatalf("%v", err)
+	}
+	tooLargePayload, err := utilsserver.GenerateRandomBytes(1000 * 1024)
+	require.NoError(t, err)
+	instructionId, err := utilsserver.GenerateRandomBytes(32)
+	require.NoError(t, err)
+
+	instruction, err := utils.BuildMockInstruction("XRP",
+		"PAY",
+		tooLargePayload,
+		api.SignPaymentAdditionalFixedMessage{
+			PaymentHash: "0x1234",
+			KeyId:       "1",
+		},
+		providers.PrivKeys[0],
+		"0x123",
+		hex.EncodeToString(instructionId),
+		1,
+	)
+	require.NoError(t, err)
+
+	_, err = utils.Post[api.InstructionResponse](hostUrl+"/instruction", instruction)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "Request too large")
 }

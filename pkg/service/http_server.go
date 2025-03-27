@@ -5,19 +5,50 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"tee-node/api/types"
 	"tee-node/pkg/service/instructionservice"
 	"tee-node/pkg/service/nodeservice"
 	"tee-node/pkg/service/policyservice"
 	walletsservice "tee-node/pkg/service/walletservice"
 
 	"github.com/flare-foundation/go-flare-common/pkg/logger"
+	"github.com/flare-foundation/go-flare-common/pkg/tee/instruction"
 
 	"github.com/gorilla/mux"
 )
 
-func HandlerGenerator[T any, R any](f func(req *T) (*R, error)) http.HandlerFunc {
+type ValidRequestType interface {
+	instruction.Instruction | types.InstructionResultRequest | types.InitializePolicyRequest | types.GetActivePolicyRequest | types.WalletInfoRequest | types.GetNodeInfoRequest
+}
+
+func HandlerGenerator[T ValidRequestType, R any](f func(req *T) (*R, error)) http.HandlerFunc {
+	var maxBodySize int64
+	switch any(new(T)).(type) {
+	case *instruction.Instruction:
+		maxBodySize = 100 * 1024 // 100 KB
+	case *types.InstructionResultRequest:
+		maxBodySize = 1024 // 1 KB
+	case *types.InitializePolicyRequest:
+		maxBodySize = 200 * 1024 // 200 KB
+	case *types.GetActivePolicyRequest:
+		maxBodySize = 1024 // 1 KB
+	case *types.WalletInfoRequest:
+		maxBodySize = 1024 // 1 KB
+	case *types.GetNodeInfoRequest:
+		maxBodySize = 1024 // 1 KB
+	default:
+		return func(w http.ResponseWriter, r *http.Request) {
+			http.Error(w, "Invalid request type", http.StatusBadRequest)
+		}
+	}
+
 	return func(w http.ResponseWriter, r *http.Request) {
 		var req T
+		// Check if the request body size exceeds the limit
+		if r.ContentLength > maxBodySize {
+			http.Error(w, "Request too large", http.StatusRequestEntityTooLarge)
+			return
+		}
 		err := json.NewDecoder(r.Body).Decode(&req)
 		if err != nil {
 			http.Error(w, "Invalid JSON", http.StatusBadRequest)
