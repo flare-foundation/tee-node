@@ -185,10 +185,15 @@ func main() {
 		}
 
 		originalMessage := wallet.ITeeWalletManagerKeyGenerate{
-			TeeId:    common.HexToAddress(args.TeeId),
-			WalletId: common.HexToHash(args.WalletId),
-			KeyId:    big.NewInt(int64(keyIdParsed)),
-			OpType:   utilsserver.StringToOpHash("WALLET"),
+			TeeId:              common.HexToAddress(args.TeeId),
+			WalletId:           common.HexToHash(args.WalletId),
+			KeyId:              big.NewInt(int64(keyIdParsed)),
+			OpType:             utilsserver.StringToOpHash("WALLET"),
+			OpTypeConstants:    make([]byte, 0),
+			AdminsPublicKeys:   make([]wallet.ITeeWalletManagerPublicKey, 0),
+			AdminsThreshold:    big.NewInt(0),
+			Cosigners:          make([]common.Address, 0),
+			CosignersThreshold: big.NewInt(0),
 		}
 		originalMessageEncoded, err := abi.Arguments{wallet.MessageArguments[wallet.KeyGenerate]}.Pack(originalMessage)
 		if err != nil {

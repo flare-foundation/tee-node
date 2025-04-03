@@ -9,6 +9,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/flare-foundation/go-flare-common/pkg/tee/structs/wallet"
 	"github.com/pkg/errors"
 )
 
@@ -22,7 +23,13 @@ type Wallet struct {
 	PrivateKey *ecdsa.PrivateKey
 	Address    common.Address
 	XrpAddress string
+
+	AdminsPublicKeys   []*ecdsa.PublicKey
+	AdminsThreshold    int
+	Cosigners          []common.Address
+	CosignersThreshold int
 }
+
 type WalletsStorage struct {
 	// walletId to ShareId to WalletShare
 	Storage map[string]*Wallet
@@ -43,24 +50,36 @@ func InitWalletsStorage() WalletsStorage {
 	return WalletsStorage{Storage: make(map[string]*Wallet)}
 }
 
-func CreateNewWallet(idPair WalletKeyIdPair) error {
+func CreateNewWallet(walletInfo wallet.ITeeWalletManagerKeyGenerate) (*Wallet, error) {
 	sk, err := utils.GenerateEthereumPrivateKey()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	sec1PubKey := utils.SerializeCompressed(&sk.PublicKey)
 	xrpAddress, err := utils.GetXrpAddressFromPubkey(sec1PubKey)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	newWallet := Wallet{WalletId: idPair.WalletId, KeyId: idPair.KeyId, PrivateKey: sk, Address: crypto.PubkeyToAddress(sk.PublicKey), XrpAddress: xrpAddress}
-	walletsStorage.Lock()
-	walletsStorage.Storage[idPair.Id()] = &newWallet
-	walletsStorage.Unlock()
+	adminsPubKeys := make([]*ecdsa.PublicKey, len(walletInfo.AdminsPublicKeys))
+	for i, key := range walletInfo.AdminsPublicKeys {
+		adminsPubKeys[i] = utils.ParsePubKey(key)
+	}
 
-	return nil
+	newWallet := &Wallet{
+		WalletId:           walletInfo.WalletId,
+		KeyId:              walletInfo.KeyId,
+		PrivateKey:         sk,
+		Address:            crypto.PubkeyToAddress(sk.PublicKey),
+		XrpAddress:         xrpAddress,
+		AdminsPublicKeys:   adminsPubKeys,
+		AdminsThreshold:    int(walletInfo.AdminsThreshold.Int64()),
+		Cosigners:          walletInfo.Cosigners,
+		CosignersThreshold: int(walletInfo.CosignersThreshold.Int64()),
+	}
+
+	return newWallet, nil
 }
 
 func GetXrpAddress(idPair WalletKeyIdPair) (string, error) {
@@ -97,11 +116,15 @@ func GetPublicKey(idPair WalletKeyIdPair) (*ecdsa.PublicKey, error) {
 	return &wallet.PrivateKey.PublicKey, nil
 }
 
-func AddWallet(wallet *Wallet) error {
-	walletsStorage.Lock()
+func StoreWallet(wallet *Wallet) error {
 	idPair := WalletKeyIdPair{WalletId: wallet.WalletId, KeyId: wallet.KeyId}
+	walletsStorage.Lock()
+	defer walletsStorage.Unlock()
+	if _, ok := walletsStorage.Storage[idPair.Id()]; ok {
+		return errors.New("wallet with given walletId and keyId already exists")
+	}
+
 	walletsStorage.Storage[idPair.Id()] = wallet
-	walletsStorage.Unlock()
 
 	return nil
 }

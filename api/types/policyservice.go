@@ -7,7 +7,7 @@ type InitializePolicyRequest struct {
 	Challenge              string
 }
 
-type UpdatePolicyRequest struct {
+type UpdatePolicyAdditionalFixedMessage struct {
 	NewPolicyRequest       MultiSignedPolicy
 	LatestPolicyPublicKeys []ECDSAPublicKey
 }

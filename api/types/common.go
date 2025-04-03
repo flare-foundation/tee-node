@@ -14,21 +14,12 @@ type ResponseBase struct {
 	Token  string
 }
 
-// // Implement the SetBase method directly on ResponseBase
-// func (r *ResponseBase) SetBase(status, attestation string) {
-// 	r.Status = status
-// 	r.AttestationToken = attestation
-// }
-
-// type IResponseBase interface {
-// 	SetBase(status, attestation string)
-// }
-
 type SignatureMessage struct {
 	Signature []byte
 	PublicKey *ECDSAPublicKey
 }
 
+// todo: x and y should be changed to [32]bytes
 type ECDSAPublicKey struct {
 	X string
 	Y string

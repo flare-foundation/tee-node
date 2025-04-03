@@ -27,10 +27,15 @@ func TestInvalidRequestSignature(t *testing.T) {
 	instructionIdBytes, _ := utils.GenerateRandomBytes(32)
 
 	originalMessage := wallet.ITeeWalletManagerKeyGenerate{
-		TeeId:    common.HexToAddress("1234"),
-		WalletId: common.HexToHash(walletId),
-		KeyId:    keyId,
-		OpType:   utils.StringToOpHash("WALLET"),
+		TeeId:              common.HexToAddress("1234"),
+		WalletId:           common.HexToHash(walletId),
+		KeyId:              keyId,
+		OpType:             utils.StringToOpHash("WALLET"),
+		OpTypeConstants:    make([]byte, 0),
+		AdminsPublicKeys:   make([]wallet.ITeeWalletManagerPublicKey, 0),
+		AdminsThreshold:    big.NewInt(0),
+		Cosigners:          make([]common.Address, 0),
+		CosignersThreshold: big.NewInt(0),
 	}
 	originalMessageEncoded, err := abi.Arguments{wallet.MessageArguments[wallet.KeyGenerate]}.Pack(originalMessage)
 	require.NoError(t, err)
@@ -72,10 +77,15 @@ func TestRequestCheckActive(t *testing.T) {
 	instructionIdBytes, _ := utils.GenerateRandomBytes(32)
 
 	originalMessage := wallet.ITeeWalletManagerKeyGenerate{
-		TeeId:    common.HexToAddress("1234"),
-		WalletId: common.HexToHash(walletId),
-		KeyId:    keyId,
-		OpType:   utils.StringToOpHash("WALLET"),
+		TeeId:              common.HexToAddress("1234"),
+		WalletId:           common.HexToHash(walletId),
+		KeyId:              keyId,
+		OpType:             utils.StringToOpHash("WALLET"),
+		OpTypeConstants:    make([]byte, 0),
+		AdminsPublicKeys:   make([]wallet.ITeeWalletManagerPublicKey, 0),
+		AdminsThreshold:    big.NewInt(0),
+		Cosigners:          make([]common.Address, 0),
+		CosignersThreshold: big.NewInt(0),
 	}
 	originalMessageEncoded, err := abi.Arguments{wallet.MessageArguments[wallet.KeyGenerate]}.Pack(originalMessage)
 	require.NoError(t, err)

@@ -487,7 +487,7 @@ func TestSignNewPolicy(t *testing.T) {
 		// originalMessage empty for now
 		[]byte{},
 		// entire MultiSignedPolicy struct encoded in AdditionalFixedMessage
-		api.UpdatePolicyRequest{
+		api.UpdatePolicyAdditionalFixedMessage{
 			NewPolicyRequest:       policySignaturesArray[0],
 			LatestPolicyPublicKeys: pubKeys,
 		},
@@ -539,7 +539,14 @@ func TestDecodeAbiInstructionWallet(t *testing.T) {
 	keyId := big.NewInt(1)
 	OpType := utils.StringToOpHash("WALLET")
 
-	pre := wallet.ITeeWalletManagerKeyGenerate{TeeId: id, WalletId: walletId, KeyId: keyId, OpType: OpType}
+	pre := wallet.ITeeWalletManagerKeyGenerate{
+		TeeId:    id,
+		WalletId: walletId, KeyId: keyId, OpType: OpType,
+		OpTypeConstants:    make([]byte, 0),
+		AdminsPublicKeys:   make([]wallet.ITeeWalletManagerPublicKey, 0),
+		AdminsThreshold:    big.NewInt(0),
+		Cosigners:          make([]common.Address, 0),
+		CosignersThreshold: big.NewInt(0)}
 
 	encoded, err := abi.Arguments{arg}.Pack(pre)
 	require.NoError(t, err)

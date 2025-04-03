@@ -5,12 +5,15 @@ import (
 	"crypto/rand"
 	"fmt"
 	"io"
+	"math/big"
 	"slices"
 
 	"github.com/btcsuite/btcd/btcec/v2"
 	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/crypto/secp256k1"
+	"github.com/flare-foundation/go-flare-common/pkg/tee/structs/wallet"
 	"github.com/pkg/errors"
 	"golang.org/x/crypto/nacl/box"
 
@@ -45,7 +48,7 @@ func Sign(msgHash []byte, privKey *ecdsa.PrivateKey) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	return hashSignature, nil	
+	return hashSignature, nil
 }
 
 func CheckSignature(hash, signature []byte, voters []common.Address) (common.Address, error) {
@@ -145,4 +148,12 @@ func GenerateEncryptionKeyPair() (EncryptionKey, error) {
 	key := EncryptionKey{PrivateKey: *privKey, PublicKey: *pubKey}
 
 	return key, nil
+}
+
+// todo: this should be in go-common
+func ParsePubKey(key wallet.ITeeWalletManagerPublicKey) *ecdsa.PublicKey {
+	x := new(big.Int).SetBytes(key.X[:])
+	y := new(big.Int).SetBytes(key.Y[:])
+
+	return &ecdsa.PublicKey{Curve: secp256k1.S256(), X: x, Y: y}
 }

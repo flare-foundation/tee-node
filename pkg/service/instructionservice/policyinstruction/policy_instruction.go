@@ -13,7 +13,7 @@ import (
 func UpdatePolicy(instructionData *instruction.DataFixed) error {
 	// multiSignedPolicy doesn't get encoded in the originalMessage. The entire struct is
 	//  in the AdditionalFixedMessage
-	var updatePolicyRequest api.UpdatePolicyRequest
+	var updatePolicyRequest api.UpdatePolicyAdditionalFixedMessage
 	err := json.Unmarshal(instructionData.AdditionalFixedMessage, &updatePolicyRequest)
 	if err != nil {
 		return err
