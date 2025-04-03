@@ -19,16 +19,17 @@ import (
 // NewWallet creates a new wallet using the provided instruction data.
 // Parameters:
 // - instructionData: Contains the data needed to create a new wallet.
-//   - newWalletRequest: Decoded from instructionData, includes:
-//   - WalletId: The ID of the wallet to be created.
-//   - KeyId: The key ID associated with the wallet.
 func NewWallet(instructionData *instruction.DataFixed) error {
 	newWalletRequest, err := api.ParseNewWalletRequest(instructionData)
 	if err != nil {
 		return err
 	}
 
-	err = wallets.CreateNewWallet(wallets.WalletKeyIdPair{WalletId: newWalletRequest.WalletId, KeyId: newWalletRequest.KeyId})
+	wallet, err := wallets.CreateNewWallet(newWalletRequest)
+	if err != nil {
+		return err
+	}
+	err = wallets.StoreWallet(wallet)
 	if err != nil {
 		return err
 	}
@@ -174,7 +175,7 @@ func RecoverWallet(instructionData *instruction.DataFixed, signatures [][]byte) 
 	if err != nil {
 		return err
 	}
-	err = wallets.AddWallet(reconstructedWallet)
+	err = wallets.StoreWallet(reconstructedWallet)
 	if err != nil {
 		return err
 	}

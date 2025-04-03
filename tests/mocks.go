@@ -64,10 +64,15 @@ func CreateMockWallet(t *testing.T, nodeId common.Address, walletId common.Hash,
 	require.NoError(t, err)
 
 	request := wallet.ITeeWalletManagerKeyGenerate{
-		TeeId:    common.HexToAddress("1234"),
-		WalletId: walletId,
-		KeyId:    big.NewInt(int64(keyIdBig)),
-		OpType:   utils.StringToOpHash("WALLET"),
+		TeeId:              common.HexToAddress("1234"),
+		WalletId:           walletId,
+		KeyId:              big.NewInt(int64(keyIdBig)),
+		OpType:             utils.StringToOpHash("WALLET"),
+		OpTypeConstants:    make([]byte, 0),
+		AdminsPublicKeys:   make([]wallet.ITeeWalletManagerPublicKey, 0),
+		AdminsThreshold:    big.NewInt(0),
+		Cosigners:          make([]common.Address, 0),
+		CosignersThreshold: big.NewInt(0),
 	}
 	encoded, err := abi.Arguments{wallet.MessageArguments[wallet.KeyGenerate]}.Pack(request)
 	require.NoError(t, err)
