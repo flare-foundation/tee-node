@@ -4,6 +4,8 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+
+	"github.com/ethereum/go-ethereum/common"
 )
 
 type GetNodeInfoRequest struct {
@@ -11,7 +13,7 @@ type GetNodeInfoRequest struct {
 }
 
 type GetNodeInfoData struct {
-	Id     string
+	Id     common.Address
 	Status string
 
 	EncryptionPublicKey string

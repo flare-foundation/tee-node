@@ -57,7 +57,7 @@ func GenerateRandomMultiSignedPolicyArray(epochId uint32, randSeed int64, voters
 
 	_epochId, _randSeed := epochId, randSeed
 
-	for i := 0; i < numPolicies; i++ {
+	for range numPolicies {
 		_epochId++
 		_randSeed++
 		nextPolicy := GenerateRandomPolicyData(_epochId, voters, _randSeed)
@@ -70,6 +70,16 @@ func GenerateRandomMultiSignedPolicyArray(epochId uint32, randSeed int64, voters
 		policySignatures := BuildMultiSignedPolicy(nextPolicyBytes, privKeys)
 		multiSignedPolicyArray = append(multiSignedPolicyArray, policySignatures)
 	}
+
+	// // Print the weights of the signers in the last policy
+	// lastPolicy := multiSignedPolicyArray[len(multiSignedPolicyArray)-1]
+	// decodedPolicy, _ := policy.DecodeSigningPolicy(lastPolicy.PolicyBytes)
+	// signers := decodedPolicy.Voters
+	// weights := decodedPolicy.Weights
+
+	// for i := 0; i < len(signers); i++ {
+	// 	fmt.Printf("Signer: %v, Weight: %v\n", signers[i], weights[i])
+	// }
 
 	return multiSignedPolicyArray, nil
 }

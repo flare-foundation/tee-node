@@ -27,9 +27,9 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-var walletId = hex.EncodeToString(common.HexToHash("0xabcdef").Bytes())
-var keyId = big.NewInt(1).String()
-var backupId = big.NewInt(1).String()
+var walletId = common.HexToHash("0xabcdef")
+var keyId = big.NewInt(1)
+var backupId = big.NewInt(1)
 
 var hostPort = 8565
 var hostUrl = "http://localhost:" + strconv.Itoa(hostPort)
@@ -65,7 +65,7 @@ func TestServiceEndToEnd(t *testing.T) {
 	address := getAddress(t, walletId, keyId)
 
 	// backup wallet to yourself
-	ids := []string{nodeId, nodeId}
+	ids := []common.Address{nodeId, nodeId}
 	backups := []string{"ws://localhost:50061", "ws://localhost:50061"}
 	pubKeys := []string{pubKey, pubKey}
 	threshold := len(backups)
@@ -117,21 +117,17 @@ func initializePolicy(t *testing.T, numPolicies int, providers *utils.Providers)
 	logger.Infof("sent request to initialize policy, token %v", resp.Token)
 }
 
-func createWallet(t *testing.T, nodeId string, walletId string, keyId string, providers *utils.Providers) {
+func createWallet(t *testing.T, nodeId common.Address, walletId common.Hash, keyId *big.Int, providers *utils.Providers) {
 
 	instructionId, _ := utilsserver.GenerateRandomBytes(32)
 
 	for i := range 2 {
 		providerPrivKey := providers.PrivKeys[i]
 
-		// TODO: keyId parameter should probably be big.Int or uint32
-		keyIdParsed, err := strconv.ParseUint(keyId, 10, 32)
-		require.NoError(t, err)
-
 		originalMessage := wallet.ITeeWalletManagerKeyGenerate{
 			TeeId:    common.HexToAddress("1234"),
-			WalletId: common.HexToHash(walletId),
-			KeyId:    big.NewInt(int64(keyIdParsed)),
+			WalletId: walletId,
+			KeyId:    keyId,
 			OpType:   utilsserver.StringToOpHash("WALLET"),
 		}
 		originalMessageEncoded, err := abi.Arguments{wallet.MessageArguments[wallet.KeyGenerate]}.Pack(originalMessage)
@@ -157,7 +153,7 @@ func createWallet(t *testing.T, nodeId string, walletId string, keyId string, pr
 	}
 }
 
-func getNodeInfo(t *testing.T) (string, string) {
+func getNodeInfo(t *testing.T) (common.Address, string) {
 	nonceBytes, err := utilsserver.GenerateRandomBytes(32)
 	require.NoError(t, err)
 
@@ -172,7 +168,7 @@ func getNodeInfo(t *testing.T) (string, string) {
 	return nodeResp.Data.Id, nodeResp.Data.EncryptionPublicKey
 }
 
-func getAddress(t *testing.T, walletId, keyId string) string {
+func getAddress(t *testing.T, walletId common.Hash, keyId *big.Int) string {
 	instructionId, err := utilsserver.GenerateRandomBytes(32)
 	require.NoError(t, err)
 
@@ -189,7 +185,8 @@ func getAddress(t *testing.T, walletId, keyId string) string {
 	return pubKeyResp.EthAddress
 }
 
-func backupWallet(t *testing.T, nodeId string, walletId string, keyId string, backupId string, ids, backups, pubKeys []string, threshold int, providers *utils.Providers) {
+func backupWallet(t *testing.T, nodeId common.Address, walletId common.Hash, keyId *big.Int, backupId *big.Int, ids []common.Address, backups []string, pubKeys []string, threshold int, providers *utils.Providers) {
+
 	instructionId, _ := utilsserver.GenerateRandomBytes(32)
 	for i := range 2 {
 		providerPrivKey := providers.PrivKeys[i]
@@ -197,21 +194,16 @@ func backupWallet(t *testing.T, nodeId string, walletId string, keyId string, ba
 		backupTeeMachines := make([]wallet.ITeeRegistryTeeMachineWithAttestationData, len(ids))
 		for i, id := range ids {
 			backupTeeMachines[i] = wallet.ITeeRegistryTeeMachineWithAttestationData{
-				TeeId: common.HexToAddress(id),
+				TeeId: id,
 				Url:   backups[i],
 			}
 		}
-		// TODO: keyId and backupIdParsed parameter should probably be big.Int or uint32
-		keyIdParsed, err := strconv.ParseUint(keyId, 10, 32)
-		require.NoError(t, err)
-		backupIdParsed, err := strconv.ParseUint(backupId, 10, 32)
-		require.NoError(t, err)
 
 		originalMessage := wallet.ITeeWalletBackupManagerKeyMachineBackup{
 			TeeMachine:        wallet.ITeeRegistryTeeMachineWithAttestationData{},
-			WalletId:          common.HexToHash(walletId),
-			KeyId:             big.NewInt(int64(keyIdParsed)),
-			BackupId:          big.NewInt(int64(backupIdParsed)),
+			WalletId:          walletId,
+			KeyId:             keyId,
+			BackupId:          backupId,
 			ShamirThreshold:   big.NewInt(int64(threshold)),
 			BackupTeeMachines: backupTeeMachines,
 		}
@@ -242,18 +234,16 @@ func backupWallet(t *testing.T, nodeId string, walletId string, keyId string, ba
 	}
 }
 
-func deleteWallet(t *testing.T, nodeId, walletId, keyId string, providers *utils.Providers) {
+func deleteWallet(t *testing.T, nodeId common.Address, walletId common.Hash, keyId *big.Int, providers *utils.Providers) {
+
 	instructionId, _ := utilsserver.GenerateRandomBytes(32)
 	for i := range 2 {
 		providerPrivKey := providers.PrivKeys[i]
-		// TODO: keyId parameter should probably be big.Int or uint32
-		keyIdParsed, err := strconv.ParseUint(keyId, 10, 32)
-		require.NoError(t, err)
 
 		originalMessage := wallet.ITeeWalletManagerKeyDelete{
 			TeeId:    common.HexToAddress("1234"),
-			WalletId: common.HexToHash(walletId),
-			KeyId:    big.NewInt(int64(keyIdParsed)),
+			WalletId: walletId,
+			KeyId:    keyId,
 		}
 		originalMessageEncoded, err := abi.Arguments{wallet.MessageArguments[wallet.KeyDelete]}.Pack(originalMessage)
 		require.NoError(t, err)
@@ -292,7 +282,7 @@ func deleteWallet(t *testing.T, nodeId, walletId, keyId string, providers *utils
 	require.Error(t, err)
 }
 
-func recoverWallet(t *testing.T, nodeId string, walletId string, keyId string, backupId string, address string, ids []string, backups []string, pubKey string, threshold int, providers *utils.Providers) {
+func recoverWallet(t *testing.T, nodeId common.Address, walletId common.Hash, keyId *big.Int, backupId *big.Int, address string, ids []common.Address, backups []string, pubKey string, threshold int, providers *utils.Providers) {
 	instructionId, _ := utilsserver.GenerateRandomBytes(32)
 	for i := range 2 {
 		shareIds := make([]string, threshold)
@@ -305,24 +295,19 @@ func recoverWallet(t *testing.T, nodeId string, walletId string, keyId string, b
 		backupTeeMachines := make([]wallet.ITeeRegistryTeeMachineWithAttestationData, len(backups))
 		for i := range len(ids) {
 			backupTeeMachines[i] = wallet.ITeeRegistryTeeMachineWithAttestationData{
-				TeeId:    common.HexToAddress(nodeId),
+				TeeId:    ids[i],
 				Owner:    common.HexToAddress("0x123"),
 				Url:      backups[i],
 				CodeHash: common.HexToHash("0x123"),
 				Platform: common.HexToHash("0x123"),
 			}
 		}
-		// TODO: keyId and backupIdParsed parameters should probably be big.Int or uint32
-		keyIdParsed, err := strconv.ParseUint(keyId, 10, 32)
-		require.NoError(t, err)
-		backupIdParsed, err := strconv.ParseUint(backupId, 10, 32)
-		require.NoError(t, err)
 
 		originalMessage := wallet.ITeeWalletBackupManagerKeyMachineRestore{
 			TeeMachine:        wallet.ITeeRegistryTeeMachineWithAttestationData{},
-			WalletId:          common.HexToHash(walletId),
-			KeyId:             big.NewInt(int64(keyIdParsed)),
-			BackupId:          big.NewInt(int64(backupIdParsed)),
+			WalletId:          walletId,
+			KeyId:             keyId,
+			BackupId:          backupId,
 			OpType:            utilsserver.StringToOpHash("WALLET"),
 			PublicKey:         common.Hex2Bytes(pubKey),
 			BackupTeeMachines: backupTeeMachines,
@@ -356,13 +341,13 @@ func recoverWallet(t *testing.T, nodeId string, walletId string, keyId string, b
 	}
 }
 
-func signTransaction(t *testing.T, nodeId, walletId, keyId, paymentHash string, providers *utils.Providers) string {
+func signTransaction(t *testing.T, nodeId common.Address, walletId common.Hash, keyId *big.Int, paymentHash string, providers *utils.Providers) string {
 	instructionId, _ := utilsserver.GenerateRandomBytes(32)
 	for i := range 2 {
 		providerPrivKey := providers.PrivKeys[i]
 
 		originalMessage := commonpayment.ITeePaymentsPaymentInstructionMessage{
-			WalletId:           common.HexToHash(walletId),
+			WalletId:           walletId,
 			SenderAddress:      "0x123",
 			RecipientAddress:   "0x456",
 			Amount:             big.NewInt(1000000000),
@@ -440,10 +425,10 @@ func TestHttpServerRequestSizeLimit(t *testing.T) {
 		tooLargePayload,
 		api.SignPaymentAdditionalFixedMessage{
 			PaymentHash: "0x1234",
-			KeyId:       "1",
+			KeyId:       keyId,
 		},
 		providers.PrivKeys[0],
-		"0x123",
+		common.HexToAddress("0x123"),
 		hex.EncodeToString(instructionId),
 		1,
 	)

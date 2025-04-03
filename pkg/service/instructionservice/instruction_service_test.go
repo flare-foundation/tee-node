@@ -28,8 +28,8 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-var mockWalletId = hex.EncodeToString(common.HexToHash("0xabcdef").Bytes())
-var mockKeyId = big.NewInt(1).String()
+var mockWalletId = common.HexToHash("0xabcdef")
+var mockKeyId = big.NewInt(1)
 
 // Send enough signatures for the payment hash, to pass the threshold.
 func TestSendManyPaymentInstructions(t *testing.T) {
@@ -41,7 +41,7 @@ func TestSendManyPaymentInstructions(t *testing.T) {
 	numVoters, randSeed, epochId := 100, int64(12345), uint32(1)
 	_, _, privKeys := testutils.GenerateAndSetInitialPolicy(numVoters, randSeed, epochId)
 
-	testutils.CreateMockWallet(t, myNodeId.Id, mockWalletId, mockKeyId, privKeys, policy.GetActiveSigningPolicy().RewardEpochId)
+	testutils.CreateMockWallet(t, myNodeId.Id, mockWalletId, mockKeyId.String(), privKeys, policy.GetActiveSigningPolicy().RewardEpochId)
 
 	paymentHash := "560ccd6e79ba7166e82dbf2a5b9a52283a509b63c39d4a4cc7164db3e43484c4"
 
@@ -52,7 +52,7 @@ func TestSendManyPaymentInstructions(t *testing.T) {
 
 		instruction, err := testutils.BuildMockInstruction("XRP",
 			"PAY",
-			testutils.BuildMockPaymentOriginalMessage(t, mockWalletId),
+			testutils.BuildMockPaymentOriginalMessage(t, mockWalletId.Hex()),
 			api.SignPaymentAdditionalFixedMessage{
 				PaymentHash: paymentHash,
 				KeyId:       mockKeyId,
@@ -91,7 +91,7 @@ func TestGetInstructionResult(t *testing.T) {
 	numVoters, randSeed, epochId := 100, int64(12345), uint32(1)
 	_, _, privKeys := testutils.GenerateAndSetInitialPolicy(numVoters, randSeed, epochId)
 
-	testutils.CreateMockWallet(t, myNodeId.Id, mockWalletId, mockKeyId, privKeys, policy.GetActiveSigningPolicy().RewardEpochId)
+	testutils.CreateMockWallet(t, myNodeId.Id, mockWalletId, mockKeyId.String(), privKeys, policy.GetActiveSigningPolicy().RewardEpochId)
 
 	paymentHash := "560ccd6e79ba7166e82dbf2a5b9a52283a509b63c39d4a4cc7164db3e43484c4"
 
@@ -104,7 +104,7 @@ func TestGetInstructionResult(t *testing.T) {
 	for i := 0; i < thresholdIdx; i++ {
 		instruction, err = testutils.BuildMockInstruction("XRP",
 			"PAY",
-			testutils.BuildMockPaymentOriginalMessage(t, mockWalletId),
+			testutils.BuildMockPaymentOriginalMessage(t, mockWalletId.Hex()),
 			api.SignPaymentAdditionalFixedMessage{
 				PaymentHash: paymentHash,
 				KeyId:       mockKeyId,
@@ -146,7 +146,7 @@ func TestGetInstructionResult(t *testing.T) {
 	// Sign the payment hash with the last voter to reach the threshold
 	instruction, err = testutils.BuildMockInstruction("XRP",
 		"PAY",
-		testutils.BuildMockPaymentOriginalMessage(t, mockWalletId),
+		testutils.BuildMockPaymentOriginalMessage(t, mockWalletId.Hex()),
 		api.SignPaymentAdditionalFixedMessage{
 			PaymentHash: paymentHash,
 			KeyId:       mockKeyId,
@@ -181,7 +181,7 @@ func TestGetInstructionStatus(t *testing.T) {
 	numVoters, randSeed, epochId := 100, int64(12345), uint32(1)
 	_, _, privKeys := testutils.GenerateAndSetInitialPolicy(numVoters, randSeed, epochId)
 
-	testutils.CreateMockWallet(t, myNodeId.Id, mockWalletId, mockKeyId, privKeys, policy.GetActiveSigningPolicy().RewardEpochId)
+	testutils.CreateMockWallet(t, myNodeId.Id, mockWalletId, mockKeyId.String(), privKeys, policy.GetActiveSigningPolicy().RewardEpochId)
 
 	paymentHash := "560ccd6e79ba7166e82dbf2a5b9a52283a509b63c39d4a4cc7164db3e43484c4"
 
@@ -193,7 +193,7 @@ func TestGetInstructionStatus(t *testing.T) {
 	for i := 0; i < thresholdIdx; i++ {
 		instruction, err = testutils.BuildMockInstruction("XRP",
 			"PAY",
-			testutils.BuildMockPaymentOriginalMessage(t, mockWalletId),
+			testutils.BuildMockPaymentOriginalMessage(t, mockWalletId.Hex()),
 			api.SignPaymentAdditionalFixedMessage{
 				PaymentHash: paymentHash,
 				KeyId:       mockKeyId,
@@ -231,7 +231,7 @@ func TestGetInstructionStatus(t *testing.T) {
 	// Sign the payment hash with the last voter to reach the threshold
 	instruction, err = testutils.BuildMockInstruction("XRP",
 		"PAY",
-		testutils.BuildMockPaymentOriginalMessage(t, mockWalletId),
+		testutils.BuildMockPaymentOriginalMessage(t, mockWalletId.Hex()),
 		api.SignPaymentAdditionalFixedMessage{
 			PaymentHash: paymentHash,
 			KeyId:       mockKeyId,
@@ -271,7 +271,7 @@ func TestGetResultWithDifferentInstructionForSameId(t *testing.T) {
 	numVoters, randSeed, epochId := 100, int64(12345), uint32(1)
 	_, _, privKeys := testutils.GenerateAndSetInitialPolicy(numVoters, randSeed, epochId)
 
-	testutils.CreateMockWallet(t, myNodeId.Id, mockWalletId, mockKeyId, privKeys, policy.GetActiveSigningPolicy().RewardEpochId)
+	testutils.CreateMockWallet(t, myNodeId.Id, mockWalletId, mockKeyId.String(), privKeys, policy.GetActiveSigningPolicy().RewardEpochId)
 
 	paymentHash1 := "560ccd6e79ba7166e82dbf2a5b9a52283a509b63c39d4a4cc7164db3e43484c4"
 	paymentHash2 := "1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef"
@@ -287,7 +287,7 @@ func TestGetResultWithDifferentInstructionForSameId(t *testing.T) {
 	for i := 0; i < thresholdIdx; i++ {
 		instruction, err = testutils.BuildMockInstruction("XRP",
 			"PAY",
-			testutils.BuildMockPaymentOriginalMessage(t, mockWalletId),
+			testutils.BuildMockPaymentOriginalMessage(t, mockWalletId.Hex()),
 			api.SignPaymentAdditionalFixedMessage{
 				PaymentHash: paymentHash1,
 				KeyId:       mockKeyId,
@@ -320,7 +320,7 @@ func TestGetResultWithDifferentInstructionForSameId(t *testing.T) {
 	for i := thresholdIdx + 1; i < midPoint; i++ {
 		instruction, err = testutils.BuildMockInstruction("XRP",
 			"PAY",
-			testutils.BuildMockPaymentOriginalMessage(t, mockWalletId),
+			testutils.BuildMockPaymentOriginalMessage(t, mockWalletId.Hex()),
 			api.SignPaymentAdditionalFixedMessage{
 				PaymentHash: paymentHash2,
 				KeyId:       mockKeyId,
@@ -350,7 +350,7 @@ func TestGetResultWithDifferentInstructionForSameId(t *testing.T) {
 	for i := midPoint; i < len(privKeys); i++ {
 		instruction, err = testutils.BuildMockInstruction("XRP",
 			"PAY",
-			testutils.BuildMockPaymentOriginalMessage(t, mockWalletId),
+			testutils.BuildMockPaymentOriginalMessage(t, mockWalletId.Hex()),
 			api.SignPaymentAdditionalFixedMessage{
 				PaymentHash: paymentHash3,
 				KeyId:       mockKeyId,
@@ -406,7 +406,7 @@ func TestGetResultWithDifferentInstructionForSameId(t *testing.T) {
 	// Sign the payment hash with the last voter to reach the threshold for the first payment hash
 	instruction, err = testutils.BuildMockInstruction("XRP",
 		"PAY",
-		testutils.BuildMockPaymentOriginalMessage(t, mockWalletId),
+		testutils.BuildMockPaymentOriginalMessage(t, mockWalletId.Hex()),
 		api.SignPaymentAdditionalFixedMessage{
 			PaymentHash: paymentHash1,
 			KeyId:       mockKeyId,

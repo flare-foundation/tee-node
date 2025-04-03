@@ -1,7 +1,6 @@
 package signinginstruction
 
 import (
-	"encoding/hex"
 	"encoding/json"
 	api "tee-node/api/types"
 	"tee-node/pkg/signing"
@@ -25,7 +24,7 @@ func SignPaymentTransaction(instructionData *instruction.DataFixed) ([]byte, err
 		return nil, err
 	}
 
-	signingWallet, err := wallets.GetWallet(wallets.WalletKeyIdPair{WalletId: hex.EncodeToString(originalMessage.WalletId[:]), KeyId: additionalFixedMessage.KeyId})
+	signingWallet, err := wallets.GetWallet(wallets.WalletKeyIdPair{WalletId: originalMessage.WalletId, KeyId: additionalFixedMessage.KeyId})
 	if err != nil {
 		return nil, err
 	}
@@ -54,7 +53,7 @@ func GetPaymentSignature(instructionData *instruction.DataFixed, result []byte) 
 		return nil, err
 	}
 
-	walletKeyIdPair := wallets.WalletKeyIdPair{WalletId: hex.EncodeToString(signPaymentRequest.WalletId[:]), KeyId: additionalFixedMessage.KeyId}
+	walletKeyIdPair := wallets.WalletKeyIdPair{WalletId: signPaymentRequest.WalletId, KeyId: additionalFixedMessage.KeyId}
 	signingWallet, err := wallets.GetWallet(walletKeyIdPair)
 	if err != nil {
 		return nil, err

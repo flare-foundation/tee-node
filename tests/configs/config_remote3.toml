@@ -13,8 +13,8 @@ SERVER_IP_2 = "35.232.180.159"
 SERVER_IP_3 = "104.154.69.36"
 
 [server]
-host = "http://${SERVER_IP_1}:8545"
-backups = ["ws://${SERVER_IP_2}:50040", "ws://${SERVER_IP_3}:50040"]
+host = "http://${SERVER_IP_3}:8545"
+backups = ["ws://${SERVER_IP_1}:50040", "ws://${SERVER_IP_2}:50040"]
 backups_threshold = 2
 
 [chain]

@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"math/big"
 	"sync"
 	api "tee-node/api/types"
 	"tee-node/pkg/attestation"
@@ -25,21 +26,27 @@ import (
 
 var backupWalletsStorage = InitBackupWalletsStorage()
 
+// BackupWalletsStorage is a structure that holds wallet shares for backup purposes.
 type BackupWalletsStorage struct {
-	// walletId to ShareId to WalletShare
-	Storage map[BackupWalletKeyIdTriple]map[string]WalletShare
+	// Storage maps a combination of BackupId, WalletId, and KeyId to a map of share IDs to WalletShares.
+	Storage map[string]map[string]WalletShare
 
 	sync.Mutex
 }
 
+// BackupWalletKeyIdTriple is a struct used to uniquely identify a wallet backup.
 type BackupWalletKeyIdTriple struct {
-	BackupId string
-	WalletId string
-	KeyId    string
+	BackupId *big.Int
+	WalletId common.Hash
+	KeyId    *big.Int
+}
+
+func (b *BackupWalletKeyIdTriple) Id() string {
+	return fmt.Sprintf("%v:%v:%v", b.BackupId.String(), b.WalletId.Hex(), b.KeyId.String())
 }
 
 func InitBackupWalletsStorage() BackupWalletsStorage {
-	return BackupWalletsStorage{Storage: make(map[BackupWalletKeyIdTriple]map[string]WalletShare)}
+	return BackupWalletsStorage{Storage: make(map[string]map[string]WalletShare)}
 }
 
 type AttestationRequest struct {
@@ -52,11 +59,19 @@ type AttestationResponse struct {
 	Nonce string
 }
 
+// SendShare sends a wallet share to another node over a WebSocket connection.
+// Parameters:
+// - conn: The WebSocket connection to use for sending the share.
+// - share: The WalletShare to be sent.
+// - outNodeId: The ID of the node receiving the share.
+// - pubKey: The public key of the receiving node.
+// - instructionData: The instruction data associated with the share.
+// - signatures: Digital signatures for the operation.
 // todo: Add instruction and signatures check also by receiving nodes? at least code version of the receiving nodes?
-func SendShare(conn *websocket.Conn, share *WalletShare, outNodeId, pubKey string, instructionData *instruction.DataFixed, signatures [][]byte) error {
+func SendShare(conn *websocket.Conn, share *WalletShare, outNodeId, outPubKey string, instructionData *instruction.DataFixed, signatures [][]byte) error {
 	myNode := node.GetNodeId()
 
-	err := StartMutualAttestation(conn, myNode.Id, outNodeId)
+	err := StartMutualAttestation(conn, myNode.Id.Hex(), outNodeId)
 	if err != nil {
 		return err
 	}
@@ -66,7 +81,7 @@ func SendShare(conn *websocket.Conn, share *WalletShare, outNodeId, pubKey strin
 		return err
 	}
 
-	pubKeyBytes, err := hex.DecodeString(pubKey)
+	pubKeyBytes, err := hex.DecodeString(outPubKey)
 	if err != nil {
 		return err
 	}
@@ -87,10 +102,13 @@ func SendShare(conn *websocket.Conn, share *WalletShare, outNodeId, pubKey strin
 	return err
 }
 
+// GetShares receives wallet shares from another node over a WebSocket connection.
+// Parameters:
+// - conn: The WebSocket connection to use for receiving the shares.
 func GetShares(conn *websocket.Conn) error {
 	myNode := node.GetNodeId()
 
-	_, err := ReceiveMutualAttestation(conn, myNode.Id)
+	_, err := ReceiveMutualAttestation(conn, myNode.Id.Hex())
 	if err != nil {
 		return err
 	}
@@ -114,23 +132,28 @@ func GetShares(conn *websocket.Conn) error {
 	backupIdTriple := BackupWalletKeyIdTriple{WalletId: walletShare.WalletId, KeyId: walletShare.KeyId, BackupId: walletShare.BackupId}
 
 	backupWalletsStorage.Lock()
-	if _, ok := backupWalletsStorage.Storage[backupIdTriple]; !ok {
-		backupWalletsStorage.Storage[backupIdTriple] = make(map[string]WalletShare)
+	defer backupWalletsStorage.Unlock()
+	if _, ok := backupWalletsStorage.Storage[backupIdTriple.Id()]; !ok {
+		backupWalletsStorage.Storage[backupIdTriple.Id()] = make(map[string]WalletShare)
 	}
-	backupWalletsStorage.Storage[backupIdTriple][walletShare.Share.ID()] = walletShare
-	backupWalletsStorage.Unlock()
+	backupWalletsStorage.Storage[backupIdTriple.Id()][walletShare.Share.ID()] = walletShare
 	logger.Infof("received a share for wallet %s, id %s", walletShare.WalletId, walletShare.Share.ID())
 
 	return nil
 }
 
-type shareInfo struct {
-	I               int
-	InstructionData instruction.DataFixed
+// recoverShareRequest contains information about a recover share request.
+type recoverShareRequest struct {
+	I               int                   // index of the share
+	InstructionData instruction.DataFixed // Todo: Explain this
 	Signatures      [][]byte
 }
 
-func (s shareInfo) Check(myNodeId, outNodeId string) error {
+// Check verifies the validity of a share request.
+// Parameters:
+// - myNodeId: The ID of the current node.
+// - outNodeId: The ID of the node that sent the request.
+func (s recoverShareRequest) Check(myNodeId, outNodeId string) error {
 	instructionData := &instruction.Data{DataFixed: s.InstructionData, AdditionalVariableMessage: []byte("")} // variable part is empty
 
 	requestCounter := requests.NewRequestCounter(instructionData, common.Address{}, config.Thresholds[utils.OpHashToString(instructionData.OPType)][utils.OpHashToString(instructionData.OPCommand)])
@@ -162,7 +185,12 @@ func (s shareInfo) Check(myNodeId, outNodeId string) error {
 	return nil
 }
 
-func (s shareInfo) Extract() (BackupWalletKeyIdTriple, string, string) {
+// Extract extracts key information from a recover share request.
+// Returns:
+// - A BackupWalletKeyIdTriple identifying the wallet backup.
+// - The share ID.
+// - The public key as a string.
+func (s recoverShareRequest) Extract() (BackupWalletKeyIdTriple, string, string) {
 	recoverWalletRequest, _ := api.NewRecoverWalletRequest(&s.InstructionData) // error is already checked before
 	var additionalFixedMessage api.RecoverWalletRequestAdditionalFixedMessage
 	err := json.Unmarshal(s.InstructionData.AdditionalFixedMessage, &additionalFixedMessage)
@@ -170,24 +198,37 @@ func (s shareInfo) Extract() (BackupWalletKeyIdTriple, string, string) {
 		logger.Errorf("error unmarshalling additionalFixedMessage: %s", err)
 	}
 
-	return BackupWalletKeyIdTriple{BackupId: recoverWalletRequest.BackupId.String(), WalletId: hex.EncodeToString(recoverWalletRequest.WalletId[:]), KeyId: recoverWalletRequest.KeyId.String()},
-		additionalFixedMessage.ShareIds[s.I], hex.EncodeToString(recoverWalletRequest.PublicKey[:])
+	return BackupWalletKeyIdTriple{
+			BackupId: recoverWalletRequest.BackupId,
+			WalletId: recoverWalletRequest.WalletId,
+			KeyId:    recoverWalletRequest.KeyId,
+		},
+		additionalFixedMessage.ShareIds[s.I],
+		hex.EncodeToString(recoverWalletRequest.PublicKey[:])
+
 }
 
-func RequestShare(conn *websocket.Conn, outNodeId string, i int, instructionData *instruction.DataFixed, signatures [][]byte) (*WalletShare, error) {
+// RequestShare requests a wallet share from another node over a WebSocket connection.
+// Parameters:
+// - conn: The WebSocket connection to use for the request.
+// - outNodeId: The ID of the node to request the share from.
+// - i: The index of the share to request.
+// - instructionData: The instruction data associated with the request.
+// - signatures: Digital signatures for the operation.
+func RequestShare(conn *websocket.Conn, outNodeId common.Address, i int, instructionData *instruction.DataFixed, signatures [][]byte) (*WalletShare, error) {
 	myNode := node.GetNodeId()
 
-	err := StartMutualAttestation(conn, myNode.Id, outNodeId)
+	err := StartMutualAttestation(conn, myNode.Id.Hex(), outNodeId.Hex())
 	if err != nil {
 		return nil, err
 	}
 
-	shareInfo := shareInfo{
+	shareReq := recoverShareRequest{
 		I:               i,
 		InstructionData: *instructionData,
 		Signatures:      signatures,
 	}
-	err = conn.WriteJSON(shareInfo)
+	err = conn.WriteJSON(shareReq)
 	if err != nil {
 		return nil, err
 	}
@@ -211,38 +252,40 @@ func RequestShare(conn *websocket.Conn, outNodeId string, i int, instructionData
 	return &walletShare, nil
 }
 
+// RecoverShare processes a request to recover a wallet share over a WebSocket connection.
+// (Called by the receiving node in the RequestShare function)
+// Parameters:
+// - conn: The WebSocket connection to use for the recovery.
 func RecoverShare(conn *websocket.Conn) error {
 	myNode := node.GetNodeId()
 
-	outNodeId, err := ReceiveMutualAttestation(conn, myNode.Id)
+	outNodeId, err := ReceiveMutualAttestation(conn, myNode.Id.Hex())
 	if err != nil {
 		return err
 	}
 
-	var shareInfo shareInfo
-	err = conn.ReadJSON(&shareInfo)
+	var shareReq recoverShareRequest
+	err = conn.ReadJSON(&shareReq)
 	if err != nil {
 		return err
 	}
 
-	err = shareInfo.Check(myNode.Id, outNodeId)
+	err = shareReq.Check(myNode.Id.Hex(), outNodeId)
 	if err != nil {
 		return err
 	}
-	backupIdTriple, shareId, pubKey := shareInfo.Extract()
+	backupIdTriple, shareId, pubKey := shareReq.Extract()
 
 	backupWalletsStorage.Lock()
-	walletShares, ok := backupWalletsStorage.Storage[backupIdTriple]
+	defer backupWalletsStorage.Unlock()
+	walletShares, ok := backupWalletsStorage.Storage[backupIdTriple.Id()]
 	if !ok {
-		backupWalletsStorage.Unlock()
 		return errors.New("no backup share of wallet with given name")
 	}
 	walletShare, ok := walletShares[shareId]
 	if !ok {
-		backupWalletsStorage.Unlock()
 		return errors.New("no backup share of wallet with given Id")
 	}
-	backupWalletsStorage.Unlock()
 
 	shareBytes, err := json.Marshal(walletShare)
 	if err != nil {
@@ -269,6 +312,11 @@ func RecoverShare(conn *websocket.Conn) error {
 	return nil
 }
 
+// StartMutualAttestation initiates a mutual attestation process with another node.
+// Parameters:
+// - conn: The WebSocket connection to use for the attestation.
+// - myNodeId: The ID of the current node.
+// - outNodeId: The ID of the node to attest with.
 func StartMutualAttestation(conn *websocket.Conn, myNodeId, outNodeId string) error {
 	nonce := make([]byte, 32)
 	_, err := io.ReadFull(rand.Reader, nonce)
@@ -308,6 +356,12 @@ func StartMutualAttestation(conn *websocket.Conn, myNodeId, outNodeId string) er
 	return nil
 }
 
+// ReceiveMutualAttestation completes a mutual attestation process with another node.
+// Parameters:
+// - conn: The WebSocket connection to use for the attestation.
+// - myId: The ID of the current node.
+// Returns:
+// - The ID of the node that initiated the attestation.
 func ReceiveMutualAttestation(conn *websocket.Conn, myId string) (string, error) {
 	attReq := AttestationRequest{}
 	err := conn.ReadJSON(&attReq)
