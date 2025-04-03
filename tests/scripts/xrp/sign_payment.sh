@@ -11,17 +11,32 @@ cleanup() {
 trap cleanup EXIT  
 
 
-# Array of client configs  
-declare -a client_configs=(  
-    "tests/configs/config_client.toml"  
-    "tests/configs/config_client2.toml"  
-    "tests/configs/config_client3.toml"  
-)  
+case "$1" in  
+  --remote)  
+    declare -a client_configs=(  
+        "tests/configs/config_remote.toml"
+        "tests/configs/config_remote2.toml"
+        "tests/configs/config_remote3.toml"
+    )  
+    ;;
+  --local)  
+    declare -a client_configs=(  
+        "tests/configs/config_client.toml"  
+        "tests/configs/config_client2.toml"  
+        "tests/configs/config_client3.toml"  
+    )  
+    ;;
+  *)  
+    echo "ERROR: Unknown option: $1"  
+    echo "Usage: $0 --remote | --local"  
+    exit 1  
+    ;;  
+esac  
+
 # Array of addresses
-declare -a addresses  
-# mapfile -t addresses < tests/scripts/xrp/addresses.txt
-addresses=$(<"tests/scripts/xrp/addresses.txt")
-node_info_json=$(<"tests/scripts/wallet/node_info.json")
+declare -a addresses 
+addresses=$(<"tests/scripts/generated/xrp/addresses.txt")
+node_info_json=$(<"tests/scripts/generated/node_info.json")
 
 readonly MULTISIG_ACCOUNT="rGumsQrNYzwW4xDPMmC3qXCJ5XqqsDBkat"  
 
@@ -31,11 +46,13 @@ declare -a accounts=()
 declare -a signatures=()  
 declare -a public_keys=()  
 
-j=0
-# Run initial policy simulate for each client config  
-for i in "${!client_configs[@]}"; do 
+active_policy_json=$(<"tests/scripts/generated/active_policy.json")
+epoch_id=$(echo "$active_policy_json" | jq -r '.epochId')
 
-    address= address=$(echo "$addresses" | grep -o "tee0 [a-zA-Z0-9]*" | cut -d' ' -f2)
+# Run initial policy simulate for each client config  
+for conf_idx in "${!client_configs[@]}"; do 
+
+    address=$(echo "$addresses" | grep -o "tee$conf_idx [a-zA-Z0-9]*" | cut -d' ' -f2)
     echo $address
 
     # Create JSON payload
@@ -48,33 +65,34 @@ for i in "${!client_configs[@]}"; do
         "lastLedgerSeq": 5050107,  
         "signerAddress": "'"$address"'"  
     }' 
-    echo $payment_json
+    # echo $payment_json
 
     # Execute command with JSON payload  
     PAYMENT_HASH=$(go run tests/client/cmd/main.go \
         --call hash_payment \
         --arg1="$payment_json" \
-        --config "${client_configs[$i]}" \
+        --config "${client_configs[$conf_idx]}" \
         | grep "Payment hash:" \
         | awk '{print $NF}')  
-    echo $PAYMENT_HASH
-
     payment_hashes+=("$PAYMENT_HASH")
     echo $PAYMENT_HASH
 
     instruction_id=$(shuf -i 1-1000000 -n 1)
     instruction_ids+=("$instruction_id")
-    node_id=$(echo "$node_info_json" | jq -r --argjson idx1 $i '.[$idx1] | .tee_id')
-    echo $node_id
+
+    node_id=$(echo "$node_info_json" | jq -r --argjson idx1 $conf_idx '.[$idx1] | .tee_id')
     
     for signer_idx in {0..2}; do  
-        res=$(go run tests/client/cmd/main.go --call sign_payment --provider $signer_idx --walletid qux --keyid "quux${j}" --instructionid $instruction_id --teeid $node_id --arg1 $PAYMENT_HASH --rewardepochid 5 --config "${client_configs[$i]}")
-        echo $res
+        res=$(go run tests/client/cmd/main.go --call sign_payment --provider $signer_idx \
+        --walletid "0x4321" --keyid "4321${conf_idx}" --instructionid $instruction_id \
+        --teeid $node_id --arg1 $PAYMENT_HASH --rewardepochid $epoch_id --config "${client_configs[$conf_idx]}")
     done  
 
 
     # Capture the account info
-    command_output=$(go run tests/client/cmd/main.go --call get_payment_signature --instructionid $instruction_id --config "${client_configs[$i]}")  
+    command_output=$(go run tests/client/cmd/main.go --call get_payment_signature \
+        --instructionid $instruction_id \
+        --config "${client_configs[$conf_idx]}")  
 
     # Extract Account Info
     account=$(echo "$command_output" | grep -o "Account [^,]*" | cut -d' ' -f2)  
@@ -84,9 +102,6 @@ for i in "${!client_configs[@]}"; do
     accounts+=("$account")
     signatures+=("$txn_signature")
     public_keys+=("$public_key")
-
-    j=$(($j+1))
-
 done  
 
 
@@ -102,7 +117,7 @@ done
         echo "PublicKey: ${public_keys[$i]}"  
         echo "----------------------------------------"  
     done  
-} > tests/scripts/xrp/signatures.txt  
+} > tests/scripts/generated/xrp/signatures.txt  
 
 # Write to file with JSON formatting  
 {   
@@ -118,4 +133,4 @@ done
         [[ $i -lt $((${#payment_hashes[@]}-1)) ]] && echo ","  
     done  
     echo "]"
-} > tests/scripts/xrp/signatures.json  
+} > tests/scripts/generated/xrp/signatures.json  

@@ -1,6 +1,9 @@
 package types
 
 import (
+	"math/big"
+
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/instruction"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/structs"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/structs/wallet"
@@ -52,7 +55,7 @@ func NewSplitWalletRequest(instructionData *instruction.DataFixed) (wallet.ITeeW
 }
 
 type RecoverWalletRequestAdditionalFixedMessage struct {
-	TeeIds    []string
+	TeeIds    []common.Address
 	ShareIds  []string
 	Address   string
 	Threshold int64
@@ -69,8 +72,8 @@ func NewRecoverWalletRequest(instructionData *instruction.DataFixed) (wallet.ITe
 }
 
 type WalletInfoRequest struct {
-	WalletId  string
-	KeyId     string
+	WalletId  common.Hash
+	KeyId     *big.Int
 	Challenge string
 }
 

@@ -10,9 +10,9 @@ import (
 )
 
 var (
-	walletId = "wallet1"
-	keyId    = "key1"
-	backupId = "backup1"
+	walletId = common.HexToHash("0x1234")
+	keyId    = big.NewInt(1234)
+	backupId = big.NewInt(5678)
 )
 
 func TestSplitWallet(t *testing.T) {
@@ -71,9 +71,9 @@ func TestJointWallet(t *testing.T) {
 	backupIdsTriple := BackupWalletKeyIdTriple{WalletId: walletId, KeyId: keyId, BackupId: backupId}
 
 	// Test case 1: Join the wallet using the threshold number of shares
-	jointWallet, err := JointWallet(splits, backupIdsTriple, wallet.Address, threshold)
+	reconstructedWallet, err := JointWallet(splits, backupIdsTriple, wallet.Address, threshold)
 	assert.NoError(t, err)
-	assert.Equal(t, wallet.Address.Hex(), jointWallet.Address.Hex())
+	assert.Equal(t, wallet.Address.Hex(), reconstructedWallet.Address.Hex())
 
 	// Test case 2: Not enough shares (should fail)
 	_, err = JointWallet(splits[:threshold-1], backupIdsTriple, wallet.Address, threshold)
@@ -86,14 +86,14 @@ func TestJointWallet(t *testing.T) {
 
 	// Test case 4: Minority shares invalid
 	splits[0].Share.X = big.NewInt(99999) // Modify a share to be invalid
-	jointWallet, err = JointWallet(splits, backupIdsTriple, wallet.Address, threshold)
+	reconstructedWallet, err = JointWallet(splits, backupIdsTriple, wallet.Address, threshold)
 	assert.NoError(t, err)
-	assert.Equal(t, wallet.Address.Hex(), jointWallet.Address.Hex())
+	assert.Equal(t, wallet.Address.Hex(), reconstructedWallet.Address.Hex())
 
 	splits[2].Share.Y = big.NewInt(232412341234) // Modify a share to be invalid
-	jointWallet, err = JointWallet(splits, backupIdsTriple, wallet.Address, threshold)
+	reconstructedWallet, err = JointWallet(splits, backupIdsTriple, wallet.Address, threshold)
 	assert.NoError(t, err)
-	assert.Equal(t, wallet.Address.Hex(), jointWallet.Address.Hex())
+	assert.Equal(t, wallet.Address.Hex(), reconstructedWallet.Address.Hex())
 
 	// Test case 5: Invalid share set (should fail)
 	splits[4].Share.Y = big.NewInt(11111) // Modify a share to be invalid

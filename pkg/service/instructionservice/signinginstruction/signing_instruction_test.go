@@ -20,8 +20,8 @@ import (
 	api "tee-node/api/types"
 )
 
-var mockWalletId = hex.EncodeToString(common.HexToHash("0xabcdef").Bytes())
-var mockKeyId = big.NewInt(1).String()
+var mockWalletId = common.HexToHash("0xabcdef")
+var mockKeyId = big.NewInt(1)
 
 // Send enough signatures for the payment hash, to pass the threshold.
 func TestSendManyPaymentSignatures(t *testing.T) {
@@ -33,17 +33,17 @@ func TestSendManyPaymentSignatures(t *testing.T) {
 	numVoters, randSeed, epochId := 100, int64(12345), uint32(1)
 	_, _, privKeys := testutils.GenerateAndSetInitialPolicy(numVoters, randSeed, epochId)
 
-	testutils.CreateMockWallet(t, myNodeId.Id, mockWalletId, mockKeyId, privKeys, policy.GetActiveSigningPolicy().RewardEpochId)
+	testutils.CreateMockWallet(t, myNodeId.Id, mockWalletId, mockKeyId.String(), privKeys, policy.GetActiveSigningPolicy().RewardEpochId)
 
 	paymentHash := "560ccd6e79ba7166e82dbf2a5b9a52283a509b63c39d4a4cc7164db3e43484c4"
 
 	instructionIdBytes, _ := utils.GenerateRandomBytes(32)
 	instruction, err := testutils.BuildMockInstruction("XRP",
 		"PAY",
-		testutils.BuildMockPaymentOriginalMessage(t, mockWalletId),
+		testutils.BuildMockPaymentOriginalMessage(t, mockWalletId.Hex()),
 		api.SignPaymentAdditionalFixedMessage{PaymentHash: paymentHash, KeyId: mockKeyId},
 		privKeys[0],
-		"1234",
+		common.HexToAddress("0x1234"),
 		hex.EncodeToString(instructionIdBytes),
 		policy.GetActiveSigningPolicy().RewardEpochId,
 	)
@@ -68,7 +68,7 @@ func TestGetSignatureApi(t *testing.T) {
 	numVoters, randSeed, epochId := 100, int64(12345), uint32(1)
 	_, _, privKeys := testutils.GenerateAndSetInitialPolicy(numVoters, randSeed, epochId)
 
-	testutils.CreateMockWallet(t, myNodeId.Id, mockWalletId, mockKeyId, privKeys, policy.GetActiveSigningPolicy().RewardEpochId)
+	testutils.CreateMockWallet(t, myNodeId.Id, mockWalletId, mockKeyId.String(), privKeys, policy.GetActiveSigningPolicy().RewardEpochId)
 
 	paymentHash := "560ccd6e79ba7166e82dbf2a5b9a52283a509b63c39d4a4cc7164db3e43484c4"
 
@@ -79,10 +79,10 @@ func TestGetSignatureApi(t *testing.T) {
 
 	instruction, err := testutils.BuildMockInstruction("XRP",
 		"PAY",
-		testutils.BuildMockPaymentOriginalMessage(t, mockWalletId),
+		testutils.BuildMockPaymentOriginalMessage(t, mockWalletId.Hex()),
 		api.SignPaymentAdditionalFixedMessage{PaymentHash: paymentHash, KeyId: mockKeyId},
 		privKeys[0],
-		"1234",
+		common.HexToAddress("0x1234"),
 		hex.EncodeToString(instructionIdBytes),
 		policy.GetActiveSigningPolicy().RewardEpochId,
 	)
@@ -123,7 +123,7 @@ func TestSigning(t *testing.T) {
 
 // * —————————————————————————————————————————————————————————————————————————————————————————— * //
 
-func verifyPaymentRequestSignature(t *testing.T, paymentHash []byte, txnSignature []byte, walletId, keyId string) bool {
+func verifyPaymentRequestSignature(t *testing.T, paymentHash []byte, txnSignature []byte, walletId common.Hash, keyId *big.Int) bool {
 	pubKey, err := wallets.GetPublicKey(wallets.WalletKeyIdPair{WalletId: walletId, KeyId: keyId})
 	require.NoError(t, err)
 

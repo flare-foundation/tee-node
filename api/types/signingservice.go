@@ -1,6 +1,8 @@
 package types
 
 import (
+	"math/big"
+
 	"github.com/flare-foundation/go-flare-common/pkg/tee/instruction"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/structs"
 	commonpayment "github.com/flare-foundation/go-flare-common/pkg/tee/structs/payment"
@@ -8,7 +10,7 @@ import (
 
 type SignPaymentAdditionalFixedMessage struct {
 	PaymentHash string
-	KeyId       string
+	KeyId       *big.Int
 }
 
 func ParseSignPaymentRequest(instructionData *instruction.DataFixed) (commonpayment.ITeePaymentsPaymentInstructionMessage, error) {

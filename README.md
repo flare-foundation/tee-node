@@ -106,7 +106,7 @@ gcloud compute instances create <INSTANCE-NAME> \
     --image-project=confidential-space-images \
     --image-family=<IMAGE-FAMILY> \
     --service-account=confidential-sa@flare-network-sandbox.iam.gserviceaccount.com \
-    --tags=rpc-server \
+    --tags=rpc-server,tee-ws \
     --metadata="^~^tee-image-reference=us-docker.pkg.dev/flare-network-sandbox/flare-tee/tee-node:latest"
 ```
 

@@ -8,24 +8,27 @@ import (
 	"github.com/google/logger"
 	"github.com/pkg/errors"
 
-	"fmt"
 	api "tee-node/api/types"
-	"tee-node/pkg/attestation"
 	"tee-node/pkg/node"
-	"tee-node/pkg/utils"
 	"tee-node/pkg/wallets"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/gorilla/websocket"
 )
 
+// NewWallet creates a new wallet using the provided instruction data.
+// Parameters:
+// - instructionData: Contains the data needed to create a new wallet.
+//   - newWalletRequest: Decoded from instructionData, includes:
+//   - WalletId: The ID of the wallet to be created.
+//   - KeyId: The key ID associated with the wallet.
 func NewWallet(instructionData *instruction.DataFixed) error {
-	originalMessage, err := api.ParseNewWalletRequest(instructionData)
+	newWalletRequest, err := api.ParseNewWalletRequest(instructionData)
 	if err != nil {
 		return err
 	}
 
-	err = wallets.CreateNewWallet(wallets.WalletKeyIdPair{WalletId: hex.EncodeToString(originalMessage.WalletId[:]), KeyId: originalMessage.KeyId.String()})
+	err = wallets.CreateNewWallet(wallets.WalletKeyIdPair{WalletId: newWalletRequest.WalletId, KeyId: newWalletRequest.KeyId})
 	if err != nil {
 		return err
 	}
@@ -33,17 +36,34 @@ func NewWallet(instructionData *instruction.DataFixed) error {
 	return nil
 }
 
+// DeleteWallet removes an existing wallet using the provided instruction data.
+// Parameters:
+// - instructionData: Contains the data needed to delete a wallet.
+//   - delWalletRequest: Decoded from instructionData, includes:
+//   - WalletId: The ID of the wallet to be deleted.
+//   - KeyId: The key ID associated with the wallet.
 func DeleteWallet(instructionData *instruction.DataFixed) error {
 	delWalletRequest, err := api.NewDeleteWalletRequest(instructionData)
 	if err != nil {
 		return err
 	}
 
-	wallets.RemoveWallet(wallets.WalletKeyIdPair{WalletId: hex.EncodeToString(delWalletRequest.WalletId[:]), KeyId: delWalletRequest.KeyId.String()})
+	wallets.RemoveWallet(wallets.WalletKeyIdPair{WalletId: delWalletRequest.WalletId, KeyId: delWalletRequest.KeyId})
 
 	return nil
 }
 
+// SplitWallet splits a wallet into shares for backup purposes.
+// Parameters:
+// - instructionData: Contains the data needed to split a wallet.
+//   - splitWalletRequest: Decoded from instructionData, includes:
+//   - BackupId: The ID for the backup process.
+//   - WalletId: The ID of the wallet to be split.
+//   - KeyId: The key ID associated with the wallet.
+//   - BackupTeeMachines: List of machines to store the wallet shares on (teeIds and urls).
+//   - ShamirThreshold: The threshold for Shamir's Secret Sharing.
+//
+// - signatures: Digital signatures for the operation.
 func SplitWallet(instructionData *instruction.DataFixed, signatures [][]byte) error {
 	splitWalletRequest, err := api.NewSplitWalletRequest(instructionData)
 	if err != nil {
@@ -59,7 +79,7 @@ func SplitWallet(instructionData *instruction.DataFixed, signatures [][]byte) er
 	numShares := len(splitWalletRequest.BackupTeeMachines)
 
 	splits, err := wallets.SplitWalletById(
-		wallets.BackupWalletKeyIdTriple{BackupId: splitWalletRequest.BackupId.String(), WalletId: hex.EncodeToString(splitWalletRequest.WalletId[:]), KeyId: splitWalletRequest.KeyId.String()},
+		wallets.BackupWalletKeyIdTriple{BackupId: splitWalletRequest.BackupId, WalletId: splitWalletRequest.WalletId, KeyId: splitWalletRequest.KeyId},
 		numShares,
 		int(splitWalletRequest.ShamirThreshold.Uint64()),
 	)
@@ -88,6 +108,17 @@ func SplitWallet(instructionData *instruction.DataFixed, signatures [][]byte) er
 	return nil
 }
 
+// RecoverWallet reconstructs a wallet from its shares.
+// Parameters:
+// - instructionData: Contains the data needed to recover a wallet.
+//   - recoverWalletRequest: Decoded from instructionData, includes:
+//   - BackupId: The ID for the backup process.
+//   - WalletId: The ID of the wallet to be recovered.
+//   - KeyId: The key ID associated with the wallet.
+//   - BackupTeeMachines: List of machines holding the wallet shares (teeIds and urls).
+//   - PublicKey: The public key of the TEE nodeId
+//
+// - signatures: Digital signatures for the operation.
 func RecoverWallet(instructionData *instruction.DataFixed, signatures [][]byte) error {
 	recoverWalletRequest, err := api.NewRecoverWalletRequest(instructionData)
 	if err != nil {
@@ -100,7 +131,6 @@ func RecoverWallet(instructionData *instruction.DataFixed, signatures [][]byte) 
 		return err
 	}
 
-	// TODO: I moved this check here, but if we think it should happen before ProcessRequest, we can move it back
 	myNode := node.GetNodeId()
 	if hex.EncodeToString(myNode.EncryptionKey.PublicKey[:]) != common.Bytes2Hex(recoverWalletRequest.PublicKey) {
 		return errors.New("public key not matching node's public key")
@@ -139,7 +169,7 @@ func RecoverWallet(instructionData *instruction.DataFixed, signatures [][]byte) 
 	address := common.HexToAddress(additionalFixedMessage.Address)
 	reconstructedWallet, err := wallets.JointWallet(
 		splits,
-		wallets.BackupWalletKeyIdTriple{WalletId: hex.EncodeToString(recoverWalletRequest.WalletId[:]), KeyId: recoverWalletRequest.KeyId.String(), BackupId: recoverWalletRequest.BackupId.String()},
+		wallets.BackupWalletKeyIdTriple{WalletId: recoverWalletRequest.WalletId, KeyId: recoverWalletRequest.KeyId, BackupId: recoverWalletRequest.BackupId},
 		address, int(additionalFixedMessage.Threshold))
 	if err != nil {
 		return err
@@ -162,40 +192,4 @@ func KeyCustodianBackup(instructionData *instruction.DataFixed) ([]byte, error) 
 
 func KeyCustodianRestore(instructionData *instruction.DataFixed) ([]byte, error) {
 	return nil, errors.New("WALLET KEY_CUSTODIAN_RESTORE command not implemented yet")
-}
-
-// GETERS
-
-func WalletInfo(req *api.WalletInfoRequest) (*api.WalletInfoResponse, error) {
-	walletKeyIdPair := wallets.WalletKeyIdPair{WalletId: req.WalletId, KeyId: req.KeyId}
-	ethAddress, err := wallets.GetEthAddress(walletKeyIdPair)
-	publicKey, err2 := wallets.GetPublicKey(walletKeyIdPair)
-	if err != nil || err2 != nil {
-		return nil, fmt.Errorf("wallet non-existent")
-	}
-
-	xrpAddress, err := wallets.GetXrpAddress(walletKeyIdPair)
-	sec1PubKey := hex.EncodeToString(utils.SerializeCompressed(publicKey))
-	if err != nil {
-		return nil, fmt.Errorf("wallet non-existent")
-	}
-
-	nonces := []string{req.Challenge, "WalletInfo", ethAddress, xrpAddress}
-
-	var tokenBytes []byte
-	tokenBytes, err = attestation.GetGoogleAttestationToken(nonces, attestation.OIDCTokenType)
-	if err != nil {
-		return nil, err
-	}
-
-	return &api.WalletInfoResponse{
-		EthAddress: ethAddress,
-		EthPublicKey: api.ECDSAPublicKey{
-			X: publicKey.X.String(),
-			Y: publicKey.Y.String(),
-		},
-		XrpAddress:   xrpAddress,
-		XrpPublicKey: sec1PubKey,
-		Token:        string(tokenBytes),
-	}, nil
 }

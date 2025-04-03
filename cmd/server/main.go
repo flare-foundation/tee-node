@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"log"
 	"tee-node/pkg/attestation"
 	"tee-node/pkg/config"
@@ -37,6 +38,8 @@ func main() {
 	if err != nil {
 		logger.Fatalf("self attestation failed: %v", err)
 	}
+
+	fmt.Println("Starting server with config: ", config)
 
 	// Launch the json rpc server
 	go service.LaunchServer(config.Server.Port)

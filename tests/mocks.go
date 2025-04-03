@@ -23,7 +23,7 @@ import (
 
 // Todo: I want to extract some logic for generating mock policies, wallets, etc. into this file.
 
-func BuildMockInstruction(OpType string, OpCommand string, OriginalMessage []byte, additionalFixedMessageRaw interface{}, privKey *ecdsa.PrivateKey, teeId string, instructionId string, rewardEpochId uint32) (*instruction.Instruction, error) {
+func BuildMockInstruction(OpType string, OpCommand string, OriginalMessage []byte, additionalFixedMessageRaw interface{}, privKey *ecdsa.PrivateKey, teeId common.Address, instructionId string, rewardEpochId uint32) (*instruction.Instruction, error) {
 	AdditionalFixedMessage, err := json.Marshal(additionalFixedMessageRaw)
 	if err != nil {
 		return nil, err
@@ -32,7 +32,7 @@ func BuildMockInstruction(OpType string, OpCommand string, OriginalMessage []byt
 	instructionData := instruction.Data{
 		DataFixed: instruction.DataFixed{
 			InstructionID:          common.HexToHash(instructionId),
-			TeeID:                  common.HexToAddress(teeId),
+			TeeID:                  teeId,
 			RewardEpochID:          big.NewInt(int64(rewardEpochId)),
 			OPType:                 utils.StringToOpHash(OpType),
 			OPCommand:              utils.StringToOpHash(OpCommand),
@@ -57,7 +57,7 @@ func BuildMockInstruction(OpType string, OpCommand string, OriginalMessage []byt
 
 }
 
-func CreateMockWallet(t *testing.T, nodeId string, walletId string, keyId string, privKeys []*ecdsa.PrivateKey, rewardEpochId uint32) {
+func CreateMockWallet(t *testing.T, nodeId common.Address, walletId common.Hash, keyId string, privKeys []*ecdsa.PrivateKey, rewardEpochId uint32) {
 	instructionIdBytes, _ := utils.GenerateRandomBytes(32)
 
 	keyIdBig, err := strconv.ParseUint(keyId, 10, 32)
@@ -65,7 +65,7 @@ func CreateMockWallet(t *testing.T, nodeId string, walletId string, keyId string
 
 	request := wallet.ITeeWalletManagerKeyGenerate{
 		TeeId:    common.HexToAddress("1234"),
-		WalletId: common.HexToHash(walletId),
+		WalletId: walletId,
 		KeyId:    big.NewInt(int64(keyIdBig)),
 		OpType:   utils.StringToOpHash("WALLET"),
 	}

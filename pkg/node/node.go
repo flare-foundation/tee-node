@@ -4,6 +4,7 @@ import (
 	"crypto/ecdsa"
 	"tee-node/pkg/utils"
 
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
 )
 
@@ -15,10 +16,10 @@ const (
 )
 
 type NodeId struct {
-	Id            string
+	Id            common.Address // The ethereum address of the node, derived from the SignatureKey
 	Status        string
-	EncryptionKey utils.EncryptionKey
-	SignatureKey  *ecdsa.PrivateKey
+	EncryptionKey utils.EncryptionKey // used for encrypted communication between TEE nodes over websocket
+	SignatureKey  *ecdsa.PrivateKey   //todo: will be used for the TLS certificate I think?
 }
 
 func InitNode() error {
@@ -29,7 +30,7 @@ func InitNode() error {
 	}
 
 	address := crypto.PubkeyToAddress(nodeId.SignatureKey.PublicKey)
-	nodeId.Id = address.Hex()
+	nodeId.Id = address
 
 	nodeId.EncryptionKey, err = utils.GenerateEncryptionKeyPair()
 	if err != nil {

@@ -5,7 +5,6 @@ import (
 	"crypto/ecdsa"
 	"encoding/hex"
 	"encoding/json"
-	"fmt"
 	"log"
 	"math/big"
 	"os"
@@ -151,9 +150,6 @@ func main() {
 			log.Fatalf("%v", err)
 		}
 
-		hash := policyserver.SigningPolicyBytesToHash(initialPolicyBytes)
-		fmt.Println(hex.EncodeToString(hash))
-
 		numPolicies := 5
 		policySignaturesArray, err := utils.GenerateRandomMultiSignedPolicyArray(epochId, randSeed, providers.Voters, providers.PrivKeys, numPolicies)
 		if err != nil {
@@ -169,7 +165,13 @@ func main() {
 		if err != nil {
 			log.Fatalf("could not initialize policy: %v", err)
 		}
-		logger.Info("initialized policies")
+
+		latestPolicy := req.NewPolicyRequests[len(req.NewPolicyRequests)-1]
+		decodedPolicy, err := policyserver.DecodeSigningPolicy(latestPolicy.PolicyBytes)
+		if err != nil {
+			log.Fatalf("could not decode policy: %v", err)
+		}
+		logger.Infof("initialized policies. Active EpochID: %v", decodedPolicy.RewardEpochId)
 
 	case "new_wallet":
 		providerPrivKey, err := getProviderPrivKey(args.Provider)
@@ -183,7 +185,7 @@ func main() {
 		}
 
 		originalMessage := wallet.ITeeWalletManagerKeyGenerate{
-			TeeId:    common.HexToAddress("1234"),
+			TeeId:    common.HexToAddress(args.TeeId),
 			WalletId: common.HexToHash(args.WalletId),
 			KeyId:    big.NewInt(int64(keyIdParsed)),
 			OpType:   utilsserver.StringToOpHash("WALLET"),
@@ -198,7 +200,7 @@ func main() {
 			originalMessageEncoded,
 			interface{}(nil),
 			providerPrivKey,
-			args.TeeId,
+			common.HexToAddress(args.TeeId),
 			args.InstructionId,
 			args.RewardEpochId,
 		)
@@ -216,9 +218,14 @@ func main() {
 	case "pub_key":
 		// TODO: Remove this function
 
+		keyIdBig, err := strconv.ParseUint(args.KeyId, 10, 32)
+		if err != nil {
+			log.Fatalf("could not parse key id: %v", err)
+		}
+
 		req := &api.WalletInfoRequest{
-			WalletId:  args.WalletId,
-			KeyId:     args.KeyId,
+			WalletId:  common.HexToHash(args.WalletId),
+			KeyId:     big.NewInt(int64(keyIdBig)),
 			Challenge: hex.EncodeToString(nonceBytes),
 		}
 
@@ -234,9 +241,14 @@ func main() {
 			log.Fatalf("%v", err)
 		}
 
+		keyIdBig, err := strconv.ParseUint(args.KeyId, 10, 32)
+		if err != nil {
+			log.Fatalf("could not parse key id: %v", err)
+		}
+
 		req := &api.WalletInfoRequest{
-			WalletId:  args.WalletId,
-			KeyId:     args.KeyId,
+			WalletId:  common.HexToHash(args.WalletId),
+			KeyId:     big.NewInt(int64(keyIdBig)),
 			Challenge: hex.EncodeToString(nonceBytes),
 		}
 		accInfoResp, err := utils.Post[api.WalletInfoResponse](config.Server.Host+"/wallet", req)
@@ -302,7 +314,12 @@ func main() {
 
 		// ---------- Encode and Hash the transaction ---------- //
 
-		payment, err := xrpl.ConstructPaymentTransaction(paymentFields.Amount, paymentFields.Fee, paymentFields.SpenderAccount, paymentFields.DestinationAccount, paymentFields.Sequence, paymentFields.LastLedgerSeq)
+		payment, err := xrpl.ConstructPaymentTransaction(paymentFields.Amount,
+			paymentFields.Fee,
+			paymentFields.SpenderAccount,
+			paymentFields.DestinationAccount,
+			paymentFields.Sequence,
+			paymentFields.LastLedgerSeq)
 		if err != nil {
 			log.Fatalf("could not construct payment transaction: %v", err)
 		}
@@ -330,6 +347,11 @@ func main() {
 			log.Fatalf("could not decode tx hash: %v", err)
 		}
 
+		keyIdBig, err := strconv.ParseUint(args.KeyId, 10, 32)
+		if err != nil {
+			log.Fatalf("could not parse key id: %v", err)
+		}
+
 		// ---------- Sign the message request ---------- //
 
 		originalMessage := commonpayment.ITeePaymentsPaymentInstructionMessage{
@@ -355,10 +377,10 @@ func main() {
 			originalMessageEncoded,
 			api.SignPaymentAdditionalFixedMessage{
 				PaymentHash: paymentHash,
-				KeyId:       args.KeyId,
+				KeyId:       big.NewInt(int64(keyIdBig)),
 			},
 			providerPrivKey,
-			args.TeeId,
+			common.HexToAddress(args.TeeId),
 			args.InstructionId,
 			args.RewardEpochId,
 		)
@@ -424,12 +446,15 @@ func main() {
 			pubKeys[i] = info.PubKey
 		}
 
+		// TODO: Why am I using teeIds and then HexToAddress(pubKeys[id])?
+		// Todo: Why are these not the same?
+
 		// ---------- Split the wallet request ---------- //
 
 		backupTeeMachines := make([]wallet.ITeeRegistryTeeMachineWithAttestationData, len(teeIds))
 		for id := range teeIds {
 			backupTeeMachines[id] = wallet.ITeeRegistryTeeMachineWithAttestationData{
-				TeeId: common.HexToAddress(pubKeys[id]),
+				TeeId: common.HexToAddress(teeIds[id]),
 				Url:   config.Server.Backups[id],
 			}
 		}
@@ -454,13 +479,16 @@ func main() {
 		if err != nil {
 			log.Fatalf("could not pack original message: %v", err)
 		}
+		additionalFixedMessage := api.SplitWalletAdditionalFixedMessage{
+			PublicKeys: pubKeys,
+		}
 
 		instruction, err := utils.BuildMockInstruction("WALLET",
 			"KEY_MACHINE_BACKUP",
 			originalMessageEncoded,
-			interface{}(nil),
+			additionalFixedMessage,
 			providerPrivKey,
-			args.TeeId,
+			common.HexToAddress(args.TeeId),
 			args.InstructionId,
 			args.RewardEpochId,
 		)
@@ -487,15 +515,16 @@ func main() {
 		for i := range shareIds {
 			shareIds[i] = strconv.Itoa(i + 1)
 		}
+		teeIds := make([]common.Address, len(shareIds))
+		for i := range shareIds {
+			teeIds[i] = common.HexToAddress(args.TeeIds[i])
+		}
 
 		backupTeeMachines := make([]wallet.ITeeRegistryTeeMachineWithAttestationData, len(shareIds))
 		for i := range len(shareIds) {
 			backupTeeMachines[i] = wallet.ITeeRegistryTeeMachineWithAttestationData{
-				TeeId:    common.HexToAddress("0x123"),
-				Owner:    common.HexToAddress("0x123"),
-				Url:      config.Server.Backups[i],
-				CodeHash: common.HexToHash("0x123"),
-				Platform: common.HexToHash("0x123"),
+				TeeId: common.HexToAddress(args.TeeIds[i]),
+				Url:   config.Server.Backups[i],
 			}
 		}
 		// TODO: keyId and backupId parameters should probably be big.Int or uint32
@@ -521,16 +550,17 @@ func main() {
 		if err != nil {
 			log.Fatalf("could not pack original message: %v", err)
 		}
+		additionalFixedMessage := api.RecoverWalletRequestAdditionalFixedMessage{
+			TeeIds:    teeIds,
+			ShareIds:  shareIds,
+			Address:   args.Address,
+			Threshold: int64(config.Server.BackupsThreshold),
+		}
 
 		instruction, err := utils.BuildMockInstruction("WALLET", "KEY_MACHINE_RESTORE", originalMessageEncoded,
-			api.RecoverWalletRequestAdditionalFixedMessage{
-				TeeIds:    args.TeeIds,
-				ShareIds:  shareIds,
-				Address:   args.Address,
-				Threshold: int64(config.Server.BackupsThreshold),
-			},
+			additionalFixedMessage,
 			providerPrivKey,
-			args.TeeId,
+			common.HexToAddress(args.TeeId),
 			args.InstructionId,
 			args.RewardEpochId,
 		)
