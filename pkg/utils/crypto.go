@@ -151,7 +151,7 @@ func GenerateEncryptionKeyPair() (EncryptionKey, error) {
 }
 
 // todo: this should be in go-common
-func ParsePubKey(key wallet.ITeeWalletManagerPublicKey) *ecdsa.PublicKey {
+func ParsePubKey(key wallet.PublicKey) *ecdsa.PublicKey {
 	x := new(big.Int).SetBytes(key.X[:])
 	y := new(big.Int).SetBytes(key.Y[:])
 

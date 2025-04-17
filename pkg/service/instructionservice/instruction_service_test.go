@@ -539,11 +539,11 @@ func TestDecodeAbiInstructionWallet(t *testing.T) {
 	keyId := big.NewInt(1)
 	OpType := utils.StringToOpHash("WALLET")
 
-	pre := wallet.ITeeWalletManagerKeyGenerate{
+	pre := wallet.ITeeWalletKeyManagerKeyGenerate{
 		TeeId:    id,
 		WalletId: walletId, KeyId: keyId, OpType: OpType,
 		OpTypeConstants:    make([]byte, 0),
-		AdminsPublicKeys:   make([]wallet.ITeeWalletManagerPublicKey, 0),
+		AdminsPublicKeys:   make([]wallet.PublicKey, 0),
 		AdminsThreshold:    big.NewInt(0),
 		Cosigners:          make([]common.Address, 0),
 		CosignersThreshold: big.NewInt(0)}
@@ -551,7 +551,7 @@ func TestDecodeAbiInstructionWallet(t *testing.T) {
 	encoded, err := abi.Arguments{arg}.Pack(pre)
 	require.NoError(t, err)
 
-	var unpacked wallet.ITeeWalletManagerKeyGenerate
+	var unpacked wallet.ITeeWalletKeyManagerKeyGenerate
 
 	err = structs.DecodeTo(arg, encoded, &unpacked)
 	require.NoError(t, err)

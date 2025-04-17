@@ -124,13 +124,13 @@ func createWallet(t *testing.T, nodeId common.Address, walletId common.Hash, key
 	for i := range 2 {
 		providerPrivKey := providers.PrivKeys[i]
 
-		originalMessage := wallet.ITeeWalletManagerKeyGenerate{
+		originalMessage := wallet.ITeeWalletKeyManagerKeyGenerate{
 			TeeId:              common.HexToAddress("1234"),
 			WalletId:           walletId,
 			KeyId:              keyId,
 			OpType:             utilsserver.StringToOpHash("WALLET"),
 			OpTypeConstants:    make([]byte, 0),
-			AdminsPublicKeys:   make([]wallet.ITeeWalletManagerPublicKey, 0),
+			AdminsPublicKeys:   make([]wallet.PublicKey, 0),
 			AdminsThreshold:    big.NewInt(0),
 			Cosigners:          make([]common.Address, 0),
 			CosignersThreshold: big.NewInt(0),
@@ -245,7 +245,7 @@ func deleteWallet(t *testing.T, nodeId common.Address, walletId common.Hash, key
 	for i := range 2 {
 		providerPrivKey := providers.PrivKeys[i]
 
-		originalMessage := wallet.ITeeWalletManagerKeyDelete{
+		originalMessage := wallet.ITeeWalletKeyManagerKeyDelete{
 			TeeId:    common.HexToAddress("1234"),
 			WalletId: walletId,
 			KeyId:    keyId,

@@ -63,13 +63,13 @@ func CreateMockWallet(t *testing.T, nodeId common.Address, walletId common.Hash,
 	keyIdBig, err := strconv.ParseUint(keyId, 10, 32)
 	require.NoError(t, err)
 
-	request := wallet.ITeeWalletManagerKeyGenerate{
+	request := wallet.ITeeWalletKeyManagerKeyGenerate{
 		TeeId:              common.HexToAddress("1234"),
 		WalletId:           walletId,
 		KeyId:              big.NewInt(int64(keyIdBig)),
 		OpType:             utils.StringToOpHash("WALLET"),
 		OpTypeConstants:    make([]byte, 0),
-		AdminsPublicKeys:   make([]wallet.ITeeWalletManagerPublicKey, 0),
+		AdminsPublicKeys:   make([]wallet.PublicKey, 0),
 		AdminsThreshold:    big.NewInt(0),
 		Cosigners:          make([]common.Address, 0),
 		CosignersThreshold: big.NewInt(0),

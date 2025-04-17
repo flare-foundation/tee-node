@@ -50,7 +50,7 @@ func InitWalletsStorage() WalletsStorage {
 	return WalletsStorage{Storage: make(map[string]*Wallet)}
 }
 
-func CreateNewWallet(walletInfo wallet.ITeeWalletManagerKeyGenerate) (*Wallet, error) {
+func CreateNewWallet(walletInfo wallet.ITeeWalletKeyManagerKeyGenerate) (*Wallet, error) {
 	sk, err := utils.GenerateEthereumPrivateKey()
 	if err != nil {
 		return nil, err

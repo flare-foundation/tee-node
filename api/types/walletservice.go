@@ -13,25 +13,25 @@ type KeyGenerateAdditionalFixedMessage struct {
 	Backups []string
 }
 
-func ParseNewWalletRequest(instructionData *instruction.DataFixed) (wallet.ITeeWalletManagerKeyGenerate, error) {
+func ParseNewWalletRequest(instructionData *instruction.DataFixed) (wallet.ITeeWalletKeyManagerKeyGenerate, error) {
 	arg := wallet.MessageArguments[wallet.KeyGenerate]
 
-	var unpacked wallet.ITeeWalletManagerKeyGenerate
+	var unpacked wallet.ITeeWalletKeyManagerKeyGenerate
 	err := structs.DecodeTo(arg, instructionData.OriginalMessage, &unpacked)
 	if err != nil {
-		return wallet.ITeeWalletManagerKeyGenerate{}, err
+		return wallet.ITeeWalletKeyManagerKeyGenerate{}, err
 	}
 
 	return unpacked, nil
 }
 
-func NewDeleteWalletRequest(instructionData *instruction.DataFixed) (wallet.ITeeWalletManagerKeyDelete, error) {
+func NewDeleteWalletRequest(instructionData *instruction.DataFixed) (wallet.ITeeWalletKeyManagerKeyDelete, error) {
 
 	arg := wallet.MessageArguments[wallet.KeyDelete]
-	var unpacked wallet.ITeeWalletManagerKeyDelete
+	var unpacked wallet.ITeeWalletKeyManagerKeyDelete
 	err := structs.DecodeTo(arg, instructionData.OriginalMessage, &unpacked)
 	if err != nil {
-		return wallet.ITeeWalletManagerKeyDelete{}, err
+		return wallet.ITeeWalletKeyManagerKeyDelete{}, err
 	}
 
 	return unpacked, nil

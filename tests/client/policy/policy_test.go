@@ -46,6 +46,8 @@ func TestPolicyDecodingEncoding(t *testing.T) {
 	policies, _, err := FetchPolicyHistory(context.Background(), params, db)
 	require.NoError(t, err)
 
+	require.Greater(t, len(policies), 0)
+
 	// Test encoding and decoding of the last available policy
 	policy := policies[len(policies)-1]
 
