@@ -116,7 +116,7 @@ gcloud compute instances create <INSTANCE-NAME> \
 | ----------------- | --------------------------------------------------- | -------------------------------------------------------------------- |
 | `<INSTANCE-NAME>` | Unique instance identifier (preferably tied to you) | `jure-test-tee1`                                                     |
 | `<COMPUTE-TYPE>`  | Hardware type for Confidential Computing            | `SEV` or `TDX`                                                       |
-| `<IMAGE-FAMILY>`  | must match what you chose for COMPUTE-TYPE          | `confidential-space-debug` or `confidential-space-debug-preview-tdx` |
+| `<IMAGE-FAMILY>`  | must match what you chose for COMPUTE-TYPE          | `confidential-space-debug` |
 
 #### Important Flags
 
