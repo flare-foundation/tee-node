@@ -7,11 +7,10 @@ require (
 	github.com/btcsuite/btcd/btcec/v2 v2.3.4
 	github.com/emirpasic/gods v1.18.1
 	github.com/ethereum/go-ethereum v1.15.7
-	github.com/flare-foundation/go-flare-common v1.2.1-0.20250416115124-f29af06f8331
+	github.com/flare-foundation/go-flare-common v1.2.1-0.20250417122202-9aad0d831b94
 	github.com/golang-jwt/jwt v3.2.2+incompatible
 	github.com/golang-jwt/jwt/v4 v4.5.1
 	github.com/google/go-tpm-tools v0.4.4
-	github.com/google/logger v1.1.1
 	github.com/gorilla/mux v1.8.1
 	github.com/gorilla/websocket v1.5.3
 	github.com/naoina/toml v0.1.2-0.20170918210437-9fafd6967416
@@ -46,6 +45,7 @@ require (
 	github.com/google/go-sev-guest v0.9.3 // indirect
 	github.com/google/go-tdx-guest v0.3.1 // indirect
 	github.com/google/go-tpm v0.9.0 // indirect
+	github.com/google/logger v1.1.1 // indirect
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/holiman/uint256 v1.3.2 // indirect
 	github.com/jinzhu/inflection v1.0.0 // indirect
@@ -61,7 +61,6 @@ require (
 	github.com/yusufpapurcu/wmi v1.2.4 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	go.uber.org/zap v1.27.0 // indirect
-	golang.org/x/net v0.39.0 // indirect
 	golang.org/x/sync v0.13.0 // indirect
 	golang.org/x/sys v0.32.0 // indirect
 	golang.org/x/text v0.24.0 // indirect

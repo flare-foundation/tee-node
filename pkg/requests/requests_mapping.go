@@ -7,6 +7,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/instruction"
+	"github.com/pkg/errors"
 	"golang.org/x/exp/slices"
 )
 
@@ -59,4 +60,32 @@ func ProcessInstructionIdMapping(instructionData *instruction.DataFixed) {
 	}
 
 	instructionIdToHash.Map[instructionData.InstructionID] = append(instructionIdToHash.Map[instructionData.InstructionID], instructionHash)
+}
+
+func GetFinalizedRequestWithId(instructionId string) (*RequestCounter, error) {
+	requestsWithId, ok := GetHashesWithId(instructionId)
+	if !ok {
+		return nil, errors.New("request not found")
+	}
+
+	// find the request that was finalized
+	var requestCounterFinalized *RequestCounter
+	for _, instructionHash := range requestsWithId {
+		requestCounter, exists := GetRequestCounterByHash(instructionHash)
+		// these error should not happen
+		if !exists {
+			return nil, errors.New("request non existent")
+		}
+		if !requestCounter.Done {
+			continue
+		} else {
+			requestCounterFinalized = requestCounter
+			break
+		}
+	}
+	if requestCounterFinalized == nil {
+		return nil, errors.New("request not finalized")
+	}
+
+	return requestCounterFinalized, nil
 }

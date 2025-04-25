@@ -45,9 +45,10 @@ for config in "${client_configs[@]}"; do
     echo "Active EpochID: $active_epoch"
 
     command_output=$(go run tests/client/cmd/main.go \
-        --call node_attestation \
+        --call node_info \
         --config "$config")  
 
+    echo "$command_output"
     tee_id=$(echo "$command_output" | grep -o "TeeId: [^,]*" | cut -d' ' -f2)  
     pub_key=$(echo "$command_output" | grep -o "PubKey: [^,]*" | cut -d' ' -f2)  
 

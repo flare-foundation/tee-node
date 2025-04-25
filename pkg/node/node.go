@@ -2,46 +2,51 @@ package node
 
 import (
 	"crypto/ecdsa"
+	"tee-node/api/types"
 	"tee-node/pkg/utils"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
 )
 
-var nodeId = NodeId{}
+var node = Node{}
 
 const (
 	operationalStatus     = "operational"
 	pausedForUpdateStatus = "paused_for_update"
 )
 
-type NodeId struct {
-	Id            common.Address // The ethereum address of the node, derived from the SignatureKey
-	Status        string
-	EncryptionKey utils.EncryptionKey // used for encrypted communication between TEE nodes over websocket
-	SignatureKey  *ecdsa.PrivateKey   //todo: will be used for the TLS certificate I think?
+type Node struct {
+	TeeId      common.Address // The ethereum address of the node, derived from the PrivateKey
+	Status     string
+	PrivateKey *ecdsa.PrivateKey
+}
+
+type NodeInfo struct {
+	TeeId     common.Address // The ethereum address of the node, derived from the PrivateKey
+	Status    string
+	PublicKey types.ECDSAPublicKey
 }
 
 func InitNode() error {
 	var err error
-	nodeId.SignatureKey, err = utils.GenerateEthereumPrivateKey()
+	node.PrivateKey, err = utils.GenerateEthereumPrivateKey()
 	if err != nil {
 		return err
 	}
 
-	address := crypto.PubkeyToAddress(nodeId.SignatureKey.PublicKey)
-	nodeId.Id = address
+	address := crypto.PubkeyToAddress(node.PrivateKey.PublicKey)
+	node.TeeId = address
 
-	nodeId.EncryptionKey, err = utils.GenerateEncryptionKeyPair()
-	if err != nil {
-		return err
-	}
-
-	nodeId.Status = operationalStatus
+	node.Status = operationalStatus
 
 	return nil
 }
 
-func GetNodeId() NodeId {
-	return nodeId
+func GetNodeInfo() NodeInfo {
+	return NodeInfo{TeeId: node.TeeId, Status: node.Status, PublicKey: types.PubKeyToBytes(&node.PrivateKey.PublicKey)}
+}
+
+func GetTeeId() common.Address {
+	return node.TeeId
 }

@@ -2,17 +2,14 @@ package utils
 
 import (
 	"bytes"
-	"context"
 	"crypto/ecdsa"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
 	"math/big"
 	"math/rand"
 	"net/http"
-	"time"
 
 	"tee-node/pkg/config"
 	"tee-node/pkg/policy"
@@ -22,9 +19,6 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
-	"google.golang.org/grpc/keepalive"
 
 	api "tee-node/api/types"
 )
@@ -42,10 +36,7 @@ func GenerateRandomValidPolicyAndSigners(epochId uint32, randSeed int64, numVote
 
 	pubKeys := make([]api.ECDSAPublicKey, len(voters))
 	for i, voter := range voters {
-		pubKeys[i] = api.ECDSAPublicKey{
-			X: pubKeysMap[voter].X.String(),
-			Y: pubKeysMap[voter].Y.String(),
-		}
+		pubKeys[i] = api.PubKeyToBytes(pubKeysMap[voter])
 	}
 
 	return &initialPolicy, initialPolicyBytes, voters, privKeys, pubKeys, nil
@@ -71,16 +62,6 @@ func GenerateRandomMultiSignedPolicyArray(epochId uint32, randSeed int64, voters
 		multiSignedPolicyArray = append(multiSignedPolicyArray, policySignatures)
 	}
 
-	// // Print the weights of the signers in the last policy
-	// lastPolicy := multiSignedPolicyArray[len(multiSignedPolicyArray)-1]
-	// decodedPolicy, _ := policy.DecodeSigningPolicy(lastPolicy.PolicyBytes)
-	// signers := decodedPolicy.Voters
-	// weights := decodedPolicy.Weights
-
-	// for i := 0; i < len(signers); i++ {
-	// 	fmt.Printf("Signer: %v, Weight: %v\n", signers[i], weights[i])
-	// }
-
 	return multiSignedPolicyArray, nil
 }
 
@@ -95,10 +76,7 @@ func BuildMultiSignedPolicy(policyBytes []byte, voterPrivKeys []*ecdsa.PrivateKe
 		}
 
 		PolicySignatureMessages = append(PolicySignatureMessages, &api.SignatureMessage{
-			PublicKey: &api.ECDSAPublicKey{
-				X: voterPrivKey.PublicKey.X.String(),
-				Y: voterPrivKey.PublicKey.Y.String(),
-			},
+			PublicKey: api.PubKeyToBytes(&voterPrivKey.PublicKey),
 			Signature: sig,
 		})
 
@@ -179,7 +157,7 @@ func GenerateRandomPolicyData(rewardEpochId uint32, voters []common.Address, see
 
 // Loop through the voters and weights and calculate the total weight
 // return the index of the voter at which the accumulaterd voterWeight passes the threshold
-func GetTresholdRechedVoterIndex(nextPolicy *policy.SigningPolicy, voterPrivKeys []*ecdsa.PrivateKey) (int, uint16) {
+func GetThresholdReachedVoterIndex(nextPolicy *policy.SigningPolicy, voterPrivKeys []*ecdsa.PrivateKey) (int, uint16) {
 
 	var weightSum uint16 = 0
 	for i := 0; i < len(voterPrivKeys); i++ {
@@ -229,6 +207,7 @@ func ResetTEEState() {
 	requests.DestroyGarbageCollector()
 	requests.ClearRateLimiterState()
 	wallets.DestroyState()
+	wallets.DestroyGarbageCollector()
 
 	// TODO: Reset any other state that might interfere with the tests
 }
@@ -319,50 +298,6 @@ func UnmarshalProviders(jsonData []byte) (*Providers, error) {
 	}
 
 	return &Providers{Voters: voters, PrivKeys: privKeys}, nil
-}
-
-func NewGRPCClient(target string) (*grpc.ClientConn, error) {
-	// Create slice for dial options
-	var opts []grpc.DialOption
-
-	// 1. Basic options
-	opts = append(opts,
-		grpc.WithTransportCredentials(insecure.NewCredentials()), // Only for development
-		grpc.WithIdleTimeout(60*time.Second),                     // Idle timeout (close connection if idle)
-		grpc.WithUnaryInterceptor(ClientLoggingInterceptor),      // Log requests
-		grpc.WithKeepaliveParams(keepalive.ClientParameters{
-			Time:                10 * time.Second, // send pings every 10 seconds if there is no activity
-			Timeout:             5 * time.Second,  // wait 5 seconds for ping response
-			PermitWithoutStream: true,             // allow pings even without active streams
-		}),
-		grpc.WithDefaultServiceConfig(`{  
-            "methodConfig": [{  
-                 "name": [  
-                {"service": "signing.SigningService"},  
-                {"service": "attestation.AttestationService"}  
-            ],  
-                "waitForReady": true,  
-                "retryPolicy": {  
-                    "MaxAttempts": 3,  
-                    "InitialBackoff": "0.1s",  
-                    "MaxBackoff": "1s",  
-                    "BackoffMultiplier": 2.0,  
-                    "RetryableStatusCodes": ["UNAVAILABLE"]  
-                }  
-            }]  
-        }`), // Retry policy
-	)
-
-	// Connect to the server
-	return grpc.NewClient(target, opts...)
-}
-
-// ClientLoggingInterceptor logs client requests
-func ClientLoggingInterceptor(ctx context.Context, method string, req, reply interface{}, cc *grpc.ClientConn, invoker grpc.UnaryInvoker, opts ...grpc.CallOption) error {
-	start := time.Now()
-	err := invoker(ctx, method, req, reply, cc, opts...)
-	log.Printf("method: %s, duration: %v, error: %v", method, time.Since(start), err)
-	return err
 }
 
 func Post[R any](url string, req any) (R, error) {

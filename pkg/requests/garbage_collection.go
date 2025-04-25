@@ -18,6 +18,7 @@ func init() {
 }
 
 // TODO: Check thread safety?
+// TODO: also InstructionIdToHashes needs to have garbage collection 
 // GarbageCollector handles periodic cleanup of completed/expired requests
 type GarbageCollector struct {
 	UncompletedRequestQueue *arrayqueue.Queue // Time-ordered request queue for uncompleted requests (rapidly changing)

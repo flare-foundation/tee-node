@@ -2,7 +2,6 @@ package utils
 
 import (
 	"crypto/rand"
-	"fmt"
 	"math/big"
 	"testing"
 
@@ -14,13 +13,13 @@ func TestSplitAndCombineShamirShares(t *testing.T) {
 	val, err := rand.Int(rand.Reader, P)
 	assert.NoError(t, err)
 
-	numShares := 5
-	threshold := 3
+	numShares := uint64(5)
+	threshold := uint64(3)
 
 	shares, err := SplitToShamirShares(val, numShares, threshold)
 	assert.NoError(t, err)
-	assert.Len(t, shares, numShares)
-	fmt.Println(shares)
+	assert.Len(t, shares, int(numShares))
+
 	// Test case 2: Reconstruct secret from shares
 	reconstructedSecret, err := CombineShamirShares(shares[:threshold])
 	assert.NoError(t, err)
@@ -29,8 +28,8 @@ func TestSplitAndCombineShamirShares(t *testing.T) {
 
 func TestSplitToShamirShares_ThresholdGreaterThanNumShares(t *testing.T) {
 	val := big.NewInt(1234567890)
-	numShares := 3
-	threshold := 4 // Threshold is greater than number of shares
+	numShares := uint64(3)
+	threshold := uint64(4) // Threshold is greater than number of shares
 
 	shares, err := SplitToShamirShares(val, numShares, threshold)
 	assert.Error(t, err)
@@ -40,12 +39,12 @@ func TestSplitToShamirShares_ThresholdGreaterThanNumShares(t *testing.T) {
 func TestCombineShamirShares_DoubleShareError(t *testing.T) {
 	// Custom test case to simulate double share error
 	val := big.NewInt(1234567890)
-	numShares := 3
-	threshold := 2
+	numShares := uint64(3)
+	threshold := uint64(2)
 
 	shares, err := SplitToShamirShares(val, numShares, threshold)
 	assert.NoError(t, err)
-	assert.Len(t, shares, numShares)
+	assert.Len(t, shares, int(numShares))
 
 	// Introduce a double share error by modifying the shares manually
 	shares[1].X = shares[0].X

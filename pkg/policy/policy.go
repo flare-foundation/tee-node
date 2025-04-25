@@ -6,6 +6,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/pkg/errors"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -35,6 +36,28 @@ func GetActiveSigningPolicy() *SigningPolicy {
 	defer signingPoliciesStorage.RUnlock()
 
 	return signingPoliciesStorage.ActiveSigningPolicy
+}
+
+func GetActiveSigningPolicyPublicKeysMap() map[common.Address]*ecdsa.PublicKey {
+	signingPoliciesStorage.RLock()
+	defer signingPoliciesStorage.RUnlock()
+
+	return signingPoliciesStorage.ActiveSigningPolicyPublicKeys
+}
+
+func GetSigningPolicyPublicKeys(policy *SigningPolicy, pubKeysMap map[common.Address]*ecdsa.PublicKey) ([]*ecdsa.PublicKey, error) {
+	pubKeys := make([]*ecdsa.PublicKey, len(policy.Voters))
+	// todo: check to prevent fail
+	var ok bool
+	for i, address := range policy.Voters {
+		pubKeys[i], ok = pubKeysMap[address]
+		// this should never happen
+		if !ok {
+			return nil, errors.New("address not in policy public key map, internal error")
+		}
+	}
+
+	return pubKeys, nil
 }
 
 func SigningPolicyBytesToHash(signingPolicy []byte) []byte {
@@ -83,11 +106,22 @@ func VerifyPolicyFreshness(sigPolicy *SigningPolicy, currentRewardEpochId uint32
 	return nil
 }
 
+func SetActiveSigningPolicyAndPubKeys(policy *SigningPolicy, addressesToPublicKeys map[common.Address]*ecdsa.PublicKey) {
+	signingPoliciesStorage.Lock()
+	defer signingPoliciesStorage.Unlock()
+
+	signingPoliciesStorage.ActiveSigningPolicy = policy
+	signingPoliciesStorage.SigningPolicies[policy.RewardEpochId] = policy
+	signingPoliciesStorage.ActiveSigningPolicyPublicKeys = addressesToPublicKeys
+}
+
+// SetActiveSigningPolicy happens only at initialize policy stage, hence does not need locking.
 func SetActiveSigningPolicy(policy *SigningPolicy) {
 	signingPoliciesStorage.ActiveSigningPolicy = policy
 	signingPoliciesStorage.SigningPolicies[policy.RewardEpochId] = policy
 }
 
+// SetActiveSigningPolicyPublicKeys happens only at initialize policy stage, hence does not need locking.
 func SetActiveSigningPolicyPublicKeys(addressesToPublicKeys map[common.Address]*ecdsa.PublicKey) {
 	signingPoliciesStorage.ActiveSigningPolicyPublicKeys = addressesToPublicKeys
 }

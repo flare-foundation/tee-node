@@ -68,8 +68,8 @@ github.com/ethereum/go-verkle v0.2.2 h1:I2W0WjnrFUIzzVPwm8ykY+7pL2d4VhlsePn4j7cn
 github.com/ethereum/go-verkle v0.2.2/go.mod h1:M3b90YRnzqKyyzBEWJGqj8Qff4IDeXnzFw0P9bFw3uk=
 github.com/ferranbt/fastssz v0.1.2 h1:Dky6dXlngF6Qjc+EfDipAkE83N5I5DE68bY6O0VLNPk=
 github.com/ferranbt/fastssz v0.1.2/go.mod h1:X5UPrE2u1UJjxHA8X54u04SBwdAQjG2sFtWs39YxyWs=
-github.com/flare-foundation/go-flare-common v1.2.1-0.20250416115124-f29af06f8331 h1:lcQECgSpa2MV01+j1VDcv/pZMYz+ZaitytYM/7CyZk8=
-github.com/flare-foundation/go-flare-common v1.2.1-0.20250416115124-f29af06f8331/go.mod h1:97gUol/V71svGZlXZy6V0Z1fS1prACgzFEhJfNzcGUc=
+github.com/flare-foundation/go-flare-common v1.2.1-0.20250417122202-9aad0d831b94 h1:EHphdJdBcr8T/C62/ontwxd1aoGdO1LCDAE8/ZMZp98=
+github.com/flare-foundation/go-flare-common v1.2.1-0.20250417122202-9aad0d831b94/go.mod h1:97gUol/V71svGZlXZy6V0Z1fS1prACgzFEhJfNzcGUc=
 github.com/fsnotify/fsnotify v1.9.0 h1:2Ml+OJNzbYCTzsxtv8vKSFD9PbJjmhYF14k/jKC7S9k=
 github.com/fsnotify/fsnotify v1.9.0/go.mod h1:8jBTzvmWwFyi3Pb8djgCCO5IBqzKJ/Jwo8TRcHyHii0=
 github.com/gballet/go-libpcsclite v0.0.0-20190607065134-2772fd86a8ff h1:tY80oXqGNY4FhTFhk+o9oFHGINQ/+vhlm8HFzi6znCI=

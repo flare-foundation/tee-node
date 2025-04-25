@@ -7,7 +7,6 @@ import (
 	"os/signal"
 	"strconv"
 	"syscall"
-	"tee-node/pkg/wallets"
 	"time"
 
 	"github.com/flare-foundation/go-flare-common/pkg/logger"
@@ -22,11 +21,10 @@ var WSUpgrader = websocket.Upgrader{
 	CheckOrigin:     func(r *http.Request) bool { return true },
 }
 
+// todo: this will be used for tee replication
 func LaunchWSServer(port int) {
 	r := mux.NewRouter()
 	r.HandleFunc("/hello", helloHandler)
-	r.HandleFunc("/share_wallet", GetShares)
-	r.HandleFunc("/recover_wallet", RecoverShare)
 
 	server := &http.Server{
 		Addr:         ":" + strconv.Itoa(port),
@@ -58,34 +56,4 @@ func LaunchWSServer(port int) {
 
 func helloHandler(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintf(w, "Hello!")
-}
-
-func GetShares(w http.ResponseWriter, r *http.Request) {
-	conn, err := WSUpgrader.Upgrade(w, r, nil)
-	if err != nil {
-		logger.Errorf("failed ws connection upgrade: %s", err)
-		return
-	}
-	defer conn.Close()
-
-	err = wallets.GetShares(conn)
-	if err != nil {
-		logger.Errorf("failed get shares protocol: %s", err)
-		return
-	}
-}
-
-func RecoverShare(w http.ResponseWriter, r *http.Request) {
-	conn, err := WSUpgrader.Upgrade(w, r, nil)
-	if err != nil {
-		logger.Errorf("failed ws connection upgrade: %s", err)
-		return
-	}
-	defer conn.Close()
-
-	err = wallets.RecoverShare(conn)
-	if err != nil {
-		logger.Errorf("failed get shares protocol: %s", err)
-		return
-	}
 }

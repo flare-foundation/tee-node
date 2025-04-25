@@ -181,12 +181,9 @@ func CreateInitializePolicyRequest(policies []*relay.RelaySigningPolicyInitializ
 			if weight == 0 {
 				continue
 			}
-
+			newPubKey := api.PubKeyToBytes(pubKey)
 			mes := api.SignatureMessage{
-				PublicKey: &api.ECDSAPublicKey{
-					X: pubKey.X.String(),
-					Y: pubKey.Y.String(),
-				},
+				PublicKey: newPubKey,
 				Signature: sig.Sig,
 			}
 			policySignatureRequests = append(policySignatureRequests, &mes)
@@ -202,10 +199,7 @@ func CreateInitializePolicyRequest(policies []*relay.RelaySigningPolicyInitializ
 
 	pubKeys := make([]api.ECDSAPublicKey, len(policies[len(policies)-1].Voters))
 	for i, voter := range policies[len(policies)-1].Voters {
-		pubKeys[i] = api.ECDSAPublicKey{
-			X: pubKeysMap[voter].X.String(),
-			Y: pubKeysMap[voter].Y.String(),
-		}
+		pubKeys[i] = api.PubKeyToBytes(pubKeysMap[voter])
 	}
 
 	req := &api.InitializePolicyRequest{

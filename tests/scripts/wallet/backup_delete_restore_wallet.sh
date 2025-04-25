@@ -31,13 +31,17 @@ node_id=$(echo "$node_info_json" | jq -r --argjson idx1 0 '.[$idx1] | .tee_id')
 active_policy_json=$(<"tests/scripts/generated/active_policy.json")
 epoch_id=$(echo "$active_policy_json" | jq -r '.epochId')
 
-# backup wallet
-instruction_id=$(shuf -i 1-1000000 -n 1)
-for j in {0..2}; do   
-    go run tests/client/cmd/main.go --call split_wallet --provider $j --walletid "0x6969" --keyid "6969" --backupid "6969" \
-    --instructionid "$instruction_id" --arg1 "$backup_node_infos" --teeid $node_id --rewardepochid "$epoch_id" \
-    --config $config_file
-done
+wallet_info=$(go run tests/client/cmd/main.go \
+    --call wallet_info \
+    --walletid "0x6969" --keyid "6969" \
+    --config "$config_file" )
+
+public_key=$(echo "$wallet_info" | grep -o "PublicKey: [^,]*" | cut -d' ' -f2)  
 
 
+# download backup
+go run tests/client/cmd/main.go --call save_wallet_backup --walletid "0x6969" --keyid "6969" \
+ --teeid $node_id --rewardepochid $epoch_id --pubkey "$public_key" --config $config_file
 
+
+# delete, restore todo

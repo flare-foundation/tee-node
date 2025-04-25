@@ -13,11 +13,10 @@ type GetNodeInfoRequest struct {
 }
 
 type GetNodeInfoData struct {
-	Id     common.Address
+	TeeId  common.Address
 	Status string
 
-	EncryptionPublicKey string
-	SigningPublicKey    ECDSAPublicKey
+	PublicKey ECDSAPublicKey
 
 	SigningPolicyHash string
 }

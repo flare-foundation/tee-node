@@ -20,7 +20,6 @@ func TestInitializePolicy(t *testing.T) {
 	// Generate random voters and corresponding private keys
 	numVoters = 100
 	voters, privKeys, pubKeysMap := testutils.GenerateRandomVoters(numVoters)
-
 	// Generate a random initial policy
 	randSeed := int64(12345)
 	epochId := uint32(1)
@@ -54,10 +53,7 @@ func TestInitializePolicy(t *testing.T) {
 
 	pubKeys := make([]api.ECDSAPublicKey, len(voters))
 	for i, voter := range voters {
-		pubKeys[i] = api.ECDSAPublicKey{
-			X: pubKeysMap[voter].X.String(),
-			Y: pubKeysMap[voter].Y.String(),
-		}
+		pubKeys[i] = api.PubKeyToBytes(pubKeysMap[voter])
 	}
 
 	req := &api.InitializePolicyRequest{

@@ -3,7 +3,6 @@ package signinginstruction
 import (
 	"crypto/ecdsa"
 	"encoding/hex"
-	"math/big"
 	"testing"
 
 	"tee-node/pkg/node"
@@ -21,19 +20,19 @@ import (
 )
 
 var mockWalletId = common.HexToHash("0xabcdef")
-var mockKeyId = big.NewInt(1)
+var mockKeyId = uint64(1)
 
 // Send enough signatures for the payment hash, to pass the threshold.
 func TestSendManyPaymentSignatures(t *testing.T) {
 	defer testutils.ResetTEEState() // Reset the state of the TEE after the test
 	err := node.InitNode()
 	require.NoError(t, err)
-	myNodeId := node.GetNodeId()
+	myNodeId := node.GetTeeId()
 
 	numVoters, randSeed, epochId := 100, int64(12345), uint32(1)
 	_, _, privKeys := testutils.GenerateAndSetInitialPolicy(numVoters, randSeed, epochId)
 
-	testutils.CreateMockWallet(t, myNodeId.Id, mockWalletId, mockKeyId.String(), privKeys, policy.GetActiveSigningPolicy().RewardEpochId)
+	testutils.CreateMockWallet(t, myNodeId, mockWalletId, mockKeyId, privKeys, policy.GetActiveSigningPolicy().RewardEpochId)
 
 	paymentHash := "560ccd6e79ba7166e82dbf2a5b9a52283a509b63c39d4a4cc7164db3e43484c4"
 
@@ -63,12 +62,12 @@ func TestGetSignatureApi(t *testing.T) {
 	defer testutils.ResetTEEState() // Reset the state of the TEE after the test
 	err := node.InitNode()
 	require.NoError(t, err)
-	myNodeId := node.GetNodeId()
+	myNodeId := node.GetTeeId()
 
 	numVoters, randSeed, epochId := 100, int64(12345), uint32(1)
 	_, _, privKeys := testutils.GenerateAndSetInitialPolicy(numVoters, randSeed, epochId)
 
-	testutils.CreateMockWallet(t, myNodeId.Id, mockWalletId, mockKeyId.String(), privKeys, policy.GetActiveSigningPolicy().RewardEpochId)
+	testutils.CreateMockWallet(t, myNodeId, mockWalletId, mockKeyId, privKeys, policy.GetActiveSigningPolicy().RewardEpochId)
 
 	paymentHash := "560ccd6e79ba7166e82dbf2a5b9a52283a509b63c39d4a4cc7164db3e43484c4"
 
@@ -123,7 +122,7 @@ func TestSigning(t *testing.T) {
 
 // * —————————————————————————————————————————————————————————————————————————————————————————— * //
 
-func verifyPaymentRequestSignature(t *testing.T, paymentHash []byte, txnSignature []byte, walletId common.Hash, keyId *big.Int) bool {
+func verifyPaymentRequestSignature(t *testing.T, paymentHash []byte, txnSignature []byte, walletId common.Hash, keyId uint64) bool {
 	pubKey, err := wallets.GetPublicKey(wallets.WalletKeyIdPair{WalletId: walletId, KeyId: keyId})
 	require.NoError(t, err)
 

@@ -5,6 +5,7 @@ import (
 	"math/big"
 
 	"github.com/ethereum/go-ethereum/crypto/secp256k1"
+	"github.com/flare-foundation/go-flare-common/pkg/tee/structs/wallet"
 	"github.com/pkg/errors"
 )
 
@@ -16,26 +17,39 @@ type ResponseBase struct {
 
 type SignatureMessage struct {
 	Signature []byte
-	PublicKey *ECDSAPublicKey
+	PublicKey ECDSAPublicKey
 }
 
-// todo: x and y should be changed to [32]bytes
-type ECDSAPublicKey struct {
-	X string
-	Y string
-}
+type ECDSAPublicKey wallet.PublicKey
 
-func (key ECDSAPublicKey) ToPubKey() (*ecdsa.PublicKey, error) {
-	x, check := new(big.Int).SetString(key.X, 10)
+// todo: this should be in go-common
+func ParsePubKey(key ECDSAPublicKey) (*ecdsa.PublicKey, error) {
+	x := new(big.Int).SetBytes(key.X[:])
+	y := new(big.Int).SetBytes(key.Y[:])
+	check := secp256k1.S256().IsOnCurve(x, y)
 	if !check {
-		return nil, errors.New("failed to unpack ecdsa key")
-	}
-	y, check := new(big.Int).SetString(key.Y, 10)
-	if !check {
-		return nil, errors.New("failed to unpack ecdsa key")
+		return nil, errors.New("invalid public key bytes")
 	}
 
 	return &ecdsa.PublicKey{Curve: secp256k1.S256(), X: x, Y: y}, nil
+}
+
+func PubKeyToBytes(key *ecdsa.PublicKey) ECDSAPublicKey {
+	var newKey ECDSAPublicKey
+	xBytes := key.X.Bytes()
+	yBytes := key.Y.Bytes()
+
+	if len(xBytes) < 32 {
+		xBytes = append(make([]byte, 32-len(xBytes)), xBytes...)
+	}
+	if len(yBytes) < 32 {
+		yBytes = append(make([]byte, 32-len(yBytes)), yBytes...)
+	}
+
+	copy(newKey.X[:], xBytes)
+	copy(newKey.Y[:], yBytes)
+
+	return newKey
 }
 
 type ResponseMessage struct {

@@ -2,8 +2,7 @@ package types
 
 type InstructionResponse struct {
 	ResponseBase
-	Data      []byte // TODO: is it needed?
-	Finalized bool   // Note: leaving this in for now, because it's used in the tests
+	Finalized bool // Note: leaving this in for now, because it's used in the tests
 }
 
 type InstructionResultRequest struct {

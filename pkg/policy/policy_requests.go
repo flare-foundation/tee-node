@@ -73,24 +73,17 @@ finalize:
 	return nil
 }
 
-func UpdatePolicyRequest(newPolicyRequest api.MultiSignedPolicy, publicKeys []api.ECDSAPublicKey) error {
-	// no other process should be touching signingPoliciesStorage during this execution
-	signingPoliciesStorage.Lock()
-	defer signingPoliciesStorage.Unlock()
-
+func UpdatePolicyRequest(newPolicyRequest api.MultiSignedPolicy, publicKeys []api.ECDSAPublicKey) (*SigningPolicy, map[common.Address]*ecdsa.PublicKey, error) {
 	newPolicy, err := ProcessUpdatePolicyRequest(newPolicyRequest)
 	if err != nil {
-		return err
+		return nil, nil, err
 	}
 	pubKeysMap, err := ProcessPolicyPublicKeys(publicKeys, newPolicy)
 	if err != nil {
-		return err
+		return nil, nil, err
 	}
 
-	SetActiveSigningPolicy(newPolicy)
-	SetActiveSigningPolicyPublicKeys(pubKeysMap)
-
-	return nil
+	return newPolicy, pubKeysMap, nil
 }
 
 func ProcessUpdatePolicyRequest(policyRequest api.MultiSignedPolicy) (*SigningPolicy, error) {
@@ -114,7 +107,7 @@ func ProcessUpdatePolicyRequest(policyRequest api.MultiSignedPolicy) (*SigningPo
 	}
 
 	if WeightOfSigners(signers, activeSigningPolicy) < activeSigningPolicy.Threshold {
-		return nil, errors.New("threshold not reached")
+		return nil, errors.New("threshold for updating policy not reached")
 	}
 
 	return sigPolicy, nil
@@ -126,7 +119,7 @@ func ProcessPolicyPublicKeys(publicKeys []api.ECDSAPublicKey, sigPolicy *Signing
 	}
 	pubKeysMap := make(map[common.Address]*ecdsa.PublicKey)
 	for i, pubKey := range publicKeys {
-		pubKeyECDSA, err := pubKey.ToPubKey()
+		pubKeyECDSA, err := api.ParsePubKey(pubKey)
 		if err != nil {
 			return nil, err
 		}

@@ -1,402 +1,435 @@
 package wallets
 
 import (
+	"crypto/ecdsa"
 	"crypto/rand"
-	"encoding/hex"
 	"encoding/json"
-	"fmt"
-	"io"
-	"math/big"
-	"sync"
 	api "tee-node/api/types"
-	"tee-node/pkg/attestation"
-	"tee-node/pkg/config"
 	"tee-node/pkg/node"
-	"tee-node/pkg/requests"
 	"tee-node/pkg/utils"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/crypto/ecies"
 	"github.com/pkg/errors"
-
-	"github.com/flare-foundation/go-flare-common/pkg/logger"
-	"github.com/flare-foundation/go-flare-common/pkg/tee/instruction"
-	"github.com/gorilla/websocket"
-	"golang.org/x/crypto/nacl/box"
 )
 
-var backupWalletsStorage = InitBackupWalletsStorage()
-
-// BackupWalletsStorage is a structure that holds wallet shares for backup purposes.
-type BackupWalletsStorage struct {
-	// Storage maps a combination of BackupId, WalletId, and KeyId to a map of share IDs to WalletShares.
-	Storage map[string]map[string]WalletShare
-
-	sync.Mutex
+type WalletBackup struct {
+	WalletBackupMetaData
+	AdminEncryptedParts     *EncryptedShares
+	ProvidersEncryptedParts *EncryptedShares
+	Signature               []byte
 }
 
-// BackupWalletKeyIdTriple is a struct used to uniquely identify a wallet backup.
-type BackupWalletKeyIdTriple struct {
-	BackupId *big.Int
-	WalletId common.Hash
-	KeyId    *big.Int
+type WalletBackupMetaData struct {
+	WalletBackupId
+	OpTypeConstants []byte
+
+	AdminsPublicKeys   []api.ECDSAPublicKey
+	AdminsThreshold    uint64
+	ProvidersThreshold uint64
+	Cosigners          []common.Address
+	CosignersThreshold uint64
 }
 
-func (b *BackupWalletKeyIdTriple) Id() string {
-	return fmt.Sprintf("%v:%v:%v", b.BackupId.String(), b.WalletId.Hex(), b.KeyId.String())
+type WalletBackupId struct {
+	TeeId     common.Address
+	WalletId  common.Hash
+	KeyId     uint64
+	PublicKey api.ECDSAPublicKey
+
+	OpType        [32]byte
+	RewardEpochID uint32
 }
 
-func InitBackupWalletsStorage() BackupWalletsStorage {
-	return BackupWalletsStorage{Storage: make(map[string]map[string]WalletShare)}
+type EncryptedShares struct {
+	Splits           [][]byte
+	OwnersPublicKeys []api.ECDSAPublicKey
+	Threshold        uint64
+	PublicKey        api.ECDSAPublicKey
+	Weights          []uint16
 }
 
-type AttestationRequest struct {
-	Nonce  string
-	NodeId string // todo: it should be signed by data providers
+type KeySplit struct {
+	KeySplitData
+	Signature []byte
 }
 
-type AttestationResponse struct {
-	Token string
-	Nonce string
+type KeySplitData struct {
+	Shares                []utils.ShamirShare
+	PartialWalletBackupId // todo: maybe just add hash of this here
+	OwnerPublicKey        api.ECDSAPublicKey
 }
 
-// SendShare sends a wallet share to another node over a WebSocket connection.
-// Parameters:
-// - conn: The WebSocket connection to use for sending the share.
-// - share: The WalletShare to be sent.
-// - outNodeId: The ID of the node receiving the share.
-// - pubKey: The public key of the receiving node.
-// - instructionData: The instruction data associated with the share.
-// - signatures: Digital signatures for the operation.
-// todo: Add instruction and signatures check also by receiving nodes? at least code version of the receiving nodes?
-func SendShare(conn *websocket.Conn, share *WalletShare, outNodeId, outPubKey string, instructionData *instruction.DataFixed, signatures [][]byte) error {
-	myNode := node.GetNodeId()
+type PartialWalletBackupId struct {
+	WalletBackupId
+	PartialPubKey api.ECDSAPublicKey
+}
 
-	err := StartMutualAttestation(conn, myNode.Id.Hex(), outNodeId)
+func (backupId *WalletBackupId) Hash() common.Hash {
+	backupIdBytes, _ := json.Marshal(backupId) // todo: check that this cannot be error
+	hash := crypto.Keccak256Hash(backupIdBytes)
+
+	return hash
+}
+
+func (keySplitData *KeySplitData) HashForSigning() (common.Hash, error) {
+	keyDataBytes, err := json.Marshal(keySplitData)
+	if err != nil {
+		return common.Hash{}, err
+	}
+	hash := crypto.Keccak256Hash(keyDataBytes)
+
+	return hash, nil
+}
+
+func (keySplitData *KeySplitData) Sign(privKey *ecdsa.PrivateKey) ([]byte, error) {
+	hash, err := keySplitData.HashForSigning()
+	if err != nil {
+		return nil, err
+	}
+
+	signature, err := utils.Sign(hash[:], privKey)
+	if err != nil {
+		return nil, err
+	}
+
+	return signature, nil
+}
+
+func (keySplitData *KeySplit) VerifySignature() error {
+	hash, err := keySplitData.HashForSigning()
 	if err != nil {
 		return err
 	}
 
-	shareBytes, err := json.Marshal(share)
+	pubKeyParsed, err := api.ParsePubKey(keySplitData.PublicKey)
 	if err != nil {
 		return err
 	}
+	mainKeyAddress := crypto.PubkeyToAddress(*pubKeyParsed)
 
-	pubKeyBytes, err := hex.DecodeString(outPubKey)
-	if err != nil {
-		return err
-	}
-	pk := [32]byte(pubKeyBytes)
-
-	encrypted, err := box.SealAnonymous(nil, shareBytes, &pk, rand.Reader)
-	if err != nil {
-		return err
-	}
-
-	err = conn.WriteMessage(websocket.TextMessage, encrypted)
-	if err != nil {
-		return err
-	}
-
-	logger.Infof("sent a share for wallet %s", share.WalletId)
+	err = utils.VerifySignature(hash[:], keySplitData.Signature, mainKeyAddress)
 
 	return err
 }
 
-// GetShares receives wallet shares from another node over a WebSocket connection.
-// Parameters:
-// - conn: The WebSocket connection to use for receiving the shares.
-func GetShares(conn *websocket.Conn) error {
-	myNode := node.GetNodeId()
+func (walletBackup *WalletBackup) HashForSigning() (common.Hash, error) {
+	type WalletBackupForHashing struct {
+		WalletBackupMetaData
+		AdminEncryptedParts     *EncryptedShares
+		ProvidersEncryptedParts *EncryptedShares
+	}
 
-	_, err := ReceiveMutualAttestation(conn, myNode.Id.Hex())
+	walletBackupBytes, err := json.Marshal(WalletBackupForHashing{
+		WalletBackupMetaData:    walletBackup.WalletBackupMetaData,
+		AdminEncryptedParts:     walletBackup.AdminEncryptedParts,
+		ProvidersEncryptedParts: walletBackup.ProvidersEncryptedParts,
+	})
 	if err != nil {
-		return err
+		return common.Hash{}, err
 	}
+	hash := crypto.Keccak256Hash(walletBackupBytes)
 
-	_, encryptedMsg, err := conn.ReadMessage()
-	if err != nil {
-		return err
-	}
-
-	shareBytes, ok := box.OpenAnonymous(nil, encryptedMsg, &myNode.EncryptionKey.PublicKey, &myNode.EncryptionKey.PrivateKey)
-	if !ok {
-		return errors.New("decryption failed")
-	}
-
-	walletShare := WalletShare{}
-	err = json.Unmarshal(shareBytes, &walletShare)
-	if err != nil {
-		return err
-	}
-
-	backupIdTriple := BackupWalletKeyIdTriple{WalletId: walletShare.WalletId, KeyId: walletShare.KeyId, BackupId: walletShare.BackupId}
-
-	backupWalletsStorage.Lock()
-	defer backupWalletsStorage.Unlock()
-	if _, ok := backupWalletsStorage.Storage[backupIdTriple.Id()]; !ok {
-		backupWalletsStorage.Storage[backupIdTriple.Id()] = make(map[string]WalletShare)
-	}
-	backupWalletsStorage.Storage[backupIdTriple.Id()][walletShare.Share.ID()] = walletShare
-	logger.Infof("received a share for wallet %s, id %s", walletShare.WalletId, walletShare.Share.ID())
-
-	return nil
+	return hash, nil
 }
 
-// recoverShareRequest contains information about a recover share request.
-type recoverShareRequest struct {
-	I               int                   // index of the share
-	InstructionData instruction.DataFixed // Todo: Explain this
-	Signatures      [][]byte
-}
+func (walletBackup *WalletBackup) Check() error {
+	err := walletBackup.AdminEncryptedParts.Check()
+	if err != nil {
+		return err
+	}
+	err = walletBackup.ProvidersEncryptedParts.Check()
+	if err != nil {
+		return err
+	}
 
-// Check verifies the validity of a share request.
-// Parameters:
-// - myNodeId: The ID of the current node.
-// - outNodeId: The ID of the node that sent the request.
-func (s recoverShareRequest) Check(myNodeId, outNodeId string) error {
-	instructionData := &instruction.Data{DataFixed: s.InstructionData, AdditionalVariableMessage: []byte("")} // variable part is empty
+	if walletBackup.AdminsThreshold != walletBackup.AdminEncryptedParts.Threshold {
+		return errors.New("admin threshold not matching given data")
+	}
 
-	requestCounter := requests.NewRequestCounter(instructionData, common.Address{}, config.Thresholds[utils.OpHashToString(instructionData.OPType)][utils.OpHashToString(instructionData.OPCommand)])
-	for _, signature := range s.Signatures {
-		providerAddress, err := requests.CheckSignature(instructionData, signature, requestCounter.RequestPolicy)
-		if err != nil {
-			return err
+	if walletBackup.ProvidersThreshold != walletBackup.ProvidersEncryptedParts.Threshold {
+		return errors.New("providers threshold not matching given data")
+	}
+
+	if len(walletBackup.AdminsPublicKeys) != len(walletBackup.AdminEncryptedParts.OwnersPublicKeys) {
+		return errors.New("length of admin public keys not matching given data")
+	}
+
+	for i, pubKey := range walletBackup.AdminsPublicKeys {
+		if pubKey != walletBackup.AdminEncryptedParts.OwnersPublicKeys[i] {
+			return errors.New("admin public keys not matching")
 		}
-		requestCounter.AddRequestSignature(providerAddress, signature)
-	}
-
-	thresholdReached := requestCounter.ThresholdReached()
-	if !thresholdReached {
-		return errors.New("threshold not reached")
-	}
-
-	if outNodeId != s.InstructionData.TeeID.String() {
-		return errors.New("Requester's NodeId not matching instructions")
-	}
-
-	recoverWalletRequest, err := api.NewRecoverWalletRequest(&s.InstructionData)
-	if err != nil {
-		return err
-	}
-	if recoverWalletRequest.BackupTeeMachines[s.I].TeeId.String() != myNodeId {
-		return errors.New("My NodeId not matching instructions")
 	}
 
 	return nil
 }
 
-// Extract extracts key information from a recover share request.
-// Returns:
-// - A BackupWalletKeyIdTriple identifying the wallet backup.
-// - The share ID.
-// - The public key as a string.
-func (s recoverShareRequest) Extract() (BackupWalletKeyIdTriple, string, string) {
-	recoverWalletRequest, _ := api.NewRecoverWalletRequest(&s.InstructionData) // error is already checked before
-	var additionalFixedMessage api.RecoverWalletRequestAdditionalFixedMessage
-	err := json.Unmarshal(s.InstructionData.AdditionalFixedMessage, &additionalFixedMessage)
-	if err != nil {
-		logger.Errorf("error unmarshalling additionalFixedMessage: %s", err)
+func (e *EncryptedShares) Check() error {
+	if len(e.Splits) != len(e.OwnersPublicKeys) {
+		return errors.New("the number of splits does not match the number of public keys")
+	}
+	if len(e.Splits) != len(e.Weights) {
+		return errors.New("the number of splits does not match the number of weights")
+	}
+	if uint64(utils.Sum(e.Weights)) < e.Threshold {
+		return errors.New("threshold too high")
 	}
 
-	return BackupWalletKeyIdTriple{
-			BackupId: recoverWalletRequest.BackupId,
-			WalletId: recoverWalletRequest.WalletId,
-			KeyId:    recoverWalletRequest.KeyId,
+	return nil
+}
+
+func BackupWallet(wallet *Wallet, providersPubKeys []*ecdsa.PublicKey, providersThreshold uint64, weights []uint16, rewardEpochId uint32) (*WalletBackup, error) {
+	nodeId := node.GetTeeId()
+
+	adminsPubKeys := make([]api.ECDSAPublicKey, len(wallet.AdminsPublicKeys))
+	for i, pubKey := range wallet.AdminsPublicKeys {
+		adminsPubKeys[i] = api.PubKeyToBytes(pubKey)
+	}
+
+	metaData := WalletBackupMetaData{
+		WalletBackupId: WalletBackupId{
+			TeeId:         nodeId,
+			WalletId:      wallet.WalletId,
+			KeyId:         wallet.KeyId,
+			PublicKey:     api.PubKeyToBytes(&wallet.PrivateKey.PublicKey),
+			OpType:        wallet.OpType,
+			RewardEpochID: rewardEpochId,
 		},
-		additionalFixedMessage.ShareIds[s.I],
-		hex.EncodeToString(recoverWalletRequest.PublicKey[:])
+		AdminsPublicKeys:   adminsPubKeys,
+		AdminsThreshold:    wallet.AdminsThreshold,
+		ProvidersThreshold: providersThreshold,
+		OpTypeConstants:    make([]byte, len(wallet.OpTypeConstants)),
+		Cosigners:          make([]common.Address, len(wallet.Cosigners)),
+		CosignersThreshold: wallet.CosignersThreshold,
+	}
+	copy(metaData.OpTypeConstants, wallet.OpTypeConstants)
+	copy(metaData.Cosigners, wallet.Cosigners)
 
+	splitKey, err := utils.SplitPrivateKey(wallet.PrivateKey, 2)
+	if err != nil {
+		return nil, err
+	}
+
+	weightsOne := utils.ConstantSlice(1, len(wallet.AdminsPublicKeys))
+	adminEncryptedParts, err := SplitAndEncrypt(splitKey[0], wallet.AdminsPublicKeys, wallet.AdminsThreshold, weightsOne, metaData.WalletBackupId, wallet.PrivateKey)
+	if err != nil {
+		return nil, err
+	}
+
+	providersEncryptedParts, err := SplitAndEncrypt(splitKey[1], providersPubKeys, providersThreshold, weights, metaData.WalletBackupId, wallet.PrivateKey)
+	if err != nil {
+		return nil, err
+	}
+
+	walletBackup := &WalletBackup{
+		WalletBackupMetaData:    metaData,
+		AdminEncryptedParts:     adminEncryptedParts,
+		ProvidersEncryptedParts: providersEncryptedParts,
+	}
+
+	hash, err := walletBackup.HashForSigning()
+	if err != nil {
+		return nil, err
+	}
+	walletBackup.Signature, err = utils.Sign(hash[:], wallet.PrivateKey)
+	if err != nil {
+		return nil, err
+	}
+
+	return walletBackup, nil
 }
 
-// RequestShare requests a wallet share from another node over a WebSocket connection.
-// Parameters:
-// - conn: The WebSocket connection to use for the request.
-// - outNodeId: The ID of the node to request the share from.
-// - i: The index of the share to request.
-// - instructionData: The instruction data associated with the request.
-// - signatures: Digital signatures for the operation.
-func RequestShare(conn *websocket.Conn, outNodeId common.Address, i int, instructionData *instruction.DataFixed, signatures [][]byte) (*WalletShare, error) {
-	myNode := node.GetNodeId()
+func SplitAndEncrypt(key *ecdsa.PrivateKey, encryptionPubKeys []*ecdsa.PublicKey, threshold uint64, weights []uint16, backupId WalletBackupId, sigPrivKey *ecdsa.PrivateKey) (*EncryptedShares, error) {
+	if len(encryptionPubKeys) != len(weights) {
+		return nil, errors.New("number of encryption keys and weights do not match")
+	}
 
-	err := StartMutualAttestation(conn, myNode.Id.Hex(), outNodeId.Hex())
+	var numSplits = len(encryptionPubKeys)
+
+	encryptionPubKeysApi := make([]api.ECDSAPublicKey, numSplits)
+	for i, pubKey := range encryptionPubKeys {
+		encryptionPubKeysApi[i] = api.PubKeyToBytes(pubKey)
+	}
+	encryptedShares := EncryptedShares{
+		Splits:           make([][]byte, numSplits),
+		OwnersPublicKeys: encryptionPubKeysApi,
+		Threshold:        threshold,
+		PublicKey:        api.PubKeyToBytes(&key.PublicKey),
+		Weights:          make([]uint16, numSplits),
+	}
+	copy(encryptedShares.Weights, weights)
+
+	numShares := uint64(utils.Sum(weights))
+	shamirShares, err := utils.SplitToShamirShares(key.D, numShares, threshold)
 	if err != nil {
 		return nil, err
 	}
 
-	shareReq := recoverShareRequest{
-		I:               i,
-		InstructionData: *instructionData,
-		Signatures:      signatures,
-	}
-	err = conn.WriteJSON(shareReq)
-	if err != nil {
-		return nil, err
+	weightCounter := 0
+	partialBackupId := PartialWalletBackupId{WalletBackupId: backupId, PartialPubKey: encryptedShares.PublicKey}
+	for i := range numSplits {
+		keySplitData := KeySplitData{
+			Shares:                shamirShares[weightCounter : weightCounter+int(weights[i])],
+			PartialWalletBackupId: partialBackupId,
+			OwnerPublicKey:        api.PubKeyToBytes(encryptionPubKeys[i]),
+		}
+		sig, err := keySplitData.Sign(sigPrivKey)
+		if err != nil {
+			return nil, err
+		}
+
+		keySplit := KeySplit{KeySplitData: keySplitData, Signature: sig}
+
+		plaintext, err := json.Marshal(keySplit)
+		if err != nil {
+			return nil, err
+		}
+
+		pubKey := ecies.ImportECDSAPublic(encryptionPubKeys[i])
+		cipher, err := ecies.Encrypt(rand.Reader, pubKey, plaintext, nil, nil)
+		if err != nil {
+			return nil, err
+		}
+
+		encryptedShares.Splits[i] = cipher
+		weightCounter = weightCounter + int(weights[i])
 	}
 
-	_, encryptedMsg, err := conn.ReadMessage()
-	if err != nil {
-		return nil, err
-	}
-
-	shareBytes, ok := box.OpenAnonymous(nil, encryptedMsg, &myNode.EncryptionKey.PublicKey, &myNode.EncryptionKey.PrivateKey)
-	if !ok {
-		return nil, err
-	}
-
-	walletShare := WalletShare{}
-	err = json.Unmarshal(shareBytes, &walletShare)
-	if err != nil {
-		return nil, err
-	}
-
-	return &walletShare, nil
+	return &encryptedShares, nil
 }
 
-// RecoverShare processes a request to recover a wallet share over a WebSocket connection.
-// (Called by the receiving node in the RequestShare function)
-// Parameters:
-// - conn: The WebSocket connection to use for the recovery.
-func RecoverShare(conn *websocket.Conn) error {
-	myNode := node.GetNodeId()
-
-	outNodeId, err := ReceiveMutualAttestation(conn, myNode.Id.Hex())
-	if err != nil {
-		return err
+func GetPositionRole(walletBackup *WalletBackup, pubKeyECDSA api.ECDSAPublicKey) (int, int, error) {
+	adminPos := -1
+	for i, pubKey := range walletBackup.AdminEncryptedParts.OwnersPublicKeys {
+		if pubKeyECDSA == pubKey {
+			adminPos = i
+			break
+		}
 	}
 
-	var shareReq recoverShareRequest
-	err = conn.ReadJSON(&shareReq)
-	if err != nil {
-		return err
+	provPos := -1
+	for i, pubKey := range walletBackup.ProvidersEncryptedParts.OwnersPublicKeys {
+		if pubKeyECDSA == pubKey {
+			provPos = i
+			break
+		}
+	}
+	if adminPos == -1 && provPos == -1 {
+		return adminPos, provPos, errors.New("no encrypted share for the given public key")
 	}
 
-	err = shareReq.Check(myNode.Id.Hex(), outNodeId)
-	if err != nil {
-		return err
-	}
-	backupIdTriple, shareId, pubKey := shareReq.Extract()
-
-	backupWalletsStorage.Lock()
-	defer backupWalletsStorage.Unlock()
-	walletShares, ok := backupWalletsStorage.Storage[backupIdTriple.Id()]
-	if !ok {
-		return errors.New("no backup share of wallet with given name")
-	}
-	walletShare, ok := walletShares[shareId]
-	if !ok {
-		return errors.New("no backup share of wallet with given Id")
-	}
-
-	shareBytes, err := json.Marshal(walletShare)
-	if err != nil {
-		return err
-	}
-	pubKeyBytes, err := hex.DecodeString(pubKey)
-	if err != nil {
-		return err
-	}
-	pk := [32]byte(pubKeyBytes)
-
-	encrypted, err := box.SealAnonymous(nil, shareBytes, &pk, rand.Reader)
-	if err != nil {
-		return err
-	}
-
-	err = conn.WriteMessage(websocket.TextMessage, encrypted)
-	if err != nil {
-		return err
-	}
-
-	logger.Infof("provided a share for wallet %s", walletShare.WalletId)
-
-	return nil
+	return adminPos, provPos, nil
 }
 
-// StartMutualAttestation initiates a mutual attestation process with another node.
-// Parameters:
-// - conn: The WebSocket connection to use for the attestation.
-// - myNodeId: The ID of the current node.
-// - outNodeId: The ID of the node to attest with.
-func StartMutualAttestation(conn *websocket.Conn, myNodeId, outNodeId string) error {
-	nonce := make([]byte, 32)
-	_, err := io.ReadFull(rand.Reader, nonce)
+func DecryptSplit(encryptedShare []byte, privKeyECDSA *ecdsa.PrivateKey) (*KeySplit, error) {
+	privKeyDecryption := ecies.ImportECDSA(privKeyECDSA)
+	shareBytes, err := privKeyDecryption.Decrypt(encryptedShare, nil, nil)
 	if err != nil {
-		return fmt.Errorf("failed to create nonce: %w", err)
-	}
-	err = conn.WriteJSON(AttestationRequest{Nonce: string(nonce), NodeId: myNodeId})
-	if err != nil {
-		return err
+		return nil, err
 	}
 
-	attResp := AttestationResponse{}
-	err = conn.ReadJSON(&attResp)
+	var keySplit KeySplit
+	err = json.Unmarshal(shareBytes, &keySplit)
 	if err != nil {
-		return err
-	}
-	token, err := attestation.ValidatePKIToken(attestation.GoogleCert, attResp.Token)
-	if err != nil {
-		return err
+		return nil, err
 	}
 
-	ok, err := attestation.ValidateClaims(token, []string{string(nonce), outNodeId})
-	if !ok {
-		return err
-	}
-
-	tokenBytes, err := attestation.GetGoogleAttestationToken([]string{attResp.Nonce, myNodeId}, attestation.PKITokenType)
+	err = keySplit.VerifySignature()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	err = conn.WriteJSON(AttestationResponse{Token: string(tokenBytes)})
-	if err != nil {
-		return err
+	if !(keySplit.OwnerPublicKey == api.PubKeyToBytes(&privKeyECDSA.PublicKey)) {
+		return nil, errors.New("public key defined in the split does not match given public key")
 	}
 
-	return nil
+	return &keySplit, nil
 }
 
-// ReceiveMutualAttestation completes a mutual attestation process with another node.
-// Parameters:
-// - conn: The WebSocket connection to use for the attestation.
-// - myId: The ID of the current node.
-// Returns:
-// - The ID of the node that initiated the attestation.
-func ReceiveMutualAttestation(conn *websocket.Conn, myId string) (string, error) {
-	attReq := AttestationRequest{}
-	err := conn.ReadJSON(&attReq)
+func RecoverWallet(
+	adminsKeyShares []*KeySplit,
+	adminsPartialPublicKey api.ECDSAPublicKey,
+	adminsThreshold uint64,
+	providersKeyShares []*KeySplit,
+	providersPartialPublicKey api.ECDSAPublicKey,
+	providersThreshold uint64,
+	backupMetaData WalletBackupMetaData,
+) (*Wallet, error) {
+	adminsKey, err := JoinKeyShares(adminsKeyShares, PartialWalletBackupId{WalletBackupId: backupMetaData.WalletBackupId, PartialPubKey: adminsPartialPublicKey}, adminsThreshold)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
-	tokenBytes, err := attestation.GetGoogleAttestationToken([]string{attReq.Nonce, myId}, attestation.PKITokenType)
+	providersKey, err := JoinKeyShares(providersKeyShares, PartialWalletBackupId{WalletBackupId: backupMetaData.WalletBackupId, PartialPubKey: providersPartialPublicKey}, providersThreshold)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
-	nonce := make([]byte, 32)
-	_, err = io.ReadFull(rand.Reader, nonce)
+	key, err := utils.JoinPrivateKeys([]*ecdsa.PrivateKey{adminsKey, providersKey})
 	if err != nil {
-		return "", err
-	}
-	err = conn.WriteJSON(&AttestationResponse{Token: string(tokenBytes), Nonce: string(nonce)})
-	if err != nil {
-		return "", err
+		return nil, err
 	}
 
-	attResp := AttestationResponse{}
-	err = conn.ReadJSON(&attResp)
-	if err != nil {
-		return "", err
-	}
-	token, err := attestation.ValidatePKIToken(attestation.GoogleCert, attResp.Token)
-	if err != nil {
-		return "", err
-	}
-	ok, err := attestation.ValidateClaims(token, []string{string(nonce), attReq.NodeId})
-	if !ok {
-		return "", errors.Errorf("fail of validate %s", err)
+	if api.PubKeyToBytes(&key.PublicKey) != backupMetaData.PublicKey {
+		return nil, errors.New("private key reconstruction error: final result does not match address")
 	}
 
-	return attReq.NodeId, nil
+	sec1PubKey := utils.SerializeCompressed(&key.PublicKey)
+	xrpAddress, err := utils.GetXrpAddressFromPubkey(sec1PubKey)
+	if err != nil {
+		return nil, err
+	}
+
+	adminsPubKeys := make([]*ecdsa.PublicKey, len(backupMetaData.AdminsPublicKeys))
+	for i, pubKey := range backupMetaData.AdminsPublicKeys {
+		adminsPubKeys[i], err = api.ParsePubKey(pubKey)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return &Wallet{
+		WalletId:   backupMetaData.WalletId,
+		KeyId:      backupMetaData.KeyId,
+		PrivateKey: key,
+		Address:    crypto.PubkeyToAddress(key.PublicKey),
+		XrpAddress: xrpAddress,
+		Restored:   true,
+
+		AdminsPublicKeys:   adminsPubKeys,
+		AdminsThreshold:    backupMetaData.AdminsThreshold,
+		Cosigners:          backupMetaData.Cosigners,
+		CosignersThreshold: backupMetaData.CosignersThreshold,
+		OpType:             backupMetaData.OpType,
+		OpTypeConstants:    backupMetaData.OpTypeConstants,
+	}, nil
+}
+
+// JoinKeyShares assumes that all the splits have the same backup id and the signatures have been verified.
+func JoinKeyShares(splits []*KeySplit, backupId PartialWalletBackupId, threshold uint64) (*ecdsa.PrivateKey, error) {
+	if threshold <= 0 {
+		return nil, errors.New("threshold should be positive")
+	}
+
+	shares := make([]utils.ShamirShare, 0)
+	for _, split := range splits {
+		shares = append(shares, split.Shares...)
+	}
+
+	if uint64(len(shares)) < threshold {
+		return nil, errors.New("threshold of shares to not reached")
+	}
+	shares = shares[:threshold]
+
+	privateKeyBigInt, err := utils.CombineShamirShares(shares)
+	if err != nil {
+		return nil, err
+	}
+	privateKey := crypto.ToECDSAUnsafe(privateKeyBigInt.Bytes())
+	if api.PubKeyToBytes(&privateKey.PublicKey) != backupId.PartialPubKey {
+		return nil, err
+	}
+
+	return privateKey, nil
 }

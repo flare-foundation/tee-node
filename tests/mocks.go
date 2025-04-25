@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"math/big"
-	"strconv"
 	"tee-node/pkg/requests"
 	"tee-node/pkg/service/instructionservice/walletsinstruction"
 	"tee-node/pkg/utils"
@@ -14,6 +13,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/instruction"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/structs/wallet"
 	"github.com/stretchr/testify/require"
@@ -57,22 +57,24 @@ func BuildMockInstruction(OpType string, OpCommand string, OriginalMessage []byt
 
 }
 
-func CreateMockWallet(t *testing.T, nodeId common.Address, walletId common.Hash, keyId string, privKeys []*ecdsa.PrivateKey, rewardEpochId uint32) {
+func CreateMockWallet(t *testing.T, nodeId common.Address, walletId common.Hash, keyId uint64, privKeys []*ecdsa.PrivateKey, rewardEpochId uint32) {
 	instructionIdBytes, _ := utils.GenerateRandomBytes(32)
 
-	keyIdBig, err := strconv.ParseUint(keyId, 10, 32)
-	require.NoError(t, err)
+	adminPrivKey := crypto.ToECDSAUnsafe(big.NewInt(1).Bytes())
+	adminPubKey := wallet.PublicKey{}
+	copy(adminPubKey.X[:], adminPrivKey.PublicKey.X.Bytes())
+	copy(adminPubKey.Y[:], adminPrivKey.PublicKey.Y.Bytes())
 
 	request := wallet.ITeeWalletKeyManagerKeyGenerate{
 		TeeId:              common.HexToAddress("1234"),
 		WalletId:           walletId,
-		KeyId:              big.NewInt(int64(keyIdBig)),
+		KeyId:              keyId,
 		OpType:             utils.StringToOpHash("WALLET"),
 		OpTypeConstants:    make([]byte, 0),
-		AdminsPublicKeys:   make([]wallet.PublicKey, 0),
-		AdminsThreshold:    big.NewInt(0),
+		AdminsPublicKeys:   []wallet.PublicKey{adminPubKey},
+		AdminsThreshold:    1,
 		Cosigners:          make([]common.Address, 0),
-		CosignersThreshold: big.NewInt(0),
+		CosignersThreshold: 0,
 	}
 	encoded, err := abi.Arguments{wallet.MessageArguments[wallet.KeyGenerate]}.Pack(request)
 	require.NoError(t, err)
@@ -100,11 +102,11 @@ func BuildMockPaymentOriginalMessage(t *testing.T, mockWallet string) []byte {
 		RecipientAddress:   "0x456",
 		Amount:             big.NewInt(1000000000),
 		PaymentReference:   [32]byte{},
-		Nonce:              big.NewInt(0),
-		SubNonce:           big.NewInt(0),
+		Nonce:              uint64(0),
+		SubNonce:           uint64(0),
 		MaxFee:             big.NewInt(0),
-		MaxFeeTolerancePPM: big.NewInt(0),
-		BatchEndTs:         big.NewInt(0),
+		MaxFeeTolerancePPM: uint32(0),
+		BatchEndTs:         uint64(0),
 	}
 
 	originalMessageEncoded, err := abi.Arguments{commonpayment.MessageArguments[commonpayment.Pay]}.Pack(originalMessage)

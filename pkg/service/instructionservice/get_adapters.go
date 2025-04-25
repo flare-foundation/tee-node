@@ -45,28 +45,6 @@ func handleWalletGetRequest(requestCounter *requests.RequestCounter) ([]byte, er
 		// TODO:
 		return nil, nil
 
-	case "KEY_MACHINE_BACKUP":
-
-		// TODO:
-		return nil, nil
-
-	case "KEY_MACHINE_RESTORE":
-
-		// TODO:
-		return nil, nil
-
-	case "KEY_MACHINE_BACKUP_REMOVE":
-
-		return nil, status.Error(codes.Unimplemented, "WALLET KEY_MACHINE_BACKUP_REMOVE command not implemented yet")
-
-	case "KEY_CUSTODIAN_BACKUP":
-
-		return nil, status.Error(codes.Unimplemented, "WALLET KEY_CUSTODIAN_BACKUP command not implemented yet")
-
-	case "KEY_CUSTODIAN_RESTORE":
-
-		return nil, status.Error(codes.Unimplemented, "WALLET KEY_CUSTODIAN_RESTORE command not implemented yet")
-
 	default:
 		return nil, status.Error(codes.Unknown, "Unknown OpCommand for WALLET OpType")
 	}

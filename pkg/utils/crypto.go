@@ -5,15 +5,12 @@ import (
 	"crypto/rand"
 	"fmt"
 	"io"
-	"math/big"
 	"slices"
 
 	"github.com/btcsuite/btcd/btcec/v2"
 	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/crypto/secp256k1"
-	"github.com/flare-foundation/go-flare-common/pkg/tee/structs/wallet"
 	"github.com/pkg/errors"
 	"golang.org/x/crypto/nacl/box"
 
@@ -64,9 +61,17 @@ func CheckSignature(hash, signature []byte, voters []common.Address) (common.Add
 	return address, nil
 }
 
-// VerifySignature verifies a signature against a message hash
-func VerifySignature(pubKey *ecdsa.PublicKey, msgHash []byte, signature []byte) bool {
-	return crypto.VerifySignature(crypto.CompressPubkey(pubKey), accounts.TextHash(msgHash), signature[:len(signature)-1])
+func VerifySignature(hash, signature []byte, signerAddress common.Address) error {
+	pubKey, err := crypto.SigToPub(accounts.TextHash(hash), signature)
+	if err != nil {
+		return err
+	}
+	address := crypto.PubkeyToAddress(*pubKey)
+	if address != signerAddress {
+		return errors.New("signature check fail")
+	}
+
+	return nil
 }
 
 // NOTE: XRP and EVM signing might be combinable into one function, but it fails for now
@@ -148,12 +153,4 @@ func GenerateEncryptionKeyPair() (EncryptionKey, error) {
 	key := EncryptionKey{PrivateKey: *privKey, PublicKey: *pubKey}
 
 	return key, nil
-}
-
-// todo: this should be in go-common
-func ParsePubKey(key wallet.PublicKey) *ecdsa.PublicKey {
-	x := new(big.Int).SetBytes(key.X[:])
-	y := new(big.Int).SetBytes(key.Y[:])
-
-	return &ecdsa.PublicKey{Curve: secp256k1.S256(), X: x, Y: y}
 }

@@ -18,7 +18,9 @@ import (
 )
 
 type ValidRequestType interface {
-	instruction.Instruction | types.InstructionResultRequest | types.InitializePolicyRequest | types.GetActivePolicyRequest | types.WalletInfoRequest | types.GetNodeInfoRequest
+	instruction.Instruction | types.InstructionResultRequest | types.InitializePolicyRequest |
+		types.GetActivePolicyRequest | types.WalletInfoRequest | types.WalletGetBackupRequest |
+		types.WalletUploadBackupRequest | types.WalletGetBackupShareRequest | types.WalletUploadBackupShareRequest | types.GetNodeInfoRequest
 }
 
 func HandlerGenerator[T ValidRequestType, R any](f func(req *T) (*R, error)) http.HandlerFunc {
@@ -34,6 +36,14 @@ func HandlerGenerator[T ValidRequestType, R any](f func(req *T) (*R, error)) htt
 		maxBodySize = 1024 // 1 KB
 	case *types.WalletInfoRequest:
 		maxBodySize = 1024 // 1 KB
+	case *types.WalletGetBackupRequest:
+		maxBodySize = 1024 // 1 KB
+	case *types.WalletUploadBackupRequest:
+		maxBodySize = 1024 * 1024 // 1 MB
+	case *types.WalletGetBackupShareRequest:
+		maxBodySize = 1024 // 1 KB
+	case *types.WalletUploadBackupShareRequest:
+		maxBodySize = 200 * 1024 // 200 KB
 	case *types.GetNodeInfoRequest:
 		maxBodySize = 1024 // 1 KB
 	default:
@@ -75,7 +85,6 @@ func RegisterInstructionsRoutes(router *mux.Router) {
 	instructionsRouter.HandleFunc("", HandlerGenerator(instructionservice.SendSignedInstruction)).Methods("POST")
 	instructionsRouter.HandleFunc("/result", HandlerGenerator(instructionservice.InstructionResult)).Methods("POST")
 	instructionsRouter.HandleFunc("/status", HandlerGenerator(instructionservice.InstructionStatus)).Methods("POST")
-
 }
 
 func RegisterPolicyRoutes(router *mux.Router) {
@@ -86,7 +95,13 @@ func RegisterPolicyRoutes(router *mux.Router) {
 }
 
 func RegisterWalletRoutes(router *mux.Router) {
-	router.HandleFunc("/wallet", HandlerGenerator(walletsservice.WalletInfo)).Methods("POST")
+	walletRouter := router.PathPrefix("/wallet").Subrouter()
+
+	walletRouter.HandleFunc("", HandlerGenerator(walletsservice.WalletInfo)).Methods("POST")
+	walletRouter.HandleFunc("/get-backup", HandlerGenerator(walletsservice.WalletGetBackupPackage)).Methods("POST")
+	walletRouter.HandleFunc("/upload-backup-package", HandlerGenerator(walletsservice.WalletUploadBackupPackage)).Methods("POST")
+	walletRouter.HandleFunc("/get-backup-shares", HandlerGenerator(walletsservice.WalletGetBackupShare)).Methods("POST")
+	walletRouter.HandleFunc("/upload-backup-shares", HandlerGenerator(walletsservice.WalletUploadBackupShare)).Methods("POST")
 }
 
 func RegisterNodeRoutes(router *mux.Router) {

@@ -1,7 +1,6 @@
 package attestation
 
 import (
-	"fmt"
 	"tee-node/pkg/config"
 	"testing"
 
@@ -19,7 +18,7 @@ func TestPKIToken(t *testing.T) {
 	require.NoError(t, err)
 
 	ok, err := ValidateClaims(token, []string{})
-	fmt.Println(token.Claims.(*GoogleTeeClaims).EatNonce)
+	// fmt.Println(token.Claims.(*GoogleTeeClaims).EatNonce)
 	require.NoError(t, err)
 	require.True(t, ok)
 

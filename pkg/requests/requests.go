@@ -55,8 +55,7 @@ func CheckRequest(instructionData *instruction.Data) (bool, error) {
 		return false, errors.New("instruction data is nil")
 	}
 
-	nodeId := node.GetNodeId()
-	if instructionData.TeeID.Hex() != nodeId.Id.Hex() {
+	if instructionData.TeeID.Hex() != node.GetTeeId().Hex() {
 		return false, errors.New("invalid TEE id")
 	}
 

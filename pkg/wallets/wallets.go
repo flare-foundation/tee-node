@@ -2,9 +2,7 @@ package wallets
 
 import (
 	"crypto/ecdsa"
-	"fmt"
-	"math/big"
-	"sync"
+	"tee-node/api/types"
 	"tee-node/pkg/utils"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -13,41 +11,27 @@ import (
 	"github.com/pkg/errors"
 )
 
-var walletsStorage = InitWalletsStorage()
-
 // Wallet is a struct carrying the private key of particular wallet. It
 // should never be modified, after being created. Todo: check this
 type Wallet struct {
 	WalletId   common.Hash
-	KeyId      *big.Int
+	KeyId      uint64
 	PrivateKey *ecdsa.PrivateKey
 	Address    common.Address
 	XrpAddress string
+	Restored   bool
 
 	AdminsPublicKeys   []*ecdsa.PublicKey
-	AdminsThreshold    int
+	AdminsThreshold    uint64
 	Cosigners          []common.Address
-	CosignersThreshold int
-}
-
-type WalletsStorage struct {
-	// walletId to ShareId to WalletShare
-	Storage map[string]*Wallet
-
-	sync.Mutex
+	CosignersThreshold uint64
+	OpType             [32]byte
+	OpTypeConstants    []byte
 }
 
 type WalletKeyIdPair struct {
 	WalletId common.Hash
-	KeyId    *big.Int
-}
-
-func (w *WalletKeyIdPair) Id() string {
-	return fmt.Sprintf("%v:%v", w.WalletId.Hex(), w.KeyId.String())
-}
-
-func InitWalletsStorage() WalletsStorage {
-	return WalletsStorage{Storage: make(map[string]*Wallet)}
+	KeyId    uint64
 }
 
 func CreateNewWallet(walletInfo wallet.ITeeWalletKeyManagerKeyGenerate) (*Wallet, error) {
@@ -64,7 +48,10 @@ func CreateNewWallet(walletInfo wallet.ITeeWalletKeyManagerKeyGenerate) (*Wallet
 
 	adminsPubKeys := make([]*ecdsa.PublicKey, len(walletInfo.AdminsPublicKeys))
 	for i, key := range walletInfo.AdminsPublicKeys {
-		adminsPubKeys[i] = utils.ParsePubKey(key)
+		adminsPubKeys[i], err = types.ParsePubKey(types.ECDSAPublicKey(key))
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	newWallet := &Wallet{
@@ -74,9 +61,11 @@ func CreateNewWallet(walletInfo wallet.ITeeWalletKeyManagerKeyGenerate) (*Wallet
 		Address:            crypto.PubkeyToAddress(sk.PublicKey),
 		XrpAddress:         xrpAddress,
 		AdminsPublicKeys:   adminsPubKeys,
-		AdminsThreshold:    int(walletInfo.AdminsThreshold.Int64()),
+		AdminsThreshold:    walletInfo.AdminsThreshold,
 		Cosigners:          walletInfo.Cosigners,
-		CosignersThreshold: int(walletInfo.CosignersThreshold.Int64()),
+		CosignersThreshold: walletInfo.CosignersThreshold,
+		OpType:             walletInfo.OpType,
+		OpTypeConstants:    walletInfo.OpTypeConstants,
 	}
 
 	return newWallet, nil
@@ -84,7 +73,7 @@ func CreateNewWallet(walletInfo wallet.ITeeWalletKeyManagerKeyGenerate) (*Wallet
 
 func GetXrpAddress(idPair WalletKeyIdPair) (string, error) {
 	walletsStorage.Lock()
-	wallet, ok := walletsStorage.Storage[idPair.Id()]
+	wallet, ok := walletsStorage.Storage[idPair]
 	walletsStorage.Unlock()
 
 	if !ok {
@@ -96,7 +85,7 @@ func GetXrpAddress(idPair WalletKeyIdPair) (string, error) {
 
 func GetEthAddress(idPair WalletKeyIdPair) (string, error) {
 	walletsStorage.Lock()
-	wallet, ok := walletsStorage.Storage[idPair.Id()]
+	wallet, ok := walletsStorage.Storage[idPair]
 	walletsStorage.Unlock()
 	if !ok {
 		return "", errors.New("wallet non-existent")
@@ -107,58 +96,11 @@ func GetEthAddress(idPair WalletKeyIdPair) (string, error) {
 
 func GetPublicKey(idPair WalletKeyIdPair) (*ecdsa.PublicKey, error) {
 	walletsStorage.Lock()
-	wallet, ok := walletsStorage.Storage[idPair.Id()]
+	wallet, ok := walletsStorage.Storage[idPair]
 	walletsStorage.Unlock()
 	if !ok {
 		return nil, errors.New("wallet non-existent")
 	}
 
 	return &wallet.PrivateKey.PublicKey, nil
-}
-
-func StoreWallet(wallet *Wallet) error {
-	idPair := WalletKeyIdPair{WalletId: wallet.WalletId, KeyId: wallet.KeyId}
-	walletsStorage.Lock()
-	defer walletsStorage.Unlock()
-	if _, ok := walletsStorage.Storage[idPair.Id()]; ok {
-		return errors.New("wallet with given walletId and keyId already exists")
-	}
-
-	walletsStorage.Storage[idPair.Id()] = wallet
-
-	return nil
-}
-
-func RemoveWallet(idPair WalletKeyIdPair) {
-	walletsStorage.Lock()
-	delete(walletsStorage.Storage, idPair.Id())
-	walletsStorage.Unlock()
-
-}
-
-func GetWallet(idPair WalletKeyIdPair) (*Wallet, error) {
-	walletsStorage.Lock()
-	wallet, ok := walletsStorage.Storage[idPair.Id()]
-	walletsStorage.Unlock()
-	if !ok {
-		return nil, errors.New("wallet non-existent")
-	}
-
-	return wallet, nil
-}
-
-func WalletExists(idPair WalletKeyIdPair) bool {
-	walletsStorage.Lock()
-	_, ok := walletsStorage.Storage[idPair.Id()]
-	walletsStorage.Unlock()
-
-	return ok
-}
-
-// Note: This is useful for tests, but it would also be useful for upgrades, where a TEE get's shutdown.
-func DestroyState() {
-	walletsStorage.Lock()
-	defer walletsStorage.Unlock()
-
-	walletsStorage.Storage = make(map[string]*Wallet)
 }

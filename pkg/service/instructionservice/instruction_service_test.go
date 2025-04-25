@@ -3,7 +3,6 @@ package instructionservice_test
 import (
 	"encoding/hex"
 	"encoding/json"
-	"fmt"
 	"log"
 	"math/big"
 	"tee-node/pkg/node"
@@ -19,29 +18,28 @@ import (
 
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/instruction"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/structs"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/structs/registry"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/structs/wallet"
 	"github.com/stretchr/testify/require"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 )
 
 var mockWalletId = common.HexToHash("0xabcdef")
-var mockKeyId = big.NewInt(1)
+var mockKeyId = uint64(1)
 
 // Send enough signatures for the payment hash, to pass the threshold.
 func TestSendManyPaymentInstructions(t *testing.T) {
 	defer testutils.ResetTEEState() // Reset the state of the TEE after the test
 	err := node.InitNode()
 	require.NoError(t, err)
-	myNodeId := node.GetNodeId()
+	myNodeId := node.GetTeeId()
 
 	numVoters, randSeed, epochId := 100, int64(12345), uint32(1)
 	_, _, privKeys := testutils.GenerateAndSetInitialPolicy(numVoters, randSeed, epochId)
 
-	testutils.CreateMockWallet(t, myNodeId.Id, mockWalletId, mockKeyId.String(), privKeys, policy.GetActiveSigningPolicy().RewardEpochId)
+	testutils.CreateMockWallet(t, myNodeId, mockWalletId, mockKeyId, privKeys, policy.GetActiveSigningPolicy().RewardEpochId)
 
 	paymentHash := "560ccd6e79ba7166e82dbf2a5b9a52283a509b63c39d4a4cc7164db3e43484c4"
 
@@ -49,7 +47,6 @@ func TestSendManyPaymentInstructions(t *testing.T) {
 
 	thresholdIdx := -1
 	for i := 0; i < len(privKeys); i++ {
-
 		instruction, err := testutils.BuildMockInstruction("XRP",
 			"PAY",
 			testutils.BuildMockPaymentOriginalMessage(t, mockWalletId.Hex()),
@@ -58,7 +55,7 @@ func TestSendManyPaymentInstructions(t *testing.T) {
 				KeyId:       mockKeyId,
 			},
 			privKeys[i],
-			myNodeId.Id,
+			myNodeId,
 			hex.EncodeToString(instructionIdBytes),
 			policy.GetActiveSigningPolicy().RewardEpochId,
 		)
@@ -86,16 +83,16 @@ func TestGetInstructionResult(t *testing.T) {
 	defer testutils.ResetTEEState() // Reset the state of the TEE after the test
 	err := node.InitNode()
 	require.NoError(t, err)
-	myNodeId := node.GetNodeId()
+	myNodeId := node.GetTeeId()
 
 	numVoters, randSeed, epochId := 100, int64(12345), uint32(1)
 	_, _, privKeys := testutils.GenerateAndSetInitialPolicy(numVoters, randSeed, epochId)
 
-	testutils.CreateMockWallet(t, myNodeId.Id, mockWalletId, mockKeyId.String(), privKeys, policy.GetActiveSigningPolicy().RewardEpochId)
+	testutils.CreateMockWallet(t, myNodeId, mockWalletId, mockKeyId, privKeys, policy.GetActiveSigningPolicy().RewardEpochId)
 
 	paymentHash := "560ccd6e79ba7166e82dbf2a5b9a52283a509b63c39d4a4cc7164db3e43484c4"
 
-	thresholdIdx, _ := testutils.GetTresholdRechedVoterIndex(policy.GetActiveSigningPolicy(), privKeys)
+	thresholdIdx, _ := testutils.GetThresholdReachedVoterIndex(policy.GetActiveSigningPolicy(), privKeys)
 
 	instructionIdBytes, _ := utils.GenerateRandomBytes(32)
 
@@ -109,7 +106,7 @@ func TestGetInstructionResult(t *testing.T) {
 				PaymentHash: paymentHash,
 				KeyId:       mockKeyId,
 			}, privKeys[i],
-			myNodeId.Id,
+			myNodeId,
 			hex.EncodeToString(instructionIdBytes),
 			policy.GetActiveSigningPolicy().RewardEpochId,
 		)
@@ -132,16 +129,7 @@ func TestGetInstructionResult(t *testing.T) {
 		InstructionId: hex.EncodeToString(instruction.Data.InstructionID[:]),
 	}
 	_, err = instructionservice.InstructionResult(&instructionQuery)
-
-	// Convert error to RPC status and  error code
-	st, ok := status.FromError(err)
-	if !ok {
-		t.Fatal("expected RPC error status")
-	}
-	if st.Code() != codes.NotFound || st.Message() != "request not finalized" {
-		t.Errorf("expected NotFound, got %v", st.Code())
-		t.Fatalf("expected 'request not finalized', got %v", st.Message())
-	}
+	require.Equal(t, "request not finalized", err.Error())
 
 	// Sign the payment hash with the last voter to reach the threshold
 	instruction, err = testutils.BuildMockInstruction("XRP",
@@ -152,7 +140,7 @@ func TestGetInstructionResult(t *testing.T) {
 			KeyId:       mockKeyId,
 		},
 		privKeys[thresholdIdx],
-		myNodeId.Id,
+		myNodeId,
 		hex.EncodeToString(instructionIdBytes),
 		policy.GetActiveSigningPolicy().RewardEpochId,
 	)
@@ -176,16 +164,16 @@ func TestGetInstructionStatus(t *testing.T) {
 	defer testutils.ResetTEEState() // Reset the state of the TEE after the test
 	err := node.InitNode()
 	require.NoError(t, err)
-	myNodeId := node.GetNodeId()
+	myNodeId := node.GetTeeId()
 
 	numVoters, randSeed, epochId := 100, int64(12345), uint32(1)
 	_, _, privKeys := testutils.GenerateAndSetInitialPolicy(numVoters, randSeed, epochId)
 
-	testutils.CreateMockWallet(t, myNodeId.Id, mockWalletId, mockKeyId.String(), privKeys, policy.GetActiveSigningPolicy().RewardEpochId)
+	testutils.CreateMockWallet(t, myNodeId, mockWalletId, mockKeyId, privKeys, policy.GetActiveSigningPolicy().RewardEpochId)
 
 	paymentHash := "560ccd6e79ba7166e82dbf2a5b9a52283a509b63c39d4a4cc7164db3e43484c4"
 
-	thresholdIdx, thresholdWeight := testutils.GetTresholdRechedVoterIndex(policy.GetActiveSigningPolicy(), privKeys)
+	thresholdIdx, thresholdWeight := testutils.GetThresholdReachedVoterIndex(policy.GetActiveSigningPolicy(), privKeys)
 
 	instructionIdBytes, _ := utils.GenerateRandomBytes(32)
 
@@ -199,7 +187,7 @@ func TestGetInstructionStatus(t *testing.T) {
 				KeyId:       mockKeyId,
 			},
 			privKeys[i],
-			myNodeId.Id,
+			myNodeId,
 			hex.EncodeToString(instructionIdBytes),
 			policy.GetActiveSigningPolicy().RewardEpochId,
 		)
@@ -237,7 +225,7 @@ func TestGetInstructionStatus(t *testing.T) {
 			KeyId:       mockKeyId,
 		},
 		privKeys[thresholdIdx],
-		myNodeId.Id,
+		myNodeId,
 		hex.EncodeToString(instructionIdBytes),
 		policy.GetActiveSigningPolicy().RewardEpochId,
 	)
@@ -266,12 +254,12 @@ func TestGetResultWithDifferentInstructionForSameId(t *testing.T) {
 	defer testutils.ResetTEEState() // Reset the state of the TEE after the test
 	err := node.InitNode()
 	require.NoError(t, err)
-	myNodeId := node.GetNodeId()
+	myNodeId := node.GetTeeId()
 
 	numVoters, randSeed, epochId := 100, int64(12345), uint32(1)
 	_, _, privKeys := testutils.GenerateAndSetInitialPolicy(numVoters, randSeed, epochId)
 
-	testutils.CreateMockWallet(t, myNodeId.Id, mockWalletId, mockKeyId.String(), privKeys, policy.GetActiveSigningPolicy().RewardEpochId)
+	testutils.CreateMockWallet(t, myNodeId, mockWalletId, mockKeyId, privKeys, policy.GetActiveSigningPolicy().RewardEpochId)
 
 	paymentHash1 := "560ccd6e79ba7166e82dbf2a5b9a52283a509b63c39d4a4cc7164db3e43484c4"
 	paymentHash2 := "1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef"
@@ -279,7 +267,7 @@ func TestGetResultWithDifferentInstructionForSameId(t *testing.T) {
 
 	instructionIdBytes, _ := utils.GenerateRandomBytes(32)
 
-	thresholdIdx, thresholdWeight := testutils.GetTresholdRechedVoterIndex(policy.GetActiveSigningPolicy(), privKeys)
+	thresholdIdx, thresholdWeight := testutils.GetThresholdReachedVoterIndex(policy.GetActiveSigningPolicy(), privKeys)
 
 	var instruction *instruction.Instruction
 	// Loop up to the threshold index and sign the first payment hash
@@ -293,7 +281,7 @@ func TestGetResultWithDifferentInstructionForSameId(t *testing.T) {
 				KeyId:       mockKeyId,
 			},
 			privKeys[i],
-			myNodeId.Id,
+			myNodeId,
 			hex.EncodeToString(instructionIdBytes),
 			policy.GetActiveSigningPolicy().RewardEpochId,
 		)
@@ -326,7 +314,7 @@ func TestGetResultWithDifferentInstructionForSameId(t *testing.T) {
 				KeyId:       mockKeyId,
 			},
 			privKeys[i],
-			myNodeId.Id,
+			myNodeId,
 			hex.EncodeToString(instructionIdBytes),
 			policy.GetActiveSigningPolicy().RewardEpochId,
 		)
@@ -356,7 +344,7 @@ func TestGetResultWithDifferentInstructionForSameId(t *testing.T) {
 				KeyId:       mockKeyId,
 			},
 			privKeys[i],
-			myNodeId.Id,
+			myNodeId,
 			hex.EncodeToString(instructionIdBytes),
 			policy.GetActiveSigningPolicy().RewardEpochId,
 		)
@@ -392,16 +380,7 @@ func TestGetResultWithDifferentInstructionForSameId(t *testing.T) {
 	require.Equal(t, voterWeight3, int(resp.Data.VoteResults[2].TotalWeight))
 
 	_, err = instructionservice.InstructionResult(&instructionQuery)
-
-	// Convert error to RPC status and  error code
-	st, ok := status.FromError(err)
-	if !ok {
-		t.Fatal("expected RPC error status")
-	}
-	if st.Code() != codes.NotFound || st.Message() != "request not finalized" {
-		t.Errorf("expected NotFound, got %v", st.Code())
-		t.Fatalf("expected 'request not finalized', got %v", st.Message())
-	}
+	require.Equal(t, "request not finalized", err.Error())
 
 	// Sign the payment hash with the last voter to reach the threshold for the first payment hash
 	instruction, err = testutils.BuildMockInstruction("XRP",
@@ -412,7 +391,7 @@ func TestGetResultWithDifferentInstructionForSameId(t *testing.T) {
 			KeyId:       mockKeyId,
 		},
 		privKeys[thresholdIdx],
-		myNodeId.Id,
+		myNodeId,
 		hex.EncodeToString(instructionIdBytes),
 		policy.GetActiveSigningPolicy().RewardEpochId,
 	)
@@ -451,7 +430,7 @@ func TestSignNewPolicy(t *testing.T) {
 	defer testutils.ResetTEEState() // Reset the state of the TEE after the test
 	err := node.InitNode()
 	require.NoError(t, err)
-	myNodeId := node.GetNodeId()
+	myNodeId := node.GetTeeId()
 
 	epochId, randSeed := uint32(1), int64(12345)
 
@@ -492,7 +471,7 @@ func TestSignNewPolicy(t *testing.T) {
 			LatestPolicyPublicKeys: pubKeys,
 		},
 		privKeys[0],
-		myNodeId.Id,
+		myNodeId,
 		hex.EncodeToString(instructionIdBytes),
 		epochId,
 	)
@@ -536,17 +515,20 @@ func TestDecodeAbiInstructionWallet(t *testing.T) {
 
 	id := common.HexToAddress("6e656b69")
 	walletId := [32]byte{1, 2, 3}
-	keyId := big.NewInt(1)
+	keyId := uint64(1)
 	OpType := utils.StringToOpHash("WALLET")
-
+	adminPrivKey := crypto.ToECDSAUnsafe(big.NewInt(1).Bytes())
+	adminPubKey := wallet.PublicKey{}
+	copy(adminPubKey.X[:], adminPrivKey.PublicKey.X.Bytes())
+	copy(adminPubKey.Y[:], adminPrivKey.PublicKey.Y.Bytes())
 	pre := wallet.ITeeWalletKeyManagerKeyGenerate{
 		TeeId:    id,
 		WalletId: walletId, KeyId: keyId, OpType: OpType,
 		OpTypeConstants:    make([]byte, 0),
-		AdminsPublicKeys:   make([]wallet.PublicKey, 0),
-		AdminsThreshold:    big.NewInt(0),
+		AdminsPublicKeys:   []wallet.PublicKey{adminPubKey},
+		AdminsThreshold:    1,
 		Cosigners:          make([]common.Address, 0),
-		CosignersThreshold: big.NewInt(0)}
+		CosignersThreshold: 0}
 
 	encoded, err := abi.Arguments{arg}.Pack(pre)
 	require.NoError(t, err)
@@ -555,9 +537,4 @@ func TestDecodeAbiInstructionWallet(t *testing.T) {
 
 	err = structs.DecodeTo(arg, encoded, &unpacked)
 	require.NoError(t, err)
-
-	fmt.Println("unpacked.TeeId", unpacked.TeeId)
-	fmt.Println("unpacked.WalletId", unpacked.WalletId)
-	fmt.Println("unpacked.KeyId", unpacked.KeyId)
-	fmt.Println("unpacked.OpType", unpacked.OpType)
 }

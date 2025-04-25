@@ -51,25 +51,12 @@ func handleWalletPostRequest(requestCounter *requests.RequestCounter) ([]byte, e
 	case "KEY_DELETE":
 		return []byte{}, walletsinstruction.DeleteWallet(requestCounter.Request)
 
-	case "KEY_MACHINE_BACKUP":
-		return []byte{}, walletsinstruction.SplitWallet(requestCounter.Request, requestCounter.Signatures())
-
-	case "KEY_MACHINE_RESTORE":
-		return []byte{}, walletsinstruction.RecoverWallet(requestCounter.Request, requestCounter.Signatures())
-
-	case "KEY_MACHINE_BACKUP_REMOVE":
-		return walletsinstruction.KeyMachineBackupRemove(requestCounter.Request)
-
-	case "KEY_CUSTODIAN_BACKUP":
-		return walletsinstruction.KeyCustodianBackup(requestCounter.Request)
-
-	case "KEY_CUSTODIAN_RESTORE":
-		return walletsinstruction.KeyCustodianRestore(requestCounter.Request)
+	case "KEY_DATA_PROVIDER_RESTORE_INIT":
+		return walletsinstruction.KeyDataProviderRestoreInit(requestCounter.Request)
 
 	default:
 		return nil, status.Error(codes.Unknown, "Unknown OpCommand for WALLET OpType")
 	}
-
 }
 
 // * ----- XRP OpType ----- * //

@@ -20,18 +20,21 @@ func (s *ShamirShare) ID() string {
 	return s.X.String()
 }
 
-func SplitToShamirShares(val *big.Int, numShares int, threshold int) ([]ShamirShare, error) {
+func SplitToShamirShares(val *big.Int, numShares uint64, threshold uint64) ([]ShamirShare, error) {
 	// Verify minimum isn't greater than shares; there is no way to recreate
 	// the original polynomial in our current setup, therefore it doesn't make
 	// sense to generate fewer shares than are needed to reconstruct the secret.
 	if threshold > numShares {
 		return nil, errors.New("num shares smaller than threshold")
 	}
+	if threshold <= 0 {
+		return nil, errors.New("threshold should be positive")
+	}
 
 	polynomial := make([]*big.Int, threshold)
-	polynomial[0] = val
+	polynomial[0] = new(big.Int).Set(val)
 	var err error
-	for i := 1; i < threshold; i++ {
+	for i := uint64(1); i < threshold; i++ {
 		polynomial[i], err = rand.Int(rand.Reader, P)
 		if err != nil {
 			return nil, err
@@ -39,7 +42,7 @@ func SplitToShamirShares(val *big.Int, numShares int, threshold int) ([]ShamirSh
 	}
 
 	shamirShares := make([]ShamirShare, numShares)
-	for i := 0; i < numShares; i++ {
+	for i := uint64(0); i < numShares; i++ {
 		shamirShares[i] = ShamirShare{
 			X: big.NewInt(int64(i + 1)),
 			Y: evalPolynomial(polynomial, big.NewInt(int64(i+1))),
@@ -50,6 +53,7 @@ func SplitToShamirShares(val *big.Int, numShares int, threshold int) ([]ShamirSh
 }
 
 func evalPolynomial(polynomial []*big.Int, value *big.Int) *big.Int {
+	// the function is used only on polynomials whose slice representation has length at least one
 	degree := len(polynomial) - 1
 	result := new(big.Int).Set(polynomial[degree])
 
@@ -67,7 +71,7 @@ func evalPolynomial(polynomial []*big.Int, value *big.Int) *big.Int {
 func CombineShamirShares(shamirShares []ShamirShare) (*big.Int, error) {
 	result := big.NewInt(0)
 
-	// Lagrange Interpolation
+	// Lagrange interpolation
 	for i, share := range shamirShares {
 		prod := new(big.Int).Set(share.Y)
 		for j, shareJ := range shamirShares {

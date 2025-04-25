@@ -70,7 +70,6 @@ func SendSignedInstruction(instructionMessage *instruction.Instruction) (*api.In
 	requestCounter.AddRequestSignature(signer, instructionMessage.Signature)
 	requestCounter.AddRequestVariableMessage(signer, instructionMessage.Data.AdditionalVariableMessage)
 
-	// todo: currently the threshold if equal for all, should be changed
 	thresholdReached := requestCounter.ThresholdReached()
 	requests.ProcessInstructionIdMapping(requestCounter.Request)
 
@@ -134,39 +133,19 @@ func SendSignedInstruction(instructionMessage *instruction.Instruction) (*api.In
 			Status: status,
 			Token:  token,
 		},
-		Data:      []byte{}, // todo: do we need this?
 		Finalized: finalize,
 	}, nil
 
 }
 
 func InstructionResult(instructionQuery *api.InstructionResultRequest) (*api.InstructionResultResponse, error) {
-	requestsWithId, ok := requests.GetHashesWithId(instructionQuery.InstructionId)
-	if !ok {
-		return nil, status.Error(codes.NotFound, "request not found")
-	}
-
 	// find the request that was finalized
-	var requestCounterFinalized *requests.RequestCounter
-	for _, instructionHash := range requestsWithId {
-		requestCounter, exists := requests.GetRequestCounterByHash(instructionHash)
-		// these error should not happen
-		if !exists {
-			return nil, errors.New("request non existent")
-		}
-		if !requestCounter.Done || requestCounter.Result == nil {
-			continue
-		} else {
-			requestCounterFinalized = requestCounter
-			break
-		}
-	}
-	if requestCounterFinalized == nil {
-		return nil, status.Error(codes.NotFound, "request not finalized")
+	requestCounterFinalized, err := requests.GetFinalizedRequestWithId(instructionQuery.InstructionId)
+	if err != nil {
+		return nil, err
 	}
 
 	var instructionResultData []byte
-	var err error
 
 	switch utils.OpHashToString(requestCounterFinalized.Request.OPType) {
 	case "REG":

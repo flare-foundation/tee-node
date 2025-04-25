@@ -9,7 +9,7 @@ import (
 )
 
 func GetNodeInfo(req *api.GetNodeInfoRequest) (*api.GetNodeInfoResponse, error) {
-	nodeId := node.GetNodeId()
+	nodeInfo := node.GetNodeInfo()
 	activePolicy := policy.GetActiveSigningPolicy()
 	activePolicyHash, err := policy.SigningPolicyToHash(activePolicy)
 	if err != nil {
@@ -17,13 +17,9 @@ func GetNodeInfo(req *api.GetNodeInfoRequest) (*api.GetNodeInfoResponse, error) 
 	}
 
 	responseData := api.GetNodeInfoData{
-		Id:                  nodeId.Id,
-		Status:              nodeId.Status,
-		EncryptionPublicKey: hex.EncodeToString(nodeId.EncryptionKey.PublicKey[:]),
-		SigningPublicKey: api.ECDSAPublicKey{
-			X: nodeId.SignatureKey.PublicKey.X.Text(16),
-			Y: nodeId.SignatureKey.PublicKey.Y.Text(16),
-		},
+		TeeId:             nodeInfo.TeeId,
+		Status:            nodeInfo.Status,
+		PublicKey:         nodeInfo.PublicKey,
 		SigningPolicyHash: hex.EncodeToString(activePolicyHash),
 	}
 

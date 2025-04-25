@@ -9,8 +9,6 @@ log_queries = false
 [server]
 # replace 0.0.0.0 with your current active GCP IP
 host = "http://0.0.0.0:8545"
-backups = ["ws://localhost:50060", "ws://localhost:50061"]
-backups_threshold = 2
 
 [chain]
 relay_contract_address = "0x5A0773Ff307Bf7C71a832dBB5312237fD3437f9F"

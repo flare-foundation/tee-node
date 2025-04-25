@@ -12,19 +12,24 @@ import (
 
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/structs/wallet"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 var walletId = hex.EncodeToString(common.HexToHash("0xabcdef").Bytes())
-var keyId = big.NewInt(1)
+var keyId = uint64(1)
 
 func TestInvalidRequestSignature(t *testing.T) {
 	numVoters, randSeed, epochId := 100, int64(12345), uint32(1)
 	_, _, privKeys := testutils.GenerateAndSetInitialPolicy(numVoters, randSeed, epochId)
 
 	instructionIdBytes, _ := utils.GenerateRandomBytes(32)
+	adminPrivKey := crypto.ToECDSAUnsafe(big.NewInt(1).Bytes())
+	adminPubKey := wallet.PublicKey{}
+	copy(adminPubKey.X[:], adminPrivKey.PublicKey.X.Bytes())
+	copy(adminPubKey.Y[:], adminPrivKey.PublicKey.Y.Bytes())
 
 	originalMessage := wallet.ITeeWalletKeyManagerKeyGenerate{
 		TeeId:              common.HexToAddress("1234"),
@@ -32,10 +37,10 @@ func TestInvalidRequestSignature(t *testing.T) {
 		KeyId:              keyId,
 		OpType:             utils.StringToOpHash("WALLET"),
 		OpTypeConstants:    make([]byte, 0),
-		AdminsPublicKeys:   make([]wallet.PublicKey, 0),
-		AdminsThreshold:    big.NewInt(0),
+		AdminsPublicKeys:   []wallet.PublicKey{adminPubKey},
+		AdminsThreshold:    1,
 		Cosigners:          make([]common.Address, 0),
-		CosignersThreshold: big.NewInt(0),
+		CosignersThreshold: 0,
 	}
 	originalMessageEncoded, err := abi.Arguments{wallet.MessageArguments[wallet.KeyGenerate]}.Pack(originalMessage)
 	require.NoError(t, err)
@@ -46,7 +51,7 @@ func TestInvalidRequestSignature(t *testing.T) {
 		originalMessageEncoded,
 		interface{}(nil),
 		privKeys[0],
-		node.GetNodeId().Id,
+		node.GetTeeId(),
 		hex.EncodeToString(instructionIdBytes),
 		1,
 	)
@@ -75,6 +80,10 @@ func TestRequestCheckActive(t *testing.T) {
 	sigPolicy, _, privKeys := testutils.GenerateAndSetInitialPolicy(numVoters, randSeed, epochId)
 
 	instructionIdBytes, _ := utils.GenerateRandomBytes(32)
+	adminPrivKey := crypto.ToECDSAUnsafe(big.NewInt(1).Bytes())
+	adminPubKey := wallet.PublicKey{}
+	copy(adminPubKey.X[:], adminPrivKey.PublicKey.X.Bytes())
+	copy(adminPubKey.Y[:], adminPrivKey.PublicKey.Y.Bytes())
 
 	originalMessage := wallet.ITeeWalletKeyManagerKeyGenerate{
 		TeeId:              common.HexToAddress("1234"),
@@ -82,10 +91,10 @@ func TestRequestCheckActive(t *testing.T) {
 		KeyId:              keyId,
 		OpType:             utils.StringToOpHash("WALLET"),
 		OpTypeConstants:    make([]byte, 0),
-		AdminsPublicKeys:   make([]wallet.PublicKey, 0),
-		AdminsThreshold:    big.NewInt(0),
+		AdminsPublicKeys:   []wallet.PublicKey{adminPubKey},
+		AdminsThreshold:    1,
 		Cosigners:          make([]common.Address, 0),
-		CosignersThreshold: big.NewInt(0),
+		CosignersThreshold: 0,
 	}
 	originalMessageEncoded, err := abi.Arguments{wallet.MessageArguments[wallet.KeyGenerate]}.Pack(originalMessage)
 	require.NoError(t, err)
@@ -96,7 +105,7 @@ func TestRequestCheckActive(t *testing.T) {
 		originalMessageEncoded,
 		interface{}(nil),
 		privKeys[0],
-		node.GetNodeId().Id,
+		node.GetTeeId(),
 		hex.EncodeToString(instructionIdBytes),
 		epochId,
 	)
