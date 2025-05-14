@@ -360,7 +360,7 @@ func setupMockWallet(t *testing.T, adminPrivKeys []*ecdsa.PrivateKey) (common.Ha
 	walletId := common.HexToHash("0xabcdef")
 	keyId := uint64(1)
 
-	testutils.CreateMockWallet(t, nodeId.TeeId, walletId, keyId, policy.GetActiveSigningPolicy().RewardEpochId, privKeys, adminPrivKeys, nil)
+	testutils.CreateMockWallet(t, nodeId.TeeId, walletId, keyId, policy.GetActiveSigningPolicy().RewardEpochId, privKeys[0], adminPrivKeys, nil)
 
 	return walletId, keyId
 }

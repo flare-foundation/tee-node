@@ -136,9 +136,7 @@ func createWallet(t *testing.T, nodeId common.Address, walletId common.Hash, key
 
 	adminsWalletPublicKeys := make([]wallet.PublicKey, len(adminPubKeys))
 	for i, pubKey := range adminPubKeys {
-		adminsWalletPublicKeys[i] = wallet.PublicKey{}
-		copy(adminsWalletPublicKeys[i].X[:], pubKey.X.Bytes())
-		copy(adminsWalletPublicKeys[i].Y[:], pubKey.Y.Bytes())
+		adminsWalletPublicKeys[i] = wallet.PublicKey(api.PubKeyToBytes(pubKey))
 	}
 
 	for i := range 2 {

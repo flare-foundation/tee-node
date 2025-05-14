@@ -3,6 +3,7 @@ package requests_test
 import (
 	"encoding/hex"
 	"math/big"
+	"tee-node/api/types"
 	"tee-node/pkg/node"
 	"tee-node/pkg/policy"
 	"tee-node/pkg/requests"
@@ -27,9 +28,7 @@ func TestInvalidRequestSignature(t *testing.T) {
 
 	instructionIdBytes, _ := utils.GenerateRandomBytes(32)
 	adminPrivKey := crypto.ToECDSAUnsafe(big.NewInt(1).Bytes())
-	adminPubKey := wallet.PublicKey{}
-	copy(adminPubKey.X[:], adminPrivKey.PublicKey.X.Bytes())
-	copy(adminPubKey.Y[:], adminPrivKey.PublicKey.Y.Bytes())
+	adminPubKey := wallet.PublicKey(types.PubKeyToBytes(&adminPrivKey.PublicKey))
 
 	originalMessage := wallet.ITeeWalletKeyManagerKeyGenerate{
 		TeeId:              common.HexToAddress("1234"),
@@ -81,9 +80,7 @@ func TestRequestCheckActive(t *testing.T) {
 
 	instructionIdBytes, _ := utils.GenerateRandomBytes(32)
 	adminPrivKey := crypto.ToECDSAUnsafe(big.NewInt(1).Bytes())
-	adminPubKey := wallet.PublicKey{}
-	copy(adminPubKey.X[:], adminPrivKey.PublicKey.X.Bytes())
-	copy(adminPubKey.Y[:], adminPrivKey.PublicKey.Y.Bytes())
+	adminPubKey := wallet.PublicKey(types.PubKeyToBytes(&adminPrivKey.PublicKey))
 
 	originalMessage := wallet.ITeeWalletKeyManagerKeyGenerate{
 		TeeId:              common.HexToAddress("1234"),

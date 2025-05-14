@@ -42,7 +42,7 @@ func TestSendManyPaymentInstructions(t *testing.T) {
 	numVoters, randSeed, epochId := 100, int64(12345), uint32(1)
 	_, _, privKeys := testutils.GenerateAndSetInitialPolicy(numVoters, randSeed, epochId)
 
-	testutils.CreateMockWallet(t, myNodeId, mockWalletId, mockKeyId, policy.GetActiveSigningPolicy().RewardEpochId, privKeys, nil, nil)
+	testutils.CreateMockWallet(t, myNodeId, mockWalletId, mockKeyId, policy.GetActiveSigningPolicy().RewardEpochId, privKeys[0], nil, nil)
 
 	paymentHash := "560ccd6e79ba7166e82dbf2a5b9a52283a509b63c39d4a4cc7164db3e43484c4"
 
@@ -91,7 +91,7 @@ func TestGetInstructionResult(t *testing.T) {
 	numVoters, randSeed, epochId := 100, int64(12345), uint32(1)
 	_, _, privKeys := testutils.GenerateAndSetInitialPolicy(numVoters, randSeed, epochId)
 
-	testutils.CreateMockWallet(t, myNodeId, mockWalletId, mockKeyId, policy.GetActiveSigningPolicy().RewardEpochId, privKeys, nil, nil)
+	testutils.CreateMockWallet(t, myNodeId, mockWalletId, mockKeyId, policy.GetActiveSigningPolicy().RewardEpochId, privKeys[0], nil, nil)
 
 	paymentHash := "560ccd6e79ba7166e82dbf2a5b9a52283a509b63c39d4a4cc7164db3e43484c4"
 
@@ -172,7 +172,7 @@ func TestGetInstructionStatus(t *testing.T) {
 	numVoters, randSeed, epochId := 100, int64(12345), uint32(1)
 	_, _, privKeys := testutils.GenerateAndSetInitialPolicy(numVoters, randSeed, epochId)
 
-	testutils.CreateMockWallet(t, myNodeId, mockWalletId, mockKeyId, policy.GetActiveSigningPolicy().RewardEpochId, privKeys, nil, nil)
+	testutils.CreateMockWallet(t, myNodeId, mockWalletId, mockKeyId, policy.GetActiveSigningPolicy().RewardEpochId, privKeys[0], nil, nil)
 
 	paymentHash := "560ccd6e79ba7166e82dbf2a5b9a52283a509b63c39d4a4cc7164db3e43484c4"
 
@@ -262,7 +262,7 @@ func TestGetResultWithDifferentInstructionForSameId(t *testing.T) {
 	numVoters, randSeed, epochId := 100, int64(12345), uint32(1)
 	_, _, privKeys := testutils.GenerateAndSetInitialPolicy(numVoters, randSeed, epochId)
 
-	testutils.CreateMockWallet(t, myNodeId, mockWalletId, mockKeyId, policy.GetActiveSigningPolicy().RewardEpochId, privKeys, nil, nil)
+	testutils.CreateMockWallet(t, myNodeId, mockWalletId, mockKeyId, policy.GetActiveSigningPolicy().RewardEpochId, privKeys[0], nil, nil)
 
 	paymentHash1 := "560ccd6e79ba7166e82dbf2a5b9a52283a509b63c39d4a4cc7164db3e43484c4"
 	paymentHash2 := "1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef"
@@ -525,9 +525,7 @@ func TestDecodeAbiInstructionWallet(t *testing.T) {
 	keyId := uint64(1)
 	OpType := utils.StringToOpHash("WALLET")
 	adminPrivKey := crypto.ToECDSAUnsafe(big.NewInt(1).Bytes())
-	adminPubKey := wallet.PublicKey{}
-	copy(adminPubKey.X[:], adminPrivKey.PublicKey.X.Bytes())
-	copy(adminPubKey.Y[:], adminPrivKey.PublicKey.Y.Bytes())
+	adminPubKey := wallet.PublicKey(types.PubKeyToBytes(&adminPrivKey.PublicKey))
 	pre := wallet.ITeeWalletKeyManagerKeyGenerate{
 		TeeId:    id,
 		WalletId: walletId, KeyId: keyId, OpType: OpType,
@@ -559,7 +557,7 @@ func TestPauseTeeAndRejectInstructions(t *testing.T) {
 	_, _, privKeys := testutils.GenerateAndSetInitialPolicy(numVoters, randSeed, epochId)
 
 	// Create mock wallet
-	testutils.CreateMockWallet(t, myNodeId, mockWalletId, mockKeyId, policy.GetActiveSigningPolicy().RewardEpochId, privKeys, nil, nil)
+	testutils.CreateMockWallet(t, myNodeId, mockWalletId, mockKeyId, policy.GetActiveSigningPolicy().RewardEpochId, privKeys[0], nil, nil)
 
 	// Pause the TEE
 	pausers, pauserPrivKeys, _ := testutils.GenerateRandomVoters(1)

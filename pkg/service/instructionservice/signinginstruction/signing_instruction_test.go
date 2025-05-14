@@ -33,7 +33,7 @@ func TestSendManyPaymentSignatures(t *testing.T) {
 	numVoters, randSeed, epochId := 100, int64(12345), uint32(1)
 	_, _, privKeys := testutils.GenerateAndSetInitialPolicy(numVoters, randSeed, epochId)
 
-	testutils.CreateMockWallet(t, myNodeId, mockWalletId, mockKeyId, policy.GetActiveSigningPolicy().RewardEpochId, privKeys, nil, nil)
+	testutils.CreateMockWallet(t, myNodeId, mockWalletId, mockKeyId, policy.GetActiveSigningPolicy().RewardEpochId, privKeys[0], nil, nil)
 
 	paymentHash := "560ccd6e79ba7166e82dbf2a5b9a52283a509b63c39d4a4cc7164db3e43484c4"
 
@@ -68,7 +68,7 @@ func TestGetSignatureApi(t *testing.T) {
 	numVoters, randSeed, epochId := 100, int64(12345), uint32(1)
 	_, _, privKeys := testutils.GenerateAndSetInitialPolicy(numVoters, randSeed, epochId)
 
-	testutils.CreateMockWallet(t, myNodeId, mockWalletId, mockKeyId, policy.GetActiveSigningPolicy().RewardEpochId, privKeys, nil, nil)
+	testutils.CreateMockWallet(t, myNodeId, mockWalletId, mockKeyId, policy.GetActiveSigningPolicy().RewardEpochId, privKeys[0], nil, nil)
 
 	paymentHash := "560ccd6e79ba7166e82dbf2a5b9a52283a509b63c39d4a4cc7164db3e43484c4"
 
@@ -143,7 +143,7 @@ func TestSigningPausedWallet(t *testing.T) {
 	numVoters, randSeed, epochId := 100, int64(12345), uint32(1)
 	_, _, privKeys := testutils.GenerateAndSetInitialPolicy(numVoters, randSeed, epochId)
 
-	testutils.CreateMockWallet(t, myNodeId, mockWalletId, mockKeyId, policy.GetActiveSigningPolicy().RewardEpochId, privKeys, nil, nil)
+	testutils.CreateMockWallet(t, myNodeId, mockWalletId, mockKeyId, policy.GetActiveSigningPolicy().RewardEpochId, privKeys[0], nil, nil)
 
 	// Pause the wallet
 	wallet, err := wallets.GetWallet(wallets.WalletKeyIdPair{WalletId: mockWalletId, KeyId: mockKeyId})

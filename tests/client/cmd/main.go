@@ -10,6 +10,7 @@ import (
 	"os"
 	"strconv"
 
+	"tee-node/api/types"
 	api "tee-node/api/types"
 
 	attestationserver "tee-node/pkg/attestation"
@@ -185,9 +186,7 @@ func main() {
 			log.Fatalf("could not parse key id: %v", err)
 		}
 		adminPrivKey := crypto.ToECDSAUnsafe(big.NewInt(1).Bytes())
-		adminPubKey := wallet.PublicKey{}
-		copy(adminPubKey.X[:], adminPrivKey.PublicKey.X.Bytes())
-		copy(adminPubKey.Y[:], adminPrivKey.PublicKey.Y.Bytes())
+		adminPubKey := wallet.PublicKey(types.PubKeyToBytes(&adminPrivKey.PublicKey))
 
 		originalMessage := wallet.ITeeWalletKeyManagerKeyGenerate{
 			TeeId:              common.HexToAddress(args.TeeId),

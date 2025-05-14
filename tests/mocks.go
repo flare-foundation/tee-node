@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"math/big"
+	"tee-node/api/types"
 	"tee-node/pkg/requests"
 	"tee-node/pkg/service/instructionservice/walletsinstruction"
 	"tee-node/pkg/utils"
@@ -57,22 +58,18 @@ func BuildMockInstruction(OpType string, OpCommand string, OriginalMessage []byt
 
 }
 
-func CreateMockWallet(t *testing.T, nodeId common.Address, walletId common.Hash, keyId uint64, rewardEpochId uint32, privKeys, adminPrivKeys, cosignerPrivKeys []*ecdsa.PrivateKey) {
+func CreateMockWallet(t *testing.T, nodeId common.Address, walletId common.Hash, keyId uint64, rewardEpochId uint32, privKey *ecdsa.PrivateKey, adminPrivKeys, cosignerPrivKeys []*ecdsa.PrivateKey) {
 	instructionIdBytes, _ := utils.GenerateRandomBytes(32)
 
 	adminPubKeys := make([]wallet.PublicKey, 0)
 	if len(adminPrivKeys) > 0 {
 		for _, adminPrivKey := range adminPrivKeys {
-			adminPubKey := wallet.PublicKey{}
-			copy(adminPubKey.X[:], adminPrivKey.PublicKey.X.Bytes())
-			copy(adminPubKey.Y[:], adminPrivKey.PublicKey.Y.Bytes())
-			adminPubKeys = append(adminPubKeys, adminPubKey)
+			adminPubKey := types.PubKeyToBytes(&adminPrivKey.PublicKey)
+			adminPubKeys = append(adminPubKeys, wallet.PublicKey(adminPubKey))
 		}
 	} else {
-		pubKey := wallet.PublicKey{}
-		copy(pubKey.X[:], privKeys[0].PublicKey.X.Bytes())
-		copy(pubKey.Y[:], privKeys[0].PublicKey.Y.Bytes())
-		adminPubKeys = []wallet.PublicKey{pubKey}
+		pubKey := types.PubKeyToBytes(&privKey.PublicKey)
+		adminPubKeys = []wallet.PublicKey{wallet.PublicKey(pubKey)}
 	}
 
 	cosignerPubKeys := make([]common.Address, 0)
@@ -99,7 +96,7 @@ func CreateMockWallet(t *testing.T, nodeId common.Address, walletId common.Hash,
 		"KEY_GENERATE",
 		encoded,
 		interface{}(nil),
-		privKeys[0],
+		privKey,
 		nodeId,
 		hex.EncodeToString(instructionIdBytes),
 		rewardEpochId,
