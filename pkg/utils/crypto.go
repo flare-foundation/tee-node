@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"slices"
+	api "tee-node/api/types"
 
 	"github.com/btcsuite/btcd/btcec/v2"
 	"github.com/ethereum/go-ethereum/accounts"
@@ -153,4 +154,44 @@ func GenerateEncryptionKeyPair() (EncryptionKey, error) {
 	key := EncryptionKey{PrivateKey: *privKey, PublicKey: *pubKey}
 
 	return key, nil
+}
+
+func VerifyThresholdSignatures(message []byte, signers []common.Address, signatures [][]byte, threshold uint8) (bool, error) {
+	signersMap := make(map[common.Address]bool)
+	weight := 0
+	for _, signature := range signatures {
+
+		signer, err := CheckSignature(message, signature, signers)
+		if err != nil {
+			return false, err
+		}
+		if signersMap[signer] {
+			return false, errors.New("duplicate signer")
+		}
+
+		signersMap[signer] = true
+		weight += 1
+	}
+
+	return weight >= int(threshold), nil
+}
+
+func VerifyPauserSignature(message api.Hashable, pausingAddresses []common.Address, signatures [][]byte) error {
+	messageHash, err := message.Hash()
+	if err != nil {
+		return err
+	}
+	if len(signatures) != 1 {
+		return errors.Errorf("expected exactly one signature, got %d", len(signatures))
+	}
+
+	_, err = CheckSignature(messageHash[:], signatures[0], pausingAddresses)
+	if err != nil {
+		if err.Error() == "not a voter" {
+			return errors.New("pauser address not in the list of pauserAddresses")
+		}
+		return err
+	}
+
+	return nil
 }

@@ -2,10 +2,11 @@ package requests
 
 import (
 	"encoding/hex"
-	"errors"
 	"sync"
 	"tee-node/pkg/config"
 	"tee-node/pkg/policy"
+
+	"github.com/pkg/errors"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/instruction"
@@ -156,7 +157,7 @@ func (r *RequestCounter) Signatures() [][]byte {
 // Note: We need this for distributing rewards to the signers
 // Note: Not sure yet what API this should have, but this is a start
 func (r *RequestCounter) GetRequestSigners() []*common.Address {
-	var signers []*common.Address = make([]*common.Address, 0)
+	signers := make([]*common.Address, 0)
 	for signer := range r.RequestSignatures {
 		signers = append(signers, &signer)
 	}

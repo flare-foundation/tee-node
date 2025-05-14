@@ -7,6 +7,7 @@ import (
 	"tee-node/pkg/attestation"
 	"tee-node/pkg/config"
 	"tee-node/pkg/requests"
+	"tee-node/pkg/service/actionservice/governanceactions"
 	"tee-node/pkg/utils"
 
 	"github.com/flare-foundation/go-flare-common/pkg/tee/instruction"
@@ -18,6 +19,10 @@ import (
 // Call forwards the call to the appropriate service and method
 func SendSignedInstruction(instructionMessage *instruction.Instruction) (*api.InstructionResponse, error) {
 	// TODO: Is there any other check that should be done here?
+	if governanceactions.IsTeePaused() {
+		return nil, errors.New("TEE is paused")
+	}
+
 	inActivePolicy, err := requests.CheckRequest(&instructionMessage.Data)
 	if err != nil {
 		return nil, err
@@ -198,7 +203,7 @@ func InstructionStatus(instructionQuery *api.InstructionResultRequest) (*api.Ins
 	}
 
 	// var requestCounterFinalized *requests.RequestCounter[api.InstructionData]
-	var voteResults []api.VoteResult = make([]api.VoteResult, 0)
+	voteResults := make([]api.VoteResult, 0)
 	instructionStatus := "inProgress"
 	for _, instructionHash := range requestsWithId {
 		requestCounter, exists := requests.GetRequestCounterByHash(instructionHash)

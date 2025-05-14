@@ -1,4 +1,4 @@
-package policyservice
+package policyactions
 
 import (
 	"testing"
@@ -61,18 +61,16 @@ func TestInitializePolicy(t *testing.T) {
 		NewPolicyRequests:      policySignaturesArray,
 		LatestPolicyPublicKeys: pubKeys,
 	}
-
-	response, err := InitializePolicy(req)
+	action, err := testutils.BuildMockInitializePolicyAction(req)
+	if err != nil {
+		t.Fatalf("Failed to build the mock initialize policy action: %v", err)
+	}
+	err = InitializePolicy(action.Data.Message)
 	if err != nil {
 		t.Errorf("Failed to initialize the policy: %v", err)
 	}
-
-	t.Logf("Response: %v\n", response)
 }
 
-// ! InitializePolicy Tests —————————————————————————————————————————————————————————————————————— //
-
-// * Test initializing the policy after it has already been initialized  ----------------- //
 func TestInitializingThePolicyTwice(t *testing.T) {
 	defer testutils.ResetTEEState() // Reset the state of the TEE after the test
 
@@ -98,8 +96,11 @@ func TestInitializingThePolicyTwice(t *testing.T) {
 		NewPolicyRequests:      policySignaturesArray,
 		LatestPolicyPublicKeys: pubKeys,
 	}
-
-	_, err = InitializePolicy(req)
+	action, err := testutils.BuildMockInitializePolicyAction(req)
+	if err != nil {
+		t.Fatalf("Failed to build the mock initialize policy action: %v", err)
+	}
+	err = InitializePolicy(action.Data.Message)
 	if err != nil {
 		t.Errorf("Failed to initialize the policy: %v", err)
 	}
@@ -122,16 +123,17 @@ func TestInitializingThePolicyTwice(t *testing.T) {
 		NewPolicyRequests:      policySignaturesArray2,
 		LatestPolicyPublicKeys: pubKeys,
 	}
-
-	_, err = InitializePolicy(req2)
-
+	action2, err := testutils.BuildMockInitializePolicyAction(req2)
+	if err != nil {
+		t.Fatalf("Failed to build the mock initialize policy action: %v", err)
+	}
+	err = InitializePolicy(action2.Data.Message)
 	if err.Error() != "policy already initialized" {
 		t.Errorf("expected 'policy already initialized', got %v", err)
 	}
 
 }
 
-// * Test sending a signature with a wrong reward epoch id, less or equal to a previos one -- //
 func TestSendingInvalidReardEpochId(t *testing.T) {
 	defer testutils.ResetTEEState() // Reset the state of the TEE after the test
 
@@ -160,30 +162,10 @@ func TestSendingInvalidReardEpochId(t *testing.T) {
 		LatestPolicyPublicKeys: pubKeys,
 	}
 
-	_, err = InitializePolicy(req)
+	action, err := testutils.BuildMockInitializePolicyAction(req)
+	if err != nil {
+		t.Fatalf("Failed to build the mock initialize policy action: %v", err)
+	}
+	err = InitializePolicy(action.Data.Message)
 	require.Equal(t, err.Error(), "policy is not active")
 }
-
-// * Check that the request work only if requestPolicy is within config.ACTIVE_POLICY_COUNT of the active policy reward epoch id -- //
-// TODO: CheckActive() function
-
-// * Verify that that the function fails if the voter weight is less than the Threshold -- //
-// TODO: Implement this test
-
-// * Verify that if two signatures use the same public key, it throws an error -- //
-// TODO:
-
-// * Test should fail if we don't ser testutils.SetInitialPolicyHash(initialPolicyBytes) in the function -- //
-
-// ! SignNewPolicy Tests ———————————————————————————————————————————————————————————————————————— //
-
-// * verify the policy with invalid reward epoch id (should fail)
-
-// * Verify that if two signatures from the same request use the same public key, it throws a 'Attempted double signing' error -- //
-
-// * Verify that if two signatures from different request use the same public key, it throws a 'Attempted double signing' error -- //
-
-// * Test that the voter weight is incremented correctly (Check that the policy only gets updated when the threshold is reached) -- //
-
-// * UTILS ================================================================================================ * //
-// * ====================================================================================================== * //

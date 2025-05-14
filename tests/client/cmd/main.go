@@ -115,12 +115,12 @@ func main() {
 			log.Fatalf("could not fetch public keys: %v", err)
 		}
 
-		req, err := policy.CreateInitializePolicyRequest(policies, signatures, pubKeysMap)
+		action, err := policy.CreateInitializePolicyAction(policies, signatures, pubKeysMap)
 		if err != nil {
-			log.Fatalf("could not create signing request: %v", err)
+			log.Fatalf("could not create signing action: %v", err)
 		}
 
-		_, err = utils.Post[api.InitializePolicyResponse](config.Server.Host+"/policies/initialize", req)
+		_, err = utils.Post[api.ActionResponse](config.Server.Host+"/action", action)
 		if err != nil {
 			log.Fatalf("could not initialize policy: %v", err)
 		}
@@ -158,7 +158,12 @@ func main() {
 			NewPolicyRequests:      policySignaturesArray,
 			LatestPolicyPublicKeys: pubKeys,
 		}
-		_, err = utils.Post[api.InitializePolicyResponse](config.Server.Host+"/policies/initialize", req)
+
+		action, err := utils.BuildMockInitializePolicyAction(req)
+		if err != nil {
+			log.Fatalf("could not build mock initialize policy action: %v", err)
+		}
+		_, err = utils.Post[api.InitializePolicyResponse](config.Server.Host+"/action", action)
 		if err != nil {
 			log.Fatalf("could not initialize policy: %v", err)
 		}
@@ -249,6 +254,8 @@ func main() {
 		if err != nil {
 			log.Fatalf("could not get attestation: %v", err)
 		}
+
+		log.Println("TOKEN", resp.Token)
 
 		teeId := resp.Data.TeeId
 

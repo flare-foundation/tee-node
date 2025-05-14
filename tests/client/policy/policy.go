@@ -158,7 +158,7 @@ type PolicySignature struct {
 	PubKey []byte
 }
 
-func CreateInitializePolicyRequest(policies []*relay.RelaySigningPolicyInitialized, signatures map[string][]*PolicySignature, pubKeysMap map[common.Address]*ecdsa.PublicKey) (*api.InitializePolicyRequest, error) {
+func CreateInitializePolicyAction(policies []*relay.RelaySigningPolicyInitialized, signatures map[string][]*PolicySignature, pubKeysMap map[common.Address]*ecdsa.PublicKey) (*api.SignedAction, error) {
 	policyRequests := []api.MultiSignedPolicy{}
 
 	// Replay policy signing from the second policy onwards
@@ -208,7 +208,12 @@ func CreateInitializePolicyRequest(policies []*relay.RelaySigningPolicyInitializ
 		LatestPolicyPublicKeys: pubKeys,
 	}
 
-	return req, nil
+	action, err := testutils.BuildMockInitializePolicyAction(req)
+	if err != nil {
+		return nil, err
+	}
+
+	return action, nil
 }
 
 func FetchVoterRegisteredBlocksInfo(ctx context.Context, params *PolicyHistoryParams, db *gorm.DB, rewardEpochId int) (uint64, uint64, error) {

@@ -122,7 +122,10 @@ func initializePolicy(t *testing.T, numPolicies int, providers *utils.Providers)
 		LatestPolicyPublicKeys: pubKeys,
 	}
 
-	resp, err := utils.Post[api.InitializePolicyResponse](hostUrl+"/policies/initialize", req)
+	action, err := utils.BuildMockInitializePolicyAction(req)
+	require.NoError(t, err)
+
+	resp, err := utils.Post[api.ActionResponse](hostUrl+"/action", action)
 	require.NoError(t, err)
 
 	logger.Infof("sent request to initialize policy, token %v", resp.Token)

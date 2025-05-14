@@ -33,16 +33,17 @@ func StoreWallet(wallet *Wallet) error {
 
 func RemoveWallet(idPair WalletKeyIdPair) {
 	walletsStorage.Lock()
-	delete(walletsStorage.Storage, idPair)
-	walletsStorage.Unlock()
+	defer walletsStorage.Unlock()
 
+	delete(walletsStorage.Storage, idPair)
 }
 
 func GetWallet(idPair WalletKeyIdPair) (*Wallet, error) {
 	walletsStorage.Lock()
+	defer walletsStorage.Unlock()
+
 	wallet, ok := walletsStorage.Storage[idPair]
-	walletsStorage.Unlock()
-	if !ok {
+	if !ok || wallet == nil {
 		return nil, errors.New("wallet non-existent")
 	}
 
@@ -51,13 +52,12 @@ func GetWallet(idPair WalletKeyIdPair) (*Wallet, error) {
 
 func WalletExists(idPair WalletKeyIdPair) bool {
 	walletsStorage.Lock()
-	_, ok := walletsStorage.Storage[idPair]
-	walletsStorage.Unlock()
+	defer walletsStorage.Unlock()
 
+	_, ok := walletsStorage.Storage[idPair]
 	return ok
 }
 
-// Note: This is useful for tests, but it would also be useful for upgrades, where a TEE get's shutdown.
 func DestroyState() {
 	walletsStorage.Lock()
 	defer walletsStorage.Unlock()

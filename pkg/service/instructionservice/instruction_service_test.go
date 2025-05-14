@@ -7,13 +7,15 @@ import (
 	"math/big"
 	"tee-node/pkg/node"
 	"tee-node/pkg/policy"
+	"tee-node/pkg/service/actionservice/governanceactions"
+	"tee-node/pkg/service/actionservice/policyactions"
 	"tee-node/pkg/service/instructionservice"
-	"tee-node/pkg/service/policyservice"
 	"tee-node/pkg/utils"
 	"testing"
 
 	testutils "tee-node/tests"
 
+	"tee-node/api/types"
 	api "tee-node/api/types"
 
 	"github.com/ethereum/go-ethereum/accounts/abi"
@@ -23,6 +25,7 @@ import (
 	"github.com/flare-foundation/go-flare-common/pkg/tee/structs"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/structs/registry"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/structs/wallet"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -39,7 +42,7 @@ func TestSendManyPaymentInstructions(t *testing.T) {
 	numVoters, randSeed, epochId := 100, int64(12345), uint32(1)
 	_, _, privKeys := testutils.GenerateAndSetInitialPolicy(numVoters, randSeed, epochId)
 
-	testutils.CreateMockWallet(t, myNodeId, mockWalletId, mockKeyId, privKeys, policy.GetActiveSigningPolicy().RewardEpochId)
+	testutils.CreateMockWallet(t, myNodeId, mockWalletId, mockKeyId, policy.GetActiveSigningPolicy().RewardEpochId, privKeys, nil, nil)
 
 	paymentHash := "560ccd6e79ba7166e82dbf2a5b9a52283a509b63c39d4a4cc7164db3e43484c4"
 
@@ -88,7 +91,7 @@ func TestGetInstructionResult(t *testing.T) {
 	numVoters, randSeed, epochId := 100, int64(12345), uint32(1)
 	_, _, privKeys := testutils.GenerateAndSetInitialPolicy(numVoters, randSeed, epochId)
 
-	testutils.CreateMockWallet(t, myNodeId, mockWalletId, mockKeyId, privKeys, policy.GetActiveSigningPolicy().RewardEpochId)
+	testutils.CreateMockWallet(t, myNodeId, mockWalletId, mockKeyId, policy.GetActiveSigningPolicy().RewardEpochId, privKeys, nil, nil)
 
 	paymentHash := "560ccd6e79ba7166e82dbf2a5b9a52283a509b63c39d4a4cc7164db3e43484c4"
 
@@ -169,7 +172,7 @@ func TestGetInstructionStatus(t *testing.T) {
 	numVoters, randSeed, epochId := 100, int64(12345), uint32(1)
 	_, _, privKeys := testutils.GenerateAndSetInitialPolicy(numVoters, randSeed, epochId)
 
-	testutils.CreateMockWallet(t, myNodeId, mockWalletId, mockKeyId, privKeys, policy.GetActiveSigningPolicy().RewardEpochId)
+	testutils.CreateMockWallet(t, myNodeId, mockWalletId, mockKeyId, policy.GetActiveSigningPolicy().RewardEpochId, privKeys, nil, nil)
 
 	paymentHash := "560ccd6e79ba7166e82dbf2a5b9a52283a509b63c39d4a4cc7164db3e43484c4"
 
@@ -259,7 +262,7 @@ func TestGetResultWithDifferentInstructionForSameId(t *testing.T) {
 	numVoters, randSeed, epochId := 100, int64(12345), uint32(1)
 	_, _, privKeys := testutils.GenerateAndSetInitialPolicy(numVoters, randSeed, epochId)
 
-	testutils.CreateMockWallet(t, myNodeId, mockWalletId, mockKeyId, privKeys, policy.GetActiveSigningPolicy().RewardEpochId)
+	testutils.CreateMockWallet(t, myNodeId, mockWalletId, mockKeyId, policy.GetActiveSigningPolicy().RewardEpochId, privKeys, nil, nil)
 
 	paymentHash1 := "560ccd6e79ba7166e82dbf2a5b9a52283a509b63c39d4a4cc7164db3e43484c4"
 	paymentHash2 := "1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef"
@@ -448,8 +451,12 @@ func TestSignNewPolicy(t *testing.T) {
 		NewPolicyRequests:      nil,
 		LatestPolicyPublicKeys: pubKeys,
 	}
+	action, err := testutils.BuildMockInitializePolicyAction(req)
+	if err != nil {
+		t.Fatalf("Failed to build the mock initialize policy action: %v", err)
+	}
 
-	_, err = policyservice.InitializePolicy(req)
+	err = policyactions.InitializePolicy(action.Data.Message)
 	if err != nil {
 		t.Fatalf("Failed to initialize the policy: %v", err)
 	}
@@ -537,4 +544,67 @@ func TestDecodeAbiInstructionWallet(t *testing.T) {
 
 	err = structs.DecodeTo(arg, encoded, &unpacked)
 	require.NoError(t, err)
+}
+
+func TestPauseTeeAndRejectInstructions(t *testing.T) {
+	defer testutils.ResetTEEState() // Reset the state of the TEE after the test
+	defer node.DestroyState()
+
+	err := node.InitNode()
+	require.NoError(t, err)
+	myNodeId := node.GetTeeId()
+
+	// Setup initial policy
+	numVoters, randSeed, epochId := 100, int64(12345), uint32(1)
+	_, _, privKeys := testutils.GenerateAndSetInitialPolicy(numVoters, randSeed, epochId)
+
+	// Create mock wallet
+	testutils.CreateMockWallet(t, myNodeId, mockWalletId, mockKeyId, policy.GetActiveSigningPolicy().RewardEpochId, privKeys, nil, nil)
+
+	// Pause the TEE
+	pausers, pauserPrivKeys, _ := testutils.GenerateRandomVoters(1)
+	pausingNonce := governanceactions.GetTeePausingNonce()
+	node.PausingAddressesStorage.TeePauserAddresses = pausers
+
+	// Create a valid message
+	validMessage := types.PauseTeeMessage{
+		TeeId:        myNodeId,
+		PausingNonce: pausingNonce,
+	}
+
+	// Create a valid signature
+	messageHash, err := validMessage.Hash()
+	require.NoError(t, err)
+
+	signature, err := utils.Sign(messageHash[:], pauserPrivKeys[0])
+	require.NoError(t, err)
+
+	// Test successful pause
+	err = governanceactions.Pause(validMessage, [][]byte{signature})
+	require.NoError(t, err)
+	assert.NotNil(t, pausingNonce)
+
+	// Verify TEE is paused
+	require.True(t, governanceactions.IsTeePaused())
+
+	// Try to send an instruction while TEE is paused
+	instructionIdBytes, _ := utils.GenerateRandomBytes(32)
+	instruction, err := testutils.BuildMockInstruction("XRP",
+		"PAY",
+		testutils.BuildMockPaymentOriginalMessage(t, mockWalletId.Hex()),
+		api.SignPaymentAdditionalFixedMessage{
+			PaymentHash: "560ccd6e79ba7166e82dbf2a5b9a52283a509b63c39d4a4cc7164db3e43484c4",
+			KeyId:       mockKeyId,
+		},
+		privKeys[0],
+		myNodeId,
+		hex.EncodeToString(instructionIdBytes),
+		policy.GetActiveSigningPolicy().RewardEpochId,
+	)
+	require.NoError(t, err)
+
+	// Attempt to send instruction should fail because TEE is paused
+	_, err = instructionservice.SendSignedInstruction(instruction)
+	require.Error(t, err)
+	require.Equal(t, err.Error(), "TEE is paused")
 }

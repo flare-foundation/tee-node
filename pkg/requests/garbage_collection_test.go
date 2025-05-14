@@ -170,7 +170,7 @@ func TestGCCompletedRequestQueue(t *testing.T) {
 func insertNRequests(t *testing.T, gbgCollector *requests.GarbageCollector, n int, completed bool, epochId uint32) []string {
 	proposer := common.HexToAddress("0x1")
 
-	var requestHashes []string = make([]string, 0, n)
+	requestHashes := make([]string, 0, n)
 
 	for i := 0; i < n; i++ {
 		mockRequest := initMockRequest(epochId)

@@ -57,13 +57,29 @@ func BuildMockInstruction(OpType string, OpCommand string, OriginalMessage []byt
 
 }
 
-func CreateMockWallet(t *testing.T, nodeId common.Address, walletId common.Hash, keyId uint64, privKeys []*ecdsa.PrivateKey, rewardEpochId uint32) {
+func CreateMockWallet(t *testing.T, nodeId common.Address, walletId common.Hash, keyId uint64, rewardEpochId uint32, privKeys, adminPrivKeys, cosignerPrivKeys []*ecdsa.PrivateKey) {
 	instructionIdBytes, _ := utils.GenerateRandomBytes(32)
 
-	adminPrivKey := crypto.ToECDSAUnsafe(big.NewInt(1).Bytes())
-	adminPubKey := wallet.PublicKey{}
-	copy(adminPubKey.X[:], adminPrivKey.PublicKey.X.Bytes())
-	copy(adminPubKey.Y[:], adminPrivKey.PublicKey.Y.Bytes())
+	adminPubKeys := make([]wallet.PublicKey, 0)
+	if len(adminPrivKeys) > 0 {
+		for _, adminPrivKey := range adminPrivKeys {
+			adminPubKey := wallet.PublicKey{}
+			copy(adminPubKey.X[:], adminPrivKey.PublicKey.X.Bytes())
+			copy(adminPubKey.Y[:], adminPrivKey.PublicKey.Y.Bytes())
+			adminPubKeys = append(adminPubKeys, adminPubKey)
+		}
+	} else {
+		pubKey := wallet.PublicKey{}
+		copy(pubKey.X[:], privKeys[0].PublicKey.X.Bytes())
+		copy(pubKey.Y[:], privKeys[0].PublicKey.Y.Bytes())
+		adminPubKeys = []wallet.PublicKey{pubKey}
+	}
+
+	cosignerPubKeys := make([]common.Address, 0)
+	for _, cosignerPrivKey := range cosignerPrivKeys {
+		cosignerAddress := crypto.PubkeyToAddress(cosignerPrivKey.PublicKey)
+		cosignerPubKeys = append(cosignerPubKeys, cosignerAddress)
+	}
 
 	request := wallet.ITeeWalletKeyManagerKeyGenerate{
 		TeeId:              common.HexToAddress("1234"),
@@ -71,10 +87,10 @@ func CreateMockWallet(t *testing.T, nodeId common.Address, walletId common.Hash,
 		KeyId:              keyId,
 		OpType:             utils.StringToOpHash("WALLET"),
 		OpTypeConstants:    make([]byte, 0),
-		AdminsPublicKeys:   []wallet.PublicKey{adminPubKey},
-		AdminsThreshold:    1,
-		Cosigners:          make([]common.Address, 0),
-		CosignersThreshold: 0,
+		AdminsPublicKeys:   adminPubKeys,
+		AdminsThreshold:    uint64(len(adminPubKeys)),
+		Cosigners:          cosignerPubKeys,
+		CosignersThreshold: uint64(len(cosignerPubKeys)),
 	}
 	encoded, err := abi.Arguments{wallet.MessageArguments[wallet.KeyGenerate]}.Pack(request)
 	require.NoError(t, err)

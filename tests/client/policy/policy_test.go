@@ -3,6 +3,7 @@ package policy
 import (
 	"context"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"math/big"
 	"testing"
@@ -12,9 +13,10 @@ import (
 
 	"github.com/flare-foundation/go-flare-common/pkg/database"
 
+	api "tee-node/api/types"
 	"tee-node/pkg/config"
 	pd "tee-node/pkg/policy"
-	ps "tee-node/pkg/service/policyservice"
+	"tee-node/pkg/service/actionservice/policyactions"
 )
 
 var params = &PolicyHistoryParams{
@@ -97,12 +99,16 @@ func TestPolicyReplayingWithIndexerData(t *testing.T) {
 	pubKeysMap, err := FetchVotersPublicKeysMap(context.Background(), params, db, minBlockNum, maxBlockNum, activePolicyRewardEpoch)
 	require.NoError(t, err)
 
-	req, err := CreateInitializePolicyRequest(policies, signatures, pubKeysMap)
+	req, err := CreateInitializePolicyAction(policies, signatures, pubKeysMap)
 	require.NoError(t, err)
 
-	config.InitialPolicyHash = hex.EncodeToString(pd.SigningPolicyBytesToHash(req.InitialPolicyBytes))
+	var decoded api.InitializePolicyRequest
+	err = json.Unmarshal(req.Data.Message, &decoded)
+	require.NoError(t, err)
 
-	_, err = ps.InitializePolicy(req)
+	config.InitialPolicyHash = hex.EncodeToString(pd.SigningPolicyBytesToHash(decoded.InitialPolicyBytes))
+
+	err = policyactions.InitializePolicy(req.Data.Message)
 	require.NoError(t, err)
 }
 

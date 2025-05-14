@@ -4,6 +4,7 @@ import (
 	"crypto/ecdsa"
 	"math/big"
 
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto/secp256k1"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/structs/wallet"
 	"github.com/pkg/errors"
@@ -61,4 +62,8 @@ type ResponseMessage struct {
 type GetRequestSigners struct {
 	Message string
 	Token   string // Google OIDC token (Attestation token)
+}
+
+type Hashable interface {
+	Hash() (common.Hash, error)
 }

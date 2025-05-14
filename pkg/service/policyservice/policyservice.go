@@ -2,28 +2,14 @@ package policyservice
 
 import (
 	"encoding/hex"
-	"tee-node/pkg/attestation"
-	"tee-node/pkg/policy"
-	"tee-node/pkg/requests"
-
-	api "tee-node/api/types"
 
 	"github.com/pkg/errors"
+
+	api "tee-node/api/types"
+	"tee-node/pkg/attestation"
+	"tee-node/pkg/policy"
 )
 
-func InitializePolicy(req *api.InitializePolicyRequest) (*api.InitializePolicyResponse, error) {
-	err := policy.InitializePolicyRequest(req.InitialPolicyBytes, req.NewPolicyRequests, req.LatestPolicyPublicKeys)
-	if err != nil {
-		return nil, err
-	}
-
-	// Register the validators from the latest policy for the ratelimiter
-	requests.UpdateRateLimiter(policy.GetActiveSigningPolicy().Voters)
-
-	return &api.InitializePolicyResponse{}, nil
-}
-
-// GetActivePolicy handles the GetActivePolicy request
 func GetActivePolicy(req *api.GetActivePolicyRequest) (*api.GetActivePolicyResponse, error) {
 	activeSigningPolicy := policy.GetActiveSigningPolicy()
 	if activeSigningPolicy == nil {

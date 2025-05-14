@@ -35,7 +35,7 @@ func SignMultisigTransactionExample() {
 
 	addresses := deriveMockAddresses(privKeys)
 
-	var signers []xrputils.Signer = make([]xrputils.Signer, len(privKeys))
+	signers := make([]xrputils.Signer, len(privKeys))
 	for i := 0; i < len(privKeys); i++ {
 
 		// Encode the transaction to a byte[] required for signing
@@ -74,20 +74,20 @@ func SignMultisigTransactionExample() {
 }
 
 // ----- Helper functions ----- //
-func generateMockPrivKeys(n int) []*ecdsa.PrivateKey {
-	privKeys := make([]*ecdsa.PrivateKey, n)
-	for i := 0; i < n; i++ {
-		privKey, _ := crypto.GenerateKey()
-		privKeys[i] = privKey
-	}
-	return privKeys
-}
+// func generateMockPrivKeys(n int) []*ecdsa.PrivateKey {
+// 	privKeys := make([]*ecdsa.PrivateKey, n)
+// 	for i := 0; i < n; i++ {
+// 		privKey, _ := crypto.GenerateKey()
+// 		privKeys[i] = privKey
+// 	}
+// 	return privKeys
+// }
 
 func deriveMockAddresses(privKeys []*ecdsa.PrivateKey) []string {
 	addresses := make([]string, len(privKeys))
 	for i, privKey := range privKeys {
 		pkBytes := utils.SerializeCompressed(&privKey.PublicKey) // The compressed format required by ripple
-		var pubKey xrputils.PublicKey = xrputils.PublicKey(pkBytes)
+		pubKey := xrputils.PublicKey(pkBytes)
 		addresses[i] = pubKey.Address()
 	}
 	return addresses

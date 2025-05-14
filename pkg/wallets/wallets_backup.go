@@ -340,7 +340,7 @@ func DecryptSplit(encryptedShare []byte, privKeyECDSA *ecdsa.PrivateKey) (*KeySp
 		return nil, err
 	}
 
-	if !(keySplit.OwnerPublicKey == api.PubKeyToBytes(&privKeyECDSA.PublicKey)) {
+	if keySplit.OwnerPublicKey != api.PubKeyToBytes(&privKeyECDSA.PublicKey) {
 		return nil, errors.New("public key defined in the split does not match given public key")
 	}
 

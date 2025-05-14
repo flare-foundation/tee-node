@@ -3,6 +3,7 @@ package signinginstruction
 import (
 	"encoding/json"
 	api "tee-node/api/types"
+	"tee-node/pkg/service/actionservice/walletactions"
 	"tee-node/pkg/signing"
 	"tee-node/pkg/utils"
 	"tee-node/pkg/wallets"
@@ -27,6 +28,14 @@ func SignPaymentTransaction(instructionData *instruction.DataFixed) ([]byte, err
 	signingWallet, err := wallets.GetWallet(wallets.WalletKeyIdPair{WalletId: originalMessage.WalletId, KeyId: additionalFixedMessage.KeyId})
 	if err != nil {
 		return nil, err
+	}
+
+	paused, err := walletactions.IsWalletPaused(signingWallet.WalletId, signingWallet.KeyId)
+	if err != nil {
+		return nil, err
+	}
+	if paused {
+		return nil, errors.New("wallet is paused")
 	}
 
 	txnSignature, err := signing.SignXrpPayment(additionalFixedMessage.PaymentHash, signingWallet.PrivateKey)

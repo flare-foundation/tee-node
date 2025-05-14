@@ -15,7 +15,7 @@ func Encode(payment *Payment) ([]byte, error) {
 	// 1. First the encoding (1 byte type, 1 byte field), see constants.go for the encodings
 	// 2. Then the value of the field to the encoding
 
-	var encoding []byte = make([]byte, 0)
+	encoding := make([]byte, 0)
 
 	// 1. Transaction Type  -------------------------
 	enc := reverseEncodings["TransactionType"]

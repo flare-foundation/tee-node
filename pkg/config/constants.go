@@ -1,6 +1,10 @@
 package config
 
-import "time"
+import (
+	"time"
+
+	"github.com/ethereum/go-ethereum/common"
+)
 
 var InitialPolicyHash = "6c5d823aa3ecf8e2a00f7bad8b03d6e4557de9ac7be7c5d8408047f5a31f4fd1"
 
@@ -144,3 +148,9 @@ func WeightsNormalization(weights []uint16) []uint16 {
 
 	return normalizedWeighs
 }
+
+var GovernanceSigners = []common.Address{
+	common.HexToAddress("0x0000000000000000000000000000000000000000"),
+}
+
+const GovernanceThreshold uint8 = 1

@@ -12,9 +12,6 @@ import (
 	"tee-node/pkg/wallets"
 )
 
-// NewWallet creates a new wallet using the provided instruction data.
-// Parameters:
-// - instructionData: Contains the data needed to create a new wallet.
 func NewWallet(instructionData *instruction.DataFixed) error {
 	newWalletRequest, err := api.ParseNewWalletRequest(instructionData)
 	if err != nil {
@@ -53,12 +50,6 @@ func NewWallet(instructionData *instruction.DataFixed) error {
 	return nil
 }
 
-// DeleteWallet removes an existing wallet using the provided instruction data.
-// Parameters:
-// - instructionData: Contains the data needed to delete a wallet.
-//   - delWalletRequest: Decoded from instructionData, includes:
-//   - WalletId: The ID of the wallet to be deleted.
-//   - KeyId: The key ID associated with the wallet.
 func DeleteWallet(instructionData *instruction.DataFixed) error {
 	delWalletRequest, err := api.ParseDeleteWalletRequest(instructionData)
 	if err != nil {

@@ -1,9 +1,10 @@
 package requests
 
 import (
-	"errors"
 	"sync"
 	"tee-node/pkg/config"
+
+	"github.com/pkg/errors"
 
 	"github.com/ethereum/go-ethereum/common"
 )

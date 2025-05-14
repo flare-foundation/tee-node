@@ -2,6 +2,7 @@ package wallets
 
 import (
 	"crypto/ecdsa"
+	"math/big"
 	"tee-node/api/types"
 	"tee-node/pkg/utils"
 
@@ -27,6 +28,11 @@ type Wallet struct {
 	CosignersThreshold uint64
 	OpType             [32]byte
 	OpTypeConstants    []byte
+
+	WalletPauserAddresses         []common.Address
+	WalletPauserAddressSetupNonce big.Int
+	WalletPausingNonce            common.Hash
+	IsWalletPaused                bool
 }
 
 type WalletKeyIdPair struct {
@@ -73,8 +79,9 @@ func CreateNewWallet(walletInfo wallet.ITeeWalletKeyManagerKeyGenerate) (*Wallet
 
 func GetXrpAddress(idPair WalletKeyIdPair) (string, error) {
 	walletsStorage.Lock()
+	defer walletsStorage.Unlock()
+
 	wallet, ok := walletsStorage.Storage[idPair]
-	walletsStorage.Unlock()
 
 	if !ok {
 		return "", errors.New("wallet non-existent")
@@ -85,8 +92,9 @@ func GetXrpAddress(idPair WalletKeyIdPair) (string, error) {
 
 func GetEthAddress(idPair WalletKeyIdPair) (string, error) {
 	walletsStorage.Lock()
+	defer walletsStorage.Unlock()
+
 	wallet, ok := walletsStorage.Storage[idPair]
-	walletsStorage.Unlock()
 	if !ok {
 		return "", errors.New("wallet non-existent")
 	}
@@ -96,8 +104,9 @@ func GetEthAddress(idPair WalletKeyIdPair) (string, error) {
 
 func GetPublicKey(idPair WalletKeyIdPair) (*ecdsa.PublicKey, error) {
 	walletsStorage.Lock()
+	defer walletsStorage.Unlock()
+
 	wallet, ok := walletsStorage.Storage[idPair]
-	walletsStorage.Unlock()
 	if !ok {
 		return nil, errors.New("wallet non-existent")
 	}

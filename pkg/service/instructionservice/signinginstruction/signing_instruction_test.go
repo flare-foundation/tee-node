@@ -7,6 +7,7 @@ import (
 
 	"tee-node/pkg/node"
 	"tee-node/pkg/policy"
+	"tee-node/pkg/service/actionservice/walletactions"
 	"tee-node/pkg/utils"
 	"tee-node/pkg/wallets"
 
@@ -32,7 +33,7 @@ func TestSendManyPaymentSignatures(t *testing.T) {
 	numVoters, randSeed, epochId := 100, int64(12345), uint32(1)
 	_, _, privKeys := testutils.GenerateAndSetInitialPolicy(numVoters, randSeed, epochId)
 
-	testutils.CreateMockWallet(t, myNodeId, mockWalletId, mockKeyId, privKeys, policy.GetActiveSigningPolicy().RewardEpochId)
+	testutils.CreateMockWallet(t, myNodeId, mockWalletId, mockKeyId, policy.GetActiveSigningPolicy().RewardEpochId, privKeys, nil, nil)
 
 	paymentHash := "560ccd6e79ba7166e82dbf2a5b9a52283a509b63c39d4a4cc7164db3e43484c4"
 
@@ -67,7 +68,7 @@ func TestGetSignatureApi(t *testing.T) {
 	numVoters, randSeed, epochId := 100, int64(12345), uint32(1)
 	_, _, privKeys := testutils.GenerateAndSetInitialPolicy(numVoters, randSeed, epochId)
 
-	testutils.CreateMockWallet(t, myNodeId, mockWalletId, mockKeyId, privKeys, policy.GetActiveSigningPolicy().RewardEpochId)
+	testutils.CreateMockWallet(t, myNodeId, mockWalletId, mockKeyId, policy.GetActiveSigningPolicy().RewardEpochId, privKeys, nil, nil)
 
 	paymentHash := "560ccd6e79ba7166e82dbf2a5b9a52283a509b63c39d4a4cc7164db3e43484c4"
 
@@ -130,4 +131,47 @@ func verifyPaymentRequestSignature(t *testing.T, paymentHash []byte, txnSignatur
 	require.NoError(t, err)
 
 	return valid
+}
+
+func TestSigningPausedWallet(t *testing.T) {
+	defer testutils.ResetTEEState() // Reset the state of the TEE after the test
+	err := node.InitNode()
+	require.NoError(t, err)
+	myNodeId := node.GetTeeId()
+
+	// Setup initial policy and wallet
+	numVoters, randSeed, epochId := 100, int64(12345), uint32(1)
+	_, _, privKeys := testutils.GenerateAndSetInitialPolicy(numVoters, randSeed, epochId)
+
+	testutils.CreateMockWallet(t, myNodeId, mockWalletId, mockKeyId, policy.GetActiveSigningPolicy().RewardEpochId, privKeys, nil, nil)
+
+	// Pause the wallet
+	wallet, err := wallets.GetWallet(wallets.WalletKeyIdPair{WalletId: mockWalletId, KeyId: mockKeyId})
+	require.NoError(t, err)
+	wallet.IsWalletPaused = true
+
+	// Verify wallet is paused
+	isPaused, err := walletactions.IsWalletPaused(mockWalletId, mockKeyId)
+	require.NoError(t, err)
+	require.True(t, isPaused)
+
+	// Try to sign a payment transaction
+	paymentHash := "560ccd6e79ba7166e82dbf2a5b9a52283a509b63c39d4a4cc7164db3e43484c5"
+	instructionIdBytes, _ := utils.GenerateRandomBytes(32)
+
+	instruction, err := testutils.BuildMockInstruction("XRP",
+		"PAY",
+		testutils.BuildMockPaymentOriginalMessage(t, mockWalletId.Hex()),
+		api.SignPaymentAdditionalFixedMessage{PaymentHash: paymentHash, KeyId: mockKeyId},
+		privKeys[0],
+		common.HexToAddress("0x1234"),
+		hex.EncodeToString(instructionIdBytes),
+		policy.GetActiveSigningPolicy().RewardEpochId,
+	)
+	require.NoError(t, err)
+
+	// Attempt to sign should fail
+	_, err = SignPaymentTransaction(&instruction.Data.DataFixed)
+	require.Error(t, err)
+	require.Equal(t, err.Error(), "wallet is paused")
 }

@@ -3,7 +3,9 @@ package signing
 import (
 	"crypto/ecdsa"
 	"encoding/hex"
-	"errors"
+
+	"github.com/pkg/errors"
+
 	"tee-node/pkg/utils"
 )
 

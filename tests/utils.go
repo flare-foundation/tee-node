@@ -88,7 +88,24 @@ func BuildMultiSignedPolicy(policyBytes []byte, voterPrivKeys []*ecdsa.PrivateKe
 	}
 }
 
-// Always returns the same voters and private keys
+func BuildMockInitializePolicyAction(req *api.InitializePolicyRequest) (*api.SignedAction, error) {
+	encoded, err := json.Marshal(req)
+	if err != nil {
+		return nil, err
+	}
+
+	action := &api.SignedAction{
+		Challenge: common.Hash{},
+		Data: api.ActionData{
+			OPType:    utils.StringToOpHash("POLICY"),
+			OPCommand: utils.StringToOpHash("INITIALIZE_POLICY"),
+			Message:   encoded,
+		},
+		Signatures: [][]byte{},
+	}
+	return action, nil
+}
+
 func GenerateRandomVoters(numVoters int) ([]common.Address, []*ecdsa.PrivateKey, map[common.Address]*ecdsa.PublicKey) {
 	Voters := make([]common.Address, numVoters)
 	privKeys := make([]*ecdsa.PrivateKey, numVoters)

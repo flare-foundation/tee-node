@@ -24,7 +24,7 @@ func TestDeriveAddress(t *testing.T) {
 
 	for i, pubKey := range pubKeys {
 		pkBytes, _ := hex.DecodeString(pubKey)
-		var pubKey xrplutils.PublicKey = xrplutils.PublicKey(pkBytes)
+		pubKey := xrplutils.PublicKey(pkBytes)
 
 		require.Equal(t, addresses[i], pubKey.Address())
 

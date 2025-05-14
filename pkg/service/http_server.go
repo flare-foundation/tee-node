@@ -6,6 +6,7 @@ import (
 	"log"
 	"net/http"
 	"tee-node/api/types"
+	"tee-node/pkg/service/actionservice"
 	"tee-node/pkg/service/instructionservice"
 	"tee-node/pkg/service/nodeservice"
 	"tee-node/pkg/service/policyservice"
@@ -20,7 +21,7 @@ import (
 type ValidRequestType interface {
 	instruction.Instruction | types.InstructionResultRequest | types.InitializePolicyRequest |
 		types.GetActivePolicyRequest | types.WalletInfoRequest | types.WalletGetBackupRequest |
-		types.WalletUploadBackupRequest | types.WalletGetBackupShareRequest | types.WalletUploadBackupShareRequest | types.GetNodeInfoRequest
+		types.WalletUploadBackupRequest | types.WalletGetBackupShareRequest | types.WalletUploadBackupShareRequest | types.GetNodeInfoRequest | types.SignedAction
 }
 
 func HandlerGenerator[T ValidRequestType, R any](f func(req *T) (*R, error)) http.HandlerFunc {
@@ -30,8 +31,8 @@ func HandlerGenerator[T ValidRequestType, R any](f func(req *T) (*R, error)) htt
 		maxBodySize = 100 * 1024 // 100 KB
 	case *types.InstructionResultRequest:
 		maxBodySize = 1024 // 1 KB
-	case *types.InitializePolicyRequest:
-		maxBodySize = 200 * 1024 // 200 KB
+	// case *types.InitializePolicyRequest:
+	// 	maxBodySize = 200 * 1024 // 200 KB
 	case *types.GetActivePolicyRequest:
 		maxBodySize = 1024 // 1 KB
 	case *types.WalletInfoRequest:
@@ -46,6 +47,9 @@ func HandlerGenerator[T ValidRequestType, R any](f func(req *T) (*R, error)) htt
 		maxBodySize = 200 * 1024 // 200 KB
 	case *types.GetNodeInfoRequest:
 		maxBodySize = 1024 // 1 KB
+	// InitializePolicy is now part of the action service
+	case *types.SignedAction:
+		maxBodySize = 200 * 1024 // 200 KB
 	default:
 		return func(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "Invalid request type", http.StatusBadRequest)
@@ -87,13 +91,6 @@ func RegisterInstructionsRoutes(router *mux.Router) {
 	instructionsRouter.HandleFunc("/status", HandlerGenerator(instructionservice.InstructionStatus)).Methods("POST")
 }
 
-func RegisterPolicyRoutes(router *mux.Router) {
-	policiesRouter := router.PathPrefix("/policies").Subrouter()
-
-	policiesRouter.HandleFunc("/initialize", HandlerGenerator(policyservice.InitializePolicy)).Methods("POST")
-	policiesRouter.HandleFunc("/latest", HandlerGenerator(policyservice.GetActivePolicy)).Methods("POST")
-}
-
 func RegisterWalletRoutes(router *mux.Router) {
 	walletRouter := router.PathPrefix("/wallet").Subrouter()
 
@@ -108,13 +105,24 @@ func RegisterNodeRoutes(router *mux.Router) {
 	router.HandleFunc("/info", HandlerGenerator(nodeservice.GetNodeInfo)).Methods("POST")
 }
 
+func RegisterActionsRoutes(router *mux.Router) {
+	router.HandleFunc("/action", HandlerGenerator(actionservice.SendAction)).Methods("POST")
+}
+
+func RegisterPolicyRoutes(router *mux.Router) {
+	policyRouter := router.PathPrefix("/policy").Subrouter()
+
+	policyRouter.HandleFunc("", HandlerGenerator(policyservice.GetActivePolicy)).Methods("POST")
+}
+
 func LaunchServer(port int) {
 	router := mux.NewRouter()
 
 	RegisterInstructionsRoutes(router)
 	RegisterWalletRoutes(router)
-	RegisterPolicyRoutes(router)
 	RegisterNodeRoutes(router)
+	RegisterActionsRoutes(router)
+	RegisterPolicyRoutes(router)
 
 	logger.Info("HTTP Server running on ", port)
 	log.Fatal(http.ListenAndServe(fmt.Sprintf(":%d", port), router))

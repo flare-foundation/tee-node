@@ -4,11 +4,12 @@ import (
 	"crypto/rsa"
 	"encoding/base64"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"math/big"
 	"net/http"
+
+	"github.com/pkg/errors"
 
 	"github.com/golang-jwt/jwt/v4"
 )

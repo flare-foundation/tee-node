@@ -268,7 +268,7 @@ func TestLimitHitCounter(t *testing.T) {
 }
 
 func genRandomValidators(numValidators int) []common.Address {
-	var voters []common.Address = make([]common.Address, 0)
+	voters := make([]common.Address, 0)
 	for range numValidators {
 		validatorAddress := common.BigToAddress(big.NewInt(int64(rand.Intn(1000000))))
 		voters = append(voters, validatorAddress)
