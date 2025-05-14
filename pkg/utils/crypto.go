@@ -112,7 +112,9 @@ func SerializeCompressed(pubKey *ecdsa.PublicKey) []byte {
 	}
 
 	pubKeyBytes := pubKey.X.Bytes()
-
+	if len(pubKeyBytes) < 32 {
+		pubKeyBytes = append(make([]byte, 32-len(pubKeyBytes)), pubKeyBytes...)
+	}
 	// 0x02 or 0x03 || 32-byte x coordinate
 	final := append(prefix, pubKeyBytes...)
 	return final
