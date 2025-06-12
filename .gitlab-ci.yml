@@ -21,7 +21,7 @@ build:
     needs: []
     script:
         - go mod download
-        - go build ./...
+        - go build ./cmd/...
 
 lint:
     stage: test

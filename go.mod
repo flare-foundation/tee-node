@@ -3,21 +3,16 @@ module tee-node
 go 1.23.8
 
 require (
-	github.com/alexflint/go-arg v1.5.1
 	github.com/btcsuite/btcd/btcec/v2 v2.3.4
-	github.com/emirpasic/gods v1.18.1
 	github.com/ethereum/go-ethereum v1.15.7
-	github.com/flare-foundation/go-flare-common v1.2.1-0.20250417122202-9aad0d831b94
+	github.com/flare-foundation/go-flare-common v1.2.1-0.20250606133105-350fe13ad6e6
 	github.com/golang-jwt/jwt v3.2.2+incompatible
 	github.com/golang-jwt/jwt/v4 v4.5.1
 	github.com/google/go-tpm-tools v0.4.4
 	github.com/gorilla/mux v1.8.1
-	github.com/gorilla/websocket v1.5.3
-	github.com/naoina/toml v0.1.2-0.20170918210437-9fafd6967416
 	github.com/pkg/errors v0.9.1
 	github.com/stretchr/testify v1.10.0
 	golang.org/x/crypto v0.37.0
-	golang.org/x/exp v0.0.0-20250408133849-7e4ce0ab07d0
 	google.golang.org/grpc v1.68.1
 	gorm.io/gorm v1.25.12
 )
@@ -25,7 +20,6 @@ require (
 require (
 	filippo.io/edwards25519 v1.1.0 // indirect
 	github.com/Microsoft/go-winio v0.6.2 // indirect
-	github.com/alexflint/go-scalar v1.2.0 // indirect
 	github.com/bits-and-blooms/bitset v1.22.0 // indirect
 	github.com/cenkalti/backoff/v4 v4.3.0 // indirect
 	github.com/consensys/bavard v0.1.30 // indirect
@@ -47,11 +41,11 @@ require (
 	github.com/google/go-tpm v0.9.0 // indirect
 	github.com/google/logger v1.1.1 // indirect
 	github.com/google/uuid v1.6.0 // indirect
+	github.com/gorilla/websocket v1.5.3 // indirect
 	github.com/holiman/uint256 v1.3.2 // indirect
 	github.com/jinzhu/inflection v1.0.0 // indirect
 	github.com/jinzhu/now v1.1.5 // indirect
 	github.com/mmcloughlin/addchain v0.4.0 // indirect
-	github.com/naoina/go-stringutil v0.1.0 // indirect
 	github.com/pborman/uuid v1.2.1 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/shirou/gopsutil v3.21.11+incompatible // indirect

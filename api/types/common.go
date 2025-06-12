@@ -4,22 +4,10 @@ import (
 	"crypto/ecdsa"
 	"math/big"
 
-	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto/secp256k1"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/structs/wallet"
 	"github.com/pkg/errors"
 )
-
-// Something that is common to all/most responses
-type ResponseBase struct {
-	Status string
-	Token  string
-}
-
-type SignatureMessage struct {
-	Signature []byte
-	PublicKey ECDSAPublicKey
-}
 
 type ECDSAPublicKey wallet.PublicKey
 
@@ -35,7 +23,7 @@ func ParsePubKey(key ECDSAPublicKey) (*ecdsa.PublicKey, error) {
 	return &ecdsa.PublicKey{Curve: secp256k1.S256(), X: x, Y: y}, nil
 }
 
-func PubKeyToBytes(key *ecdsa.PublicKey) ECDSAPublicKey {
+func PubKeyToStruct(key *ecdsa.PublicKey) ECDSAPublicKey {
 	var newKey ECDSAPublicKey
 	xBytes := key.X.Bytes()
 	yBytes := key.Y.Bytes()
@@ -53,17 +41,16 @@ func PubKeyToBytes(key *ecdsa.PublicKey) ECDSAPublicKey {
 	return newKey
 }
 
-type ResponseMessage struct {
-	Message          string
-	ThresholdReached bool
-	Token            string // Google OIDC token (Attestation token)
-}
+func PubKeyToBytes(key *ecdsa.PublicKey) []byte {
+	xBytes := key.X.Bytes()
+	yBytes := key.Y.Bytes()
 
-type GetRequestSigners struct {
-	Message string
-	Token   string // Google OIDC token (Attestation token)
-}
+	if len(xBytes) < 32 {
+		xBytes = append(make([]byte, 32-len(xBytes)), xBytes...)
+	}
+	if len(yBytes) < 32 {
+		yBytes = append(make([]byte, 32-len(yBytes)), yBytes...)
+	}
 
-type Hashable interface {
-	Hash() (common.Hash, error)
+	return append(xBytes, yBytes...)
 }
