@@ -23,11 +23,6 @@ func ParseSignPaymentRequest(instructionData *instruction.DataFixed) (commonpaym
 	return signPaymentRequest, nil
 }
 
-type SignPaymentResponse struct {
-	ResponseBase
-	Finalized bool
-}
-
 type GetPaymentSignatureResponse struct {
 	PaymentHash   string
 	TxnSignature  []byte

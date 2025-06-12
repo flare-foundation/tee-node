@@ -2,13 +2,12 @@ package types
 
 type InitializePolicyRequest struct {
 	InitialPolicyBytes     []byte
-	NewPolicyRequests      []MultiSignedPolicy
+	Policies               []MultiSignedPolicy
 	LatestPolicyPublicKeys []ECDSAPublicKey
-	Challenge              string
 }
 
-type UpdatePolicyAdditionalFixedMessage struct {
-	NewPolicyRequest       MultiSignedPolicy
+type UpdatePolicyRequest struct {
+	NewPolicy              MultiSignedPolicy
 	LatestPolicyPublicKeys []ECDSAPublicKey
 }
 
@@ -17,16 +16,7 @@ type MultiSignedPolicy struct {
 	Signatures  []*SignatureMessage
 }
 
-type InitializePolicyResponse struct {
-	Token string
-}
-
-type GetActivePolicyRequest struct {
-	Challenge string
-}
-
-type GetActivePolicyResponse struct {
-	ActivePolicy     []byte // The current active policy
-	ActivePolicyHash string // The hash of the current active policy
-	Token            string
+type SignatureMessage struct {
+	Signature []byte
+	PublicKey ECDSAPublicKey
 }
