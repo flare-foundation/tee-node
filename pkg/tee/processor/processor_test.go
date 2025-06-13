@@ -89,11 +89,14 @@ func TestProcessorEndToEnd(t *testing.T) {
 
 	walletBackup := getBackup(t, readActionInfoChan, actionMap, actionResponseChan, walletId, keyId, big.NewInt(3))
 
-	deleteWallet(t, mainActionInfoChan, actionMap, actionResponseChan, teeId, walletId, keyId, providersPrivKeys, finalEpochId, big.NewInt(4))
+	deleteWallet(t, mainActionInfoChan, actionMap, actionResponseChan, teeId, walletId, keyId, providersPrivKeys, finalEpochId, big.NewInt(4), big.NewInt(1))
 
 	recoveredWalletProof := recoverWallet(t, mainActionInfoChan, actionMap, actionResponseChan, teeId, teePubKey, walletId, keyId,
-		providersPrivKeys, adminsPrivKeys, finalEpochId, big.NewInt(5), walletBackup)
+		providersPrivKeys, adminsPrivKeys, finalEpochId, big.NewInt(5), big.NewInt(2), walletBackup)
 	walletProof.Restored = true
+	fmt.Println(walletProof.Nonce, recoveredWalletProof.Nonce)
+
+	walletProof.Nonce = big.NewInt(2)
 	require.Equal(t, walletProof, recoveredWalletProof)
 
 	// todo: update policy
@@ -168,7 +171,7 @@ func generateWallet(t *testing.T, actionInfoChan chan *types.QueuedActionInfo, a
 	err = json.Unmarshal(actionResponse.Result.ResultData.Message, &walletExistenceProof)
 	require.NoError(t, err)
 
-	newWallet, err := wallets.GetWallet(wallets.WalletKeyIdPair{WalletId: walletId, KeyId: keyId})
+	newWallet, err := wallets.Storage.GetWallet(wallets.WalletKeyIdPair{WalletId: walletId, KeyId: keyId})
 	require.NoError(t, err)
 
 	require.Equal(t, newWallet.XrpAddress, walletExistenceProof.AddressStr)
@@ -222,12 +225,12 @@ func signTransaction(t *testing.T, actionInfoChan chan *types.QueuedActionInfo,
 
 func deleteWallet(t *testing.T, actionInfoChan chan *types.QueuedActionInfo, actionMap map[types.QueuedActionInfo]*types.QueuedAction,
 	actionResponseChan chan *types.QueueActionResponse, teeId common.Address, walletId [32]byte, keyId uint64,
-	privKeys []*ecdsa.PrivateKey, rewardEpochId uint32, actionId *big.Int) {
+	privKeys []*ecdsa.PrivateKey, rewardEpochId uint32, actionId, nonce *big.Int) {
 	originalMessage := wallet.ITeeWalletKeyManagerKeyDelete{
 		TeeId:    teeId,
 		WalletId: walletId,
 		KeyId:    keyId,
-		Nonce:    big.NewInt(1),
+		Nonce:    nonce,
 	}
 	originalMessageEncoded, err := abi.Arguments{wallet.MessageArguments[wallet.KeyDelete]}.Pack(originalMessage)
 	require.NoError(t, err)
@@ -243,7 +246,7 @@ func deleteWallet(t *testing.T, actionInfoChan chan *types.QueuedActionInfo, act
 	actionResponse := <-actionResponseChan
 	require.True(t, actionResponse.Result.Status)
 
-	_, err = wallets.GetWallet(wallets.WalletKeyIdPair{WalletId: walletId, KeyId: keyId})
+	_, err = wallets.Storage.GetWallet(wallets.WalletKeyIdPair{WalletId: walletId, KeyId: keyId})
 	require.Error(t, err)
 }
 
@@ -282,12 +285,12 @@ func getBackup(t *testing.T, actionInfoChan chan *types.QueuedActionInfo, action
 
 func recoverWallet(t *testing.T, actionInfoChan chan *types.QueuedActionInfo, actionMap map[types.QueuedActionInfo]*types.QueuedAction,
 	actionResponseChan chan *types.QueueActionResponse, teeId common.Address, teePubKey *ecdsa.PublicKey, walletId [32]byte, keyId uint64,
-	providersPrivKeys, adminsPrivKeys []*ecdsa.PrivateKey, rewardEpochId uint32, actionId *big.Int,
+	providersPrivKeys, adminsPrivKeys []*ecdsa.PrivateKey, rewardEpochId uint32, actionId, nonce *big.Int,
 	backup *wallets.WalletBackup) *wallet.ITeeWalletKeyManagerKeyExistence {
 	originalMessage := wallet.ITeeWalletBackupManagerKeyDataProviderRestore{
 		TeeId:     teeId,
 		BackupUrl: "blabla",
-		Nonce:     big.NewInt(1),
+		Nonce:     nonce,
 		BackupId: wallet.ITeeWalletBackupManagerBackupId{
 			TeeId:         teeId,
 			WalletId:      walletId,
@@ -352,7 +355,7 @@ func recoverWallet(t *testing.T, actionInfoChan chan *types.QueuedActionInfo, ac
 	require.NoError(t, err)
 
 	// check that wallet is actually on the tee
-	wallet, err := wallets.GetWallet(wallets.WalletKeyIdPair{WalletId: walletId, KeyId: keyId})
+	wallet, err := wallets.Storage.GetWallet(wallets.WalletKeyIdPair{WalletId: walletId, KeyId: keyId})
 	require.NoError(t, err)
 	require.Equal(t, walletId[:], wallet.WalletId[:])
 	require.Equal(t, keyId, wallet.KeyId)

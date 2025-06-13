@@ -36,12 +36,19 @@ func NewWallet(instructionData *instruction.DataFixed) ([]byte, error) {
 		return nil, err
 	}
 
-	err = wallets.StoreWallet(newWallet)
+	wallets.Storage.Lock()
+	defer wallets.Storage.Unlock()
+	err = wallets.Storage.StoreWallet(newWallet)
+	if err != nil {
+		return nil, err
+	}
+	// get stored wallet to also have the correct walletStatus
+	storedWallet, err := wallets.Storage.GetWallet(wallets.WalletKeyIdPair{WalletId: newWallet.WalletId, KeyId: newWallet.KeyId})
 	if err != nil {
 		return nil, err
 	}
 
-	result := wallets.WalletToKeyExistenceProof(newWallet, node.GetTeeId())
+	result := wallets.WalletToKeyExistenceProof(storedWallet, node.GetTeeId())
 
 	// abi.Arguments{wallet.MessageArguments[wallet.KeyGenerate]}.Pack(originalMessage)
 	// todo: change to abi encoded
@@ -61,7 +68,15 @@ func DeleteWallet(instructionData *instruction.DataFixed) error {
 
 	walletKeyId := wallets.WalletKeyIdPair{WalletId: delWalletRequest.WalletId, KeyId: delWalletRequest.KeyId}
 
-	wallets.RemoveWallet(walletKeyId)
+	wallets.Storage.Lock()
+	defer wallets.Storage.Unlock()
+	err = wallets.Storage.CheckNonce(walletKeyId, delWalletRequest.Nonce.Uint64())
+	if err != nil {
+		return err
+	}
+
+	wallets.Storage.RemoveWallet(walletKeyId)
+	wallets.Storage.UpdateNonce(walletKeyId, delWalletRequest.Nonce.Uint64())
 
 	return nil
 }
@@ -91,6 +106,15 @@ func KeyDataProviderRestore(instructionData *instruction.DataFixed,
 	if walletBackupMetadata.WalletBackupId != walletBackupId {
 		return nil, errors.New("wallet backup id in the metadata does not match the given id")
 	}
+	walletKeyId := wallets.WalletKeyIdPair{WalletId: walletBackupId.WalletId, KeyId: walletBackupId.KeyId}
+	newWalletNonce := restoreWalletRequest.Nonce.Uint64()
+
+	wallets.Storage.RLock()
+	err = wallets.Storage.CheckNonce(walletKeyId, newWalletNonce)
+	wallets.Storage.RUnlock()
+	if err != nil {
+		return nil, err
+	}
 
 	err = checkAdmins(admins, walletBackupMetadata.AdminsPublicKeys, walletBackupMetadata.AdminsThreshold)
 	if err != nil {
@@ -115,12 +139,24 @@ func KeyDataProviderRestore(instructionData *instruction.DataFixed,
 		return nil, err
 	}
 
-	err = wallets.StoreWallet(newWallet)
+	wallets.Storage.Lock()
+	defer wallets.Storage.Unlock()
+	if wallets.Storage.WalletExists(walletKeyId) {
+		return nil, errors.New("wallet with given walletId and keyId already exists")
+	}
+
+	wallets.Storage.UpdateNonce(walletKeyId, newWalletNonce)
+	err = wallets.Storage.StoreWallet(newWallet)
 	if err != nil {
 		return nil, err
 	}
 
-	result := wallets.WalletToKeyExistenceProof(newWallet, node.GetTeeId())
+	// get stored wallet to also have the correct walletStatus
+	storedWallet, err := wallets.Storage.GetWallet(walletKeyId)
+	if err != nil {
+		return nil, err
+	}
+	result := wallets.WalletToKeyExistenceProof(storedWallet, node.GetTeeId())
 	// todo: change to abi encoded
 	resultEncoded, err := json.Marshal(result)
 	if err != nil {

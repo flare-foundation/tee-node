@@ -47,13 +47,22 @@ func TestBackupAndRecover(t *testing.T) {
 	adminsPubKeys := []*ecdsa.PublicKey{&adminKey1.PublicKey, &adminKey2.PublicKey, &adminKey3.PublicKey}
 	adminsThreshold := uint64(2)
 
-	wallet := &Wallet{WalletId: idPair.WalletId, KeyId: idPair.KeyId, PrivateKey: sk,
-		Address: crypto.PubkeyToAddress(sk.PublicKey), XrpAddress: xrpAddress,
-		AdminsPublicKeys: adminsPubKeys, AdminsThreshold: adminsThreshold,
+	wallet := &Wallet{
+		WalletId:   idPair.WalletId,
+		KeyId:      idPair.KeyId,
+		PrivateKey: sk,
+		Address:    crypto.PubkeyToAddress(sk.PublicKey),
+		XrpAddress: xrpAddress,
+		Restored:   false,
+
+		AdminsPublicKeys:   adminsPubKeys,
+		AdminsThreshold:    adminsThreshold,
 		Cosigners:          []common.Address{common.HexToAddress("aa")},
 		CosignersThreshold: 1,
 		OpType:             [32]byte{12},
 		OpTypeConstants:    []byte("bla"),
+
+		Status: &WalletStatus{},
 	}
 
 	rewardEpochId := uint32(100)

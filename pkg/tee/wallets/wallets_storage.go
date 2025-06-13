@@ -6,61 +6,84 @@ import (
 	"github.com/pkg/errors"
 )
 
-var walletsStorage = InitWalletsStorage()
+var Storage = InitWalletsStorage()
 
 type WalletsStorage struct {
-	Storage map[WalletKeyIdPair]*Wallet
+	// if a wallet exists, its Status attribute should
+	// point to the same struct as is saved in permanent
+	wallets   map[WalletKeyIdPair]*Wallet
+	permanent map[WalletKeyIdPair]*WalletStatus
 
 	sync.RWMutex
 }
 
-func InitWalletsStorage() WalletsStorage {
-	return WalletsStorage{Storage: make(map[WalletKeyIdPair]*Wallet)}
+func InitWalletsStorage() *WalletsStorage {
+	return &WalletsStorage{
+		wallets:   make(map[WalletKeyIdPair]*Wallet),
+		permanent: make(map[WalletKeyIdPair]*WalletStatus),
+	}
 }
 
-func StoreWallet(wallet *Wallet) error {
+func (walletsStorage *WalletsStorage) StoreWallet(wallet *Wallet) error {
 	idPair := WalletKeyIdPair{WalletId: wallet.WalletId, KeyId: wallet.KeyId}
-	walletsStorage.Lock()
-	defer walletsStorage.Unlock()
-	if _, ok := walletsStorage.Storage[idPair]; ok {
+	walletCopied := CopyWallet(wallet)
+
+	if _, ok := walletsStorage.wallets[idPair]; ok {
 		return errors.New("wallet with given walletId and keyId already exists")
 	}
 
-	walletsStorage.Storage[idPair] = wallet
+	if walletStatus, ok := walletsStorage.permanent[idPair]; ok {
+		walletCopied.Status = walletStatus
+	} else {
+		walletsStorage.permanent[idPair] = walletCopied.Status
+	}
+
+	walletsStorage.wallets[idPair] = walletCopied
 
 	return nil
 }
 
-func RemoveWallet(idPair WalletKeyIdPair) {
-	walletsStorage.Lock()
-	defer walletsStorage.Unlock()
-
-	delete(walletsStorage.Storage, idPair)
+func (walletsStorage *WalletsStorage) RemoveWallet(idPair WalletKeyIdPair) {
+	delete(walletsStorage.wallets, idPair)
 }
 
-func GetWallet(idPair WalletKeyIdPair) (*Wallet, error) {
-	walletsStorage.Lock()
-	defer walletsStorage.Unlock()
-
-	wallet, ok := walletsStorage.Storage[idPair]
+func (walletsStorage *WalletsStorage) GetWallet(idPair WalletKeyIdPair) (*Wallet, error) {
+	wallet, ok := walletsStorage.wallets[idPair]
 	if !ok || wallet == nil {
 		return nil, errors.New("wallet non-existent")
 	}
+	walletCopy := CopyWallet(wallet)
 
-	return wallet, nil
+	return walletCopy, nil
 }
 
-func WalletExists(idPair WalletKeyIdPair) bool {
-	walletsStorage.Lock()
-	defer walletsStorage.Unlock()
-
-	_, ok := walletsStorage.Storage[idPair]
+func (walletsStorage *WalletsStorage) WalletExists(idPair WalletKeyIdPair) bool {
+	_, ok := walletsStorage.wallets[idPair]
 	return ok
 }
 
-func DestroyState() {
+func (walletsStorage *WalletsStorage) CheckNonce(idPair WalletKeyIdPair, nonce uint64) error {
+	walletStatus, ok := walletsStorage.permanent[idPair]
+	if !ok {
+		return nil
+	}
+	if nonce <= walletStatus.Nonce {
+		return errors.New("nonce too small")
+	}
+
+	return nil
+}
+
+func (walletsStorage *WalletsStorage) UpdateNonce(idPair WalletKeyIdPair, nonce uint64) {
+	if walletStatus, ok := walletsStorage.permanent[idPair]; ok {
+		walletStatus.Nonce = nonce
+	}
+}
+
+func (walletsStorage *WalletsStorage) DestroyState() {
 	walletsStorage.Lock()
 	defer walletsStorage.Unlock()
 
-	walletsStorage.Storage = make(map[WalletKeyIdPair]*Wallet)
+	walletsStorage.wallets = make(map[WalletKeyIdPair]*Wallet)
+	walletsStorage.permanent = make(map[WalletKeyIdPair]*WalletStatus)
 }
