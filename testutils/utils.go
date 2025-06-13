@@ -212,7 +212,7 @@ func RandomNormalizedArray(n int, seed int64) []float64 {
 // Resets the state of the TEE between tests
 func ResetTEEState() {
 	policy.DestroyState()
-	wallets.DestroyState()
+	wallets.Storage.DestroyState()
 
 	// TODO: Reset any other state that might interfere with the tests
 }

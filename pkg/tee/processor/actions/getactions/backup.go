@@ -15,7 +15,10 @@ func GetBackupPackage(getAction *types.ActionData) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	wallet, err := wallets.GetWallet(walletKeyId)
+
+	wallets.Storage.RLock()
+	wallet, err := wallets.Storage.GetWallet(walletKeyId)
+	wallets.Storage.RUnlock()
 	if err != nil {
 		return nil, err
 	}

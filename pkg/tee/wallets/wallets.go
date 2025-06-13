@@ -2,13 +2,13 @@ package wallets
 
 import (
 	"crypto/ecdsa"
+	"math/big"
 	"tee-node/api/types"
 	"tee-node/pkg/tee/utils"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/structs/wallet"
-	"github.com/pkg/errors"
 )
 
 // Wallet is a struct carrying the private key of particular wallet. It
@@ -28,15 +28,21 @@ type Wallet struct {
 	OpType             [32]byte
 	OpTypeConstants    []byte
 
+	Status *WalletStatus
+
 	// WalletPauserAddresses         []common.Address
 	// WalletPauserAddressSetupNonce big.Int
-	// WalletPausingNonce            common.Hash
-	// IsWalletPaused                bool
 }
 
 type WalletKeyIdPair struct {
 	WalletId common.Hash
 	KeyId    uint64
+}
+
+type WalletStatus struct {
+	Nonce        uint64
+	PausingNonce common.Hash
+	StatusCode   uint8
 }
 
 func CreateNewWallet(walletInfo wallet.ITeeWalletKeyManagerKeyGenerate) (*Wallet, error) {
@@ -71,61 +77,65 @@ func CreateNewWallet(walletInfo wallet.ITeeWalletKeyManagerKeyGenerate) (*Wallet
 		CosignersThreshold: walletInfo.ConfigConstants.CosignersThreshold,
 		OpType:             walletInfo.OpType,
 		OpTypeConstants:    walletInfo.ConfigConstants.OpTypeConstants,
+		Status:             &WalletStatus{Nonce: 0, StatusCode: 0},
 	}
 
 	return newWallet, nil
 }
 
-func GetXrpAddress(idPair WalletKeyIdPair) (string, error) {
-	walletsStorage.Lock()
-	defer walletsStorage.Unlock()
+func CopyWallet(inputWallet *Wallet) *Wallet {
+	walletCopy := &Wallet{
+		WalletId:   inputWallet.WalletId,
+		KeyId:      inputWallet.KeyId,
+		PrivateKey: crypto.ToECDSAUnsafe(inputWallet.PrivateKey.D.Bytes()),
+		Address:    inputWallet.Address,
+		XrpAddress: inputWallet.XrpAddress,
+		Restored:   inputWallet.Restored,
 
-	wallet, ok := walletsStorage.Storage[idPair]
+		AdminsPublicKeys:   make([]*ecdsa.PublicKey, len(inputWallet.AdminsPublicKeys)),
+		AdminsThreshold:    inputWallet.AdminsThreshold,
+		Cosigners:          make([]common.Address, len(inputWallet.Cosigners)),
+		CosignersThreshold: inputWallet.CosignersThreshold,
+		OpType:             inputWallet.OpType,
+		OpTypeConstants:    make([]byte, len(inputWallet.OpTypeConstants)),
 
-	if !ok {
-		return "", errors.New("wallet non-existent")
+		Status: &WalletStatus{
+			Nonce:        inputWallet.Status.Nonce,
+			StatusCode:   inputWallet.Status.StatusCode,
+			PausingNonce: inputWallet.Status.PausingNonce,
+		},
 	}
+	copy(walletCopy.AdminsPublicKeys, inputWallet.AdminsPublicKeys)
+	copy(walletCopy.Cosigners, inputWallet.Cosigners)
+	copy(walletCopy.OpTypeConstants, inputWallet.OpTypeConstants)
 
-	return wallet.XrpAddress, nil
-}
-
-func GetEthAddress(idPair WalletKeyIdPair) (string, error) {
-	walletsStorage.Lock()
-	defer walletsStorage.Unlock()
-
-	wallet, ok := walletsStorage.Storage[idPair]
-	if !ok {
-		return "", errors.New("wallet non-existent")
-	}
-
-	return wallet.Address.Hex(), nil
-}
-
-func GetPublicKey(idPair WalletKeyIdPair) (*ecdsa.PublicKey, error) {
-	walletsStorage.Lock()
-	defer walletsStorage.Unlock()
-
-	wallet, ok := walletsStorage.Storage[idPair]
-	if !ok {
-		return nil, errors.New("wallet non-existent")
-	}
-
-	return &wallet.PrivateKey.PublicKey, nil
+	return walletCopy
 }
 
 func WalletToKeyExistenceProof(inputWallet *Wallet, teeId common.Address) *wallet.ITeeWalletKeyManagerKeyExistence {
+	adminPubKeys := make([]wallet.PublicKey, len(inputWallet.AdminsPublicKeys))
+	for i, pubKey := range inputWallet.AdminsPublicKeys {
+		adminPubKeys[i] = wallet.PublicKey(types.PubKeyToStruct(pubKey))
+	}
+
 	return &wallet.ITeeWalletKeyManagerKeyExistence{
-		TeeId:           teeId,
-		WalletId:        inputWallet.WalletId,
-		KeyId:           inputWallet.KeyId,
-		OpType:          inputWallet.OpType,
-		PublicKey:       types.PubKeyToBytes(&inputWallet.PrivateKey.PublicKey),
-		Nonce:           nil, // todo
-		PauseNonce:      nil, // todo
-		Status:          0,   // todo
-		Restored:        inputWallet.Restored,
-		AddressStr:      inputWallet.XrpAddress,
-		ConfigConstants: wallet.ITeeWalletKeyManagerKeyConfigConstants{}, // todo
-		ConfigSettings:  wallet.ITeeWalletKeyManagerKeyConfigSettings{},  // todo
+		TeeId:      teeId,
+		WalletId:   inputWallet.WalletId,
+		KeyId:      inputWallet.KeyId,
+		OpType:     inputWallet.OpType,
+		PublicKey:  types.PubKeyToBytes(&inputWallet.PrivateKey.PublicKey),
+		Nonce:      new(big.Int).SetUint64(inputWallet.Status.Nonce),
+		PauseNonce: new(big.Int).SetBytes(inputWallet.Status.PausingNonce[:]),
+		Status:     inputWallet.Status.StatusCode,
+		Restored:   inputWallet.Restored,
+		AddressStr: inputWallet.XrpAddress,
+		ConfigConstants: wallet.ITeeWalletKeyManagerKeyConfigConstants{
+			AdminsPublicKeys:   adminPubKeys,
+			AdminsThreshold:    inputWallet.AdminsThreshold,
+			Cosigners:          inputWallet.Cosigners,
+			CosignersThreshold: inputWallet.CosignersThreshold,
+			OpTypeConstants:    inputWallet.OpTypeConstants,
+		},
+		ConfigSettings: wallet.ITeeWalletKeyManagerKeyConfigSettings{}, // todo
 	}
 }

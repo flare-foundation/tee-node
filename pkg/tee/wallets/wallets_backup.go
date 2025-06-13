@@ -420,6 +420,8 @@ func RecoverWallet(
 		CosignersThreshold: backupMetaData.CosignersThreshold,
 		OpType:             backupMetaData.OpType,
 		OpTypeConstants:    backupMetaData.OpTypeConstants,
+
+		Status: &WalletStatus{Nonce: 0, StatusCode: 0},
 	}, nil
 }
 

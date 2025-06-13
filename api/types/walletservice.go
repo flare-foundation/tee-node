@@ -1,6 +1,8 @@
 package types
 
 import (
+	"math/big"
+
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/instruction"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/structs"
@@ -35,6 +37,10 @@ func ParseDeleteWalletRequest(instructionData *instruction.DataFixed) (wallet.IT
 	if err != nil {
 		return wallet.ITeeWalletKeyManagerKeyDelete{}, err
 	}
+	err = nonceCheck(unpacked.Nonce)
+	if err != nil {
+		return wallet.ITeeWalletKeyManagerKeyDelete{}, err
+	}
 
 	return unpacked, nil
 }
@@ -47,7 +53,23 @@ func ParseKeyDataProviderRestoreRequest(instructionData *instruction.DataFixed) 
 		return wallet.ITeeWalletBackupManagerKeyDataProviderRestore{}, err
 	}
 
+	err = nonceCheck(unpacked.Nonce)
+	if err != nil {
+		return wallet.ITeeWalletBackupManagerKeyDataProviderRestore{}, err
+	}
+
 	return unpacked, nil
+}
+
+func nonceCheck(nonce *big.Int) error {
+	if nonce == nil {
+		return errors.New("nonce not given")
+	}
+	if nonce.BitLen() > 64 {
+		return errors.New("nonce too big")
+	}
+
+	return nil
 }
 
 type WalletGetBackupResponse struct {

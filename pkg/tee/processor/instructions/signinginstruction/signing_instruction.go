@@ -26,7 +26,9 @@ func SignPaymentTransaction(instructionData *instruction.DataFixed, cosigners ma
 	}
 
 	walletKeyIdPair := wallets.WalletKeyIdPair{WalletId: originalMessage.WalletId, KeyId: additionalFixedMessage.KeyId}
-	signingWallet, err := wallets.GetWallet(walletKeyIdPair)
+	wallets.Storage.RLock()
+	signingWallet, err := wallets.Storage.GetWallet(walletKeyIdPair)
+	wallets.Storage.RUnlock()
 	if err != nil {
 		return nil, err
 	}
@@ -47,10 +49,9 @@ func SignPaymentTransaction(instructionData *instruction.DataFixed, cosigners ma
 	if err != nil {
 		return nil, err
 	}
-	xrpAccountAddress, _ := wallets.GetXrpAddress(walletKeyIdPair)
 	signingPubKey := utils.SerializeCompressed(&signingWallet.PrivateKey.PublicKey)
 	signatureResponse := types.GetPaymentSignatureResponse{
-		Account:       xrpAccountAddress,
+		Account:       signingWallet.XrpAddress,
 		TxnSignature:  txnSignature,
 		PaymentHash:   additionalFixedMessage.PaymentHash,
 		SigningPubKey: signingPubKey,
