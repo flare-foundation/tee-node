@@ -40,13 +40,13 @@ type ActionData struct {
 type ActionResponse struct {
 	ID            common.Hash   `json:"id"`
 	SubmissionTag SubmissionTag `json:"submissionTag"`
+	Status        bool          `json:"status"`
+	Log           string        `json:"log"`
 
-	Result ActionResult `json:"result"`
+	Result Result `json:"result"`
 }
 
-type ActionResult struct {
-	Status                 bool          `json:"status"`
-	Log                    string        `json:"log"`
+type Result struct {
 	OPType                 common.Hash   `json:"opType"`
 	OPCommand              common.Hash   `json:"opCommand"`
 	AdditionalResultStatus hexutil.Bytes `json:"additionalResultStatus"`
@@ -67,11 +67,11 @@ type ActionInfo struct {
 
 type SignerSequence struct {
 	Data      SignerSequenceData `json:"data"`
-	Signature hexutil.Bytes      `json:"signature"` // TEE signature of QueueHash
+	Signature hexutil.Bytes      `json:"signature"` // TEE signature of voteHash
 }
 
 type SignerSequenceData struct {
-	VoteHash                   common.Hash     `json:"queueHash"`
+	VoteHash                   common.Hash     `json:"voteHash"`
 	InstructionId              common.Hash     `json:"instructionId"`
 	InstructionHash            common.Hash     `json:"instructionHash"`
 	RewardEpochId              uint32          `json:"rewardEpochId"`

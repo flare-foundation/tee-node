@@ -27,8 +27,11 @@ func RunTeeProcessor(proxyUrl string) {
 func runQueueProcessing(proxyUrl string, queueId string) {
 	for {
 		var action *types.Action
-		var result *types.ActionResult
+		var result *types.Result
 		var response *types.ActionResponse
+
+		log := ""
+		status := true
 
 		actionInfo, err := getActionInfo(proxyUrl + "/queue/" + queueId)
 		if err != nil {
@@ -49,14 +52,16 @@ func runQueueProcessing(proxyUrl string, queueId string) {
 
 		result, err = processAction(action)
 		if err != nil {
-			result.Log = err.Error()
-			result.Status = false
+			log = err.Error()
+			status = false
 			logger.Errorf("error processing action: %v", err)
 		}
 
 		response = &types.ActionResponse{
 			ID:            actionInfo.ActionId,
 			SubmissionTag: actionInfo.SubmissionTag,
+			Status:        status,
+			Log:           log,
 			Result:        *result,
 		}
 		err = postActionResponse(proxyUrl+"/result", response)
@@ -76,15 +81,14 @@ func checkAndAdapt(action *types.Action) {
 	// todo: additional checks?
 }
 
-func processAction(action *types.Action) (*types.ActionResult, error) {
+func processAction(action *types.Action) (*types.Result, error) {
 	var err error
-	response := &types.ActionResult{}
+	response := &types.Result{}
 
 	switch action.Data.Type {
 	case types.Instruction:
 		instructionData, err := parse[instruction.DataFixed](action.Data.Message)
 		if err != nil {
-			response.Log = err.Error()
 			return response, err
 		}
 
@@ -97,7 +101,6 @@ func processAction(action *types.Action) (*types.ActionResult, error) {
 		)
 		response.AdditionalResultStatus = resultStatus
 		if err != nil {
-			response.Log = err.Error()
 			return response, err
 		}
 
@@ -108,13 +111,11 @@ func processAction(action *types.Action) (*types.ActionResult, error) {
 	case types.Direct:
 		getData, err := parse[types.DirectInstructionData](action.Data.Message)
 		if err != nil {
-			response.Log = err.Error()
 			return response, err
 		}
 
 		message, err := direct.ProcessDirectInstruction(getData)
 		if err != nil {
-			response.Log = err.Error()
 			return response, err
 		}
 
@@ -124,7 +125,6 @@ func processAction(action *types.Action) (*types.ActionResult, error) {
 
 	default:
 		err = errors.New("invalid queued action type")
-		response.Log = err.Error()
 		return response, err
 	}
 
@@ -133,12 +133,9 @@ func processAction(action *types.Action) (*types.ActionResult, error) {
 
 		response.ResultData.Signature, err = node.Sign(msgHash[:])
 		if err != nil {
-			response.Log = err.Error()
 			return response, err
 		}
 	}
-
-	response.Status = true
 
 	return response, nil
 }

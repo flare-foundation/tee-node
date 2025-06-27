@@ -145,7 +145,7 @@ func initializePolicy(t *testing.T, actionInfoChan chan *types.ActionInfo, actio
 	actionInfoChan <- actionInfo
 
 	actionResponse := <-actionResponseChan
-	require.True(t, actionResponse.Result.Status)
+	require.True(t, actionResponse.Status)
 }
 
 func getTeeInfo(t *testing.T, actionInfoChan chan *types.ActionInfo, actionMap map[types.ActionInfo]*types.Action,
@@ -164,7 +164,7 @@ func getTeeInfo(t *testing.T, actionInfoChan chan *types.ActionInfo, actionMap m
 	actionInfoChan <- actionInfo
 
 	actionResponse := <-actionResponseChan
-	require.True(t, actionResponse.Result.Status)
+	require.True(t, actionResponse.Status)
 
 	var teeInfoResponse types.TeeInfoResponse
 	err = json.Unmarshal(actionResponse.Result.ResultData.Message, &teeInfoResponse)
@@ -212,7 +212,7 @@ func generateWallet(t *testing.T, actionInfoChan chan *types.ActionInfo, actionM
 	actionInfoChan <- actionInfo
 
 	actionResponse := <-actionResponseChan
-	require.True(t, actionResponse.Result.Status)
+	require.True(t, actionResponse.Status)
 	err = utils.VerifySignature(crypto.Keccak256(actionResponse.Result.ResultData.Message), actionResponse.Result.ResultData.Signature, teeId)
 	require.NoError(t, err)
 
@@ -236,7 +236,7 @@ func generateWallet(t *testing.T, actionInfoChan chan *types.ActionInfo, actionM
 	actionInfoChan <- actionInfo
 
 	actionResponse = <-actionResponseChan
-	require.True(t, actionResponse.Result.Status)
+	require.True(t, actionResponse.Status)
 	err = utils.VerifySignature(crypto.Keccak256(actionResponse.Result.ResultData.Message), actionResponse.Result.ResultData.Signature, teeId)
 	require.NoError(t, err)
 
@@ -286,7 +286,7 @@ func signTransaction(t *testing.T, actionInfoChan chan *types.ActionInfo,
 	actionInfoChan <- actionInfo
 
 	actionResponse := <-actionResponseChan
-	require.True(t, actionResponse.Result.Status)
+	require.True(t, actionResponse.Status)
 	err = utils.VerifySignature(crypto.Keccak256(actionResponse.Result.ResultData.Message), actionResponse.Result.ResultData.Signature, teeId)
 	require.NoError(t, err)
 
@@ -309,7 +309,7 @@ func signTransaction(t *testing.T, actionInfoChan chan *types.ActionInfo,
 	actionInfoChan <- actionInfo
 
 	actionResponse = <-actionResponseChan
-	require.True(t, actionResponse.Result.Status)
+	require.True(t, actionResponse.Status)
 	err = utils.VerifySignature(crypto.Keccak256(actionResponse.Result.ResultData.Message), actionResponse.Result.ResultData.Signature, teeId)
 	require.NoError(t, err)
 
@@ -344,7 +344,7 @@ func deleteWallet(t *testing.T, actionInfoChan chan *types.ActionInfo, actionMap
 	actionInfoChan <- actionInfo
 
 	actionResponse := <-actionResponseChan
-	require.True(t, actionResponse.Result.Status)
+	require.True(t, actionResponse.Status)
 
 	_, err = wallets.Storage.GetWallet(wallets.WalletKeyIdPair{WalletId: walletId, KeyId: keyId})
 	require.Error(t, err)
@@ -361,7 +361,7 @@ func deleteWallet(t *testing.T, actionInfoChan chan *types.ActionInfo, actionMap
 	actionInfoChan <- actionInfo
 
 	actionResponse = <-actionResponseChan
-	require.True(t, actionResponse.Result.Status)
+	require.True(t, actionResponse.Status)
 	err = utils.VerifySignature(crypto.Keccak256(actionResponse.Result.ResultData.Message), actionResponse.Result.ResultData.Signature, teeId)
 	require.NoError(t, err)
 
@@ -391,7 +391,7 @@ func getBackup(t *testing.T, actionInfoChan chan *types.ActionInfo, actionMap ma
 	actionInfoChan <- actionInfo
 
 	actionResponse := <-actionResponseChan
-	require.True(t, actionResponse.Result.Status)
+	require.True(t, actionResponse.Status)
 	err = utils.VerifySignature(crypto.Keccak256(actionResponse.Result.ResultData.Message), actionResponse.Result.ResultData.Signature, teeId)
 	require.NoError(t, err)
 
@@ -505,7 +505,7 @@ func recoverWallet(t *testing.T, actionInfoChan chan *types.ActionInfo, actionMa
 	actionInfoChan <- actionInfo
 
 	actionResponse := <-actionResponseChan
-	require.True(t, actionResponse.Result.Status)
+	require.True(t, actionResponse.Status)
 	err = utils.VerifySignature(crypto.Keccak256(actionResponse.Result.ResultData.Message), actionResponse.Result.ResultData.Signature, teeId)
 	require.NoError(t, err)
 
@@ -532,7 +532,7 @@ func recoverWallet(t *testing.T, actionInfoChan chan *types.ActionInfo, actionMa
 	actionInfoChan <- actionInfo
 
 	actionResponse = <-actionResponseChan
-	require.True(t, actionResponse.Result.Status)
+	require.True(t, actionResponse.Status)
 	err = utils.VerifySignature(crypto.Keccak256(actionResponse.Result.ResultData.Message), actionResponse.Result.ResultData.Signature, teeId)
 	require.NoError(t, err)
 
