@@ -13,6 +13,7 @@ import (
 	"github.com/flare-foundation/tee-node/pkg/utils"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/instruction"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/structs"
@@ -139,7 +140,7 @@ func ValidateDeleteWallet(instructionData *instruction.DataFixed) error {
 }
 
 func KeyDataProviderRestore(instructionData *instruction.DataFixed,
-	variableMessages [][]byte,
+	variableMessages []hexutil.Bytes,
 	signers []common.Address,
 ) ([]byte, []byte, error) {
 	walletBackupMetadata, newWalletNonce, signersBothRoles, err := keyDataProviderRestoreCheck(instructionData, signers)
@@ -193,7 +194,7 @@ func KeyDataProviderRestore(instructionData *instruction.DataFixed,
 }
 
 func ValidateKeyDataProviderRestore(instructionData *instruction.DataFixed,
-	variableMessages [][]byte,
+	variableMessages []hexutil.Bytes,
 	signers []common.Address,
 ) ([]byte, error) {
 	walletBackupMetadata, restoredWalletNonce, signersBothRoles, err := keyDataProviderRestoreCheck(instructionData, signers)
@@ -262,7 +263,7 @@ func keyDataProviderRestoreCheck(instructionData *instruction.DataFixed, signers
 	return &walletBackupMetadata, restoredWalletNonce, isProviderAndAdmin, nil
 }
 
-func processKeySplitMessages(variableMessages [][]byte, isProviderAndAdmin []bool, walletBackupId pkgbackup.WalletBackupId) ([]*pkgbackup.KeySplit, []byte, error) {
+func processKeySplitMessages(variableMessages []hexutil.Bytes, isProviderAndAdmin []bool, walletBackupId pkgbackup.WalletBackupId) ([]*pkgbackup.KeySplit, []byte, error) {
 	allKeySplits := make([]*pkgbackup.KeySplit, 0)
 	duplicateCheck := make(map[common.Hash]int)
 

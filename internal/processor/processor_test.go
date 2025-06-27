@@ -17,6 +17,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/crypto/ecies"
+	"github.com/flare-foundation/go-flare-common/pkg/tee/constants"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/structs"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/structs/payment"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/structs/verification"
@@ -196,12 +197,12 @@ func generateWallet(t *testing.T, actionInfoChan chan *types.ActionInfo, actionM
 			CosignersThreshold: 0,
 		},
 	}
-	originalMessageEncoded, err := abi.Arguments{commonwallet.MessageArguments[commonwallet.KeyGenerate]}.Pack(originalMessage)
+	originalMessageEncoded, err := abi.Arguments{commonwallet.MessageArguments[constants.KeyGenerate]}.Pack(originalMessage)
 	require.NoError(t, err)
 
 	// generate action sent when threshold reached
 	action, err := testutils.BuildMockQueuedActionInstruction(
-		"WALLET", "KEY_GENERATE", originalMessageEncoded, privKeys, teeId, rewardEpochId, nil, nil, types.ThresholdReachedSubmissionTag,
+		"WALLET", "KEY_GENERATE", originalMessageEncoded, privKeys, teeId, rewardEpochId, nil, nil, types.Threshold,
 	)
 	require.NoError(t, err)
 
@@ -225,7 +226,7 @@ func generateWallet(t *testing.T, actionInfoChan chan *types.ActionInfo, actionM
 
 	// generate action sent when voting closed
 	action, err = testutils.BuildMockQueuedActionInstruction(
-		"WALLET", "KEY_GENERATE", originalMessageEncoded, privKeys, teeId, rewardEpochId, nil, nil, types.VotingClosedSubmissionTag,
+		"WALLET", "KEY_GENERATE", originalMessageEncoded, privKeys, teeId, rewardEpochId, nil, nil, types.End,
 	)
 	require.NoError(t, err)
 
@@ -266,7 +267,7 @@ func signTransaction(t *testing.T, actionInfoChan chan *types.ActionInfo,
 		BatchEndTs:       0,
 	}
 
-	originalMessageEncoded, err := abi.Arguments{payment.MessageArguments[payment.Pay]}.Pack(originalMessage)
+	originalMessageEncoded, err := abi.Arguments{payment.MessageArguments[constants.Pay]}.Pack(originalMessage)
 	require.NoError(t, err)
 
 	additionalFixedMessage := types.SignPaymentAdditionalFixedMessage{
@@ -275,7 +276,7 @@ func signTransaction(t *testing.T, actionInfoChan chan *types.ActionInfo,
 	}
 
 	action, err := testutils.BuildMockQueuedActionInstruction(
-		"XRP", "PAY", originalMessageEncoded, privKeys, teeId, rewardEpochId, additionalFixedMessage, nil, types.ThresholdReachedSubmissionTag,
+		"XRP", "PAY", originalMessageEncoded, privKeys, teeId, rewardEpochId, additionalFixedMessage, nil, types.Threshold,
 	)
 	require.NoError(t, err)
 
@@ -298,7 +299,7 @@ func signTransaction(t *testing.T, actionInfoChan chan *types.ActionInfo,
 
 	// generate action sent when voting closed
 	action, err = testutils.BuildMockQueuedActionInstruction(
-		"XRP", "PAY", originalMessageEncoded, privKeys, teeId, rewardEpochId, additionalFixedMessage, nil, types.VotingClosedSubmissionTag,
+		"XRP", "PAY", originalMessageEncoded, privKeys, teeId, rewardEpochId, additionalFixedMessage, nil, types.End,
 	)
 	require.NoError(t, err)
 
@@ -329,11 +330,11 @@ func deleteWallet(t *testing.T, actionInfoChan chan *types.ActionInfo, actionMap
 		KeyId:    keyId,
 		Nonce:    nonce,
 	}
-	originalMessageEncoded, err := abi.Arguments{commonwallet.MessageArguments[commonwallet.KeyDelete]}.Pack(originalMessage)
+	originalMessageEncoded, err := abi.Arguments{commonwallet.MessageArguments[constants.KeyDelete]}.Pack(originalMessage)
 	require.NoError(t, err)
 
 	action, err := testutils.BuildMockQueuedActionInstruction(
-		"WALLET", "KEY_DELETE", originalMessageEncoded, privKeys, teeId, rewardEpochId, nil, nil, types.ThresholdReachedSubmissionTag,
+		"WALLET", "KEY_DELETE", originalMessageEncoded, privKeys, teeId, rewardEpochId, nil, nil, types.Threshold,
 	)
 	require.NoError(t, err)
 
@@ -350,7 +351,7 @@ func deleteWallet(t *testing.T, actionInfoChan chan *types.ActionInfo, actionMap
 
 	// generate action sent when voting closed
 	action, err = testutils.BuildMockQueuedActionInstruction(
-		"WALLET", "KEY_DELETE", originalMessageEncoded, privKeys, teeId, rewardEpochId, nil, nil, types.VotingClosedSubmissionTag,
+		"WALLET", "KEY_DELETE", originalMessageEncoded, privKeys, teeId, rewardEpochId, nil, nil, types.End,
 	)
 	require.NoError(t, err)
 
@@ -426,7 +427,7 @@ func recoverWallet(t *testing.T, actionInfoChan chan *types.ActionInfo, actionMa
 		},
 	}
 
-	originalMessageEncoded, err := abi.Arguments{commonwallet.MessageArguments[commonwallet.KeyDataProviderRestore]}.Pack(originalMessage)
+	originalMessageEncoded, err := abi.Arguments{commonwallet.MessageArguments[constants.KeyDataProviderRestore]}.Pack(originalMessage)
 	require.NoError(t, err)
 
 	additionalFixedMessage := walletBackup.WalletBackupMetaData
@@ -494,7 +495,7 @@ func recoverWallet(t *testing.T, actionInfoChan chan *types.ActionInfo, actionMa
 	action, err := testutils.BuildMockQueuedActionInstruction(
 		"WALLET", "KEY_DATA_PROVIDER_RESTORE", originalMessageEncoded, privKeys, teeId,
 		rewardEpochId, additionalFixedMessage, additionalVariableMessages,
-		types.ThresholdReachedSubmissionTag,
+		types.Threshold,
 	)
 	require.NoError(t, err)
 
@@ -521,7 +522,7 @@ func recoverWallet(t *testing.T, actionInfoChan chan *types.ActionInfo, actionMa
 	action, err = testutils.BuildMockQueuedActionInstruction(
 		"WALLET", "KEY_DATA_PROVIDER_RESTORE", originalMessageEncoded, privKeys, teeId,
 		rewardEpochId, additionalFixedMessage, additionalVariableMessages,
-		types.VotingClosedSubmissionTag,
+		types.End,
 	)
 	require.NoError(t, err)
 

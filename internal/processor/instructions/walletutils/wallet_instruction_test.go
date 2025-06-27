@@ -14,6 +14,7 @@ import (
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/flare-foundation/go-flare-common/pkg/tee/constants"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/instruction"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/structs"
 	walletcommon "github.com/flare-foundation/go-flare-common/pkg/tee/structs/wallet"
@@ -57,7 +58,7 @@ func TestKeyGenerate(t *testing.T) {
 			CosignersThreshold: 0,
 		},
 	}
-	originalMessageEncoded, err := abi.Arguments{walletcommon.MessageArguments[walletcommon.KeyGenerate]}.Pack(originalMessage)
+	originalMessageEncoded, err := abi.Arguments{walletcommon.MessageArguments[constants.KeyGenerate]}.Pack(originalMessage)
 	require.NoError(t, err)
 
 	instructionId, err := utils.GenerateRandom()

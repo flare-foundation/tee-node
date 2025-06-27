@@ -14,7 +14,9 @@ import (
 
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/flare-foundation/go-flare-common/pkg/tee/constants"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/instruction"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/structs"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/structs/payment"
@@ -53,7 +55,7 @@ func CreateMockWallet(t *testing.T, nodeId common.Address, walletId common.Hash,
 			CosignersThreshold: uint64(len(cosignerPubKeys)),
 		},
 	}
-	encoded, err := abi.Arguments{wallet.MessageArguments[wallet.KeyGenerate]}.Pack(request)
+	encoded, err := abi.Arguments{wallet.MessageArguments[constants.KeyGenerate]}.Pack(request)
 	require.NoError(t, err)
 
 	instructionDataFixed := instruction.DataFixed{
@@ -89,7 +91,7 @@ func BuildMockPaymentOriginalMessage(t *testing.T, mockWallet common.Hash) []byt
 		BatchEndTs:       uint64(0),
 	}
 
-	originalMessageEncoded, err := abi.Arguments{payment.MessageArguments[payment.Pay]}.Pack(originalMessage)
+	originalMessageEncoded, err := abi.Arguments{payment.MessageArguments[constants.Pay]}.Pack(originalMessage)
 	require.NoError(t, err)
 	return originalMessageEncoded
 }
@@ -119,10 +121,10 @@ func BuildMockQueuedActionInstruction(opType string, opCommand string, originalM
 		return nil, err
 	}
 
-	signatures := make([][]byte, len(privKeys))
-	var additionalVariableMessages [][]byte
+	signatures := make([]hexutil.Bytes, len(privKeys))
+	var additionalVariableMessages []hexutil.Bytes
 	if len(variableMessages) != 0 {
-		additionalVariableMessages = make([][]byte, len(privKeys))
+		additionalVariableMessages = make([]hexutil.Bytes, len(privKeys))
 	}
 
 	for i, privKey := range privKeys {
@@ -160,7 +162,7 @@ func BuildMockQueuedActionInstruction(opType string, opCommand string, originalM
 
 	action := types.Action{
 		Data: types.ActionData{
-			Type:          types.InstructionType,
+			Type:          types.Instruction,
 			Message:       instructionDataFixedEncoded,
 			SubmissionTag: submissionTag,
 		},
@@ -191,7 +193,7 @@ func BuildMockQueuedActionAction(opType string, opCommand string, messageRaw int
 
 	action := types.Action{
 		Data: types.ActionData{
-			Type:    types.DirectType,
+			Type:    types.Direct,
 			Message: getDataEncoded,
 		},
 	}

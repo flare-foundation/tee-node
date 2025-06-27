@@ -10,6 +10,7 @@ import (
 	"github.com/flare-foundation/tee-node/internal/settings"
 	"github.com/flare-foundation/tee-node/pkg/types"
 
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/flare-foundation/go-flare-common/pkg/logger"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/instruction"
@@ -54,7 +55,7 @@ func runQueueProcessing(proxyUrl string, queueId string) {
 		}
 
 		response = &types.ActionResponse{
-			ActionId:      actionInfo.ActionId,
+			ID:            actionInfo.ActionId,
 			SubmissionTag: actionInfo.SubmissionTag,
 			Result:        *result,
 		}
@@ -70,7 +71,7 @@ func runQueueProcessing(proxyUrl string, queueId string) {
 
 func checkAndAdapt(action *types.Action) {
 	if len(action.AdditionalVariableMessages) == 0 {
-		action.AdditionalVariableMessages = make([][]byte, len(action.Signatures))
+		action.AdditionalVariableMessages = make([]hexutil.Bytes, len(action.Signatures))
 	}
 	// todo: additional checks?
 }
@@ -80,7 +81,7 @@ func processAction(action *types.Action) (*types.ActionResult, error) {
 	response := &types.ActionResult{}
 
 	switch action.Data.Type {
-	case types.InstructionType:
+	case types.Instruction:
 		instructionData, err := parse[instruction.DataFixed](action.Data.Message)
 		if err != nil {
 			response.Log = err.Error()
@@ -104,7 +105,7 @@ func processAction(action *types.Action) (*types.ActionResult, error) {
 		response.OPType = instructionData.OPType
 		response.ResultData = types.ActionResultData{Message: message}
 
-	case types.DirectType:
+	case types.Direct:
 		getData, err := parse[types.DirectInstructionData](action.Data.Message)
 		if err != nil {
 			response.Log = err.Error()
