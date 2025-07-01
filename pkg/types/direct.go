@@ -1,14 +1,17 @@
 package types
 
-import "github.com/ethereum/go-ethereum/common"
+import (
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
+)
 
 type DirectInstruction struct {
 	Data       DirectInstructionData `json:"data"`
-	Signatures [][]byte              `json:"signatures"`
+	Signatures []hexutil.Bytes       `json:"signatures"`
 }
 
 type DirectInstructionData struct {
-	OPType    common.Hash `json:"opType"`
-	OPCommand common.Hash `json:"opCommand"`
-	Message   []byte      `json:"message"`
+	OPType    common.Hash   `json:"opType"`
+	OPCommand common.Hash   `json:"opCommand"`
+	Message   hexutil.Bytes `json:"message"`
 }

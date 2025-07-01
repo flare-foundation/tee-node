@@ -9,6 +9,7 @@ import (
 	"github.com/flare-foundation/tee-node/pkg/utils"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/instruction"
 	"github.com/pkg/errors"
 )
@@ -47,7 +48,7 @@ func validateInstructionDataSize(instructionData *instruction.DataFixed) error {
 	return nil
 }
 
-func signaturesToSigners(instructionDataFixed *instruction.DataFixed, variableMessages, signatures [][]byte) ([]common.Address, error) {
+func signaturesToSigners(instructionDataFixed *instruction.DataFixed, variableMessages, signatures []hexutil.Bytes) ([]common.Address, error) {
 	if len(variableMessages) != len(signatures) {
 		return nil, errors.New("the number of variable messages does not match the number of signatures")
 	}
@@ -101,7 +102,7 @@ func checkDataProvidersThreshold(instructionDataFixed *instruction.DataFixed, si
 	}
 }
 
-func voteHash(instructionDataFixed *instruction.DataFixed, signatures, variableMessages [][]byte, signers []common.Address, timestamps []uint64) (common.Hash, error) {
+func voteHash(instructionDataFixed *instruction.DataFixed, signatures, variableMessages []hexutil.Bytes, signers []common.Address, timestamps []uint64) (common.Hash, error) {
 	if len(signatures) != len(timestamps) {
 		return common.Hash{}, errors.New("number of signatures and timestamps do not match")
 	}

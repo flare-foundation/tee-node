@@ -12,13 +12,14 @@ import (
 	"github.com/flare-foundation/tee-node/pkg/utils"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/instruction"
 	"github.com/pkg/errors"
 )
 
 func ProcessInstruction(
 	instructionData *instruction.DataFixed,
-	variableMessages, signatures [][]byte,
+	variableMessages, signatures []hexutil.Bytes,
 	submissionTag types.SubmissionTag,
 	timestamps []uint64,
 ) ([]byte, []byte, error) {
@@ -51,10 +52,10 @@ func ProcessInstruction(
 
 	var result []byte
 	switch submissionTag {
-	case types.ThresholdReachedSubmissionTag:
+	case types.Threshold:
 		result = executionResult
 
-	case types.VotingClosedSubmissionTag:
+	case types.End:
 		instructionHash, err := instructionData.HashFixed()
 		if err != nil {
 			return nil, nil, err
@@ -98,7 +99,7 @@ func ProcessInstruction(
 // Call forwards the call to the appropriate service and method
 func validateExecuteInstruction(
 	instructionMessage *instruction.DataFixed,
-	variableMessages [][]byte,
+	variableMessages []hexutil.Bytes,
 	signers []common.Address,
 	isSignerDataProvider []bool,
 	submissionTag types.SubmissionTag,
@@ -132,14 +133,14 @@ func regInstruction(instructionData *instruction.DataFixed, submissionTag types.
 	var result []byte
 
 	switch submissionTag {
-	case types.ThresholdReachedSubmissionTag:
+	case types.Threshold:
 		switch utils.OpHashToString(instructionData.OPCommand) {
 		case "TEE_ATTESTATION":
 			result, err = regutils.TeeAttestation(instructionData)
 		default:
 			err = errors.New("Unknown OpCommand for REG OpType")
 		}
-	case types.VotingClosedSubmissionTag:
+	case types.End:
 		switch utils.OpHashToString(instructionData.OPCommand) {
 		case "TEE_ATTESTATION":
 			err = regutils.ValidateTeeAttestation(instructionData)
@@ -155,7 +156,7 @@ func regInstruction(instructionData *instruction.DataFixed, submissionTag types.
 
 func walletInstruction(
 	instructionData *instruction.DataFixed,
-	variableMessages [][]byte,
+	variableMessages []hexutil.Bytes,
 	signers []common.Address,
 	isSignerDataProvider []bool,
 	submissionTag types.SubmissionTag,
@@ -165,7 +166,7 @@ func walletInstruction(
 	var resultStatus []byte
 
 	switch submissionTag {
-	case types.ThresholdReachedSubmissionTag:
+	case types.Threshold:
 		switch utils.OpHashToString(instructionData.OPCommand) {
 		case "KEY_GENERATE":
 			result, err = walletutils.NewWallet(instructionData)
@@ -179,7 +180,7 @@ func walletInstruction(
 		default:
 			err = errors.New("Unknown OpCommand for WALLET OpType")
 		}
-	case types.VotingClosedSubmissionTag:
+	case types.End:
 		switch utils.OpHashToString(instructionData.OPCommand) {
 		case "KEY_GENERATE":
 			err = walletutils.ValidateNewWallet(instructionData)
@@ -206,7 +207,7 @@ func xrpInstruction(instructionData *instruction.DataFixed, signers []common.Add
 	var result []byte
 
 	switch submissionTag {
-	case types.ThresholdReachedSubmissionTag:
+	case types.Threshold:
 		switch utils.OpHashToString(instructionData.OPCommand) {
 		case "PAY", "REISSUE":
 			result, err = signutils.SignPaymentTransaction(instructionData, signers, isSignerDataProvider)
@@ -214,7 +215,7 @@ func xrpInstruction(instructionData *instruction.DataFixed, signers []common.Add
 		default:
 			err = errors.New("Unknown OpCommand for XRP OpType")
 		}
-	case types.VotingClosedSubmissionTag:
+	case types.End:
 		switch utils.OpHashToString(instructionData.OPCommand) {
 		case "PAY", "REISSUE":
 			// validation is just retrying to sign
@@ -232,7 +233,7 @@ func xrpInstruction(instructionData *instruction.DataFixed, signers []common.Add
 
 func fdcInstruction(instructionData *instruction.DataFixed, submissionTag types.SubmissionTag) ([]byte, error) {
 	switch submissionTag {
-	case types.ThresholdReachedSubmissionTag:
+	case types.Threshold:
 		switch utils.OpHashToString(instructionData.OPCommand) {
 		case "PROVE":
 			return nil, errors.New("FDC PROVE command not implemented yet")
@@ -240,7 +241,7 @@ func fdcInstruction(instructionData *instruction.DataFixed, submissionTag types.
 		default:
 			return nil, errors.New("Unknown OpCommand for FDC OpType")
 		}
-	case types.VotingClosedSubmissionTag:
+	case types.End:
 		switch utils.OpHashToString(instructionData.OPCommand) {
 		case "PROVE":
 			return nil, errors.New("FDC PROVE command not implemented yet")

@@ -4,14 +4,16 @@ import (
 	"encoding/json"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/flare-foundation/go-flare-common/pkg/tee/constants"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/instruction"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/structs"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/structs/verification"
 )
 
 type TeeInfo struct {
-	Challenge                [32]byte
+	Challenge                common.Hash
 	PublicKey                ECDSAPublicKey
 	Status                   string
 	InitialSigningPolicyId   uint32
@@ -36,16 +38,16 @@ func (teeInfo TeeInfo) Hash() (common.Hash, error) {
 }
 
 type TeeInfoRequest struct {
-	Challenge [32]byte
+	Challenge common.Hash
 }
 
 type TeeInfoResponse struct {
 	TeeInfo
-	Attestation []byte
+	Attestation hexutil.Bytes
 }
 
 func ParseTeeAttestationRequest(instructionData *instruction.DataFixed) (verification.ITeeVerificationTeeAttestation, error) {
-	arg := verification.MessageArguments[verification.TeeAttestation]
+	arg := verification.MessageArguments[constants.TEEAttestation]
 
 	var unpacked verification.ITeeVerificationTeeAttestation
 	err := structs.DecodeTo(arg, instructionData.OriginalMessage, &unpacked)

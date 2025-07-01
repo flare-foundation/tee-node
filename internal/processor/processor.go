@@ -10,6 +10,7 @@ import (
 	"github.com/flare-foundation/tee-node/internal/settings"
 	"github.com/flare-foundation/tee-node/pkg/types"
 
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/flare-foundation/go-flare-common/pkg/logger"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/instruction"
@@ -26,8 +27,11 @@ func RunTeeProcessor(proxyUrl string) {
 func runQueueProcessing(proxyUrl string, queueId string) {
 	for {
 		var action *types.Action
-		var result *types.ActionResult
+		var result *types.Result
 		var response *types.ActionResponse
+
+		log := ""
+		status := true
 
 		actionInfo, err := getActionInfo(proxyUrl + "/queue/" + queueId)
 		if err != nil {
@@ -48,14 +52,16 @@ func runQueueProcessing(proxyUrl string, queueId string) {
 
 		result, err = processAction(action)
 		if err != nil {
-			result.Log = err.Error()
-			result.Status = false
+			log = err.Error()
+			status = false
 			logger.Errorf("error processing action: %v", err)
 		}
 
 		response = &types.ActionResponse{
-			ActionId:      actionInfo.ActionId,
+			ID:            actionInfo.ActionId,
 			SubmissionTag: actionInfo.SubmissionTag,
+			Status:        status,
+			Log:           log,
 			Result:        *result,
 		}
 		err = postActionResponse(proxyUrl+"/result", response)
@@ -70,20 +76,19 @@ func runQueueProcessing(proxyUrl string, queueId string) {
 
 func checkAndAdapt(action *types.Action) {
 	if len(action.AdditionalVariableMessages) == 0 {
-		action.AdditionalVariableMessages = make([][]byte, len(action.Signatures))
+		action.AdditionalVariableMessages = make([]hexutil.Bytes, len(action.Signatures))
 	}
 	// todo: additional checks?
 }
 
-func processAction(action *types.Action) (*types.ActionResult, error) {
+func processAction(action *types.Action) (*types.Result, error) {
 	var err error
-	response := &types.ActionResult{}
+	response := &types.Result{}
 
 	switch action.Data.Type {
-	case types.InstructionType:
+	case types.Instruction:
 		instructionData, err := parse[instruction.DataFixed](action.Data.Message)
 		if err != nil {
-			response.Log = err.Error()
 			return response, err
 		}
 
@@ -96,7 +101,6 @@ func processAction(action *types.Action) (*types.ActionResult, error) {
 		)
 		response.AdditionalResultStatus = resultStatus
 		if err != nil {
-			response.Log = err.Error()
 			return response, err
 		}
 
@@ -104,16 +108,14 @@ func processAction(action *types.Action) (*types.ActionResult, error) {
 		response.OPType = instructionData.OPType
 		response.ResultData = types.ActionResultData{Message: message}
 
-	case types.DirectType:
+	case types.Direct:
 		getData, err := parse[types.DirectInstructionData](action.Data.Message)
 		if err != nil {
-			response.Log = err.Error()
 			return response, err
 		}
 
 		message, err := direct.ProcessDirectInstruction(getData)
 		if err != nil {
-			response.Log = err.Error()
 			return response, err
 		}
 
@@ -123,7 +125,6 @@ func processAction(action *types.Action) (*types.ActionResult, error) {
 
 	default:
 		err = errors.New("invalid queued action type")
-		response.Log = err.Error()
 		return response, err
 	}
 
@@ -132,12 +133,9 @@ func processAction(action *types.Action) (*types.ActionResult, error) {
 
 		response.ResultData.Signature, err = node.Sign(msgHash[:])
 		if err != nil {
-			response.Log = err.Error()
 			return response, err
 		}
 	}
-
-	response.Status = true
 
 	return response, nil
 }
