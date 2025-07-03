@@ -77,10 +77,11 @@ func TestProcessorEndToEnd(t *testing.T) {
 	time.Sleep(1 * time.Second)
 
 	actionId := big.NewInt(0)
+	teeId, teePubKey := getTeeInfo(t, readActionInfoChan, actionMap, actionResponseChan, actionId)
+	actionId.Add(actionId, common.Big1)
+
 	initializePolicy(t, mainActionInfoChan, actionMap, actionResponseChan, providerPrivKeys, providerAddresses,
 		actionId, numPolicies, startingEpochId)
-
-	teeId, teePubKey := getTeeInfo(t, readActionInfoChan, actionMap, actionResponseChan, actionId)
 	actionId.Add(actionId, common.Big1)
 
 	var walletId = common.HexToHash("0xabcdef")
@@ -707,8 +708,19 @@ func fdcProve(t *testing.T, actionInfoChan chan *types.ActionInfo,
 	err = json.Unmarshal(actionResponse.Result.ResultData.Message, &fdcResponse)
 	require.NoError(t, err)
 
-	// todo: check result
-	fmt.Println("fdc", fdcResponse.CosignerSignatures)
+	err = utils.VerifySignature(additionalFixedMessageHash, fdcResponse.Signature, teeId)
+	require.NoError(t, err)
+	require.Equal(t, len(fdcResponse.DataProviderSignatures), len(providerPrivKeys))
+	for i, signature := range fdcResponse.DataProviderSignatures {
+		err = utils.VerifySignature(additionalFixedMessageHash, signature, crypto.PubkeyToAddress(providerPrivKeys[i].PublicKey))
+		require.NoError(t, err)
+	}
+	require.Equal(t, len(fdcResponse.CosignerSignatures), len(cosignerPrivKeys))
+	for _, signature := range fdcResponse.CosignerSignatures {
+		_, err = utils.CheckSignature(additionalFixedMessageHash, signature, cosignerAddresses)
+		require.NoError(t, err)
+	}
+	require.Equal(t, []byte(fdcResponse.ResponseData), additionalFixedMessageEncoded)
 
 	// generate action sent when voting closed
 	action, err = testutils.BuildMockQueuedActionInstruction(

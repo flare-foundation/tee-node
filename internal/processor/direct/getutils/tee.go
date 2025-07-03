@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"time"
 
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/flare-foundation/tee-node/internal/attestation"
 	"github.com/flare-foundation/tee-node/internal/node"
 	"github.com/flare-foundation/tee-node/internal/policy"
@@ -23,14 +24,20 @@ func GetTeeInfo(getAction *types.DirectInstructionData) ([]byte, error) {
 	nodeInfo := node.GetNodeInfo()
 
 	policy.Storage.RLock()
-	activePolicy, err := policy.Storage.GetActiveSigningPolicy()
+	activePolicy, _ := policy.Storage.GetActiveSigningPolicy()
 	policy.Storage.RUnlock()
-	if err != nil {
-		return nil, err
-	}
-	activePolicyHash, err := activePolicy.Hash()
-	if err != nil {
-		return nil, err
+
+	var activePolicyHash common.Hash
+	var activeSigningPolicyId uint32
+	if activePolicy != nil {
+		activePolicyHash, err = activePolicy.Hash()
+		if err != nil {
+			return nil, err
+		}
+		activeSigningPolicyId = activePolicy.RewardEpochId
+	} else {
+		activePolicyHash = settings.InitialPolicyHash
+		activeSigningPolicyId = settings.InitialPolicyId
 	}
 
 	teeInfo := types.TeeInfo{
@@ -39,7 +46,7 @@ func GetTeeInfo(getAction *types.DirectInstructionData) ([]byte, error) {
 		Status:                   nodeInfo.Status,
 		InitialSigningPolicyId:   settings.InitialPolicyId,
 		InitialSigningPolicyHash: settings.InitialPolicyHash,
-		LastSigningPolicyId:      activePolicy.RewardEpochId,
+		LastSigningPolicyId:      activeSigningPolicyId,
 		LastSigningPolicyHash:    activePolicyHash,
 		Nonce:                    nodeInfo.Nonce,
 		PauseNonce:               nodeInfo.PausingNonce,
