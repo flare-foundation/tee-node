@@ -19,12 +19,13 @@ import (
 
 func TestGetWalletPackage(t *testing.T) {
 	defer testutils.ResetTEEState() // Reset the state of the TEE after the test
-	err := node.InitNode()
+	err := node.InitNode(types.State{})
 	require.NoError(t, err)
 	myTeeId := node.GetTeeId()
 
 	numVoters, randSeed, epochId := 100, int64(12345), uint32(1)
-	_, _, privKeys := testutils.GenerateAndSetInitialPolicy(numVoters, randSeed, epochId)
+	_, _, privKeys, err := testutils.GenerateAndSetInitialPolicy(numVoters, randSeed, epochId)
+	require.NoError(t, err)
 
 	mockWalletId1 := common.HexToHash("0xabcdef")
 	mockKeyId1 := uint64(1)

@@ -25,7 +25,7 @@ func SignPaymentTransaction(instructionData *instruction.DataFixed, signers []co
 		return nil, err
 	}
 
-	walletKeyIdPair := wallets.WalletKeyIdPair{WalletId: originalMessage.WalletId, KeyId: additionalFixedMessage.KeyId}
+	walletKeyIdPair := types.WalletKeyIdPair{WalletId: originalMessage.WalletId, KeyId: additionalFixedMessage.KeyId}
 	wallets.Storage.RLock()
 	signingWallet, err := wallets.Storage.GetWallet(walletKeyIdPair)
 	wallets.Storage.RUnlock()

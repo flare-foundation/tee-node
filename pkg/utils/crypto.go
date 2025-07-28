@@ -7,6 +7,8 @@ import (
 	"io"
 	"slices"
 
+	"github.com/flare-foundation/go-flare-common/pkg/tee/structs/tee"
+	"github.com/flare-foundation/go-flare-common/pkg/tee/structs/wallet"
 	"github.com/flare-foundation/tee-node/pkg/types"
 
 	"github.com/btcsuite/btcd/btcec/v2"
@@ -14,7 +16,6 @@ import (
 	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/flare-foundation/go-flare-common/pkg/tee/structs/wallet"
 	"github.com/pkg/errors"
 )
 
@@ -91,7 +92,7 @@ func SignatureToSignersAddress(hash, signature []byte) (common.Address, error) {
 }
 
 // NOTE: XRP and EVM signing might be combinable into one function, but it fails for now
-// NOTE: I leave them seperately for now and I will research later if they can be merged.
+// NOTE: I leave them separately for now and I will research later if they can be merged.
 func XrpSign(txHash []byte, privKey *ecdsa.PrivateKey) []byte {
 	priv, _ := btcec.PrivKeyFromBytes(privKey.D.Bytes())
 	sig2 := btcecdsa.Sign(priv, txHash)
@@ -145,7 +146,7 @@ func ParsePubKeys(pubKeys []wallet.PublicKey) ([]*ecdsa.PublicKey, error) {
 	parsedPubKeys := make([]*ecdsa.PublicKey, len(pubKeys))
 	var err error
 	for i, key := range pubKeys {
-		parsedPubKeys[i], err = types.ParsePubKey(types.ECDSAPublicKey(key))
+		parsedPubKeys[i], err = types.ParsePubKey(tee.PublicKey(key))
 		if err != nil {
 			return nil, err
 		}

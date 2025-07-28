@@ -4,7 +4,6 @@ import (
 	"crypto/ecdsa"
 	"testing"
 
-	
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/stretchr/testify/assert"
 )

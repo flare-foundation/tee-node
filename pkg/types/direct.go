@@ -6,11 +6,6 @@ import (
 )
 
 type DirectInstruction struct {
-	Data       DirectInstructionData `json:"data"`
-	Signatures []hexutil.Bytes       `json:"signatures"`
-}
-
-type DirectInstructionData struct {
 	OPType    common.Hash   `json:"opType"`
 	OPCommand common.Hash   `json:"opCommand"`
 	Message   hexutil.Bytes `json:"message"`

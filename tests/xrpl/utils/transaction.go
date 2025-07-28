@@ -13,20 +13,20 @@ type TxBase struct {
 	Account            Account
 	Sequence           uint32
 	Fee                Value
-	AccountTxnID       *Hash256        `json:",omitempty"`
-	SigningPubKey      *PublicKey      `json:",omitempty"`
-	TxnSignature       []byte `json:",omitempty"`
-	Signers            []Signer        `json:",omitempty"`
-	Memos              Memos           `json:",omitempty"`
-	PreviousTxnID      *Hash256        `json:",omitempty"`
-	LastLedgerSequence *uint32         `json:",omitempty"`
-	Hash               Hash256         `json:"hash"`
+	AccountTxnID       *Hash256   `json:",omitempty"`
+	SigningPubKey      *PublicKey `json:",omitempty"`
+	TxnSignature       []byte     `json:",omitempty"`
+	Signers            []Signer   `json:",omitempty"`
+	Memos              Memos      `json:",omitempty"`
+	PreviousTxnID      *Hash256   `json:",omitempty"`
+	LastLedgerSequence *uint32    `json:",omitempty"`
+	Hash               Hash256    `json:"hash"`
 }
 
 type SignerItem struct {
 	Account       Account
-	TxnSignature  []byte `json:",omitempty"`
-	SigningPubKey *PublicKey      `json:",omitempty"`
+	TxnSignature  []byte     `json:",omitempty"`
+	SigningPubKey *PublicKey `json:",omitempty"`
 }
 
 type Signer struct {

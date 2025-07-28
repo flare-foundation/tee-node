@@ -2,6 +2,7 @@ package processor
 
 import (
 	"encoding/json"
+	"fmt"
 	"time"
 
 	"github.com/flare-foundation/tee-node/internal/node"
@@ -9,6 +10,7 @@ import (
 	"github.com/flare-foundation/tee-node/internal/processor/instructions"
 	"github.com/flare-foundation/tee-node/internal/settings"
 	"github.com/flare-foundation/tee-node/pkg/types"
+	"github.com/flare-foundation/tee-node/pkg/utils"
 
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/crypto"
@@ -17,54 +19,42 @@ import (
 	"github.com/pkg/errors"
 )
 
-var emptyQueuedActionInfo = types.ActionInfo{}
-
 func RunTeeProcessor(proxyUrl string) {
 	go runQueueProcessing(proxyUrl, "main")
 	runQueueProcessing(proxyUrl, "read")
 }
 
 func runQueueProcessing(proxyUrl string, queueId string) {
-	// todo: everything is ready for processing actions in parallel, should we?
+	// V2: everything is ready for processing actions in parallel, should we?
 	for {
 		var action *types.Action
-		var result *types.Result
 		var response *types.ActionResponse
 
-		log := ""
-		status := true
-
-		actionInfo, err := getActionInfo(proxyUrl + "/queue/" + queueId)
-		if err != nil {
-			logger.Errorf("error getting action info: %v", err)
-			goto sleep
-		}
-		if *actionInfo == emptyQueuedActionInfo {
-			goto sleep
-		}
-
-		action, err = getAction(proxyUrl+"/dequeue", actionInfo)
+		action, err := getAction(fmt.Sprintf("%s/queue/%s", proxyUrl, queueId))
 		if err != nil {
 			logger.Errorf("error getting action: %v", err)
+			goto sleep
+		}
+		if action == nil || action.Data.ID == [32]byte{} {
 			goto sleep
 		}
 
 		checkAndAdapt(action)
 
-		result, err = processAction(action)
+		response, err = processAction(action)
 		if err != nil {
-			log = err.Error()
-			status = false
 			logger.Errorf("error processing action: %v", err)
+			response = &types.ActionResponse{
+				Result: types.ActionResult{
+					ID:            action.Data.ID,
+					SubmissionTag: action.Data.SubmissionTag,
+					Status:        false,
+					Version:       settings.EncodingVersion,
+					Log:           err.Error(),
+				},
+			}
 		}
 
-		response = &types.ActionResponse{
-			ID:            actionInfo.ActionId,
-			SubmissionTag: actionInfo.SubmissionTag,
-			Status:        status,
-			Log:           log,
-			Result:        *result,
-		}
 		err = postActionResponse(proxyUrl+"/result", response)
 		if err != nil {
 			logger.Errorf("error posting result: %v", err)
@@ -82,15 +72,20 @@ func checkAndAdapt(action *types.Action) {
 	// todo: additional checks?
 }
 
-func processAction(action *types.Action) (*types.Result, error) {
+func processAction(action *types.Action) (*types.ActionResponse, error) {
 	var err error
-	response := &types.Result{}
+	result := &types.ActionResult{
+		ID:            action.Data.ID,
+		SubmissionTag: action.Data.SubmissionTag,
+		Status:        true,
+		Version:       settings.EncodingVersion,
+	}
 
 	switch action.Data.Type {
 	case types.Instruction:
 		instructionData, err := parse[instruction.DataFixed](action.Data.Message)
 		if err != nil {
-			return response, err
+			return nil, err
 		}
 
 		message, resultStatus, err := instructions.ProcessInstruction(
@@ -100,49 +95,52 @@ func processAction(action *types.Action) (*types.Result, error) {
 			action.Data.SubmissionTag,
 			action.Timestamps,
 		)
-		response.AdditionalResultStatus = resultStatus
+		fmt.Println("instructions", utils.OpHashToString(instructionData.OpType), utils.OpHashToString(instructionData.OpCommand), instructionData.TeeId, instructionData.RewardEpochId, err)
+
+		result.AdditionalResultStatus = resultStatus
 		if err != nil {
-			return response, err
+			return nil, err
 		}
 
-		response.OPCommand = instructionData.OPCommand
-		response.OPType = instructionData.OPType
-		response.ResultData = types.ActionResultData{Message: message}
+		result.OPCommand = instructionData.OpCommand
+		result.OPType = instructionData.OpType
+		result.Data = message
 
 	case types.Direct:
-		directInstructionData, err := parse[types.DirectInstructionData](action.Data.Message)
+		directInstruction, err := parse[types.DirectInstruction](action.Data.Message)
 		if err != nil {
-			return response, err
+			return nil, err
 		}
 
-		message, err := direct.ProcessDirectInstruction(directInstructionData)
+		message, err := direct.ProcessDirectInstruction(directInstruction)
+		fmt.Println("instructions", utils.OpHashToString(directInstruction.OPType), utils.OpHashToString(directInstruction.OPCommand), err)
 		if err != nil {
-			return response, err
+			return nil, err
 		}
 
-		response.OPCommand = directInstructionData.OPCommand
-		response.OPType = directInstructionData.OPType
-		response.ResultData = types.ActionResultData{Message: message}
+		result.OPCommand = directInstruction.OPCommand
+		result.OPType = directInstruction.OPType
+		result.Data = message
 
 	default:
 		err = errors.New("invalid queued action type")
-		return response, err
+		return nil, err
 	}
 
-	if len(response.ResultData.Message) != 0 {
-		msgHash := crypto.Keccak256Hash(response.ResultData.Message)
-
-		response.ResultData.Signature, err = node.Sign(msgHash[:])
-		if err != nil {
-			return response, err
-		}
+	msgHash := crypto.Keccak256(result.Data)
+	sig, err := node.Sign(msgHash)
+	if err != nil {
+		return nil, err
 	}
 
-	return response, nil
+	return &types.ActionResponse{
+		Result:    *result,
+		Signature: sig,
+	}, nil
 }
 
 type ValidRequestType interface {
-	instruction.DataFixed | types.DirectInstructionData
+	instruction.DataFixed | types.DirectInstruction
 }
 
 func parse[T ValidRequestType](message []byte) (*T, error) {
@@ -150,7 +148,7 @@ func parse[T ValidRequestType](message []byte) (*T, error) {
 	switch any(new(T)).(type) {
 	case *instruction.DataFixed:
 		maxBodySize = settings.MaxInstructionSize
-	case *types.DirectInstructionData:
+	case *types.DirectInstruction:
 		maxBodySize = settings.MaxActionSize
 	default:
 		return nil, errors.New("Invalid request type")

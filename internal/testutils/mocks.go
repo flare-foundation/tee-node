@@ -3,7 +3,6 @@ package testutils
 import (
 	"crypto/ecdsa"
 	"crypto/rand"
-	"encoding/hex"
 	"encoding/json"
 	"math/big"
 	"testing"
@@ -20,13 +19,19 @@ import (
 	"github.com/flare-foundation/go-flare-common/pkg/tee/instruction"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/structs"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/structs/payment"
+	"github.com/flare-foundation/go-flare-common/pkg/tee/structs/verification"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/structs/wallet"
 	"github.com/stretchr/testify/require"
 )
 
-func CreateMockWallet(t *testing.T, nodeId common.Address, walletId common.Hash, keyId uint64, rewardEpochId uint32,
-	adminPrivKeys, cosignerPrivKeys []*ecdsa.PrivateKey) wallet.ITeeWalletKeyManagerKeyExistence {
-
+func CreateMockWallet(
+	t *testing.T,
+	nodeId common.Address,
+	walletId common.Hash,
+	keyId uint64,
+	rewardEpochId uint32,
+	adminPrivKeys, cosignerPrivKeys []*ecdsa.PrivateKey,
+) wallet.ITeeWalletKeyManagerKeyExistence {
 	instructionIdBytes, _ := GenerateRandomBytes(32)
 
 	require.Less(t, 0, len(adminPrivKeys))
@@ -59,11 +64,11 @@ func CreateMockWallet(t *testing.T, nodeId common.Address, walletId common.Hash,
 	require.NoError(t, err)
 
 	instructionDataFixed := instruction.DataFixed{
-		InstructionID:          common.BytesToHash(instructionIdBytes),
-		TeeID:                  nodeId,
-		RewardEpochID:          big.NewInt(int64(rewardEpochId)),
-		OPType:                 utils.StringToOpHash("WALLET"),
-		OPCommand:              utils.StringToOpHash("KEY_GENERATE"),
+		InstructionId:          common.BytesToHash(instructionIdBytes),
+		TeeId:                  nodeId,
+		RewardEpochId:          rewardEpochId,
+		OpType:                 utils.StringToOpHash("WALLET"),
+		OpCommand:              utils.StringToOpHash("KEY_GENERATE"),
 		OriginalMessage:        encoded,
 		AdditionalFixedMessage: nil,
 	}
@@ -99,7 +104,7 @@ func BuildMockPaymentOriginalMessage(t *testing.T, mockWallet common.Hash) []byt
 func BuildMockQueuedActionInstruction(opType string, opCommand string, originalMessage []byte,
 	privKeys []*ecdsa.PrivateKey, teeId common.Address, rewardEpochId uint32,
 	additionalFixedMessageRaw interface{}, variableMessages []interface{},
-	submissionTag types.SubmissionTag,
+	submissionTag types.SubmissionTag, timestamp uint64,
 ) (*types.Action, error) {
 	instructionId, err := GenerateRandomBytes(32)
 	if err != nil {
@@ -109,6 +114,10 @@ func BuildMockQueuedActionInstruction(opType string, opCommand string, originalM
 	switch additionalFixedMessageRaw := additionalFixedMessageRaw.(type) {
 	case []byte:
 		additionalFixedMessage = additionalFixedMessageRaw
+	case hexutil.Bytes:
+		additionalFixedMessage = additionalFixedMessageRaw[:]
+	case common.Hash:
+		additionalFixedMessage = additionalFixedMessageRaw[:]
 	default:
 		additionalFixedMessage, err = json.Marshal(additionalFixedMessageRaw)
 		if err != nil {
@@ -117,13 +126,14 @@ func BuildMockQueuedActionInstruction(opType string, opCommand string, originalM
 	}
 
 	instructionDataFixed := instruction.DataFixed{
-		InstructionID:          common.HexToHash(hex.EncodeToString(instructionId)),
-		TeeID:                  teeId,
-		RewardEpochID:          big.NewInt(int64(rewardEpochId)),
-		OPType:                 utils.StringToOpHash(opType),
-		OPCommand:              utils.StringToOpHash(opCommand),
+		InstructionId:          common.BytesToHash(instructionId),
+		TeeId:                  teeId,
+		RewardEpochId:          rewardEpochId,
+		OpType:                 utils.StringToOpHash(opType),
+		OpCommand:              utils.StringToOpHash(opCommand),
 		OriginalMessage:        originalMessage,
 		AdditionalFixedMessage: additionalFixedMessage,
+		Timestamp:              timestamp,
 	}
 	instructionDataFixedEncoded, err := json.Marshal(instructionDataFixed)
 	if err != nil {
@@ -171,6 +181,7 @@ func BuildMockQueuedActionInstruction(opType string, opCommand string, originalM
 
 	action := types.Action{
 		Data: types.ActionData{
+			ID:            common.BytesToHash(instructionId),
 			Type:          types.Instruction,
 			Message:       instructionDataFixedEncoded,
 			SubmissionTag: submissionTag,
@@ -184,30 +195,38 @@ func BuildMockQueuedActionInstruction(opType string, opCommand string, originalM
 	return &action, nil
 }
 
-func BuildMockQueuedActionAction(opType string, opCommand string, messageRaw interface{}) (*types.Action, error) {
-	message, err := json.Marshal(messageRaw)
-	if err != nil {
-		return nil, err
+func BuildMockQueuedAction(t *testing.T, opType string, opCommand string, messageRaw any) *types.Action {
+	var message []byte
+	var err error
+	switch messageRaw := messageRaw.(type) {
+	case *verification.ITeeVerificationTeeAttestation:
+		message, err = types.EncodeTeeAttestationRequest(messageRaw)
+	default:
+		message, err = json.Marshal(messageRaw)
 	}
+	require.NoError(t, err)
 
-	getData := types.DirectInstructionData{
+	di := types.DirectInstruction{
 		OPType:    utils.StringToOpHash(opType),
 		OPCommand: utils.StringToOpHash(opCommand),
 		Message:   message,
 	}
-	getDataEncoded, err := json.Marshal(getData)
-	if err != nil {
-		return nil, err
-	}
+	enc, err := json.Marshal(di)
+	require.NoError(t, err)
+
+	actionId, err := GenerateRandomBytes(32)
+	require.NoError(t, err)
 
 	action := types.Action{
 		Data: types.ActionData{
-			Type:    types.Direct,
-			Message: getDataEncoded,
+			SubmissionTag: types.Submit,
+			ID:            common.BytesToHash(actionId),
+			Type:          types.Direct,
+			Message:       enc,
 		},
 	}
 
-	return &action, nil
+	return &action
 }
 
 func sign(r *instruction.Data, privKey *ecdsa.PrivateKey) ([]byte, error) {

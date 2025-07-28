@@ -5,12 +5,15 @@ import (
 
 	"github.com/flare-foundation/tee-node/internal/node"
 	"github.com/flare-foundation/tee-node/internal/policy"
-	"github.com/flare-foundation/tee-node/internal/processor/instructions/fdcutils"
+	"github.com/flare-foundation/tee-node/internal/processor/instructions/ftdcutils"
 	"github.com/flare-foundation/tee-node/internal/processor/instructions/regutils"
 	"github.com/flare-foundation/tee-node/internal/processor/instructions/signutils"
 	"github.com/flare-foundation/tee-node/internal/processor/instructions/walletutils"
+	"github.com/flare-foundation/tee-node/internal/settings"
 	"github.com/flare-foundation/tee-node/pkg/types"
 	"github.com/flare-foundation/tee-node/pkg/utils"
+
+	commonpolicy "github.com/flare-foundation/go-flare-common/pkg/policy"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -28,6 +31,7 @@ func ProcessInstruction(
 	if err != nil {
 		return nil, nil, err
 	}
+
 	err = validateInstructionDataSize(instructionData)
 	if err != nil {
 		return nil, nil, err
@@ -71,21 +75,23 @@ func ProcessInstruction(
 			return nil, nil, err
 		}
 
-		signerSequence := types.SignerSequence{
-			Data: types.SignerSequenceData{
+		voteSequence := types.RewardingData{
+			VoteSequence: types.VoteSequence{
 				VoteHash:                   voteHash,
-				InstructionId:              instructionData.InstructionID,
+				InstructionId:              instructionData.InstructionId,
 				InstructionHash:            instructionHash,
-				RewardEpochId:              uint32(instructionData.RewardEpochID.Uint64()),
-				TeeId:                      instructionData.TeeID,
+				RewardEpochId:              instructionData.RewardEpochId,
+				TeeId:                      instructionData.TeeId,
 				Signatures:                 signatures,
 				AdditionalVariableMessages: variableMessages,
 				Timestamps:                 timestamps,
 			},
-			Signature: signature,
+			AdditionalData: resultStatus,
+			Version:        settings.EncodingVersion,
+			Signature:      signature,
 		}
 
-		result, err = json.Marshal(signerSequence)
+		result, err = json.Marshal(voteSequence)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -109,7 +115,7 @@ func validateOrExecuteInstruction(
 	var result []byte
 	var resultStatus []byte
 
-	switch utils.OpHashToString(instructionMessage.OPType) {
+	switch utils.OpHashToString(instructionMessage.OpType) {
 	case "REG":
 		result, err = regInstruction(instructionMessage, submissionTag)
 
@@ -119,8 +125,8 @@ func validateOrExecuteInstruction(
 	case "XRP":
 		result, err = xrpInstruction(instructionMessage, signers, isSignerDataProvider, submissionTag)
 
-	case "FDC":
-		result, err = fdcInstruction(instructionMessage, variableMessages, signers, isSignerDataProvider, submissionTag)
+	case "FTDC":
+		result, err = ftdcInstruction(instructionMessage, variableMessages, signers, isSignerDataProvider, submissionTag)
 
 	default:
 		err = errors.New("invalid operation type")
@@ -135,16 +141,16 @@ func regInstruction(instructionData *instruction.DataFixed, submissionTag types.
 
 	switch submissionTag {
 	case types.Threshold:
-		switch utils.OpHashToString(instructionData.OPCommand) {
+		switch utils.OpHashToString(instructionData.OpCommand) {
 		case "TEE_ATTESTATION":
 			result, err = regutils.TeeAttestation(instructionData)
 		default:
 			err = errors.New("Unknown OpCommand for REG OpType")
 		}
 	case types.End:
-		switch utils.OpHashToString(instructionData.OPCommand) {
+		switch utils.OpHashToString(instructionData.OpCommand) {
 		case "TEE_ATTESTATION":
-			err = regutils.ValidateTeeAttestation(instructionData)
+			_, err = regutils.ValidateTeeAttestation(instructionData.OriginalMessage)
 		default:
 			err = errors.New("Unknown OpCommand for REG OpType")
 		}
@@ -168,7 +174,7 @@ func walletInstruction(
 
 	switch submissionTag {
 	case types.Threshold:
-		switch utils.OpHashToString(instructionData.OPCommand) {
+		switch utils.OpHashToString(instructionData.OpCommand) {
 		case "KEY_GENERATE":
 			result, err = walletutils.NewWallet(instructionData)
 
@@ -182,7 +188,7 @@ func walletInstruction(
 			err = errors.New("Unknown OpCommand for WALLET OpType")
 		}
 	case types.End:
-		switch utils.OpHashToString(instructionData.OPCommand) {
+		switch utils.OpHashToString(instructionData.OpCommand) {
 		case "KEY_GENERATE":
 			err = walletutils.ValidateNewWallet(instructionData)
 
@@ -209,7 +215,7 @@ func xrpInstruction(instructionData *instruction.DataFixed, signers []common.Add
 
 	switch submissionTag {
 	case types.Threshold:
-		switch utils.OpHashToString(instructionData.OPCommand) {
+		switch utils.OpHashToString(instructionData.OpCommand) {
 		case "PAY", "REISSUE":
 			result, err = signutils.SignPaymentTransaction(instructionData, signers, isSignerDataProvider)
 
@@ -217,7 +223,7 @@ func xrpInstruction(instructionData *instruction.DataFixed, signers []common.Add
 			err = errors.New("Unknown OpCommand for XRP OpType")
 		}
 	case types.End:
-		switch utils.OpHashToString(instructionData.OPCommand) {
+		switch utils.OpHashToString(instructionData.OpCommand) {
 		case "PAY", "REISSUE":
 			// validation is just retrying to sign
 			_, err = signutils.SignPaymentTransaction(instructionData, signers, isSignerDataProvider)
@@ -232,26 +238,26 @@ func xrpInstruction(instructionData *instruction.DataFixed, signers []common.Add
 	return result, err
 }
 
-func fdcInstruction(instructionData *instruction.DataFixed, variableMessages []hexutil.Bytes, signers []common.Address, isSignerDataProvider []bool, submissionTag types.SubmissionTag) ([]byte, error) {
+func ftdcInstruction(instructionData *instruction.DataFixed, variableMessages []hexutil.Bytes, signers []common.Address, isSignerDataProvider []bool, submissionTag types.SubmissionTag) ([]byte, error) {
 	var err error
 	var result []byte
 
 	switch submissionTag {
 	case types.Threshold:
-		switch utils.OpHashToString(instructionData.OPCommand) {
+		switch utils.OpHashToString(instructionData.OpCommand) {
 		case "PROVE":
-			result, err = fdcutils.ValidateFdcProve(instructionData, variableMessages, signers, isSignerDataProvider)
+			result, err = ftdcutils.ValidateProve(instructionData, variableMessages, signers, isSignerDataProvider)
 
 		default:
-			err = errors.New("Unknown OpCommand for FDC OpType")
+			err = errors.New("Unknown OpCommand for FTDC OpType")
 		}
 	case types.End:
-		switch utils.OpHashToString(instructionData.OPCommand) {
+		switch utils.OpHashToString(instructionData.OpCommand) {
 		case "PROVE":
-			_, err = fdcutils.ValidateFdcProve(instructionData, variableMessages, signers, isSignerDataProvider)
+			_, err = ftdcutils.ValidateProve(instructionData, variableMessages, signers, isSignerDataProvider)
 
 		default:
-			err = errors.New("Unknown OpCommand for FDC OpType")
+			err = errors.New("Unknown OpCommand for FTDC OpType")
 		}
 	default:
 		err = errors.New("unexpected submission tag")
@@ -260,27 +266,28 @@ func fdcInstruction(instructionData *instruction.DataFixed, variableMessages []h
 	return result, err
 }
 
-func checkInstructionData(instructionData *instruction.DataFixed) (*policy.SigningPolicy, error) {
+func checkInstructionData(instructionData *instruction.DataFixed) (*commonpolicy.SigningPolicy, error) {
 	if instructionData == nil {
 		return nil, errors.New("instruction data is nil")
 	}
 
-	if instructionData.TeeID.Hex() != node.GetTeeId().Hex() {
+	if instructionData.TeeId.Hex() != node.GetTeeId().Hex() {
 		return nil, errors.New("invalid TEE id")
 	}
 
-	activeSigningPolicy, err := policy.Storage.GetActiveSigningPolicy()
+	activeSigningPolicy, err := policy.Storage.ActiveSigningPolicy()
 	if err != nil {
 		return nil, err
 	}
 
-	isActivePolicy := activeSigningPolicy.RewardEpochId == uint32(instructionData.RewardEpochID.Uint64())
-	isPreviousPolicy := activeSigningPolicy.RewardEpochId == uint32(instructionData.RewardEpochID.Uint64())+1
+	// Todo: not sure if this check is still correct? Is is just last policy now or?
+	isActivePolicy := activeSigningPolicy.RewardEpochID == instructionData.RewardEpochId
+	isPreviousPolicy := activeSigningPolicy.RewardEpochID == instructionData.RewardEpochId+1
 	if !isActivePolicy && !isPreviousPolicy {
 		return nil, errors.New("reward epoch id too old")
 	}
 
-	valid := isValidCommand(utils.OpHashToString(instructionData.OPType), utils.OpHashToString(instructionData.OPCommand))
+	valid := isValidCommand(utils.OpHashToString(instructionData.OpType), utils.OpHashToString(instructionData.OpCommand))
 	if !valid {
 		return nil, errors.New("invalid command for operation type")
 	}

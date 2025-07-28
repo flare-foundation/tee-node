@@ -11,6 +11,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
+	commonpolicy "github.com/flare-foundation/go-flare-common/pkg/policy"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/instruction"
 	"github.com/pkg/errors"
 )
@@ -31,11 +32,11 @@ func isValidCommand(op, command string) bool {
 // validateRequestSize checks the size of the request fields
 func validateInstructionDataSize(instructionData *instruction.DataFixed) error {
 	// Check the size of the different messages
-	messageSizeOPTypeMap, ok := settings.MaxRequestSize[utils.OpHashToString(instructionData.OPType)]
+	messageSizeOPTypeMap, ok := settings.MaxRequestSize[utils.OpHashToString(instructionData.OpType)]
 	if !ok {
 		return errors.New("OPType not defined")
 	}
-	messageSizeConstraint, ok := messageSizeOPTypeMap[utils.OpHashToString(instructionData.OPCommand)]
+	messageSizeConstraint, ok := messageSizeOPTypeMap[utils.OpHashToString(instructionData.OpCommand)]
 	if !ok {
 		return errors.New("OPCommand not defined")
 	}
@@ -84,12 +85,12 @@ type OPTypeCommand struct {
 	Command string
 }
 
-func checkDataProvidersThreshold(instructionDataFixed *instruction.DataFixed, signers []common.Address, signingPolicy *policy.SigningPolicy) (bool, []bool, error) {
-	oPTypeCommand := OPTypeCommand{utils.OpHashToString(instructionDataFixed.OPType), utils.OpHashToString(instructionDataFixed.OPCommand)}
+func checkDataProvidersThreshold(instructionDataFixed *instruction.DataFixed, signers []common.Address, signingPolicy *commonpolicy.SigningPolicy) (bool, []bool, error) {
+	oPTypeCommand := OPTypeCommand{utils.OpHashToString(instructionDataFixed.OpType), utils.OpHashToString(instructionDataFixed.OpCommand)}
 	var threshold uint16
 	isDataProvider := make([]bool, len(signers))
 	for i, signer := range signers {
-		if slices.Contains(signingPolicy.Voters, signer) {
+		if slices.Contains(signingPolicy.Voters.Voters(), signer) {
 			isDataProvider[i] = true
 		}
 	}
@@ -98,26 +99,28 @@ func checkDataProvidersThreshold(instructionDataFixed *instruction.DataFixed, si
 	case OPTypeCommand{"WALLET", "KEY_DATA_PROVIDER_RESTORE"}:
 		return true, isDataProvider, nil
 
-	case OPTypeCommand{"FDC", "PROVE"}:
-		fdcProveRequest, err := types.ParseFDCProve(instructionDataFixed)
+	case OPTypeCommand{"FTDC", "PROVE"}:
+		proveRequest, err := types.DecodeFTDCRequest(instructionDataFixed.OriginalMessage)
 		if err != nil {
 			return false, nil, err
 		}
-		totalWeight := policy.WeightOfSigners(signingPolicy.Voters, signingPolicy)
 
-		if fdcProveRequest.ThresholdBIPS == 0 {
+		totalWeight := policy.WeightOfSigners(signingPolicy.Voters.Voters(), signingPolicy)
+
+		rh := proveRequest.Header
+		if rh.ThresholdBIPS == 0 {
 			threshold = signingPolicy.Threshold
 		} else {
-			threshold = (fdcProveRequest.ThresholdBIPS * totalWeight) / settings.BIPSConstant
-			if (fdcProveRequest.ThresholdBIPS*totalWeight)%settings.BIPSConstant > 0 {
+			threshold = (rh.ThresholdBIPS * totalWeight) / settings.BIPSConstant
+			if (rh.ThresholdBIPS*totalWeight)%settings.BIPSConstant > 0 {
 				threshold++
 			}
 		}
 
-		if float64(fdcProveRequest.ThresholdBIPS) < float64(settings.BIPSConstant)*settings.FdcMinimumDataProvidersThreshold {
+		if float64(rh.ThresholdBIPS) < float64(settings.BIPSConstant)*settings.FtdcMinimumDataProvidersThreshold {
 			return false, nil, errors.New("data providers threshold too low")
 		}
-		if float64(fdcProveRequest.ThresholdBIPS) < float64(settings.BIPSConstant)*0.5 && fdcProveRequest.CosignersThreshold*2 <= uint64(len(fdcProveRequest.Cosigners)) {
+		if float64(rh.ThresholdBIPS) < float64(settings.BIPSConstant)*0.5 && rh.CosignersThreshold*2 <= uint64(len(rh.Cosigners)) {
 			return false, nil, errors.New("one threshold should be above 50%")
 		}
 
@@ -151,8 +154,8 @@ func voteHash(instructionDataFixed *instruction.DataFixed, signatures, variableM
 	if err != nil {
 		return common.Hash{}, err
 	}
-	for _, i := range order {
-		voteHash, err = instruction.NextVoteHash(voteHash, signers[i], signatures[i], variableMessages[i], timestamps[i])
+	for i := range order {
+		voteHash, err = instruction.NextVoteHash(voteHash, uint64(i), signatures[i], variableMessages[i], timestamps[i])
 		if err != nil {
 			return common.Hash{}, err
 		}

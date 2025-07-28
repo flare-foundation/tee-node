@@ -9,14 +9,14 @@ import (
 	"github.com/flare-foundation/tee-node/pkg/utils"
 )
 
-func ProcessDirectInstruction(directInstructionData *types.DirectInstructionData) ([]byte, error) {
+func ProcessDirectInstruction(instruction *types.DirectInstruction) ([]byte, error) {
 	var err error
 	var result []byte
-	switch utils.OpHashToString(directInstructionData.OPType) {
+	switch utils.OpHashToString(instruction.OPType) {
 	case "POLICY":
-		result, err = executePolicyDirectInstruction(directInstructionData)
+		result, err = executePolicyDirectInstruction(instruction)
 	case "GET":
-		result, err = getData(directInstructionData)
+		result, err = getData(instruction)
 	default:
 		return nil, errors.New("invalid action type")
 	}
@@ -27,14 +27,14 @@ func ProcessDirectInstruction(directInstructionData *types.DirectInstructionData
 	return result, nil
 }
 
-func executePolicyDirectInstruction(directInstructionData *types.DirectInstructionData) ([]byte, error) {
+func executePolicyDirectInstruction(instruction *types.DirectInstruction) ([]byte, error) {
 	var err error
 	response := []byte{}
-	switch utils.OpHashToString(directInstructionData.OPCommand) {
+	switch utils.OpHashToString(instruction.OPCommand) {
 	case "INITIALIZE_POLICY":
-		err = policyutils.InitializePolicy(directInstructionData.Message)
+		err = policyutils.InitializePolicy(instruction.Message)
 	case "UPDATE_POLICY":
-		err = policyutils.UpdatePolicy(directInstructionData.Message)
+		err = policyutils.UpdatePolicy(instruction.Message)
 	default:
 		return nil, errors.New("invalid action type")
 	}
@@ -45,16 +45,16 @@ func executePolicyDirectInstruction(directInstructionData *types.DirectInstructi
 	return response, nil
 }
 
-func getData(directInstructionData *types.DirectInstructionData) ([]byte, error) {
-	switch utils.OpHashToString(directInstructionData.OPCommand) {
+func getData(instruction *types.DirectInstruction) ([]byte, error) {
+	switch utils.OpHashToString(instruction.OPCommand) {
 	case "TEE_INFO":
-		return getutils.GetTeeInfo(directInstructionData)
+		return getutils.GetTeeInfo(instruction)
 
 	case "KEY_INFO":
 		return getutils.GetKeyInfoPackage()
 
 	case "TEE_BACKUP":
-		return getutils.GetBackupPackage(directInstructionData)
+		return getutils.GetBackupPackage(instruction)
 
 	default:
 		return nil, errors.New("unknown OpCommand for WALLET OpType")

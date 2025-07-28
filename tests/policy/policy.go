@@ -4,9 +4,8 @@ import (
 	"context"
 	"crypto/ecdsa"
 	"encoding/hex"
-	"math/big"
+	"testing"
 
-	pd "github.com/flare-foundation/tee-node/internal/policy"
 	"github.com/flare-foundation/tee-node/internal/testutils"
 	"github.com/flare-foundation/tee-node/pkg/types"
 
@@ -20,6 +19,7 @@ import (
 	"github.com/flare-foundation/go-flare-common/pkg/database"
 	"github.com/flare-foundation/go-flare-common/pkg/logger"
 	common_policy "github.com/flare-foundation/go-flare-common/pkg/policy"
+	"github.com/flare-foundation/go-flare-common/pkg/tee/structs/tee"
 	"gorm.io/gorm"
 )
 
@@ -45,7 +45,7 @@ var (
 	voterRegisteredEventSel          common.Hash
 	registerVoterFuncSel             [4]byte
 	registerVoterAbiArgs             abi.Arguments
-	uint24Ty, _                      = abi.NewType("uint24", "", nil)
+	uint32Ty, _                      = abi.NewType("uint32", "", nil)
 	addressTy, _                     = abi.NewType("address", "", nil)
 )
 
@@ -158,65 +158,23 @@ type PolicySignature struct {
 	PubKey []byte
 }
 
-func CreateInitializePolicyAction(policies []*relay.RelaySigningPolicyInitialized, signatures map[common.Hash][]*PolicySignature, pubKeysMap map[common.Address]*ecdsa.PublicKey) (*types.Action, error) {
-	policyRequests := []types.MultiSignedPolicy{}
-
-	// Replay policy signing from the second policy onwards
-	for _, policy := range policies[1:] {
-		policyHash := pd.SigningPolicyBytesToHash(policy.SigningPolicyBytes)
-		policySignatures := signatures[policyHash]
-		policyDecoded, err := pd.DecodeSigningPolicy(policy.SigningPolicyBytes)
-		if err != nil {
-			return nil, err
-		}
-
-		policySignatureRequests := []*types.SignatureMessage{}
-		for _, sig := range policySignatures {
-			pubKey, err := crypto.UnmarshalPubkey(sig.PubKey)
-			if err != nil {
-				return nil, err
-			}
-
-			weight := testutils.GetSignerWeight(pubKey, policyDecoded)
-			if weight == 0 {
-				continue
-			}
-			newPubKey := types.PubKeyToStruct(pubKey)
-			mes := types.SignatureMessage{
-				PublicKey: newPubKey,
-				Signature: sig.Sig,
-			}
-			policySignatureRequests = append(policySignatureRequests, &mes)
-		}
-
-		signNewPolicyRequest := types.MultiSignedPolicy{
-			PolicyBytes: policy.SigningPolicyBytes,
-			Signatures:  policySignatureRequests,
-		}
-
-		policyRequests = append(policyRequests, signNewPolicyRequest)
-	}
-
-	pubKeys := make([]types.ECDSAPublicKey, len(policies[len(policies)-1].Voters))
-	for i, voter := range policies[len(policies)-1].Voters {
+func CreateInitializePolicyAction(t *testing.T, policy *relay.RelaySigningPolicyInitialized, pubKeysMap map[common.Address]*ecdsa.PublicKey) (*types.Action, error) {
+	pubKeys := make([]tee.PublicKey, len(policy.Voters))
+	for i, voter := range policy.Voters {
 		pubKeys[i] = types.PubKeyToStruct(pubKeysMap[voter])
 	}
 
 	req := &types.InitializePolicyRequest{
-		InitialPolicyBytes:     policies[0].SigningPolicyBytes,
-		Policies:               policyRequests,
-		LatestPolicyPublicKeys: pubKeys,
+		InitialPolicyBytes: policy.SigningPolicyBytes,
+		PublicKeys:         pubKeys,
 	}
 
-	action, err := testutils.BuildMockQueuedActionAction("POLICY", "INITIALIZE_POLICY", req)
-	if err != nil {
-		return nil, err
-	}
+	action := testutils.BuildMockQueuedAction(t, "POLICY", "INITIALIZE_POLICY", req)
 
 	return action, nil
 }
 
-func FetchVoterRegisteredBlocksInfo(ctx context.Context, params *PolicyHistoryParams, db *gorm.DB, rewardEpochId int) (uint64, uint64, error) {
+func FetchVoterRegisteredBlocksInfo(ctx context.Context, params *PolicyHistoryParams, db *gorm.DB, rewardEpochId uint32) (uint64, uint64, error) {
 	logsParams := database.LogsParams{
 		Address: params.FlareVoterRegistryContractAddress,
 		Topic0:  voterRegisteredEventSel,
@@ -238,7 +196,7 @@ func FetchVoterRegisteredBlocksInfo(ctx context.Context, params *PolicyHistoryPa
 		if err != nil {
 			return 0, 0, err
 		}
-		if event.RewardEpochId.Int64() == int64(rewardEpochId) {
+		if event.RewardEpochId == rewardEpochId {
 			if log.BlockNumber < minBlockNum {
 				minBlockNum = log.BlockNumber
 			}
@@ -251,7 +209,7 @@ func FetchVoterRegisteredBlocksInfo(ctx context.Context, params *PolicyHistoryPa
 	return minBlockNum, maxBlockNum, nil
 }
 
-func FetchVotersPublicKeysMap(ctx context.Context, params *PolicyHistoryParams, db *gorm.DB, minBlockNum, maxBlockNum uint64, rewardEpochId int) (map[common.Address]*ecdsa.PublicKey, error) {
+func FetchVotersPublicKeysMap(ctx context.Context, params *PolicyHistoryParams, db *gorm.DB, minBlockNum, maxBlockNum uint64, rewardEpochId uint32) (map[common.Address]*ecdsa.PublicKey, error) {
 	txsParams := database.TxParams{
 		ToAddress:   params.FlareVoterRegistryContractAddress,
 		FunctionSel: registerVoterFuncSel,
@@ -282,16 +240,16 @@ func FetchVotersPublicKeysMap(ctx context.Context, params *PolicyHistoryParams, 
 		}
 
 		voterAddress := *abi.ConvertType(registerVoterInputBytesArray[0], new(common.Address)).(*common.Address)
-		signature := *abi.ConvertType(registerVoterInputBytesArray[1], new(registry.IVoterRegistrySignature)).(*registry.IVoterRegistrySignature)
+		signature := *abi.ConvertType(registerVoterInputBytesArray[1], new(registry.RegistryVoterRegistered)).(*registry.RegistryVoterRegistered)
 
 		sigBytes := make([]byte, 65)
-		copy(sigBytes[0:32], signature.R[:])
-		copy(sigBytes[32:64], signature.S[:])
-		sigBytes[64] = signature.V - 27
+		copy(sigBytes[0:32], signature.Signature.R[:])
+		copy(sigBytes[32:64], signature.Signature.S[:])
+		sigBytes[64] = signature.Signature.V - 27
 
-		arguments := abi.Arguments{{Type: uint24Ty}, {Type: addressTy}}
+		arguments := abi.Arguments{{Type: uint32Ty}, {Type: addressTy}}
 
-		toHash, err := arguments.Pack(big.NewInt(int64(rewardEpochId)), voterAddress)
+		toHash, err := arguments.Pack(rewardEpochId, voterAddress)
 		if err != nil {
 			return nil, err
 		}

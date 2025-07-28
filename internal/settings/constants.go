@@ -2,8 +2,6 @@ package settings
 
 import (
 	"time"
-
-	"github.com/ethereum/go-ethereum/common"
 )
 
 // Modes:
@@ -13,15 +11,10 @@ var Mode = 1
 
 const ProxyUrl = "http://localhost:8545"
 
-// for testing during development
-var InitialPolicyCheck = false
-var InitialPolicyHash = common.HexToHash("6c5d823aa3ecf8e2a00f7bad8b03d6e4557de9ac7be7c5d8408047f5a31f4fd1")
-var InitialPolicyId = uint32(1)
-
 const BIPSConstant = 10000
-const FdcMinimumDataProvidersThreshold = float64(0.4)
+const FtdcMinimumDataProvidersThreshold = float64(0.4)
 
-// var InitialPolicyBytesHex = "" // TODO: Add the initial policy bytes here as a hex string
+const EncodingVersion = "1.0.0"
 
 // Processor configuration
 var QueuedActionsSleepTime = 100 * time.Millisecond
@@ -42,7 +35,7 @@ var InstructionOperations = map[string]map[string]bool{
 		"PAY":     true,
 		"REISSUE": true,
 	},
-	"FDC": {
+	"FTDC": {
 		"PROVE": true,
 	},
 }
@@ -81,7 +74,7 @@ var MaxRequestSize = map[string]map[string]MessageSizeConstraint{
 		"PAY":     standardSizeConstraint,
 		"REISSUE": standardSizeConstraint,
 	},
-	"FDC": {
+	"FTDC": {
 		"PROVE": standardSizeConstraint,
 	},
 }

@@ -13,7 +13,7 @@ import (
 )
 
 // Wallet is a struct carrying the private key of particular wallet. It
-// should never be modified, after being created. Todo: check this
+// should never be modified, after being created.
 type Wallet struct {
 	WalletId   common.Hash
 	KeyId      uint64
@@ -30,14 +30,6 @@ type Wallet struct {
 	OpTypeConstants    []byte
 
 	Status *WalletStatus
-
-	// WalletPauserAddresses         []common.Address
-	// WalletPauserAddressSetupNonce big.Int
-}
-
-type WalletKeyIdPair struct {
-	WalletId common.Hash
-	KeyId    uint64
 }
 
 type WalletStatus struct {
@@ -134,6 +126,6 @@ func WalletToKeyExistenceProof(inputWallet *Wallet, teeId common.Address) *walle
 			CosignersThreshold: inputWallet.CosignersThreshold,
 			OpTypeConstants:    inputWallet.OpTypeConstants,
 		},
-		ConfigSettings: wallet.ITeeWalletKeyManagerKeyConfigSettings{}, // todo
+		ConfigSettings: wallet.ITeeWalletKeyManagerKeyConfigSettings{}, // V2
 	}
 }

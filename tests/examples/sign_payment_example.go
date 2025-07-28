@@ -12,7 +12,6 @@ import (
 )
 
 func SignMultisigTransactionExample() {
-
 	amount := uint64(9950000)
 	fee := uint64(990)
 	spenderAccount := "rPp11a5qy4wJRj4di4buquo1Ftao4GLKe8" // Address of the Multisig account
@@ -37,7 +36,6 @@ func SignMultisigTransactionExample() {
 
 	signers := make([]xrputils.Signer, len(privKeys))
 	for i := 0; i < len(privKeys); i++ {
-
 		// Encode the transaction to a byte[] required for signing
 		// Note: The address is required for encoding the transaction (meaning each signer will sign a different txHash)
 		encodedTx, _ := xrpl.EncodeTransaction(payment, addresses[i])

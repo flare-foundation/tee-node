@@ -19,7 +19,6 @@ func ConstructPaymentTransaction(
 	sequence uint32,
 	lastLedgerSeq uint32,
 ) (*xrputils.Payment, error) {
-
 	amountValue := xrputils.NewAmount(amount)
 	feeValue := xrputils.NewValue(fee)
 	acc, e0 := GetAccountFromAddress(spenderAccount)
@@ -57,7 +56,6 @@ func ConstructPaymentTransaction(
 
 // Encode a payment transaction and return the encoded bytes
 func EncodeTransaction(payment *xrputils.Payment, address string) ([]byte, error) {
-
 	txBytes, err := xrputils.Encode(payment) // false means don't ignore signing fields
 	if err != nil {
 		return nil, err
@@ -96,7 +94,6 @@ func HashXRPMessage(message []byte) []byte {
 
 // Get the account from an address
 func GetAccountFromAddress(address string) (*xrputils.Account, error) {
-
 	decoded, err := xrputils.Base58Decode(address, xrputils.ALPHABET)
 	if err != nil {
 		return nil, err

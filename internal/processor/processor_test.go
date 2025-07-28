@@ -21,11 +21,11 @@ import (
 	"github.com/flare-foundation/go-flare-common/pkg/tee/structs"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/structs/connector"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/structs/payment"
+	"github.com/flare-foundation/go-flare-common/pkg/tee/structs/tee"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/structs/verification"
 
 	commonwallet "github.com/flare-foundation/go-flare-common/pkg/tee/structs/wallet"
 	"github.com/flare-foundation/tee-node/internal/node"
-	"github.com/flare-foundation/tee-node/internal/policy"
 	"github.com/flare-foundation/tee-node/internal/testutils"
 	"github.com/flare-foundation/tee-node/internal/wallets"
 	"github.com/flare-foundation/tee-node/pkg/backup"
@@ -39,11 +39,13 @@ const proxyPort = 5500
 
 // todo: add cosigners to commonwallet, check xrp signature, verify signer sequence data (vote hash)
 func TestProcessorEndToEnd(t *testing.T) {
-	err := node.InitNode()
+	err := node.InitNode(types.State{
+		Status: big.NewInt(1234),
+	})
 	require.NoError(t, err)
 
-	numVoters, numPolicies, startingEpochId := 100, 10, uint32(1)
-	finalEpochId := startingEpochId + uint32(numPolicies)
+	numVoters, startingEpochId := 100, uint32(1)
+	finalEpochId := startingEpochId + 1
 
 	providerAddresses, providerPrivKeys, _ := testutils.GenerateRandomKeys(numVoters)
 
@@ -66,130 +68,112 @@ func TestProcessorEndToEnd(t *testing.T) {
 		adminWalletPublicKeys[i] = commonwallet.PublicKey(types.PubKeyToStruct(pubKey))
 	}
 
-	mainActionInfoChan := make(chan *types.ActionInfo, 100)
-	readActionInfoChan := make(chan *types.ActionInfo, 100)
+	mainActionInfoChan := make(chan *types.Action, 100)
+	readActionInfoChan := make(chan *types.Action, 100)
 	actionResponseChan := make(chan *types.ActionResponse, 100)
-	actionMap := make(map[types.ActionInfo]*types.Action)
-	go MockProxy(t, mainActionInfoChan, readActionInfoChan, actionMap, actionResponseChan)
+	go MockProxy(t, mainActionInfoChan, readActionInfoChan, actionResponseChan)
 
 	go RunTeeProcessor("http://localhost:" + strconv.Itoa(proxyPort))
 
 	time.Sleep(1 * time.Second)
 
-	actionId := big.NewInt(0)
-	teeId, teePubKey := getTeeInfo(t, readActionInfoChan, actionMap, actionResponseChan, actionId)
-	actionId.Add(actionId, common.Big1)
+	teeId, teePubKey := getTeeInfo(t, readActionInfoChan, actionResponseChan)
 
-	initializePolicy(t, mainActionInfoChan, actionMap, actionResponseChan, providerPrivKeys, providerAddresses,
-		actionId, numPolicies, startingEpochId)
-	actionId.Add(actionId, common.Big1)
+	initializePolicy(t, mainActionInfoChan, actionResponseChan, providerPrivKeys, providerAddresses,
+		startingEpochId)
 
 	var walletId = common.HexToHash("0xabcdef")
 	var keyId = uint64(1)
-	walletProof := generateWallet(t, mainActionInfoChan, actionMap, actionResponseChan, teeId, walletId, keyId,
-		providerPrivKeys, adminWalletPublicKeys, finalEpochId, actionId)
+	walletProof := generateWallet(t, mainActionInfoChan, actionResponseChan, teeId, walletId, keyId,
+		providerPrivKeys, adminWalletPublicKeys, finalEpochId)
 	require.Equal(t, walletProof.Restored, false)
-	actionId.Add(actionId, common.Big1)
 
 	paymentHash := "560ccd6e79ba7166e82dbf2a5b9a52283a509b63c39d4a4cc7164db3e43484c4"
-	signTransaction(t, mainActionInfoChan, actionMap, actionResponseChan, teeId, walletId, keyId, providerPrivKeys, finalEpochId, actionId, paymentHash)
-	actionId.Add(actionId, common.Big1)
+	signTransaction(t, mainActionInfoChan, actionResponseChan, teeId, walletId, keyId, providerPrivKeys, finalEpochId, paymentHash)
 
-	walletBackup := getBackup(t, readActionInfoChan, actionMap, actionResponseChan, teeId, walletId, keyId, actionId)
-	actionId.Add(actionId, common.Big1)
+	walletBackup := getBackup(t, readActionInfoChan, actionResponseChan, teeId, walletId, keyId)
 
 	nonce := big.NewInt(1)
-	deleteWallet(t, mainActionInfoChan, actionMap, actionResponseChan, teeId, walletId, keyId, providerPrivKeys, finalEpochId, actionId, nonce)
-	actionId.Add(actionId, common.Big1)
-	nonce.Add(actionId, common.Big1)
+	deleteWallet(t, mainActionInfoChan, actionResponseChan, teeId, walletId, keyId, providerPrivKeys, finalEpochId, nonce)
+	nonce.Add(nonce, common.Big1)
 
-	recoveredWalletProof := recoverWallet(t, mainActionInfoChan, actionMap, actionResponseChan, teeId, teePubKey, walletId, keyId,
-		providerPrivKeys, adminPrivKeys, finalEpochId, actionId, nonce, walletBackup)
+	recoveredWalletProof := recoverWallet(t, mainActionInfoChan, actionResponseChan, teeId, teePubKey, walletId, keyId,
+		providerPrivKeys, adminPrivKeys, finalEpochId, nonce, walletBackup)
 	walletProof.Restored = true
-	actionId.Add(actionId, common.Big1)
 
 	walletProof.Nonce = nonce
 	require.Equal(t, walletProof, recoveredWalletProof)
 
-	getTeeAttestation(t, mainActionInfoChan, actionMap, actionResponseChan, teeId,
-		providerPrivKeys, finalEpochId, actionId)
-	actionId.Add(actionId, common.Big1)
+	getTeeAttestation(t, mainActionInfoChan, actionResponseChan, teeId,
+		providerPrivKeys, finalEpochId)
 
-	fdcProve(t, mainActionInfoChan, actionMap, actionResponseChan, teeId, providerPrivKeys, adminPrivKeys, finalEpochId, actionId)
-	actionId.Add(actionId, common.Big1)
+	ftdcProve(t, mainActionInfoChan, actionResponseChan, teeId, providerPrivKeys, adminPrivKeys, finalEpochId)
 
 	// todo: update policy
 }
 
-func initializePolicy(t *testing.T, actionInfoChan chan *types.ActionInfo, actionMap map[types.ActionInfo]*types.Action,
+func initializePolicy(t *testing.T, actionInfoChan chan *types.Action,
 	actionResponseChan chan *types.ActionResponse, privKeys []*ecdsa.PrivateKey, addresses []common.Address,
-	actionId *big.Int, numPolicies int, startingEpochId uint32) {
+	startingEpochId uint32) {
 	// initialize policy
 	randSeed := int64(12345)
-	initialPolicy := testutils.GenerateRandomPolicyData(startingEpochId, addresses, randSeed)
-	initialPolicyBytes, err := policy.EncodeSigningPolicy(&initialPolicy)
+
+	nextPolicy, err := testutils.GenerateRandomPolicyData(startingEpochId+1, addresses, randSeed)
 	require.NoError(t, err)
 
-	policySignaturesArray, err := testutils.GenerateRandomMultiSignedPolicyArray(startingEpochId, randSeed, addresses, privKeys, numPolicies)
-	require.NoError(t, err, "could not generate random policy policy")
-	pubKeys := make([]types.ECDSAPublicKey, len(privKeys))
+	pubKeys := make([]tee.PublicKey, len(privKeys))
 	for i, voter := range privKeys {
 		pubKeys[i] = types.PubKeyToStruct(&voter.PublicKey)
 	}
 	req := &types.InitializePolicyRequest{
-		InitialPolicyBytes:     initialPolicyBytes,
-		Policies:               policySignaturesArray,
-		LatestPolicyPublicKeys: pubKeys,
+		InitialPolicyBytes: nextPolicy.RawBytes(),
+		PublicKeys:         pubKeys,
 	}
 
-	action, err := testutils.BuildMockQueuedActionAction("POLICY", "INITIALIZE_POLICY", req)
-	require.NoError(t, err)
+	action := testutils.BuildMockQueuedAction(t, "POLICY", "INITIALIZE_POLICY", req)
 
-	actionInfo := &types.ActionInfo{QueueId: "main", ActionId: common.BigToHash(actionId)}
-
-	actionMap[*actionInfo] = action
-	actionInfoChan <- actionInfo
+	actionInfoChan <- action
 
 	actionResponse := <-actionResponseChan
-	require.True(t, actionResponse.Status)
+	require.True(t, actionResponse.Result.Status)
 }
 
-func getTeeInfo(t *testing.T, actionInfoChan chan *types.ActionInfo, actionMap map[types.ActionInfo]*types.Action,
-	actionResponseChan chan *types.ActionResponse, actionId *big.Int) (common.Address, *ecdsa.PublicKey) {
-
+func getTeeInfo(
+	t *testing.T,
+	actionInfoChan chan *types.Action,
+	actionResponseChan chan *types.ActionResponse,
+) (common.Address, *ecdsa.PublicKey) {
 	challenge, err := utils.GenerateRandom()
 	require.NoError(t, err)
-	req := &types.TeeInfoRequest{Challenge: challenge}
-	action, err := testutils.BuildMockQueuedActionAction("GET", "TEE_INFO", req)
+	req := &types.TeeInfoRequest{
+		Challenge: common.Hash(challenge),
+	}
+	action := testutils.BuildMockQueuedAction(t, "GET", "TEE_INFO", req)
 
-	require.NoError(t, err)
-
-	actionInfo := &types.ActionInfo{QueueId: "read", ActionId: common.BigToHash(actionId)}
-
-	actionMap[*actionInfo] = action
-	actionInfoChan <- actionInfo
+	actionInfoChan <- action
 
 	actionResponse := <-actionResponseChan
-	require.True(t, actionResponse.Status)
+
+	require.True(t, actionResponse.Result.Status)
 
 	var teeInfoResponse types.TeeInfoResponse
-	err = json.Unmarshal(actionResponse.Result.ResultData.Message, &teeInfoResponse)
+	err = json.Unmarshal(actionResponse.Result.Data, &teeInfoResponse)
 	require.NoError(t, err)
 
-	teePubKey, err := types.ParsePubKey(teeInfoResponse.PublicKey)
+	teePubKey, err := types.ParsePubKey(teeInfoResponse.TeeInfo.PublicKey)
 	require.NoError(t, err)
 
 	teeId := crypto.PubkeyToAddress(*teePubKey)
 
-	err = utils.VerifySignature(crypto.Keccak256(actionResponse.Result.ResultData.Message), actionResponse.Result.ResultData.Signature, teeId)
+	err = utils.VerifySignature(crypto.Keccak256(actionResponse.Result.Data), actionResponse.Signature, teeId)
 	require.NoError(t, err)
 
 	return teeId, teePubKey
 }
 
-func generateWallet(t *testing.T, actionInfoChan chan *types.ActionInfo, actionMap map[types.ActionInfo]*types.Action,
+func generateWallet(t *testing.T, actionInfoChan chan *types.Action,
 	actionResponseChan chan *types.ActionResponse, teeId common.Address, walletId [32]byte, keyId uint64, privKeys []*ecdsa.PrivateKey,
-	adminWalletPublicKeys []commonwallet.PublicKey, rewardEpochId uint32, actionId *big.Int) *commonwallet.ITeeWalletKeyManagerKeyExistence {
+	adminWalletPublicKeys []commonwallet.PublicKey, rewardEpochId uint32) *commonwallet.ITeeWalletKeyManagerKeyExistence {
 	originalMessage := commonwallet.ITeeWalletKeyManagerKeyGenerate{
 		TeeId:    teeId,
 		WalletId: walletId,
@@ -208,58 +192,51 @@ func generateWallet(t *testing.T, actionInfoChan chan *types.ActionInfo, actionM
 
 	// generate action sent when threshold reached
 	action, err := testutils.BuildMockQueuedActionInstruction(
-		"WALLET", "KEY_GENERATE", originalMessageEncoded, privKeys, teeId, rewardEpochId, nil, nil, types.Threshold,
+		"WALLET", "KEY_GENERATE", originalMessageEncoded, privKeys, teeId, rewardEpochId, nil, nil, types.Threshold, uint64(time.Now().Unix()),
 	)
 	require.NoError(t, err)
 
-	actionInfo := &types.ActionInfo{QueueId: "main", ActionId: common.BigToHash(actionId)}
-
-	actionMap[*actionInfo] = action
-	actionInfoChan <- actionInfo
+	actionInfoChan <- action
 
 	actionResponse := <-actionResponseChan
-	require.True(t, actionResponse.Status)
-	err = utils.VerifySignature(crypto.Keccak256(actionResponse.Result.ResultData.Message), actionResponse.Result.ResultData.Signature, teeId)
+	require.True(t, actionResponse.Result.Status)
+	err = utils.VerifySignature(crypto.Keccak256(actionResponse.Result.Data), actionResponse.Signature, teeId)
 	require.NoError(t, err)
 
-	walletExistenceProof, err := structs.Decode[commonwallet.ITeeWalletKeyManagerKeyExistence](commonwallet.KeyExistenceStructArg, actionResponse.Result.ResultData.Message)
+	walletExistenceProof, err := structs.Decode[commonwallet.ITeeWalletKeyManagerKeyExistence](commonwallet.KeyExistenceStructArg, actionResponse.Result.Data)
 	require.NoError(t, err)
 
-	newWallet, err := wallets.Storage.GetWallet(wallets.WalletKeyIdPair{WalletId: walletId, KeyId: keyId})
+	newWallet, err := wallets.Storage.GetWallet(types.WalletKeyIdPair{WalletId: walletId, KeyId: keyId})
 	require.NoError(t, err)
 
 	require.Equal(t, newWallet.XrpAddress, walletExistenceProof.AddressStr)
 
 	// generate action sent when voting closed
 	action, err = testutils.BuildMockQueuedActionInstruction(
-		"WALLET", "KEY_GENERATE", originalMessageEncoded, privKeys, teeId, rewardEpochId, nil, nil, types.End,
+		"WALLET", "KEY_GENERATE", originalMessageEncoded, privKeys, teeId, rewardEpochId, nil, nil, types.End, uint64(time.Now().Unix()),
 	)
 	require.NoError(t, err)
 
-	actionInfo = &types.ActionInfo{QueueId: "main", ActionId: common.BigToHash(actionId)}
-
-	actionMap[*actionInfo] = action
-	actionInfoChan <- actionInfo
+	actionInfoChan <- action
 
 	actionResponse = <-actionResponseChan
-	require.True(t, actionResponse.Status)
-	err = utils.VerifySignature(crypto.Keccak256(actionResponse.Result.ResultData.Message), actionResponse.Result.ResultData.Signature, teeId)
+	require.True(t, actionResponse.Result.Status)
+	err = utils.VerifySignature(crypto.Keccak256(actionResponse.Result.Data), actionResponse.Signature, teeId)
 	require.NoError(t, err)
 
-	var signerSequence types.SignerSequence
-	err = json.Unmarshal(actionResponse.Result.ResultData.Message, &signerSequence)
+	var signerSequence types.RewardingData
+	err = json.Unmarshal(actionResponse.Result.Data, &signerSequence)
 	require.NoError(t, err)
 
-	err = utils.VerifySignature(signerSequence.Data.VoteHash[:], signerSequence.Signature, teeId)
+	err = utils.VerifySignature(signerSequence.VoteSequence.VoteHash[:], signerSequence.Signature, teeId)
 	require.NoError(t, err)
 
 	return &walletExistenceProof
 }
 
-func signTransaction(t *testing.T, actionInfoChan chan *types.ActionInfo,
-	actionMap map[types.ActionInfo]*types.Action, actionResponseChan chan *types.ActionResponse,
+func signTransaction(t *testing.T, actionInfoChan chan *types.Action, actionResponseChan chan *types.ActionResponse,
 	teeId common.Address, walletId [32]byte, keyId uint64, privKeys []*ecdsa.PrivateKey,
-	rewardEpochId uint32, actionId *big.Int, paymentHash string) {
+	rewardEpochId uint32, paymentHash string) {
 	originalMessage := payment.ITeePaymentsPaymentInstructionMessage{
 		WalletId:         walletId,
 		TeeIdKeyIdPairs:  []payment.TeeIdKeyIdPair{{TeeId: teeId, KeyId: keyId}},
@@ -282,22 +259,19 @@ func signTransaction(t *testing.T, actionInfoChan chan *types.ActionInfo,
 	}
 
 	action, err := testutils.BuildMockQueuedActionInstruction(
-		"XRP", "PAY", originalMessageEncoded, privKeys, teeId, rewardEpochId, additionalFixedMessage, nil, types.Threshold,
+		"XRP", "PAY", originalMessageEncoded, privKeys, teeId, rewardEpochId, additionalFixedMessage, nil, types.Threshold, uint64(time.Now().Unix()),
 	)
 	require.NoError(t, err)
 
-	actionInfo := &types.ActionInfo{QueueId: "main", ActionId: common.BigToHash(actionId)}
-
-	actionMap[*actionInfo] = action
-	actionInfoChan <- actionInfo
+	actionInfoChan <- action
 
 	actionResponse := <-actionResponseChan
-	require.True(t, actionResponse.Status)
-	err = utils.VerifySignature(crypto.Keccak256(actionResponse.Result.ResultData.Message), actionResponse.Result.ResultData.Signature, teeId)
+	require.True(t, actionResponse.Result.Status)
+	err = utils.VerifySignature(crypto.Keccak256(actionResponse.Result.Data), actionResponse.Signature, teeId)
 	require.NoError(t, err)
 
 	var signatureData types.GetPaymentSignatureResponse
-	err = json.Unmarshal(actionResponse.Result.ResultData.Message, &signatureData)
+	err = json.Unmarshal(actionResponse.Result.Data, &signatureData)
 	require.NoError(t, err)
 
 	// todo: check result
@@ -305,31 +279,28 @@ func signTransaction(t *testing.T, actionInfoChan chan *types.ActionInfo,
 
 	// generate action sent when voting closed
 	action, err = testutils.BuildMockQueuedActionInstruction(
-		"XRP", "PAY", originalMessageEncoded, privKeys, teeId, rewardEpochId, additionalFixedMessage, nil, types.End,
+		"XRP", "PAY", originalMessageEncoded, privKeys, teeId, rewardEpochId, additionalFixedMessage, nil, types.End, uint64(time.Now().Unix()),
 	)
 	require.NoError(t, err)
 
-	actionInfo = &types.ActionInfo{QueueId: "main", ActionId: common.BigToHash(actionId)}
-
-	actionMap[*actionInfo] = action
-	actionInfoChan <- actionInfo
+	actionInfoChan <- action
 
 	actionResponse = <-actionResponseChan
-	require.True(t, actionResponse.Status)
-	err = utils.VerifySignature(crypto.Keccak256(actionResponse.Result.ResultData.Message), actionResponse.Result.ResultData.Signature, teeId)
+	require.True(t, actionResponse.Result.Status)
+	err = utils.VerifySignature(crypto.Keccak256(actionResponse.Result.Data), actionResponse.Signature, teeId)
 	require.NoError(t, err)
 
-	var signerSequence types.SignerSequence
-	err = json.Unmarshal(actionResponse.Result.ResultData.Message, &signerSequence)
+	var signerSequence types.RewardingData
+	err = json.Unmarshal(actionResponse.Result.Data, &signerSequence)
 	require.NoError(t, err)
 
-	err = utils.VerifySignature(signerSequence.Data.VoteHash[:], signerSequence.Signature, teeId)
+	err = utils.VerifySignature(signerSequence.VoteSequence.VoteHash[:], signerSequence.Signature, teeId)
 	require.NoError(t, err)
 }
 
-func deleteWallet(t *testing.T, actionInfoChan chan *types.ActionInfo, actionMap map[types.ActionInfo]*types.Action,
+func deleteWallet(t *testing.T, actionInfoChan chan *types.Action,
 	actionResponseChan chan *types.ActionResponse, teeId common.Address, walletId [32]byte, keyId uint64,
-	privKeys []*ecdsa.PrivateKey, rewardEpochId uint32, actionId, nonce *big.Int) {
+	privKeys []*ecdsa.PrivateKey, rewardEpochId uint32, nonce *big.Int) {
 	originalMessage := commonwallet.ITeeWalletKeyManagerKeyDelete{
 		TeeId:    teeId,
 		WalletId: walletId,
@@ -340,69 +311,57 @@ func deleteWallet(t *testing.T, actionInfoChan chan *types.ActionInfo, actionMap
 	require.NoError(t, err)
 
 	action, err := testutils.BuildMockQueuedActionInstruction(
-		"WALLET", "KEY_DELETE", originalMessageEncoded, privKeys, teeId, rewardEpochId, nil, nil, types.Threshold,
+		"WALLET", "KEY_DELETE", originalMessageEncoded, privKeys, teeId, rewardEpochId, nil, nil, types.Threshold, uint64(time.Now().Unix()),
 	)
 	require.NoError(t, err)
 
-	actionInfo := &types.ActionInfo{QueueId: "main", ActionId: common.BigToHash(actionId)}
-
-	actionMap[*actionInfo] = action
-	actionInfoChan <- actionInfo
+	actionInfoChan <- action
 
 	actionResponse := <-actionResponseChan
-	require.True(t, actionResponse.Status)
+	require.True(t, actionResponse.Result.Status)
 
-	_, err = wallets.Storage.GetWallet(wallets.WalletKeyIdPair{WalletId: walletId, KeyId: keyId})
+	_, err = wallets.Storage.GetWallet(types.WalletKeyIdPair{WalletId: walletId, KeyId: keyId})
 	require.Error(t, err)
 
 	// generate action sent when voting closed
 	action, err = testutils.BuildMockQueuedActionInstruction(
-		"WALLET", "KEY_DELETE", originalMessageEncoded, privKeys, teeId, rewardEpochId, nil, nil, types.End,
+		"WALLET", "KEY_DELETE", originalMessageEncoded, privKeys, teeId, rewardEpochId, nil, nil, types.End, uint64(time.Now().Unix()),
 	)
 	require.NoError(t, err)
 
-	actionInfo = &types.ActionInfo{QueueId: "main", ActionId: common.BigToHash(actionId)}
-
-	actionMap[*actionInfo] = action
-	actionInfoChan <- actionInfo
+	actionInfoChan <- action
 
 	actionResponse = <-actionResponseChan
-	require.True(t, actionResponse.Status)
-	err = utils.VerifySignature(crypto.Keccak256(actionResponse.Result.ResultData.Message), actionResponse.Result.ResultData.Signature, teeId)
+	require.True(t, actionResponse.Result.Status)
+	err = utils.VerifySignature(crypto.Keccak256(actionResponse.Result.Data), actionResponse.Signature, teeId)
 	require.NoError(t, err)
 
-	var signerSequence types.SignerSequence
-	err = json.Unmarshal(actionResponse.Result.ResultData.Message, &signerSequence)
+	var signerSequence types.RewardingData
+	err = json.Unmarshal(actionResponse.Result.Data, &signerSequence)
 	require.NoError(t, err)
 
-	err = utils.VerifySignature(signerSequence.Data.VoteHash[:], signerSequence.Signature, teeId)
+	err = utils.VerifySignature(signerSequence.VoteSequence.VoteHash[:], signerSequence.Signature, teeId)
 	require.NoError(t, err)
 }
 
-func getBackup(t *testing.T, actionInfoChan chan *types.ActionInfo, actionMap map[types.ActionInfo]*types.Action,
-	actionResponseChan chan *types.ActionResponse, teeId common.Address, walletId [32]byte, keyId uint64, actionId *big.Int) *backup.WalletBackup {
-	message := wallets.WalletKeyIdPair{
+func getBackup(t *testing.T, actionInfoChan chan *types.Action,
+	actionResponseChan chan *types.ActionResponse, teeId common.Address, walletId [32]byte, keyId uint64) *backup.WalletBackup {
+	message := types.WalletKeyIdPair{
 		WalletId: walletId,
 		KeyId:    keyId,
 	}
 
-	action, err := testutils.BuildMockQueuedActionAction(
-		"GET", "TEE_BACKUP", message,
-	)
-	require.NoError(t, err)
+	action := testutils.BuildMockQueuedAction(t, "GET", "TEE_BACKUP", message)
 
-	actionInfo := &types.ActionInfo{QueueId: "read", ActionId: common.BigToHash(actionId)}
-
-	actionMap[*actionInfo] = action
-	actionInfoChan <- actionInfo
+	actionInfoChan <- action
 
 	actionResponse := <-actionResponseChan
-	require.True(t, actionResponse.Status)
-	err = utils.VerifySignature(crypto.Keccak256(actionResponse.Result.ResultData.Message), actionResponse.Result.ResultData.Signature, teeId)
+	require.True(t, actionResponse.Result.Status)
+	err := utils.VerifySignature(crypto.Keccak256(actionResponse.Result.Data), actionResponse.Signature, teeId)
 	require.NoError(t, err)
 
 	var backupResponse types.WalletGetBackupResponse
-	err = json.Unmarshal(actionResponse.Result.ResultData.Message, &backupResponse)
+	err = json.Unmarshal(actionResponse.Result.Data, &backupResponse)
 	require.NoError(t, err)
 
 	// fmt.Println("backup size", len(backupResponse.WalletBackup))
@@ -414,9 +373,9 @@ func getBackup(t *testing.T, actionInfoChan chan *types.ActionInfo, actionMap ma
 	return &backup
 }
 
-func recoverWallet(t *testing.T, actionInfoChan chan *types.ActionInfo, actionMap map[types.ActionInfo]*types.Action,
+func recoverWallet(t *testing.T, actionInfoChan chan *types.Action,
 	actionResponseChan chan *types.ActionResponse, teeId common.Address, teePubKey *ecdsa.PublicKey, walletId [32]byte, keyId uint64,
-	providersPrivKeys, adminsPrivKeys []*ecdsa.PrivateKey, rewardEpochId uint32, actionId, nonce *big.Int,
+	providersPrivKeys, adminsPrivKeys []*ecdsa.PrivateKey, rewardEpochId uint32, nonce *big.Int,
 	walletBackup *backup.WalletBackup) *commonwallet.ITeeWalletKeyManagerKeyExistence {
 	originalMessage := commonwallet.ITeeWalletBackupManagerKeyDataProviderRestore{
 		TeeId:     teeId,
@@ -501,25 +460,22 @@ func recoverWallet(t *testing.T, actionInfoChan chan *types.ActionInfo, actionMa
 	action, err := testutils.BuildMockQueuedActionInstruction(
 		"WALLET", "KEY_DATA_PROVIDER_RESTORE", originalMessageEncoded, privKeys, teeId,
 		rewardEpochId, additionalFixedMessage, additionalVariableMessages,
-		types.Threshold,
+		types.Threshold, uint64(time.Now().Unix()),
 	)
 	require.NoError(t, err)
 
-	actionInfo := &types.ActionInfo{QueueId: "main", ActionId: common.BigToHash(actionId)}
-
-	actionMap[*actionInfo] = action
-	actionInfoChan <- actionInfo
+	actionInfoChan <- action
 
 	actionResponse := <-actionResponseChan
-	require.True(t, actionResponse.Status)
-	err = utils.VerifySignature(crypto.Keccak256(actionResponse.Result.ResultData.Message), actionResponse.Result.ResultData.Signature, teeId)
+	require.True(t, actionResponse.Result.Status)
+	err = utils.VerifySignature(crypto.Keccak256(actionResponse.Result.Data), actionResponse.Signature, teeId)
 	require.NoError(t, err)
 
-	walletExistenceProof, err := structs.Decode[commonwallet.ITeeWalletKeyManagerKeyExistence](commonwallet.KeyExistenceStructArg, actionResponse.Result.ResultData.Message)
+	walletExistenceProof, err := structs.Decode[commonwallet.ITeeWalletKeyManagerKeyExistence](commonwallet.KeyExistenceStructArg, actionResponse.Result.Data)
 	require.NoError(t, err)
 
 	// check that commonwallet is actually on the tee
-	commonwallet, err := wallets.Storage.GetWallet(wallets.WalletKeyIdPair{WalletId: walletId, KeyId: keyId})
+	commonwallet, err := wallets.Storage.GetWallet(types.WalletKeyIdPair{WalletId: walletId, KeyId: keyId})
 	require.NoError(t, err)
 	require.Equal(t, walletId[:], commonwallet.WalletId[:])
 	require.Equal(t, keyId, commonwallet.KeyId)
@@ -528,36 +484,38 @@ func recoverWallet(t *testing.T, actionInfoChan chan *types.ActionInfo, actionMa
 	action, err = testutils.BuildMockQueuedActionInstruction(
 		"WALLET", "KEY_DATA_PROVIDER_RESTORE", originalMessageEncoded, privKeys, teeId,
 		rewardEpochId, additionalFixedMessage, additionalVariableMessages,
-		types.End,
+		types.End, uint64(time.Now().Unix()),
 	)
 	require.NoError(t, err)
 
-	actionInfo = &types.ActionInfo{QueueId: "main", ActionId: common.BigToHash(actionId)}
-
-	actionMap[*actionInfo] = action
-	actionInfoChan <- actionInfo
+	actionInfoChan <- action
 
 	actionResponse = <-actionResponseChan
-	require.True(t, actionResponse.Status)
-	err = utils.VerifySignature(crypto.Keccak256(actionResponse.Result.ResultData.Message), actionResponse.Result.ResultData.Signature, teeId)
+	require.True(t, actionResponse.Result.Status)
+	err = utils.VerifySignature(crypto.Keccak256(actionResponse.Result.Data), actionResponse.Signature, teeId)
 	require.NoError(t, err)
 
-	var signerSequence types.SignerSequence
-	err = json.Unmarshal(actionResponse.Result.ResultData.Message, &signerSequence)
+	var signerSequence types.RewardingData
+	err = json.Unmarshal(actionResponse.Result.Data, &signerSequence)
 	require.NoError(t, err)
 
-	err = utils.VerifySignature(signerSequence.Data.VoteHash[:], signerSequence.Signature, teeId)
+	err = utils.VerifySignature(signerSequence.VoteSequence.VoteHash[:], signerSequence.Signature, teeId)
 	require.NoError(t, err)
 
 	return &walletExistenceProof
 }
 
-func getTeeAttestation(t *testing.T, actionInfoChan chan *types.ActionInfo, actionMap map[types.ActionInfo]*types.Action,
-	actionResponseChan chan *types.ActionResponse, teeId common.Address, privKeys []*ecdsa.PrivateKey,
-	rewardEpochId uint32, actionId *big.Int) {
-
-	challenge, err := rand.Int(rand.Reader, new(big.Int).Exp(big.NewInt(2), big.NewInt(256), nil))
+func getTeeAttestation(
+	t *testing.T,
+	actionInfoChan chan *types.Action,
+	actionResponseChan chan *types.ActionResponse,
+	teeId common.Address,
+	privKeys []*ecdsa.PrivateKey,
+	rewardEpochId uint32,
+) {
+	ch, err := testutils.GenerateRandomBytes(32)
 	require.NoError(t, err)
+	challenge := [32]byte(ch)
 
 	originalMessage := verification.ITeeVerificationTeeAttestation{
 		TeeMachine: verification.ITeeRegistryTeeMachineWithAttestationData{
@@ -574,25 +532,22 @@ func getTeeAttestation(t *testing.T, actionInfoChan chan *types.ActionInfo, acti
 
 	// generate action sent when threshold reached
 	action, err := testutils.BuildMockQueuedActionInstruction(
-		"REG", "TEE_ATTESTATION", originalMessageEncoded, privKeys, teeId, rewardEpochId, nil, nil, types.Threshold,
+		"REG", "TEE_ATTESTATION", originalMessageEncoded, privKeys, teeId, rewardEpochId, nil, nil, types.Threshold, uint64(time.Now().Unix()),
 	)
 	require.NoError(t, err)
 
-	actionInfo := &types.ActionInfo{QueueId: "main", ActionId: common.BigToHash(actionId)}
-
-	actionMap[*actionInfo] = action
-	actionInfoChan <- actionInfo
+	actionInfoChan <- action
 
 	actionResponse := <-actionResponseChan
-	require.True(t, actionResponse.Status)
-	err = utils.VerifySignature(crypto.Keccak256(actionResponse.Result.ResultData.Message), actionResponse.Result.ResultData.Signature, teeId)
+	require.True(t, actionResponse.Result.Status)
+	err = utils.VerifySignature(crypto.Keccak256(actionResponse.Result.Data), actionResponse.Signature, teeId)
 	require.NoError(t, err)
 
 	var teeInfoResponse types.TeeInfoResponse
-	err = json.Unmarshal(actionResponse.Result.ResultData.Message, &teeInfoResponse)
+	err = json.Unmarshal(actionResponse.Result.Data, &teeInfoResponse)
 	require.NoError(t, err)
 
-	teePubKey, err := types.ParsePubKey(teeInfoResponse.PublicKey)
+	teePubKey, err := types.ParsePubKey(teeInfoResponse.TeeInfo.PublicKey)
 	require.NoError(t, err)
 
 	receivedTeeId := crypto.PubkeyToAddress(*teePubKey)
@@ -601,33 +556,33 @@ func getTeeAttestation(t *testing.T, actionInfoChan chan *types.ActionInfo, acti
 
 	// generate action sent when voting closed
 	action, err = testutils.BuildMockQueuedActionInstruction(
-		"REG", "TEE_ATTESTATION", originalMessageEncoded, privKeys, teeId, rewardEpochId, nil, nil, types.End,
+		"REG", "TEE_ATTESTATION", originalMessageEncoded, privKeys, teeId, rewardEpochId, nil, nil, types.End, uint64(time.Now().Unix()),
 	)
 	require.NoError(t, err)
 
-	actionInfo = &types.ActionInfo{QueueId: "main", ActionId: common.BigToHash(actionId)}
-
-	actionMap[*actionInfo] = action
-	actionInfoChan <- actionInfo
+	actionInfoChan <- action
 
 	actionResponse = <-actionResponseChan
-	require.True(t, actionResponse.Status)
-	err = utils.VerifySignature(crypto.Keccak256(actionResponse.Result.ResultData.Message), actionResponse.Result.ResultData.Signature, teeId)
+	require.True(t, actionResponse.Result.Status)
+	err = utils.VerifySignature(crypto.Keccak256(actionResponse.Result.Data), actionResponse.Signature, teeId)
 	require.NoError(t, err)
 
-	var signerSequence types.SignerSequence
-	err = json.Unmarshal(actionResponse.Result.ResultData.Message, &signerSequence)
+	var signerSequence types.RewardingData
+	err = json.Unmarshal(actionResponse.Result.Data, &signerSequence)
 	require.NoError(t, err)
 
-	err = utils.VerifySignature(signerSequence.Data.VoteHash[:], signerSequence.Signature, teeId)
+	err = utils.VerifySignature(signerSequence.VoteSequence.VoteHash[:], signerSequence.Signature, teeId)
 	require.NoError(t, err)
 }
 
-func fdcProve(t *testing.T, actionInfoChan chan *types.ActionInfo,
-	actionMap map[types.ActionInfo]*types.Action, actionResponseChan chan *types.ActionResponse,
-	teeId common.Address, providerPrivKeys []*ecdsa.PrivateKey, cosignerPrivKeys []*ecdsa.PrivateKey,
-	rewardEpochId uint32, actionId *big.Int) {
-
+func ftdcProve(
+	t *testing.T,
+	actionInfoChan chan *types.Action,
+	actionResponseChan chan *types.ActionResponse,
+	teeId common.Address,
+	providerPrivKeys, cosignerPrivKeys []*ecdsa.PrivateKey,
+	rewardEpochId uint32,
+) {
 	cosignerAddresses := make([]common.Address, len(cosignerPrivKeys))
 	cosignerAndProvider := make(map[common.Address]bool)
 	for j, cosignerPrivKey := range cosignerPrivKeys {
@@ -639,40 +594,46 @@ func fdcProve(t *testing.T, actionInfoChan chan *types.ActionInfo,
 		}
 	}
 
-	originalMessage := connector.IFtdcHubFtdcProve{
-		TeeIds:             []common.Address{teeId},
-		ThresholdBIPS:      uint16(testutils.TotalWeight * 0.6),
-		Cosigners:          cosignerAddresses,
-		CosignersThreshold: uint64(len(cosignerAddresses)),
-		AttestationRequest: make([]byte, 10),
+	originalMessage := connector.IFtdcHubFtdcAttestationRequest{
+		Header: connector.IFtdcHubFtdcRequestHeader{
+			AttestationType:    [32]byte{},
+			SourceId:           common.Hash{},
+			ThresholdBIPS:      uint16(testutils.TotalWeight * 0.6),
+			Cosigners:          cosignerAddresses,
+			CosignersThreshold: uint64(len(cosignerAddresses) / 2),
+		},
+		RequestBody: make([]byte, 10),
 	}
 
-	originalMessageEncoded, err := abi.Arguments{connector.MessageArguments[constants.Prove]}.Pack(originalMessage)
+	originalMessageEncoded, err := types.EncodeFTDCRequest(originalMessage)
 	require.NoError(t, err)
 
-	additionalFixedMessage := connector.ITeeAvailabilityCheckResponse{
-		ThresholdBIPS:      originalMessage.ThresholdBIPS,
-		Timestamp:          uint64(time.Now().Unix()),
-		Cosigners:          cosignerAddresses,
-		CosignersThreshold: originalMessage.CosignersThreshold,
-		RequestBody: connector.ITeeAvailabilityCheckRequestBody{
-			TeeId:     teeId,
-			Url:       "blabla",
-			Challenge: common.Big1,
+	challenge, err := testutils.GenerateRandomBytes(32)
+	require.NoError(t, err)
+
+	additionalFixedMessage := verification.ITeeVerificationTeeAttestation{
+		TeeMachine: verification.ITeeRegistryTeeMachineWithAttestationData{
+			TeeId:        teeId,
+			InitialTeeId: common.Address{},
+			Url:          "blabla",
+			CodeHash:     [32]byte{},
+			Platform:     [32]byte{},
 		},
-		ResponseBody: connector.ITeeAvailabilityCheckResponseBody{
-			RewardEpochId: common.Big1,
-		},
+		Challenge: [32]byte(challenge),
 	}
+	// types.EncodeTeeAttestationRequest(originalMessage)
 
-	additionalFixedMessageEncoded, err := abi.Arguments{connector.AttestationTypeArguments[connector.AvailabilityCheck].Response}.Pack(additionalFixedMessage)
+	additionalFixedMessageEncoded, err := types.EncodeTeeAttestationRequest(&additionalFixedMessage)
 	require.NoError(t, err)
-	additionalFixedMessageHash := crypto.Keccak256(additionalFixedMessageEncoded)
+
+	timestamp := uint64(time.Now().Unix())
+	ftdcMsgHash, _, err := types.HashFTDCMessage(originalMessage, additionalFixedMessageEncoded, timestamp)
+	require.NoError(t, err)
 
 	variableMessages := make([]interface{}, 0)
 	privKeys := make([]*ecdsa.PrivateKey, 0)
 	for _, privKey := range providerPrivKeys {
-		variableMessage, err := utils.Sign(additionalFixedMessageHash[:], privKey)
+		variableMessage, err := utils.Sign(ftdcMsgHash[:], privKey)
 		require.NoError(t, err)
 
 		variableMessages = append(variableMessages, variableMessage)
@@ -682,7 +643,7 @@ func fdcProve(t *testing.T, actionInfoChan chan *types.ActionInfo,
 		if _, check := cosignerAndProvider[utils.PubkeyToAddress(&privKey.PublicKey)]; check {
 			continue
 		}
-		variableMessage, err := utils.Sign(additionalFixedMessageHash[:], privKey)
+		variableMessage, err := utils.Sign(ftdcMsgHash[:], privKey)
 		require.NoError(t, err)
 
 		variableMessages = append(variableMessages, variableMessage)
@@ -690,115 +651,92 @@ func fdcProve(t *testing.T, actionInfoChan chan *types.ActionInfo,
 	}
 
 	action, err := testutils.BuildMockQueuedActionInstruction(
-		"FDC", "PROVE", originalMessageEncoded, privKeys, teeId, rewardEpochId, additionalFixedMessageEncoded, variableMessages, types.Threshold,
+		"FTDC", "PROVE", originalMessageEncoded, privKeys, teeId, rewardEpochId, additionalFixedMessageEncoded, variableMessages, types.Threshold, timestamp,
 	)
 	require.NoError(t, err)
 
-	actionInfo := &types.ActionInfo{QueueId: "main", ActionId: common.BigToHash(actionId)}
-
-	actionMap[*actionInfo] = action
-	actionInfoChan <- actionInfo
+	actionInfoChan <- action
 
 	actionResponse := <-actionResponseChan
-	require.True(t, actionResponse.Status)
-	err = utils.VerifySignature(crypto.Keccak256(actionResponse.Result.ResultData.Message), actionResponse.Result.ResultData.Signature, teeId)
+	require.True(t, actionResponse.Result.Status)
+	err = utils.VerifySignature(crypto.Keccak256(actionResponse.Result.Data), actionResponse.Signature, teeId)
 	require.NoError(t, err)
 
-	var fdcResponse types.FdcProveResponse
-	err = json.Unmarshal(actionResponse.Result.ResultData.Message, &fdcResponse)
+	var ftdcResponse types.FTDCProveResponse
+	err = json.Unmarshal(actionResponse.Result.Data, &ftdcResponse)
 	require.NoError(t, err)
 
-	err = utils.VerifySignature(additionalFixedMessageHash, fdcResponse.Signature, teeId)
+	// ftdcResponse, err := types.DecodeFTDCResponse(actionResponse.Result.Data)
+	// require.NoError(t, err)
+
+	err = utils.VerifySignature(ftdcMsgHash.Bytes(), ftdcResponse.TEESignature, teeId)
 	require.NoError(t, err)
-	require.Equal(t, len(fdcResponse.DataProviderSignatures), len(providerPrivKeys))
-	for i, signature := range fdcResponse.DataProviderSignatures {
-		err = utils.VerifySignature(additionalFixedMessageHash, signature, crypto.PubkeyToAddress(providerPrivKeys[i].PublicKey))
+	require.Equal(t, len(ftdcResponse.DataProviderSignatures), len(providerPrivKeys))
+	for i, signature := range ftdcResponse.DataProviderSignatures {
+		err = utils.VerifySignature(ftdcMsgHash.Bytes(), signature, crypto.PubkeyToAddress(providerPrivKeys[i].PublicKey))
 		require.NoError(t, err)
 	}
-	require.Equal(t, len(fdcResponse.CosignerSignatures), len(cosignerPrivKeys))
-	for _, signature := range fdcResponse.CosignerSignatures {
-		_, err = utils.CheckSignature(additionalFixedMessageHash, signature, cosignerAddresses)
+	require.Equal(t, len(ftdcResponse.CosignerSignatures), len(cosignerPrivKeys))
+	for _, signature := range ftdcResponse.CosignerSignatures {
+		_, err = utils.CheckSignature(ftdcMsgHash.Bytes(), signature, cosignerAddresses)
 		require.NoError(t, err)
 	}
-	require.Equal(t, []byte(fdcResponse.ResponseData), additionalFixedMessageEncoded)
+	require.Equal(t, ftdcResponse.ResponseBody, additionalFixedMessageEncoded)
 
 	// generate action sent when voting closed
 	action, err = testutils.BuildMockQueuedActionInstruction(
-		"FDC", "PROVE", originalMessageEncoded, privKeys, teeId, rewardEpochId, additionalFixedMessageEncoded, variableMessages, types.End,
+		"FTDC", "PROVE", originalMessageEncoded, privKeys, teeId, rewardEpochId, additionalFixedMessageEncoded, variableMessages, types.End, timestamp,
 	)
 	require.NoError(t, err)
 
-	actionInfo = &types.ActionInfo{QueueId: "main", ActionId: common.BigToHash(actionId)}
-
-	actionMap[*actionInfo] = action
-	actionInfoChan <- actionInfo
+	actionInfoChan <- action
 
 	actionResponse = <-actionResponseChan
-	require.True(t, actionResponse.Status)
-	err = utils.VerifySignature(crypto.Keccak256(actionResponse.Result.ResultData.Message), actionResponse.Result.ResultData.Signature, teeId)
+	require.True(t, actionResponse.Result.Status)
+	err = utils.VerifySignature(crypto.Keccak256(actionResponse.Result.Data), actionResponse.Signature, teeId)
 	require.NoError(t, err)
 
-	var signerSequence types.SignerSequence
-	err = json.Unmarshal(actionResponse.Result.ResultData.Message, &signerSequence)
+	var signerSequence types.RewardingData
+	err = json.Unmarshal(actionResponse.Result.Data, &signerSequence)
 	require.NoError(t, err)
 
-	err = utils.VerifySignature(signerSequence.Data.VoteHash[:], signerSequence.Signature, teeId)
+	err = utils.VerifySignature(signerSequence.VoteSequence.VoteHash[:], signerSequence.Signature, teeId)
 	require.NoError(t, err)
 }
 
-func MockProxy(t *testing.T, mainActionInfoChan, readActionInfoChan chan *types.ActionInfo,
-	actionMap map[types.ActionInfo]*types.Action, actionResponseChan chan *types.ActionResponse) {
+func MockProxy(t *testing.T, mainActionInfoChan, readActionInfoChan chan *types.Action,
+	actionResponseChan chan *types.ActionResponse) {
 	router := mux.NewRouter()
 
 	router.HandleFunc("/queue/main", func(w http.ResponseWriter, r *http.Request) {
-		var actionInfo types.ActionInfo
+		var action types.Action
 		select {
 		case x := <-mainActionInfoChan:
-			actionInfo = *x
+			action = *x
 		default:
-			actionInfo = types.ActionInfo{}
+			action = types.Action{}
 		}
-
-		response, err := json.Marshal(actionInfo)
-		require.NoError(t, err)
-
-		_, err = w.Write(response)
-		require.NoError(t, err)
-	}).Methods("GET")
-
-	router.HandleFunc("/queue/read", func(w http.ResponseWriter, r *http.Request) {
-		var actionInfo types.ActionInfo
-		select {
-		case x := <-readActionInfoChan:
-			actionInfo = *x
-		default:
-			actionInfo = types.ActionInfo{}
-		}
-
-		response, err := json.Marshal(actionInfo)
-		require.NoError(t, err)
-
-		_, err = w.Write(response)
-		require.NoError(t, err)
-	}).Methods("GET")
-
-	router.HandleFunc("/dequeue", func(w http.ResponseWriter, r *http.Request) {
-		body, err := io.ReadAll(r.Body)
-		require.NoError(t, err)
-
-		var actionInfo types.ActionInfo
-		err = json.Unmarshal(body, &actionInfo)
-		require.NoError(t, err)
-
-		action, ok := actionMap[actionInfo]
-		require.True(t, ok)
 
 		response, err := json.Marshal(action)
 		require.NoError(t, err)
 
 		_, err = w.Write(response)
 		require.NoError(t, err)
-		err = r.Body.Close()
+	}).Methods("POST")
+
+	router.HandleFunc("/queue/read", func(w http.ResponseWriter, r *http.Request) {
+		var action types.Action
+		select {
+		case x := <-readActionInfoChan:
+			action = *x
+		default:
+			action = types.Action{}
+		}
+
+		response, err := json.Marshal(action)
+		require.NoError(t, err)
+
+		_, err = w.Write(response)
 		require.NoError(t, err)
 	}).Methods("POST")
 

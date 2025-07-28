@@ -36,27 +36,24 @@ type ActionData struct {
 	Message       hexutil.Bytes `json:"message"`
 }
 
-// The response received after queuing an action
 type ActionResponse struct {
+	Result    ActionResult  `json:"result"`
+	Signature hexutil.Bytes `json:"signature"`
+}
+
+// The response received after queuing an action
+type ActionResult struct {
 	ID            common.Hash   `json:"id"`
 	SubmissionTag SubmissionTag `json:"submissionTag"`
 	Status        bool          `json:"status"`
 	Log           string        `json:"log"`
 
-	Result Result `json:"result"`
-}
-
-type Result struct {
 	OPType                 common.Hash   `json:"opType"`
 	OPCommand              common.Hash   `json:"opCommand"`
 	AdditionalResultStatus hexutil.Bytes `json:"additionalResultStatus"`
 
-	ResultData ActionResultData `json:"resultData"`
-}
-
-type ActionResultData struct {
-	Message   hexutil.Bytes `json:"message"`
-	Signature hexutil.Bytes `json:"signature"`
+	Version string        `json:"version"`
+	Data    hexutil.Bytes `json:"data"`
 }
 
 type ActionInfo struct {
@@ -65,12 +62,14 @@ type ActionInfo struct {
 	SubmissionTag SubmissionTag `json:"submissionTag"`
 }
 
-type SignerSequence struct {
-	Data      SignerSequenceData `json:"data"`
-	Signature hexutil.Bytes      `json:"signature"` // TEE signature of voteHash
+type RewardingData struct {
+	VoteSequence   VoteSequence  `json:"voteSequence"`
+	AdditionalData hexutil.Bytes `json:"additionalData"`
+	Version        string        `json:"version"`
+	Signature      hexutil.Bytes `json:"signature"` // TEE signature of voteHash
 }
 
-type SignerSequenceData struct {
+type VoteSequence struct {
 	VoteHash                   common.Hash     `json:"voteHash"`
 	InstructionId              common.Hash     `json:"instructionId"`
 	InstructionHash            common.Hash     `json:"instructionHash"`

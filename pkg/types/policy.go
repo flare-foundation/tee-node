@@ -1,22 +1,18 @@
 package types
 
+import "github.com/flare-foundation/go-flare-common/pkg/tee/structs/tee"
+
 type InitializePolicyRequest struct {
-	InitialPolicyBytes     []byte
-	Policies               []MultiSignedPolicy
-	LatestPolicyPublicKeys []ECDSAPublicKey
+	InitialPolicyBytes []byte
+	PublicKeys         []tee.PublicKey
 }
 
 type UpdatePolicyRequest struct {
-	NewPolicy              MultiSignedPolicy
-	LatestPolicyPublicKeys []ECDSAPublicKey
+	NewPolicy  MultiSignedPolicy
+	PublicKeys []tee.PublicKey
 }
 
 type MultiSignedPolicy struct {
 	PolicyBytes []byte
-	Signatures  []*SignatureMessage
-}
-
-type SignatureMessage struct {
-	Signature []byte
-	PublicKey ECDSAPublicKey
+	Signatures  [][]byte
 }

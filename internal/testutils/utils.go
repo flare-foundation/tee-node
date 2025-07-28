@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"crypto/ecdsa"
 	cryptorand "crypto/rand"
+	"encoding/binary"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -12,10 +13,13 @@ import (
 	"net/http"
 
 	"github.com/flare-foundation/tee-node/internal/policy"
-	"github.com/flare-foundation/tee-node/internal/settings"
 	"github.com/flare-foundation/tee-node/internal/wallets"
 	"github.com/flare-foundation/tee-node/pkg/types"
 	"github.com/flare-foundation/tee-node/pkg/utils"
+
+	"github.com/flare-foundation/go-flare-common/pkg/contracts/relay"
+	commonpolicy "github.com/flare-foundation/go-flare-common/pkg/policy"
+	"github.com/flare-foundation/go-flare-common/pkg/tee/structs/tee"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
@@ -30,69 +34,126 @@ func GenerateRandomBytes(n int) ([]byte, error) {
 	return b, nil
 }
 
-func GenerateRandomValidPolicyAndSigners(epochId uint32, randSeed int64, numVoters int) (*policy.SigningPolicy, []byte, []common.Address, []*ecdsa.PrivateKey, []types.ECDSAPublicKey, error) {
+func EncodeSigningPolicy(policy *relay.RelaySigningPolicyInitialized) ([]byte, error) {
+	// Validation
+	if policy == nil {
+		return nil, fmt.Errorf("signing policy is undefined")
+	}
+
+	voters := policy.Voters
+	if len(voters) > 65535 { // 2^16 - 1
+		return nil, fmt.Errorf("too many signers")
+	}
+	if len(policy.Weights) != len(voters) {
+		return nil, fmt.Errorf("number of voters and weights do not match")
+	}
+
+	// Validate reward epoch ID
+	if policy.RewardEpochId.Int64() > 16777215 { // 2^24 - 1
+		return nil, fmt.Errorf("reward epoch id out of range: %d", policy.RewardEpochId.Int64())
+	}
+
+	// Validate seed
+	seedBytes := policy.Seed.Bytes()
+	if len(seedBytes) > 32 {
+		return nil, fmt.Errorf("seed value too large")
+	}
+
+	// Calculate total size
+	// 2(numVoters) + 3(rewardEpoch) + 4(startVoting) + 2(threshold) + 32(seed) + len(voters)*(20+2)
+	totalSize := 43 + len(voters)*22
+
+	// Create result buffer
+	result := make([]byte, totalSize)
+	pos := 0
+
+	// Write number of voters (2 bytes)
+	binary.BigEndian.PutUint16(result[pos:], uint16(len(voters)))
+	pos += 2
+
+	// Write reward epoch ID (3 bytes)
+	result[pos] = byte(policy.RewardEpochId.Int64() >> 16)
+	result[pos+1] = byte(policy.RewardEpochId.Int64() >> 8)
+	result[pos+2] = byte(policy.RewardEpochId.Int64())
+	pos += 3
+
+	// Write start voting round ID (4 bytes)
+	binary.BigEndian.PutUint32(result[pos:], policy.StartVotingRoundId)
+	pos += 4
+
+	// Write threshold (2 bytes)
+	binary.BigEndian.PutUint16(result[pos:], policy.Threshold)
+	pos += 2
+
+	// Write seed (32 bytes, pad if necessary)
+	copy(result[pos+32-len(seedBytes):pos+32], seedBytes)
+	pos += 32
+
+	// Write voters and weights
+	for i := 0; i < len(voters); i++ {
+		// Write voter address (20 bytes)
+		copy(result[pos:], voters[i][:])
+		pos += 20
+
+		// Write weight (2 bytes)
+		binary.BigEndian.PutUint16(result[pos:], policy.Weights[i])
+		pos += 2
+	}
+
+	return result, nil
+}
+
+func GenerateRandomValidPolicyAndSigners(epochId uint32, randSeed int64, numVoters int) (*commonpolicy.SigningPolicy, []common.Address, []*ecdsa.PrivateKey, []tee.PublicKey, error) {
 	// Generate random voters and corresponding private keys
 	voters, privKeys, pubKeysMap := GenerateRandomKeys(numVoters)
 
-	initialPolicy := GenerateRandomPolicyData(epochId, voters, randSeed)
-
-	initialPolicyBytes, err := policy.EncodeSigningPolicy(&initialPolicy)
+	initialPolicy, err := GenerateRandomPolicyData(epochId, voters, randSeed)
 	if err != nil {
-		return nil, nil, nil, nil, nil, err
+		return nil, nil, nil, nil, err
 	}
 
-	pubKeys := make([]types.ECDSAPublicKey, len(voters))
+	pubKeys := make([]tee.PublicKey, len(voters))
 	for i, voter := range voters {
 		pubKeys[i] = types.PubKeyToStruct(pubKeysMap[voter])
 	}
 
-	return &initialPolicy, initialPolicyBytes, voters, privKeys, pubKeys, nil
+	return initialPolicy, voters, privKeys, pubKeys, nil
 }
 
-func GenerateRandomMultiSignedPolicyArray(epochId uint32, randSeed int64, voters []common.Address, privKeys []*ecdsa.PrivateKey, numPolicies int) ([]types.MultiSignedPolicy, error) {
-	// Generate a few more policies and their signatures
-	multiSignedPolicyArray := []types.MultiSignedPolicy{}
+// func GenerateRandomMultiSignedPolicyArray(epochId uint32, randSeed int64, voters []common.Address, privKeys []*ecdsa.PrivateKey, numPolicies int) ([]types.MultiSignedPolicy, error) {
+// 	// Generate a few more policies and their signatures
+// 	multiSignedPolicyArray := []types.MultiSignedPolicy{}
 
-	_epochId, _randSeed := epochId, randSeed
+// 	_epochId, _randSeed := epochId, randSeed
 
-	for range numPolicies {
-		_epochId++
-		_randSeed++
-		nextPolicy := GenerateRandomPolicyData(_epochId, voters, _randSeed)
+// 	for range numPolicies {
+// 		_epochId++
+// 		_randSeed++
+// 		nextPolicy := GenerateRandomPolicyData(_epochId, voters, _randSeed)
 
-		nextPolicyBytes, err := policy.EncodeSigningPolicy(&nextPolicy)
-		if err != nil {
-			return nil, err
-		}
+// 		policySignatures := BuildMultiSignedPolicy(nextPolicy.RawBytes(), privKeys)
+// 		multiSignedPolicyArray = append(multiSignedPolicyArray, policySignatures)
+// 	}
 
-		policySignatures := BuildMultiSignedPolicy(nextPolicyBytes, privKeys)
-		multiSignedPolicyArray = append(multiSignedPolicyArray, policySignatures)
-	}
-
-	return multiSignedPolicyArray, nil
-}
+// 	return multiSignedPolicyArray, nil
+// }
 
 func BuildMultiSignedPolicy(policyBytes []byte, voterPrivKeys []*ecdsa.PrivateKey) types.MultiSignedPolicy {
-	PolicySignatureMessages := []*types.SignatureMessage{}
+	sigs := make([][]byte, 0, len(voterPrivKeys))
 
+	hash := commonpolicy.Hash(policyBytes)
 	for _, voterPrivKey := range voterPrivKeys {
 		// sig, err := policy.SignNewSigningPolicy(policy.SigningPolicyHash(policyBytes), voterPrivKeys[i])
-		hash := policy.SigningPolicyBytesToHash(policyBytes)
-		sig, err := utils.Sign(hash[:], voterPrivKey)
+		sig, err := utils.Sign(hash, voterPrivKey)
 		if err != nil {
 			panic(err)
 		}
-
-		PolicySignatureMessages = append(PolicySignatureMessages, &types.SignatureMessage{
-			PublicKey: types.PubKeyToStruct(&voterPrivKey.PublicKey),
-			Signature: sig,
-		})
-
+		sigs = append(sigs, sig)
 	}
 
 	return types.MultiSignedPolicy{
 		PolicyBytes: policyBytes,
-		Signatures:  PolicySignatureMessages,
+		Signatures:  sigs,
 	}
 }
 
@@ -101,7 +162,7 @@ func GenerateRandomKeys(numVoters int) ([]common.Address, []*ecdsa.PrivateKey, m
 	privKeys := make([]*ecdsa.PrivateKey, numVoters)
 	pubKeys := make(map[common.Address]*ecdsa.PublicKey)
 
-	for i := 0; i < numVoters; i++ {
+	for i := range numVoters {
 		voterPrivKey, err := utils.GenerateEthereumPrivateKey()
 		if err != nil {
 			panic(err)
@@ -114,16 +175,15 @@ func GenerateRandomKeys(numVoters int) ([]common.Address, []*ecdsa.PrivateKey, m
 	}
 
 	return voters, privKeys, pubKeys
-
 }
 
-func GetSignerWeight(pubKey *ecdsa.PublicKey, policy *policy.SigningPolicy) uint16 {
+func GetSignerWeight(pubKey *ecdsa.PublicKey, policy *commonpolicy.SigningPolicy) uint16 {
 	// Convert the public key to an Ethereum address
 	address := crypto.PubkeyToAddress(*pubKey)
 
 	// Find the index of the voter in the policy
 	voterIndex := -1
-	for i, addr := range policy.Voters {
+	for i, addr := range policy.Voters.Voters() {
 		if addr == address {
 			voterIndex = i
 			break
@@ -132,12 +192,12 @@ func GetSignerWeight(pubKey *ecdsa.PublicKey, policy *policy.SigningPolicy) uint
 	if voterIndex == -1 {
 		return 0
 	}
-	return policy.Weights[voterIndex]
+	return policy.Voters.VoterWeight(voterIndex)
 }
 
 const TotalWeight = 1<<16 - 1
 
-func GenerateRandomPolicyData(rewardEpochId uint32, voters []common.Address, seed int64) policy.SigningPolicy {
+func GenerateRandomPolicyData(rewardEpochId uint32, voters []common.Address, seed int64) (*commonpolicy.SigningPolicy, error) {
 	// Use specific seed for deterministic results
 	rgen := rand.New(rand.NewSource(seed))
 
@@ -152,23 +212,32 @@ func GenerateRandomPolicyData(rewardEpochId uint32, voters []common.Address, see
 		weights = append(weights, uint16(w*TotalWeight))
 	}
 
-	return policy.SigningPolicy{
-		RewardEpochId:      rewardEpochId,
+	event := relay.RelaySigningPolicyInitialized{
+		RewardEpochId:      big.NewInt(int64(rewardEpochId)),
 		StartVotingRoundId: startVotingRoundId,
 		Threshold:          threshold,
-		Seed:               *randSeed,
+		Seed:               randSeed,
 		Voters:             voters,
 		Weights:            weights,
+		SigningPolicyBytes: []byte{},
+		Timestamp:          0,
 	}
+	policyBytes, err := EncodeSigningPolicy(&event)
+	if err != nil {
+		return nil, err
+	}
+	event.SigningPolicyBytes = policyBytes
+
+	policy := commonpolicy.NewSigningPolicy(&event, nil)
+
+	return policy, nil
 }
 
 // Loop through the voters and weights and calculate the total weight
-// return the index of the voter at which the accumulaterd voterWeight passes the threshold
-func GetThresholdReachedVoterIndex(nextPolicy *policy.SigningPolicy, voterPrivKeys []*ecdsa.PrivateKey) (int, uint16) {
-
+// return the index of the voter at which the accumulated voterWeight passes the threshold
+func GetThresholdReachedVoterIndex(nextPolicy *commonpolicy.SigningPolicy, voterPrivKeys []*ecdsa.PrivateKey) (int, uint16) {
 	var weightSum uint16 = 0
-	for i := 0; i < len(voterPrivKeys); i++ {
-
+	for i := range voterPrivKeys {
 		pubKey := voterPrivKeys[i].PublicKey
 		voterWeight := GetSignerWeight(&pubKey, nextPolicy)
 
@@ -177,7 +246,6 @@ func GetThresholdReachedVoterIndex(nextPolicy *policy.SigningPolicy, voterPrivKe
 		if weightSum >= nextPolicy.Threshold {
 			return i, weightSum
 		}
-
 	}
 
 	return len(voterPrivKeys) - 1, weightSum
@@ -211,40 +279,21 @@ func RandomNormalizedArray(n int, seed int64) []float64 {
 func ResetTEEState() {
 	policy.Storage.DestroyState()
 	wallets.Storage.DestroyState()
-
-	// TODO: Reset any other state that might interfere with the tests
-}
-
-// Set the initial policy hash in the config
-// We need this to make the tests work for randomly generated policies
-func SetMockInitialPolicy(initialPolicyBytes []byte) {
-	// Set the initial policy hash in the config
-	settings.InitialPolicyHash = policy.SigningPolicyBytesToHash(initialPolicyBytes)
 }
 
 // This will construct a Mock Signing Policy, set it on the Tee and return the policy
-func GenerateAndSetInitialPolicy(numVoters int, randSeed int64, epochId uint32) (policy.SigningPolicy, []common.Address, []*ecdsa.PrivateKey) {
-
+func GenerateAndSetInitialPolicy(numVoters int, randSeed int64, epochId uint32) (*commonpolicy.SigningPolicy, []common.Address, []*ecdsa.PrivateKey, error) {
 	// Generate random voters and corresponding private keys
 	voters, privKeys, pubKeys := GenerateRandomKeys(numVoters)
 
 	// Generate a random initial policy
-	initialPolicy := GenerateRandomPolicyData(epochId, voters, randSeed)
+	initialPolicy, err := GenerateRandomPolicyData(epochId, voters, randSeed)
+	if err != nil {
+		return nil, nil, nil, err
+	}
 
-	SetInitialPolicy(&initialPolicy, pubKeys)
-
-	return initialPolicy, voters, privKeys
-}
-
-func SetInitialPolicy(initialPolicy *policy.SigningPolicy, addressesToPublicKeys map[common.Address]*ecdsa.PublicKey) {
-	initialPolicyBytes, _ := policy.EncodeSigningPolicy(initialPolicy)
-
-	// Set the initial policy hash in the config
-	SetMockInitialPolicy(initialPolicyBytes)
-
-	// Set the Active Signing Policy
-	policy.Storage.SetActiveSigningPolicy(initialPolicy)
-	policy.Storage.SetActiveSigningPolicyPublicKeys(addressesToPublicKeys)
+	err = policy.Storage.SetInitialPolicy(initialPolicy, pubKeys)
+	return initialPolicy, voters, privKeys, err
 }
 
 // Providers represents a group of voters with private keys.

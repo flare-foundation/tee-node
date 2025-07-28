@@ -7,7 +7,6 @@ import (
 
 // Returns DER encoded signature from input hash
 func SignECDSA(privKey, hash []byte) ([]byte, error) {
-
 	// privateKey, err := crypto.ToECDSA(privKey)
 	// if err != nil {
 	// 	log.Fatal(err)
@@ -21,7 +20,6 @@ func SignECDSA(privKey, hash []byte) ([]byte, error) {
 	// fmt.Printf("Sig2: %X\n", sig2.Serialize())
 
 	return sig2.Serialize(), nil
-
 }
 
 // Verifies a hash using DER encoded signature
@@ -41,7 +39,6 @@ func VerifyECDSA(pubKey, signature, hash []byte) (bool, error) {
 }
 
 func GetKeyPair(pkBytes []byte) (*btcec.PrivateKey, *btcec.PublicKey) {
-
 	// fmt.Printf("PrivKey: %X\n", privKey.Serialize())
 	// fmt.Printf("PubKey: %X\n", pubKey.SerializeCompressed())
 

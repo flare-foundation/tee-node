@@ -14,7 +14,6 @@ import (
 )
 
 func TestSignAndVerifyTransaction(t *testing.T) {
-
 	payment, err := getSampleTransaction()
 	if err != nil {
 		t.Fatalf("failed to get sample transaction: %v", err)
@@ -133,12 +132,7 @@ func TestSignAndVerifyTransaction(t *testing.T) {
 	t.Logf("Account addresses Decoded Successfully\n")
 }
 
-func TestDeriveAddress(t *testing.T) {
-
-}
-
 func TestEncodeTransaction(t *testing.T) {
-
 	payment, err := getSampleTransaction()
 	if err != nil {
 		t.Fatalf("failed to get sample transaction: %v", err)

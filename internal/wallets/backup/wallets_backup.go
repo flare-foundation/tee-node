@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"slices"
 
+	"github.com/flare-foundation/go-flare-common/pkg/tee/structs/tee"
 	"github.com/flare-foundation/tee-node/internal/settings"
 	"github.com/flare-foundation/tee-node/internal/wallets"
 	"github.com/flare-foundation/tee-node/pkg/backup"
@@ -19,7 +20,7 @@ import (
 )
 
 func BackupWallet(givenWallet *wallets.Wallet, providerPubKeys []*ecdsa.PublicKey, signingPolicyWeights []uint16, rewardEpochId uint32, teeId common.Address) (*backup.WalletBackup, error) {
-	adminPubKeys := make([]types.ECDSAPublicKey, len(givenWallet.AdminPublicKeys))
+	adminPubKeys := make([]tee.PublicKey, len(givenWallet.AdminPublicKeys))
 	for i, pubKey := range givenWallet.AdminPublicKeys {
 		adminPubKeys[i] = types.PubKeyToStruct(pubKey)
 	}
@@ -30,7 +31,7 @@ func BackupWallet(givenWallet *wallets.Wallet, providerPubKeys []*ecdsa.PublicKe
 	}
 
 	metaData := backup.WalletBackupMetaData{
-		WalletBackupId: backup.WalletBackupId{
+		WalletBackupId: types.WalletBackupId{
 			TeeId:         teeId,
 			WalletId:      givenWallet.WalletId,
 			KeyId:         givenWallet.KeyId,
@@ -84,14 +85,14 @@ func BackupWallet(givenWallet *wallets.Wallet, providerPubKeys []*ecdsa.PublicKe
 }
 
 func SplitAndEncrypt(key *ecdsa.PrivateKey, encryptionPubKeys []*ecdsa.PublicKey, threshold uint64,
-	weights []uint16, backupId backup.WalletBackupId, sigPrivKey *ecdsa.PrivateKey, isAdmin bool) (*backup.EncryptedShares, error) {
+	weights []uint16, backupId types.WalletBackupId, sigPrivKey *ecdsa.PrivateKey, isAdmin bool) (*backup.EncryptedShares, error) {
 	if len(encryptionPubKeys) != len(weights) {
 		return nil, errors.New("number of encryption keys and weights do not match")
 	}
 
 	var numSplits = len(encryptionPubKeys)
 
-	encryptionPubKeysApi := make([]types.ECDSAPublicKey, numSplits)
+	encryptionPubKeysApi := make([]tee.PublicKey, numSplits)
 	for i, pubKey := range encryptionPubKeys {
 		encryptionPubKeysApi[i] = types.PubKeyToStruct(pubKey)
 	}

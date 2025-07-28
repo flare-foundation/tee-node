@@ -8,6 +8,7 @@ import (
 	"github.com/flare-foundation/tee-node/internal/settings"
 	"github.com/flare-foundation/tee-node/internal/wallets"
 	"github.com/flare-foundation/tee-node/pkg/backup"
+	"github.com/flare-foundation/tee-node/pkg/types"
 	"github.com/flare-foundation/tee-node/pkg/utils"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -19,10 +20,10 @@ var mockWalletId = common.HexToHash("0xabcdef")
 var mockKeyId = uint64(1)
 
 func TestBackupAndRecover(t *testing.T) {
-	err := node.InitNode()
+	err := node.InitNode(types.State{})
 	assert.NoError(t, err)
 
-	idPair := wallets.WalletKeyIdPair{WalletId: mockWalletId, KeyId: mockKeyId}
+	idPair := types.WalletKeyIdPair{WalletId: mockWalletId, KeyId: mockKeyId}
 	sk, err := utils.GenerateEthereumPrivateKey()
 	assert.NoError(t, err)
 
@@ -101,7 +102,7 @@ func TestBackupAndRecover(t *testing.T) {
 }
 
 func TestSplitAndEncrypt(t *testing.T) {
-	err := node.InitNode()
+	err := node.InitNode(types.State{})
 	assert.NoError(t, err)
 	// Generate a private key
 	privateKey, err := crypto.GenerateKey()
@@ -116,7 +117,7 @@ func TestSplitAndEncrypt(t *testing.T) {
 	encryptionPubKeys := []*ecdsa.PublicKey{&pubKey1.PublicKey, &pubKey2.PublicKey}
 
 	// Split and encrypt the key
-	encryptedShares, err := SplitAndEncrypt(privateKey, encryptionPubKeys, 2, utils.ConstantSlice(1, 2), backup.WalletBackupId{}, privateKey, false)
+	encryptedShares, err := SplitAndEncrypt(privateKey, encryptionPubKeys, 2, utils.ConstantSlice(1, 2), types.WalletBackupId{}, privateKey, false)
 	assert.NoError(t, err)
 	assert.NotNil(t, encryptedShares)
 }

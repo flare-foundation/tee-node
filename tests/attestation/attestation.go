@@ -169,7 +169,6 @@ func decodeAndValidateToken(tokenBytes []byte, keyFunc func(t *jwt.Token) (any, 
 
 // @tokenbytes: an attestation token from a workload running in Confidential Space
 func VerifyAttestationToken(tokenbytes []byte) (string, error) {
-
 	// Write a method to return a public key from the well-known endpoint
 	keyFunc := getRSAPublicKeyFromJWKsFile
 

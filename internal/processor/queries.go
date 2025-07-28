@@ -11,42 +11,11 @@ import (
 	"github.com/flare-foundation/tee-node/pkg/types"
 )
 
-func getActionInfo(url string) (*types.ActionInfo, error) {
+func getAction(url string) (*types.Action, error) {
 	client := http.Client{
 		Timeout: settings.ProxyTimeout,
 	}
-	res, err := client.Get(url)
-	if err != nil {
-		return nil, err
-	}
-
-	defer func() { _ = res.Body.Close() }()
-	body, err := io.ReadAll(res.Body)
-	if err != nil {
-		return nil, err
-	}
-	if res.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("unexpected status code: %d, response: %s", res.StatusCode, string(body))
-	}
-
-	var response types.ActionInfo
-	err = json.Unmarshal(body, &response)
-	if err != nil {
-		return nil, err
-	}
-
-	return &response, nil
-}
-
-func getAction(url string, actionInfo *types.ActionInfo) (*types.Action, error) {
-	client := http.Client{
-		Timeout: settings.ProxyTimeout,
-	}
-	requestBody, err := json.Marshal(actionInfo)
-	if err != nil {
-		return nil, err
-	}
-	res, err := client.Post(url, "application/json", bytes.NewBuffer(requestBody))
+	res, err := client.Post(url, "", nil)
 	if err != nil {
 		return nil, err
 	}
@@ -69,11 +38,11 @@ func getAction(url string, actionInfo *types.ActionInfo) (*types.Action, error) 
 	return &response, nil
 }
 
-func postActionResponse(url string, actionResponse *types.ActionResponse) error {
+func postActionResponse(url string, response *types.ActionResponse) error {
 	client := http.Client{
 		Timeout: settings.ProxyTimeout,
 	}
-	requestBody, err := json.Marshal(actionResponse)
+	requestBody, err := json.Marshal(response)
 	if err != nil {
 		return err
 	}

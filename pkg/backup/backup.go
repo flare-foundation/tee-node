@@ -6,6 +6,7 @@ import (
 	"errors"
 	"math/big"
 
+	"github.com/flare-foundation/go-flare-common/pkg/tee/structs/tee"
 	"github.com/flare-foundation/tee-node/pkg/types"
 	"github.com/flare-foundation/tee-node/pkg/utils"
 
@@ -22,32 +23,21 @@ type WalletBackup struct {
 }
 
 type WalletBackupMetaData struct {
-	WalletBackupId
+	types.WalletBackupId
 	OpTypeConstants []byte
 
-	AdminsPublicKeys   []types.ECDSAPublicKey
+	AdminsPublicKeys   []tee.PublicKey
 	AdminsThreshold    uint64
 	ProvidersThreshold uint64
 	Cosigners          []common.Address
 	CosignersThreshold uint64
 }
 
-type WalletBackupId struct {
-	TeeId     common.Address
-	WalletId  common.Hash
-	KeyId     uint64
-	PublicKey types.ECDSAPublicKey
-
-	OpType        [32]byte
-	RewardEpochID uint32
-	RandomNonce   [32]byte
-}
-
 type EncryptedShares struct {
 	Splits           [][]byte
-	OwnersPublicKeys []types.ECDSAPublicKey
+	OwnersPublicKeys []tee.PublicKey
 	Threshold        uint64
-	PublicKey        types.ECDSAPublicKey
+	PublicKey        tee.PublicKey
 	Weights          []uint16
 }
 
@@ -68,24 +58,19 @@ type KeySplit struct {
 type KeySplitData struct {
 	Shares []ShamirShare
 	PartialWalletBackupId
-	OwnerPublicKey types.ECDSAPublicKey
+	OwnerPublicKey tee.PublicKey
 }
 
 type PartialWalletBackupId struct {
-	WalletBackupId
-	PartialPubKey types.ECDSAPublicKey
+	types.WalletBackupId
+	PartialPubKey tee.PublicKey
 	IsAdmin       bool
 }
 
-func (backupId *WalletBackupId) Hash() common.Hash {
-	backupIdBytes, _ := json.Marshal(backupId) // todo: check that this cannot be error
-	hash := crypto.Keccak256Hash(backupIdBytes)
 
-	return hash
-}
 
-func (keySplitData *KeySplitData) HashForSigning() (common.Hash, error) {
-	keyDataBytes, err := json.Marshal(keySplitData)
+func (ksd *KeySplitData) HashForSigning() (common.Hash, error) {
+	keyDataBytes, err := json.Marshal(ksd)
 	if err != nil {
 		return common.Hash{}, err
 	}
@@ -94,8 +79,8 @@ func (keySplitData *KeySplitData) HashForSigning() (common.Hash, error) {
 	return hash, nil
 }
 
-func (keySplitData *KeySplitData) Sign(privKey *ecdsa.PrivateKey) ([]byte, error) {
-	hash, err := keySplitData.HashForSigning()
+func (ksd *KeySplitData) Sign(privKey *ecdsa.PrivateKey) ([]byte, error) {
+	hash, err := ksd.HashForSigning()
 	if err != nil {
 		return nil, err
 	}
@@ -108,34 +93,34 @@ func (keySplitData *KeySplitData) Sign(privKey *ecdsa.PrivateKey) ([]byte, error
 	return signature, nil
 }
 
-func (keySplitData *KeySplit) VerifySignature() error {
-	hash, err := keySplitData.HashForSigning()
+func (ks *KeySplit) VerifySignature() error {
+	hash, err := ks.HashForSigning()
 	if err != nil {
 		return err
 	}
 
-	pubKeyParsed, err := types.ParsePubKey(keySplitData.PublicKey)
+	pubKeyParsed, err := types.ParsePubKey(ks.PublicKey)
 	if err != nil {
 		return err
 	}
 	mainKeyAddress := crypto.PubkeyToAddress(*pubKeyParsed)
 
-	err = utils.VerifySignature(hash[:], keySplitData.Signature, mainKeyAddress)
+	err = utils.VerifySignature(hash[:], ks.Signature, mainKeyAddress)
 
 	return err
 }
 
-func (walletBackup *WalletBackup) HashForSigning() (common.Hash, error) {
+func (wb *WalletBackup) HashForSigning() (common.Hash, error) {
 	type WalletBackupForHashing struct {
 		WalletBackupMetaData
-		AdminEncryptedParts     *EncryptedShares
+		AdminEncryptedParts    *EncryptedShares
 		ProviderEncryptedParts *EncryptedShares
 	}
 
 	walletBackupBytes, err := json.Marshal(WalletBackupForHashing{
-		WalletBackupMetaData:    walletBackup.WalletBackupMetaData,
-		AdminEncryptedParts:     walletBackup.AdminEncryptedParts,
-		ProviderEncryptedParts: walletBackup.ProviderEncryptedParts,
+		WalletBackupMetaData:   wb.WalletBackupMetaData,
+		AdminEncryptedParts:    wb.AdminEncryptedParts,
+		ProviderEncryptedParts: wb.ProviderEncryptedParts,
 	})
 	if err != nil {
 		return common.Hash{}, err
@@ -145,30 +130,30 @@ func (walletBackup *WalletBackup) HashForSigning() (common.Hash, error) {
 	return hash, nil
 }
 
-func (walletBackup *WalletBackup) Check() error {
-	err := walletBackup.AdminEncryptedParts.Check()
+func (wb *WalletBackup) Check() error {
+	err := wb.AdminEncryptedParts.Check()
 	if err != nil {
 		return err
 	}
-	err = walletBackup.ProviderEncryptedParts.Check()
+	err = wb.ProviderEncryptedParts.Check()
 	if err != nil {
 		return err
 	}
 
-	if walletBackup.AdminsThreshold != walletBackup.AdminEncryptedParts.Threshold {
+	if wb.AdminsThreshold != wb.AdminEncryptedParts.Threshold {
 		return errors.New("admin threshold not matching given data")
 	}
 
-	if walletBackup.ProvidersThreshold != walletBackup.ProviderEncryptedParts.Threshold {
+	if wb.ProvidersThreshold != wb.ProviderEncryptedParts.Threshold {
 		return errors.New("providers threshold not matching given data")
 	}
 
-	if len(walletBackup.AdminsPublicKeys) != len(walletBackup.AdminEncryptedParts.OwnersPublicKeys) {
+	if len(wb.AdminsPublicKeys) != len(wb.AdminEncryptedParts.OwnersPublicKeys) {
 		return errors.New("length of admin public keys not matching given data")
 	}
 
-	for i, pubKey := range walletBackup.AdminsPublicKeys {
-		if pubKey != walletBackup.AdminEncryptedParts.OwnersPublicKeys[i] {
+	for i, pubKey := range wb.AdminsPublicKeys {
+		if pubKey != wb.AdminEncryptedParts.OwnersPublicKeys[i] {
 			return errors.New("admin public keys not matching")
 		}
 	}

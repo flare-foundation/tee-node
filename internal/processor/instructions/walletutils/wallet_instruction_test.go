@@ -2,7 +2,6 @@ package walletutils_test
 
 import (
 	"crypto/ecdsa"
-	"math/big"
 	"testing"
 
 	"github.com/flare-foundation/tee-node/internal/node"
@@ -26,7 +25,7 @@ func TestKeyGenerate(t *testing.T) {
 
 	var walletId = common.HexToHash("0xabcdef")
 	var keyId = uint64(1)
-	err := node.InitNode()
+	err := node.InitNode(types.State{})
 	require.NoError(t, err)
 	teeId := node.GetTeeId()
 	numAdmins := 3
@@ -43,7 +42,8 @@ func TestKeyGenerate(t *testing.T) {
 	}
 
 	numVoters, randSeed, epochId := 100, int64(12345), uint32(1)
-	testutils.GenerateAndSetInitialPolicy(numVoters, randSeed, epochId)
+	_, _, _, err = testutils.GenerateAndSetInitialPolicy(numVoters, randSeed, epochId)
+	require.NoError(t, err)
 
 	originalMessage := walletcommon.ITeeWalletKeyManagerKeyGenerate{
 		TeeId:    teeId,
@@ -64,11 +64,11 @@ func TestKeyGenerate(t *testing.T) {
 	instructionId, err := utils.GenerateRandom()
 	require.NoError(t, err)
 	instructionDataFixed := instruction.DataFixed{
-		InstructionID:          instructionId,
-		TeeID:                  teeId,
-		RewardEpochID:          big.NewInt(int64(epochId)),
-		OPType:                 utils.StringToOpHash("WALLET"),
-		OPCommand:              utils.StringToOpHash("KEY_GENERATE"),
+		InstructionId:          instructionId,
+		TeeId:                  teeId,
+		RewardEpochId:          epochId,
+		OpType:                 utils.StringToOpHash("WALLET"),
+		OpCommand:              utils.StringToOpHash("KEY_GENERATE"),
 		OriginalMessage:        originalMessageEncoded,
 		AdditionalFixedMessage: nil,
 	}

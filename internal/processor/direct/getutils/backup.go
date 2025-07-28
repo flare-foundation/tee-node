@@ -11,8 +11,8 @@ import (
 )
 
 // todo: the returned backup should be uniquely identifiable
-func GetBackupPackage(getAction *types.DirectInstructionData) ([]byte, error) {
-	var walletKeyId wallets.WalletKeyIdPair
+func GetBackupPackage(getAction *types.DirectInstruction) ([]byte, error) {
+	var walletKeyId types.WalletKeyIdPair
 	err := json.Unmarshal(getAction.Message, &walletKeyId)
 	if err != nil {
 		return nil, err
@@ -27,7 +27,7 @@ func GetBackupPackage(getAction *types.DirectInstructionData) ([]byte, error) {
 	}
 
 	policy.Storage.RLock()
-	activePolicy, err := policy.Storage.GetActiveSigningPolicy()
+	activePolicy, err := policy.Storage.ActiveSigningPolicy()
 	if err != nil {
 		policy.Storage.RUnlock()
 		return nil, err
@@ -38,11 +38,16 @@ func GetBackupPackage(getAction *types.DirectInstructionData) ([]byte, error) {
 		return nil, err
 	}
 
+	weights := make([]uint16, len(activePolicy.Voters.Voters()))
+	for i := range activePolicy.Voters.Voters() {
+		weights[i] = activePolicy.Voters.VoterWeight(i)
+	}
+
 	walletBackup, err := backup.BackupWallet(
 		wallet,
 		activePolicyPublicKeys,
-		activePolicy.Weights,
-		activePolicy.RewardEpochId,
+		weights,
+		activePolicy.RewardEpochID,
 		myTeeId,
 	)
 	if err != nil {

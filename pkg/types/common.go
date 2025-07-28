@@ -5,14 +5,13 @@ import (
 	"math/big"
 
 	"github.com/ethereum/go-ethereum/crypto/secp256k1"
-	"github.com/flare-foundation/go-flare-common/pkg/tee/structs/wallet"
+	"github.com/flare-foundation/go-flare-common/pkg/tee/structs/tee"
 	"github.com/pkg/errors"
 )
 
-type ECDSAPublicKey wallet.PublicKey
 
 // todo: this should be in go-common
-func ParsePubKey(key ECDSAPublicKey) (*ecdsa.PublicKey, error) {
+func ParsePubKey(key tee.PublicKey) (*ecdsa.PublicKey, error) {
 	x := new(big.Int).SetBytes(key.X[:])
 	y := new(big.Int).SetBytes(key.Y[:])
 	check := secp256k1.S256().IsOnCurve(x, y)
@@ -23,8 +22,8 @@ func ParsePubKey(key ECDSAPublicKey) (*ecdsa.PublicKey, error) {
 	return &ecdsa.PublicKey{Curve: secp256k1.S256(), X: x, Y: y}, nil
 }
 
-func PubKeyToStruct(key *ecdsa.PublicKey) ECDSAPublicKey {
-	var newKey ECDSAPublicKey
+func PubKeyToStruct(key *ecdsa.PublicKey) tee.PublicKey {
+	var newKey tee.PublicKey
 	xBytes := key.X.Bytes()
 	yBytes := key.Y.Bytes()
 

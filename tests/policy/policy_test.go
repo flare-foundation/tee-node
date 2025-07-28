@@ -2,19 +2,12 @@ package policy
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
-	"math/big"
 	"testing"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/flare-foundation/go-flare-common/pkg/database"
 	"github.com/stretchr/testify/require"
-
-	"github.com/flare-foundation/tee-node/internal/policy"
-	"github.com/flare-foundation/tee-node/internal/processor/direct/policyutils"
-	"github.com/flare-foundation/tee-node/internal/settings"
-	"github.com/flare-foundation/tee-node/pkg/types"
 )
 
 var params = &PolicyHistoryParams{
@@ -37,79 +30,6 @@ func TestFetchPolicyHistory(t *testing.T) {
 	_ = signatures
 }
 
-func TestPolicyDecodingEncoding(t *testing.T) {
-	dbConfig := &database.Config{Host: "localhost", Port: 3306, Database: "db", Username: "root", Password: "root"}
-
-	db, err := database.Connect(dbConfig)
-	require.NoError(t, err)
-
-	policies, _, err := FetchPolicyHistory(context.Background(), params, db)
-	require.NoError(t, err)
-
-	require.Greater(t, len(policies), 0)
-
-	// Test encoding and decoding of the last available policy
-	signingPolicy := policies[len(policies)-1]
-
-	signingPolicyDecoded, err := policy.DecodeSigningPolicy(signingPolicy.SigningPolicyBytes[:])
-	require.NoError(t, err)
-
-	if big.NewInt(int64(signingPolicyDecoded.RewardEpochId)).Cmp(signingPolicy.RewardEpochId) != 0 {
-		t.Error("RewardEpochId mismatch", signingPolicyDecoded.RewardEpochId, signingPolicy.RewardEpochId)
-	}
-	require.Equal(t, signingPolicyDecoded.StartVotingRoundId, signingPolicy.StartVotingRoundId, "StartVotingRoundId mismatch")
-	require.Equal(t, signingPolicyDecoded.Threshold, signingPolicy.Threshold, "Threshold mismatch")
-	if signingPolicyDecoded.Seed.Cmp(signingPolicy.Seed) != 0 {
-		t.Error("Seed mismatch", signingPolicyDecoded.Seed, signingPolicy.Seed)
-	}
-
-	require.Equal(t, len(signingPolicyDecoded.Voters), len(signingPolicy.Voters), "Voters length mismatch")
-	require.Equal(t, len(signingPolicyDecoded.Weights), len(signingPolicy.Weights), "Weights length mismatch")
-	require.Equal(t, len(signingPolicyDecoded.Voters), len(signingPolicyDecoded.Weights), "Voters and weights length mismatch")
-	for i := 0; i < len(signingPolicyDecoded.Voters); i++ {
-		require.Equal(t, signingPolicyDecoded.Voters[i], signingPolicy.Voters[i], "Voters mismatch on index %d", i)
-		require.Equal(t, signingPolicyDecoded.Weights[i], signingPolicy.Weights[i], "Weights mismatch on index %d", i)
-	}
-
-	// Test encoding of the policy
-	signingPolicyEncoded, err := policy.EncodeSigningPolicy(signingPolicyDecoded)
-	require.NoError(t, err)
-
-	require.Equal(t, len(signingPolicyEncoded), len(signingPolicy.SigningPolicyBytes), "Encoded policy length mismatch")
-	for i := 0; i < len(signingPolicyEncoded); i++ {
-		require.Equal(t, signingPolicyEncoded[i], signingPolicy.SigningPolicyBytes[i], "Encoded policy mismatch on index %d", i)
-	}
-}
-
-func TestPolicyReplayingWithIndexerData(t *testing.T) {
-	dbConfig := &database.Config{Host: "localhost", Port: 3306, Database: "db", Username: "root", Password: "root"}
-
-	db, err := database.Connect(dbConfig)
-	require.NoError(t, err)
-
-	policies, signatures, err := FetchPolicyHistory(context.Background(), params, db)
-	require.NoError(t, err)
-	require.Greater(t, len(policies), 0)
-
-	activePolicyRewardEpoch := int(policies[len(policies)-1].RewardEpochId.Int64())
-	minBlockNum, maxBlockNum, err := FetchVoterRegisteredBlocksInfo(context.Background(), params, db, activePolicyRewardEpoch)
-	require.NoError(t, err)
-	pubKeysMap, err := FetchVotersPublicKeysMap(context.Background(), params, db, minBlockNum, maxBlockNum, activePolicyRewardEpoch)
-	require.NoError(t, err)
-
-	req, err := CreateInitializePolicyAction(policies, signatures, pubKeysMap)
-	require.NoError(t, err)
-
-	var decoded types.InitializePolicyRequest
-	err = json.Unmarshal(req.Data.Message, &decoded)
-	require.NoError(t, err)
-
-	settings.InitialPolicyHash = policy.SigningPolicyBytesToHash(decoded.InitialPolicyBytes)
-
-	err = policyutils.InitializePolicy(req.Data.Message)
-	require.NoError(t, err)
-}
-
 func TestPublicKeys(t *testing.T) {
 	dbConfig := &database.Config{Host: "localhost", Port: 3306, Database: "db", Username: "root", Password: "root"}
 
@@ -122,7 +42,7 @@ func TestPublicKeys(t *testing.T) {
 		FlareVoterRegistryContractAddress: common.HexToAddress("0xB00cC45B4a7d3e1FEE684cFc4417998A1c183e6d"),
 	}
 
-	rewardEpochId := 1
+	rewardEpochId := uint32(1)
 	minBlockNum, maxBlockNum, err := FetchVoterRegisteredBlocksInfo(context.Background(), &params, db, rewardEpochId)
 	require.NoError(t, err)
 	_ = minBlockNum

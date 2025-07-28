@@ -3,8 +3,9 @@ package node
 import (
 	"crypto/ecdsa"
 
-	"github.com/flare-foundation/tee-node/pkg/utils"
+	"github.com/flare-foundation/go-flare-common/pkg/tee/structs/tee"
 	"github.com/flare-foundation/tee-node/pkg/types"
+	"github.com/flare-foundation/tee-node/pkg/utils"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
@@ -13,28 +14,28 @@ import (
 
 var node = Node{}
 
-const (
-	operationalStatus     = "operational"
-	pausedForUpdateStatus = "paused_for_update"
-)
-
 type Node struct {
-	TeeId        common.Address // The ethereum address of the node, derived from the PrivateKey
-	Status       string
-	PrivateKey   *ecdsa.PrivateKey
-	Nonce        uint64 // currently not in use
-	PausingNonce uint64 // currently not in use
+	TeeId      common.Address // The ethereum address of the node, derived from the PrivateKey
+	PrivateKey *ecdsa.PrivateKey
+	State      Encoder
 }
 
 type NodeInfo struct {
-	TeeId        common.Address // The ethereum address of the node, derived from the PrivateKey
-	Status       string
-	PublicKey    types.ECDSAPublicKey
-	Nonce        uint64
-	PausingNonce uint64
+	TeeId     common.Address // The ethereum address of the node, derived from the PrivateKey
+	PublicKey tee.PublicKey
+	State     Encoder
 }
 
-func InitNode() error {
+type Encoder interface {
+	// Encode ABI encodes the state
+	Encode() ([]byte, error)
+}
+
+func GetStateInfo() (*Encoder, error) {
+	return &node.State, nil
+}
+
+func InitNode(state Encoder) error {
 	var err error
 	node.PrivateKey, err = utils.GenerateEthereumPrivateKey()
 	if err != nil {
@@ -43,19 +44,16 @@ func InitNode() error {
 
 	address := crypto.PubkeyToAddress(node.PrivateKey.PublicKey)
 	node.TeeId = address
-
-	node.Status = operationalStatus
+	node.State = state
 
 	return nil
 }
 
 func GetNodeInfo() NodeInfo {
 	return NodeInfo{
-		TeeId:        node.TeeId,
-		Status:       node.Status,
-		PublicKey:    types.PubKeyToStruct(&node.PrivateKey.PublicKey),
-		Nonce:        node.Nonce,
-		PausingNonce: node.PausingNonce,
+		TeeId:     node.TeeId,
+		PublicKey: types.PubKeyToStruct(&node.PrivateKey.PublicKey),
+		State:     node.State,
 	}
 }
 

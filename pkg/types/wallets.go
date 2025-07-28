@@ -1,12 +1,15 @@
 package types
 
 import (
+	"encoding/json"
 	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/constants"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/instruction"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/structs"
+	"github.com/flare-foundation/go-flare-common/pkg/tee/structs/tee"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/structs/wallet"
 	"github.com/pkg/errors"
 )
@@ -73,6 +76,11 @@ func nonceCheck(nonce *big.Int) error {
 	return nil
 }
 
+type WalletKeyIdPair struct {
+	WalletId common.Hash
+	KeyId    uint64
+}
+
 type WalletGetBackupResponse struct {
 	BackupId     WalletBackupId
 	WalletBackup []byte
@@ -82,11 +90,18 @@ type WalletBackupId struct {
 	TeeId     common.Address
 	WalletId  common.Hash
 	KeyId     uint64
-	PublicKey ECDSAPublicKey
+	PublicKey tee.PublicKey
 
 	OpType        [32]byte
 	RewardEpochID uint32
 	RandomNonce   [32]byte
+}
+
+func (wid *WalletBackupId) Hash() common.Hash {
+	backupIdBytes, _ := json.Marshal(wid) //nolint:errcheck
+	hash := crypto.Keccak256Hash(backupIdBytes)
+
+	return hash
 }
 
 type WalletSignedKeyExistenceProof struct {

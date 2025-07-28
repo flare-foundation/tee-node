@@ -12,7 +12,6 @@ import (
 )
 
 func ConstructSignerItem(_account string, txnSignature []byte, pkBytes []byte) (*xrputils.Signer, error) {
-
 	account, e1 := GetAccountFromAddress(_account)
 	if e1 != nil {
 		return nil, fmt.Errorf("error creating payment transaction: %v", e1)
