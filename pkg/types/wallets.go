@@ -98,7 +98,7 @@ type WalletBackupId struct {
 }
 
 func (wid *WalletBackupId) Hash() common.Hash {
-	backupIdBytes, _ := json.Marshal(wid) //nolint:errcheck
+	backupIdBytes, _ := json.Marshal(wid) //nolint:errchkjson // passed argument is safe
 	hash := crypto.Keccak256Hash(backupIdBytes)
 
 	return hash

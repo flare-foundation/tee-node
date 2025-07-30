@@ -83,11 +83,15 @@ func CreateMockWallet(
 	return walletExistenceProof
 }
 
-func BuildMockPaymentOriginalMessage(t *testing.T, mockWallet common.Hash) []byte {
+func BuildMockPaymentOriginalMessage(t *testing.T, mockWallet common.Hash, teeID common.Address, keyID uint64) []byte {
 	originalMessage := payment.ITeePaymentsPaymentInstructionMessage{
-		WalletId:         mockWallet,
-		SenderAddress:    "0x123",
-		RecipientAddress: "0x456",
+		WalletId: mockWallet,
+		TeeIdKeyIdPairs: []payment.TeeIdKeyIdPair{{
+			TeeId: teeID,
+			KeyId: keyID,
+		}},
+		SenderAddress:    "rHb9CJAWyB4rj91VRWn96DkukG4bwdtyTh",
+		RecipientAddress: "rrrrrrrrrrrrrrrrrrrrrhoLvTp",
 		Amount:           big.NewInt(1000000000),
 		Fee:              big.NewInt(1000),
 		PaymentReference: [32]byte{},
@@ -103,7 +107,7 @@ func BuildMockPaymentOriginalMessage(t *testing.T, mockWallet common.Hash) []byt
 
 func BuildMockQueuedActionInstruction(opType string, opCommand string, originalMessage []byte,
 	privKeys []*ecdsa.PrivateKey, teeId common.Address, rewardEpochId uint32,
-	additionalFixedMessageRaw interface{}, variableMessages []interface{},
+	additionalFixedMessageRaw any, variableMessages []any,
 	submissionTag types.SubmissionTag, timestamp uint64,
 ) (*types.Action, error) {
 	instructionId, err := GenerateRandomBytes(32)

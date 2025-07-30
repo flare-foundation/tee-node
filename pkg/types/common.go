@@ -9,7 +9,6 @@ import (
 	"github.com/pkg/errors"
 )
 
-
 // todo: this should be in go-common
 func ParsePubKey(key tee.PublicKey) (*ecdsa.PublicKey, error) {
 	x := new(big.Int).SetBytes(key.X[:])

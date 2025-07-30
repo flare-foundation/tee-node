@@ -9,6 +9,8 @@ import (
 
 	"github.com/flare-foundation/go-flare-common/pkg/tee/structs/tee"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/structs/wallet"
+	"github.com/flare-foundation/go-flare-common/pkg/xrpl/base58"
+	"github.com/flare-foundation/go-flare-common/pkg/xrpl/hash"
 	"github.com/flare-foundation/tee-node/pkg/types"
 
 	"github.com/btcsuite/btcd/btcec/v2"
@@ -126,18 +128,18 @@ const XRP_ALPHABET = "rpshnaf39wBUDNEGHJKLM4PQRST7VWXYZ2bcdeCg65jkm8oFqi1tuvAxyz
 
 // This should be a sec1 encoded public key
 // You can use SerializeCompressed to get the sec1 encoded public key
-func GetXrpAddressFromPubkey(publicKey []byte) (string, error) {
+func XRPLAddressFromSecp256k1PubKey(publicKey []byte) (string, error) {
 	if len(publicKey) != 33 {
 		return "", fmt.Errorf("invalid public key length")
 	}
 
-	account := Sha256RipeMD160(publicKey)
+	account := hash.Sha256RipeMD160(publicKey)
 
 	var accBytes = make([]byte, 0, 20+1)
 	accBytes = append(accBytes, byte(0))
-	accBytes = append(accBytes, account[:]...)
+	accBytes = append(accBytes, account...)
 
-	address := Base58Encode(accBytes, XRP_ALPHABET)
+	address := base58.XRPLCoder.Encode(accBytes)
 
 	return address, nil
 }

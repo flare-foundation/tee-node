@@ -5,13 +5,12 @@ go 1.24.4
 require (
 	github.com/btcsuite/btcd/btcec/v2 v2.3.4
 	github.com/ethereum/go-ethereum v1.16.1
-	github.com/flare-foundation/go-flare-common v1.2.1-0.20250723124221-1e388f713d68
+	github.com/flare-foundation/go-flare-common v1.2.1-0.20250728144130-10a7ab7f0f48
 	github.com/golang-jwt/jwt/v4 v4.5.1
 	github.com/google/go-tpm-tools v0.4.4
 	github.com/gorilla/mux v1.8.1
 	github.com/pkg/errors v0.9.1
 	github.com/stretchr/testify v1.10.0
-	golang.org/x/crypto v0.40.0
 	gorm.io/gorm v1.30.0
 )
 
@@ -53,6 +52,7 @@ require (
 	github.com/yusufpapurcu/wmi v1.2.4 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	go.uber.org/zap v1.27.0 // indirect
+	golang.org/x/crypto v0.40.0 // indirect
 	golang.org/x/sync v0.16.0 // indirect
 	golang.org/x/sys v0.34.0 // indirect
 	golang.org/x/text v0.27.0 // indirect

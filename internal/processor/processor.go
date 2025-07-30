@@ -10,7 +10,6 @@ import (
 	"github.com/flare-foundation/tee-node/internal/processor/instructions"
 	"github.com/flare-foundation/tee-node/internal/settings"
 	"github.com/flare-foundation/tee-node/pkg/types"
-	"github.com/flare-foundation/tee-node/pkg/utils"
 
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/crypto"
@@ -103,7 +102,6 @@ func processAction(action *types.Action) (*types.ActionResponse, error) {
 			action.Data.SubmissionTag,
 			action.Timestamps,
 		)
-		fmt.Println("instructions", utils.OpHashToString(instructionData.OpType), utils.OpHashToString(instructionData.OpCommand), instructionData.TeeId, instructionData.RewardEpochId, err)
 
 		result.AdditionalResultStatus = resultStatus
 		if err != nil {
@@ -121,7 +119,6 @@ func processAction(action *types.Action) (*types.ActionResponse, error) {
 		}
 
 		message, err := direct.ProcessDirectInstruction(directInstruction)
-		fmt.Println("instructions", utils.OpHashToString(directInstruction.OPType), utils.OpHashToString(directInstruction.OPCommand), err)
 		if err != nil {
 			return nil, err
 		}

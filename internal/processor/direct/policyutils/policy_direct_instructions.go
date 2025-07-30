@@ -3,7 +3,6 @@ package policyutils
 import (
 	"crypto/ecdsa"
 	"encoding/json"
-	"fmt"
 
 	"github.com/flare-foundation/tee-node/internal/policy"
 	"github.com/flare-foundation/tee-node/pkg/types"
@@ -52,7 +51,6 @@ func InitializePolicy(message []byte) error {
 	if err != nil {
 		goto finalize
 	}
-	fmt.Println("initial policy", initialPolicy.RewardEpochID, initialPolicy)
 
 finalize:
 	if err != nil {
@@ -109,10 +107,11 @@ func processUpdatePolicyRequest(policyRequest types.MultiSignedPolicy) (*commonp
 		return nil, errors.New("policy is not active")
 	}
 
+	hash := commonpolicy.Hash(policyRequest.PolicyBytes)
+
 	signers := make([]common.Address, len(policyRequest.Signatures))
 	for i, sig := range policyRequest.Signatures {
-		hash := commonpolicy.Hash(policyRequest.PolicyBytes)
-		providerAddress, err := utils.CheckSignature(hash[:], sig, activeSigningPolicy.Voters.Voters())
+		providerAddress, err := utils.CheckSignature(hash, sig, activeSigningPolicy.Voters.Voters())
 		if err != nil {
 			return nil, err
 		}

@@ -140,7 +140,7 @@ func SplitAndEncrypt(key *ecdsa.PrivateKey, encryptionPubKeys []*ecdsa.PublicKey
 		}
 
 		encryptedShares.Splits[i] = cipher
-		weightCounter = weightCounter + int(weights[i])
+		weightCounter += int(weights[i])
 	}
 
 	return &encryptedShares, nil
@@ -188,7 +188,7 @@ func RecoverWallet(
 	}
 
 	sec1PubKey := utils.SerializeCompressed(&key.PublicKey)
-	xrpAddress, err := utils.GetXrpAddressFromPubkey(sec1PubKey)
+	xrpAddress, err := utils.XRPLAddressFromSecp256k1PubKey(sec1PubKey)
 	if err != nil {
 		return nil, err
 	}

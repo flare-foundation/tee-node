@@ -60,7 +60,7 @@ func GetBackupPackage(getAction *types.DirectInstruction) ([]byte, error) {
 	}
 
 	responseBytes, err := json.Marshal(
-		types.WalletGetBackupResponse{WalletBackup: walletBackupBytes, BackupId: types.WalletBackupId(walletBackup.WalletBackupId)},
+		types.WalletGetBackupResponse{WalletBackup: walletBackupBytes, BackupId: walletBackup.WalletBackupId},
 	)
 	if err != nil {
 		return nil, err

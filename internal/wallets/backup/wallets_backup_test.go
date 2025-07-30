@@ -28,7 +28,7 @@ func TestBackupAndRecover(t *testing.T) {
 	assert.NoError(t, err)
 
 	sec1PubKey := utils.SerializeCompressed(&sk.PublicKey)
-	xrpAddress, err := utils.GetXrpAddressFromPubkey(sec1PubKey)
+	xrpAddress, err := utils.XRPLAddressFromSecp256k1PubKey(sec1PubKey)
 	assert.NoError(t, err)
 
 	// Generate admin and provider public keys

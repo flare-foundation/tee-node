@@ -76,7 +76,7 @@ func ConstructTeeInfoResponse(challenge common.Hash, nodeInfo *node.NodeInfo, in
 	}
 	h := crypto.Keccak256(enc)
 
-	attestationBytes, err := GetGoogleAttestationToken([]string{hex.EncodeToString(h[:])}, attestation.PKITokenType)
+	attestationBytes, err := GetGoogleAttestationToken([]string{hex.EncodeToString(h)}, attestation.PKITokenType)
 	if err != nil {
 		return nil, err
 	}

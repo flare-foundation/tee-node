@@ -258,8 +258,8 @@ func signTransaction(t *testing.T, actionInfoChan chan *types.Action, actionResp
 	originalMessage := payment.ITeePaymentsPaymentInstructionMessage{
 		WalletId:         walletId,
 		TeeIdKeyIdPairs:  []payment.TeeIdKeyIdPair{{TeeId: teeId, KeyId: keyId}},
-		SenderAddress:    "0x123",
-		RecipientAddress: "0x456",
+		SenderAddress:    "ravbaTwRkNqecy9Zdw8zwrw4uK5awjqhFd",
+		RecipientAddress: "rrrrrrrrrrrrrrrrrNAMEtxvNvQ",
 		Amount:           big.NewInt(1000000000),
 		Fee:              big.NewInt(10),
 		PaymentReference: [32]byte{},
@@ -271,13 +271,8 @@ func signTransaction(t *testing.T, actionInfoChan chan *types.Action, actionResp
 	originalMessageEncoded, err := abi.Arguments{payment.MessageArguments[constants.Pay]}.Pack(originalMessage)
 	require.NoError(t, err)
 
-	additionalFixedMessage := types.SignPaymentAdditionalFixedMessage{
-		PaymentHash: paymentHash,
-		KeyId:       keyId,
-	}
-
 	action, err := testutils.BuildMockQueuedActionInstruction(
-		"XRP", "PAY", originalMessageEncoded, privKeys, teeId, rewardEpochId, additionalFixedMessage, nil, types.Threshold, uint64(time.Now().Unix()),
+		"XRP", "PAY", originalMessageEncoded, privKeys, teeId, rewardEpochId, []byte{}, nil, types.Threshold, uint64(time.Now().Unix()),
 	)
 	require.NoError(t, err)
 
@@ -288,16 +283,12 @@ func signTransaction(t *testing.T, actionInfoChan chan *types.Action, actionResp
 	err = utils.VerifySignature(crypto.Keccak256(actionResponse.Result.Data), actionResponse.Signature, teeId)
 	require.NoError(t, err)
 
-	var signatureData types.GetPaymentSignatureResponse
-	err = json.Unmarshal(actionResponse.Result.Data, &signatureData)
-	require.NoError(t, err)
-
 	// todo: check result
 	// fmt.Println("check sig", signatureData)
 
 	// generate action sent when voting closed
 	action, err = testutils.BuildMockQueuedActionInstruction(
-		"XRP", "PAY", originalMessageEncoded, privKeys, teeId, rewardEpochId, additionalFixedMessage, nil, types.End, uint64(time.Now().Unix()),
+		"XRP", "PAY", originalMessageEncoded, privKeys, teeId, rewardEpochId, []byte{}, nil, types.End, uint64(time.Now().Unix()),
 	)
 	require.NoError(t, err)
 

@@ -2,7 +2,6 @@ package signutils_test
 
 import (
 	"crypto/ecdsa"
-	"encoding/json"
 	"testing"
 
 	"github.com/flare-foundation/tee-node/internal/node"
@@ -32,11 +31,6 @@ func TestSignPaymentTransaction(t *testing.T) {
 
 	testutils.CreateMockWallet(t, myNodeId, mockWalletId, mockKeyId, epochId, []*ecdsa.PrivateKey{privKeys[0]}, nil)
 
-	paymentHash := "560ccd6e79ba7166e82dbf2a5b9a52283a509b63c39d4a4cc7164db3e43484c4"
-
-	additionalFixedMessage, err := json.Marshal(types.SignPaymentAdditionalFixedMessage{PaymentHash: paymentHash, KeyId: mockKeyId})
-	require.NoError(t, err)
-
 	instructionId, err := utils.GenerateRandom()
 	require.NoError(t, err)
 	instructionDataFixed := instruction.DataFixed{
@@ -45,14 +39,12 @@ func TestSignPaymentTransaction(t *testing.T) {
 		RewardEpochId:          epochId,
 		OpType:                 utils.StringToOpHash("XRP"),
 		OpCommand:              utils.StringToOpHash("PAY"),
-		OriginalMessage:        testutils.BuildMockPaymentOriginalMessage(t, mockWalletId),
-		AdditionalFixedMessage: additionalFixedMessage,
+		OriginalMessage:        testutils.BuildMockPaymentOriginalMessage(t, mockWalletId, myNodeId, mockKeyId),
+		AdditionalFixedMessage: nil,
 	}
 
 	response, err := signutils.SignPaymentTransaction(&instructionDataFixed, nil, nil)
-	if err != nil {
-		t.Fatalf("Failed to sign the payment transaction: %v", err)
-	}
+	require.NoError(t, err)
 
 	// todo: check response
 	_ = response

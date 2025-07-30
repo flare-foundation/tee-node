@@ -56,7 +56,7 @@ func CheckCosigners(signers []common.Address, isSignerDataProvider []bool, allCo
 	for i, signer := range signers {
 		isCosigner := slices.Contains(allCosigners, signer)
 		if !isCosigner && !isSignerDataProvider[i] {
-			return nil, errors.New("signed by an entity that is nether data provider or cosigner")
+			return nil, errors.New("signed by an entity that is nether data provider nor cosigner")
 		}
 		isSignerCosigner[i] = isCosigner
 	}

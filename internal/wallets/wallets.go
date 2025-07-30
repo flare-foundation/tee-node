@@ -45,7 +45,7 @@ func CreateNewWallet(walletInfo wallet.ITeeWalletKeyManagerKeyGenerate) (*Wallet
 	}
 
 	sec1PubKey := utils.SerializeCompressed(&sk.PublicKey)
-	xrpAddress, err := utils.GetXrpAddressFromPubkey(sec1PubKey)
+	xrpAddress, err := utils.XRPLAddressFromSecp256k1PubKey(sec1PubKey)
 	if err != nil {
 		return nil, err
 	}

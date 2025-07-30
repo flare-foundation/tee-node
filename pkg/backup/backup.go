@@ -67,8 +67,6 @@ type PartialWalletBackupId struct {
 	IsAdmin       bool
 }
 
-
-
 func (ksd *KeySplitData) HashForSigning() (common.Hash, error) {
 	keyDataBytes, err := json.Marshal(ksd)
 	if err != nil {

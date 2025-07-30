@@ -199,7 +199,7 @@ const TotalWeight = 1<<16 - 1
 
 func GenerateRandomPolicyData(rewardEpochId uint32, voters []common.Address, seed int64) (*commonpolicy.SigningPolicy, error) {
 	// Use specific seed for deterministic results
-	rgen := rand.New(rand.NewSource(seed))
+	rgen := rand.New(rand.NewSource(seed)) //nolint:gosec // only used for tests
 
 	startVotingRoundId := rgen.Uint32()
 
@@ -255,7 +255,7 @@ func GetThresholdReachedVoterIndex(nextPolicy *commonpolicy.SigningPolicy, voter
 func RandomNormalizedArray(n int, seed int64) []float64 {
 	// Initialize random source with seed
 	source := rand.NewSource(seed)
-	r := rand.New(source)
+	r := rand.New(source) //nolint:gosec // only used for tests
 
 	// Generate random numbers
 	numbers := make([]float64, n)
