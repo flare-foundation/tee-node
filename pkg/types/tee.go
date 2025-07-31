@@ -15,8 +15,6 @@ type TeeInfoRequest struct {
 
 type TeeInfoResponse struct {
 	TeeInfo     tee.TeeStructsAttestation
-	State       []byte
-	Version     string // NOTE: state encoding version (this tells you which state struct to use)
 	Attestation hexutil.Bytes
 }
 

@@ -13,7 +13,7 @@ import (
 )
 
 func GetKeyInfoPackage() ([]byte, error) {
-	myTeeId := node.GetTeeId()
+	myTeeId := node.TeeID()
 
 	wallets.Storage.RLock()
 	storedWallets := wallets.Storage.GetWallets()
@@ -33,8 +33,8 @@ func GetKeyInfoPackage() ([]byte, error) {
 		}
 
 		signedProofs[i] = types.WalletSignedKeyExistenceProof{
-			KeyExistenceProof: existenceProofEncoded,
-			Signature:         signature,
+			KeyExistence: existenceProofEncoded,
+			Signature:    signature,
 		}
 	}
 

@@ -32,7 +32,7 @@ func SignPaymentTransaction(instructionData *instruction.DataFixed, signers []co
 
 	keyIDs := make([]uint64, 0, 10)
 
-	teeID := node.GetTeeId()
+	teeID := node.TeeID()
 
 	for j := range originalMessage.TeeIdKeyIdPairs {
 		if originalMessage.TeeIdKeyIdPairs[j].TeeId.Cmp(teeID) == 0 {

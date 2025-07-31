@@ -5,18 +5,18 @@ import (
 
 	"github.com/flare-foundation/tee-node/internal/processor/direct/getutils"
 	"github.com/flare-foundation/tee-node/internal/processor/direct/policyutils"
+	"github.com/flare-foundation/tee-node/pkg/op"
 	"github.com/flare-foundation/tee-node/pkg/types"
-	"github.com/flare-foundation/tee-node/pkg/utils"
 )
 
-func ProcessDirectInstruction(instruction *types.DirectInstruction) ([]byte, error) {
+func ProcessDirectInstruction(i *types.DirectInstruction) ([]byte, error) {
 	var err error
 	var result []byte
-	switch utils.OpHashToString(instruction.OPType) {
-	case "POLICY":
-		result, err = executePolicyDirectInstruction(instruction)
-	case "GET":
-		result, err = getData(instruction)
+	switch op.HashToOPType(i.OPType) {
+	case op.Policy:
+		result, err = executePolicyDirectInstruction(i)
+	case op.Get:
+		result, err = getData(i)
 	default:
 		return nil, errors.New("invalid action type")
 	}
@@ -27,14 +27,15 @@ func ProcessDirectInstruction(instruction *types.DirectInstruction) ([]byte, err
 	return result, nil
 }
 
-func executePolicyDirectInstruction(instruction *types.DirectInstruction) ([]byte, error) {
+func executePolicyDirectInstruction(i *types.DirectInstruction) ([]byte, error) {
 	var err error
 	response := []byte{}
-	switch utils.OpHashToString(instruction.OPCommand) {
-	case "INITIALIZE_POLICY":
-		err = policyutils.InitializePolicy(instruction.Message)
-	case "UPDATE_POLICY":
-		err = policyutils.UpdatePolicy(instruction.Message)
+
+	switch op.HashToOPCommand(i.OPCommand) {
+	case op.InitializePolicy:
+		err = policyutils.InitializePolicy(i.Message)
+	case op.UpdatePolicy:
+		err = policyutils.UpdatePolicy(i.Message)
 	default:
 		return nil, errors.New("invalid action type")
 	}
@@ -45,16 +46,16 @@ func executePolicyDirectInstruction(instruction *types.DirectInstruction) ([]byt
 	return response, nil
 }
 
-func getData(instruction *types.DirectInstruction) ([]byte, error) {
-	switch utils.OpHashToString(instruction.OPCommand) {
-	case "TEE_INFO":
-		return getutils.GetTeeInfo(instruction)
+func getData(i *types.DirectInstruction) ([]byte, error) {
+	switch op.HashToOPCommand(i.OPCommand) {
+	case op.TEEInfo:
+		return getutils.GetTeeInfo(i)
 
-	case "KEY_INFO":
+	case op.KeyInfo:
 		return getutils.GetKeyInfoPackage()
 
-	case "TEE_BACKUP":
-		return getutils.GetBackupPackage(instruction)
+	case op.TEEBackup:
+		return getutils.GetBackupPackage(i)
 
 	default:
 		return nil, errors.New("unknown OpCommand for WALLET OpType")

@@ -4,16 +4,16 @@ Flare TEE server node is a secure gRPC server implementation running inside a Tr
 
 ### Features
 
--   Secure policy management within TEE
--   Policy signature verification and validation
--   Remote attestation with Google Cloud verification
--   gRPC interface for all operations
+- Secure policy management within TEE
+- Policy signature verification and validation
+- Remote attestation with Google Cloud verification
+- gRPC interface for all operations
 
 ### Requirements
 
--   Go 1.23 or higher
--   Protocol Buffers compiler (buff package)
--   Google Cloud Platform account (for attestation verification) (gcp confidential space)
+- Go 1.24.4 or higher
+- Protocol Buffers compiler (buff package)
+- Google Cloud Platform account (for attestation verification) (gcp confidential space)
 
 ## Local Setup and Installation
 
@@ -52,36 +52,40 @@ This guide explains how to deploy the Flare TEE server node on Google Cloud Plat
 
 #### Prerequisites
 
--   [Google Cloud CLI](https://cloud.google.com/sdk/docs/install) installed and configured
--   Appropriate GCP project permissions (should be done by default in flare-sandbox)
--   Service account with necessary permissions (should be done by default in flare-sandbox)
+- [Google Cloud CLI](https://cloud.google.com/sdk/docs/install) installed and configured
+- Appropriate GCP project permissions (should be done by default in flare-sandbox)
+- Service account with necessary permissions (should be done by default in flare-sandbox)
 
 #### Hardware Options
 
 The server supports two types of Confidential Computing hardware:
 
--   `SEV`: AMD SEV-SNP technology
--   `TDX`: Intel TDX technology
+- `SEV`: AMD SEV-SNP technology
+- `TDX`: Intel TDX technology
 
 ### Build Docker container
 
 On Intel/AMD arm64 based machines:
+
 ```bash
 docker build -t us-docker.pkg.dev/flare-network-sandbox/flare-tee/tee-node:latest --no-cache
 ```
 
 On Apple silicon (M1, M2, M3 processors):
+
 ```bash
 docker buildx create --use
 docker buildx build --platform linux/amd64 -t us-docker.pkg.dev/flare-network-sandbox/flare-tee/tee-node:latest . --no-cache --load
 ```
 
 Set up Docker authetication for artifact registry
+
 ```bash
 gcloud auth configure-docker us-docker.pkg.dev
 ```
 
 Add image to Artifact Registry
+
 ```bash
 docker push us-docker.pkg.dev/flare-network-sandbox/flare-tee/tee-node:latest
 ```
@@ -112,20 +116,20 @@ gcloud compute instances create <INSTANCE-NAME> \
 
 #### Parameter Explanation
 
-| Parameter         | Description                                         | Example Value                                                        |
-| ----------------- | --------------------------------------------------- | -------------------------------------------------------------------- |
-| `<INSTANCE-NAME>` | Unique instance identifier (preferably tied to you) | `jure-test-tee1`                                                     |
-| `<COMPUTE-TYPE>`  | Hardware type for Confidential Computing            | `SEV` or `TDX`                                                       |
+| Parameter         | Description                                         | Example Value              |
+| ----------------- | --------------------------------------------------- | -------------------------- |
+| `<INSTANCE-NAME>` | Unique instance identifier (preferably tied to you) | `jure-test-tee1`           |
+| `<COMPUTE-TYPE>`  | Hardware type for Confidential Computing            | `SEV` or `TDX`             |
 | `<IMAGE-FAMILY>`  | must match what you chose for COMPUTE-TYPE          | `confidential-space-debug` |
 
 #### Important Flags
 
--   `--confidential-compute-type`: Specifies the TEE hardware type
--   `--shielded-secure-boot`: Enables secure boot for additional security
--   `--scopes=cloud-platform`: Grants necessary GCP API access
--   `--service-account`: Specifies the service account for the instance
--   `--tags`: Used for firewall rules targeting
--   `--metadata`: Specifies the container image to deploy
+- `--confidential-compute-type`: Specifies the TEE hardware type
+- `--shielded-secure-boot`: Enables secure boot for additional security
+- `--scopes=cloud-platform`: Grants necessary GCP API access
+- `--service-account`: Specifies the service account for the instance
+- `--tags`: Used for firewall rules targeting
+- `--metadata`: Specifies the container image to deploy
 
 #### 2. Configure Firewall Rules
 
@@ -198,9 +202,9 @@ InitializePolicy(ctx context.Context, req *api.InitializePolicyRequest) (*api.In
 
 **Purpose:**
 
--   Takes initial policy and change history
--   Verifies the entire policy chain
--   Establishes the active policy state
+- Takes initial policy and change history
+- Verifies the entire policy chain
+- Establishes the active policy state
 
 #### SignNewPolicy
 
@@ -214,10 +218,10 @@ SignNewPolicy(ctx context.Context, req *api.SignNewPolicyRequest) (*api.SignNewP
 
 **Purpose:**
 
--   Verifies individual signatures for new policies
--   Validates signature against current policy
--   Updates policy when weight threshold is reached
--   Can be used for general message signing
+- Verifies individual signatures for new policies
+- Validates signature against current policy
+- Updates policy when weight threshold is reached
+- Can be used for general message signing
 
 #### GetAttestationToken
 
@@ -231,9 +235,9 @@ GetAttestationToken(ctx context.Context, req *api.GetAttestationTokenRequest) (*
 
 **Purpose:**
 
--   Generates attestation quote from TEE
--   Communicates with Google's verification server
--   Returns JWT token proving valid attestation
+- Generates attestation quote from TEE
+- Communicates with Google's verification server
+- Returns JWT token proving valid attestation
 
 <!-- ## Test
 
@@ -251,6 +255,7 @@ go run cmd/client/main.go cmd/client/utils.go
 ### Run tests
 
 Run all tests with
+
 ```
 go test ./...
 ```

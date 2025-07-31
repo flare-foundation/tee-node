@@ -25,9 +25,9 @@ func TestKeyGenerate(t *testing.T) {
 
 	var walletId = common.HexToHash("0xabcdef")
 	var keyId = uint64(1)
-	err := node.InitNode(types.State{})
+	err := node.InitNode(node.ZeroState{})
 	require.NoError(t, err)
-	teeId := node.GetTeeId()
+	teeId := node.TeeID()
 	numAdmins := 3
 	adminPubKeys := make([]*ecdsa.PublicKey, numAdmins)
 	adminPrivKeys := make([]*ecdsa.PrivateKey, numAdmins)
@@ -49,7 +49,7 @@ func TestKeyGenerate(t *testing.T) {
 		TeeId:    teeId,
 		WalletId: walletId,
 		KeyId:    keyId,
-		OpType:   utils.StringToOpHash("WALLET"),
+		OpType:   constants.XRP.Hash(),
 		ConfigConstants: walletcommon.ITeeWalletKeyManagerKeyConfigConstants{
 			OpTypeConstants:    make([]byte, 0),
 			AdminsPublicKeys:   adminWalletPublicKeys,
@@ -67,8 +67,8 @@ func TestKeyGenerate(t *testing.T) {
 		InstructionId:          instructionId,
 		TeeId:                  teeId,
 		RewardEpochId:          epochId,
-		OpType:                 utils.StringToOpHash("WALLET"),
-		OpCommand:              utils.StringToOpHash("KEY_GENERATE"),
+		OpType:                 constants.Wallet.Hash(),
+		OpCommand:              constants.KeyGenerate.Hash(),
 		OriginalMessage:        originalMessageEncoded,
 		AdditionalFixedMessage: nil,
 	}

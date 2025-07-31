@@ -17,7 +17,7 @@ func GetBackupPackage(getAction *types.DirectInstruction) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	myTeeId := node.GetTeeId()
+	myTeeId := node.TeeID()
 
 	wallets.Storage.RLock()
 	wallet, err := wallets.Storage.GetWallet(walletKeyId)

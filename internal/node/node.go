@@ -17,25 +17,36 @@ var node = Node{}
 type Node struct {
 	TeeId      common.Address // The ethereum address of the node, derived from the PrivateKey
 	PrivateKey *ecdsa.PrivateKey
-	State      Encoder
+	State      State
 }
 
 type NodeInfo struct {
 	TeeId     common.Address // The ethereum address of the node, derived from the PrivateKey
 	PublicKey tee.PublicKey
-	State     Encoder
+	State     State
 }
 
-type Encoder interface {
+type State interface {
 	// Encode ABI encodes the state
-	Encode() ([]byte, error)
+	State() (tee.ITeeAvailabilityCheckTeeState, error)
 }
 
-func GetStateInfo() (*Encoder, error) {
-	return &node.State, nil
+type ZeroState struct{}
+
+func (ZeroState) State() (tee.ITeeAvailabilityCheckTeeState, error) {
+	return tee.ITeeAvailabilityCheckTeeState{
+		SystemState:        []byte{},
+		SystemStateVersion: [32]byte{},
+		State:              []byte{},
+		StateVersion:       [32]byte{},
+	}, nil
 }
 
-func InitNode(state Encoder) error {
+func NodeState() (tee.ITeeAvailabilityCheckTeeState, error) {
+	return node.State.State()
+}
+
+func InitNode(state State) error {
 	var err error
 	node.PrivateKey, err = utils.GenerateEthereumPrivateKey()
 	if err != nil {
@@ -57,7 +68,7 @@ func GetNodeInfo() NodeInfo {
 	}
 }
 
-func GetTeeId() common.Address {
+func TeeID() common.Address {
 	return node.TeeId
 }
 

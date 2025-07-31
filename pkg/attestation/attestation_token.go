@@ -70,7 +70,10 @@ func ValidatePKIToken(storedRootCertificate *x509.Certificate, attestationToken 
 	if _, ok := jwtHeaders["x5c"]; !ok {
 		return jwt.Token{}, errors.New("ValidatePKIToken(string, *attestpb.Attestation, *v1mainpb.VerifyAttestationRequest) - no x5c field in the header")
 	}
-	x5cHeaders := jwtHeaders["x5c"].([]any)
+	x5cHeaders, ok := jwtHeaders["x5c"].([]any)
+	if !ok {
+		return jwt.Token{}, errors.New("jwtHeaders[x5c] is not a slice")
+	}
 	certificates, err := ExtractCertificatesFromX5CHeader(x5cHeaders)
 	if err != nil {
 		return jwt.Token{}, fmt.Errorf("ExtractCertificatesFromX5CHeader(x5cHeaders) returned error: %v", err)
@@ -137,9 +140,13 @@ func ExtractCertificatesFromX5CHeader(x5cHeaders []any) (PKICertificates, error)
 		return PKICertificates{}, fmt.Errorf("VerifyAttestation(string, *attestpb.Attestation, *v1mainpb.VerifyAttestationRequest) - x5c header not set")
 	}
 
-	x5c := []string{}
+	x5c := make([]string, 0, len(x5cHeaders))
 	for _, header := range x5cHeaders {
-		x5c = append(x5c, header.(string))
+		h, ok := header.(string)
+		if !ok {
+			return PKICertificates{}, fmt.Errorf("header %v is not a string", header)
+		}
+		x5c = append(x5c, h)
 	}
 
 	// The PKI token x5c header should have 3 certificates - leaf, intermediate and root

@@ -53,11 +53,10 @@ func SelfAttest() error {
 
 // ConstructTeeInfoResponse creates a tee info attestation response for the given challenge
 func ConstructTeeInfoResponse(challenge common.Hash, nodeInfo *node.NodeInfo, initialID uint32, initialHash common.Hash, activeID uint32, activeHash common.Hash) (*types.TeeInfoResponse, error) {
-	stEnc, err := nodeInfo.State.Encode()
+	state, err := nodeInfo.State.State()
 	if err != nil {
 		return nil, err
 	}
-	stHash := crypto.Keccak256(stEnc)
 
 	teeInfo := tee.TeeStructsAttestation{
 		Challenge:                challenge,
@@ -66,7 +65,7 @@ func ConstructTeeInfoResponse(challenge common.Hash, nodeInfo *node.NodeInfo, in
 		InitialSigningPolicyHash: initialHash,
 		LastSigningPolicyId:      activeID,
 		LastSigningPolicyHash:    activeHash,
-		StateHash:                common.Hash(stHash),
+		State:                    state,
 		TeeTimestamp:             uint64(time.Now().Unix()),
 	}
 
@@ -83,9 +82,7 @@ func ConstructTeeInfoResponse(challenge common.Hash, nodeInfo *node.NodeInfo, in
 
 	teeInfoResponse := types.TeeInfoResponse{
 		TeeInfo:     teeInfo,
-		State:       stEnc,
 		Attestation: attestationBytes,
-		Version:     settings.EncodingVersion,
 	}
 
 	return &teeInfoResponse, nil

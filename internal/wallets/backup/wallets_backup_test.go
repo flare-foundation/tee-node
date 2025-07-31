@@ -20,7 +20,7 @@ var mockWalletId = common.HexToHash("0xabcdef")
 var mockKeyId = uint64(1)
 
 func TestBackupAndRecover(t *testing.T) {
-	err := node.InitNode(types.State{})
+	err := node.InitNode(node.ZeroState{})
 	assert.NoError(t, err)
 
 	idPair := types.WalletKeyIdPair{WalletId: mockWalletId, KeyId: mockKeyId}
@@ -72,7 +72,7 @@ func TestBackupAndRecover(t *testing.T) {
 	rewardEpochId := uint32(100)
 
 	// Backup the wallet
-	walletBackup, err := BackupWallet(givenWallet, providerPubKeys, weights, rewardEpochId, node.GetTeeId())
+	walletBackup, err := BackupWallet(givenWallet, providerPubKeys, weights, rewardEpochId, node.TeeID())
 	assert.NoError(t, err)
 	assert.NotNil(t, walletBackup)
 	err = walletBackup.Check()
@@ -102,7 +102,7 @@ func TestBackupAndRecover(t *testing.T) {
 }
 
 func TestSplitAndEncrypt(t *testing.T) {
-	err := node.InitNode(types.State{})
+	err := node.InitNode(node.ZeroState{})
 	assert.NoError(t, err)
 	// Generate a private key
 	privateKey, err := crypto.GenerateKey()

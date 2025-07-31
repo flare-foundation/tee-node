@@ -51,7 +51,7 @@ func CreateMockWallet(
 		TeeId:    nodeId,
 		WalletId: walletId,
 		KeyId:    keyId,
-		OpType:   utils.StringToOpHash("WALLET"),
+		OpType:   constants.Wallet.Hash(),
 		ConfigConstants: wallet.ITeeWalletKeyManagerKeyConfigConstants{
 			OpTypeConstants:    make([]byte, 0),
 			AdminsPublicKeys:   adminPubKeys,
@@ -67,8 +67,8 @@ func CreateMockWallet(
 		InstructionId:          common.BytesToHash(instructionIdBytes),
 		TeeId:                  nodeId,
 		RewardEpochId:          rewardEpochId,
-		OpType:                 utils.StringToOpHash("WALLET"),
-		OpCommand:              utils.StringToOpHash("KEY_GENERATE"),
+		OpType:                 constants.Wallet.Hash(),
+		OpCommand:              constants.KeyGenerate.Hash(),
 		OriginalMessage:        encoded,
 		AdditionalFixedMessage: nil,
 	}
@@ -105,7 +105,7 @@ func BuildMockPaymentOriginalMessage(t *testing.T, mockWallet common.Hash, teeID
 	return originalMessageEncoded
 }
 
-func BuildMockQueuedActionInstruction(opType string, opCommand string, originalMessage []byte,
+func BuildMockQueuedActionInstruction(opType constants.OPType, opCommand constants.OPCommand, originalMessage []byte,
 	privKeys []*ecdsa.PrivateKey, teeId common.Address, rewardEpochId uint32,
 	additionalFixedMessageRaw any, variableMessages []any,
 	submissionTag types.SubmissionTag, timestamp uint64,
@@ -133,8 +133,8 @@ func BuildMockQueuedActionInstruction(opType string, opCommand string, originalM
 		InstructionId:          common.BytesToHash(instructionId),
 		TeeId:                  teeId,
 		RewardEpochId:          rewardEpochId,
-		OpType:                 utils.StringToOpHash(opType),
-		OpCommand:              utils.StringToOpHash(opCommand),
+		OpType:                 opType.Hash(),
+		OpCommand:              opCommand.Hash(),
 		OriginalMessage:        originalMessage,
 		AdditionalFixedMessage: additionalFixedMessage,
 		Timestamp:              timestamp,
@@ -156,12 +156,12 @@ func BuildMockQueuedActionInstruction(opType string, opCommand string, originalM
 			AdditionalVariableMessage: []byte(""),
 		}
 		if len(variableMessages) != 0 {
-			switch variableMessages[i].(type) {
+			switch msg := variableMessages[i].(type) {
 			case []byte:
-				instructionData.AdditionalVariableMessage = variableMessages[i].([]byte)
+				instructionData.AdditionalVariableMessage = msg
 				additionalVariableMessages[i] = instructionData.AdditionalVariableMessage
 			default:
-				instructionData.AdditionalVariableMessage, err = json.Marshal(variableMessages[i])
+				instructionData.AdditionalVariableMessage, err = json.Marshal(msg)
 				if err != nil {
 					return nil, err
 				}
@@ -199,7 +199,7 @@ func BuildMockQueuedActionInstruction(opType string, opCommand string, originalM
 	return &action, nil
 }
 
-func BuildMockQueuedAction(t *testing.T, opType string, opCommand string, messageRaw any) *types.Action {
+func BuildMockQueuedAction(t *testing.T, opType constants.OPType, opCommand constants.OPCommand, messageRaw any) *types.Action {
 	var message []byte
 	var err error
 	switch messageRaw := messageRaw.(type) {
@@ -211,8 +211,8 @@ func BuildMockQueuedAction(t *testing.T, opType string, opCommand string, messag
 	require.NoError(t, err)
 
 	di := types.DirectInstruction{
-		OPType:    utils.StringToOpHash(opType),
-		OPCommand: utils.StringToOpHash(opCommand),
+		OPType:    opType.Hash(),
+		OPCommand: opCommand.Hash(),
 		Message:   message,
 	}
 	enc, err := json.Marshal(di)

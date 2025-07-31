@@ -5,7 +5,7 @@ go 1.24.4
 require (
 	github.com/btcsuite/btcd/btcec/v2 v2.3.4
 	github.com/ethereum/go-ethereum v1.16.1
-	github.com/flare-foundation/go-flare-common v1.2.1-0.20250728144130-10a7ab7f0f48
+	github.com/flare-foundation/go-flare-common v1.2.1-0.20250731072100-1ea048624538
 	github.com/golang-jwt/jwt/v4 v4.5.1
 	github.com/google/go-tpm-tools v0.4.4
 	github.com/gorilla/mux v1.8.1

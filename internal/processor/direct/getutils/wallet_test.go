@@ -19,9 +19,9 @@ import (
 
 func TestGetWalletPackage(t *testing.T) {
 	defer testutils.ResetTEEState() // Reset the state of the TEE after the test
-	err := node.InitNode(types.State{})
+	err := node.InitNode(node.ZeroState{})
 	require.NoError(t, err)
-	myTeeId := node.GetTeeId()
+	myTeeId := node.TeeID()
 
 	numVoters, randSeed, epochId := 100, int64(12345), uint32(1)
 	_, _, privKeys, err := testutils.GenerateAndSetInitialPolicy(numVoters, randSeed, epochId)
@@ -48,10 +48,10 @@ func TestGetWalletPackage(t *testing.T) {
 	require.Len(t, existenceProofs, 2)
 
 	for _, proof := range existenceProofs {
-		err = utils.VerifySignature(crypto.Keccak256(proof.KeyExistenceProof), proof.Signature, myTeeId)
+		err = utils.VerifySignature(crypto.Keccak256(proof.KeyExistence), proof.Signature, myTeeId)
 		require.NoError(t, err)
 
-		walletExistenceProof, err := structs.Decode[wallet.ITeeWalletKeyManagerKeyExistence](wallet.KeyExistenceStructArg, proof.KeyExistenceProof)
+		walletExistenceProof, err := structs.Decode[wallet.ITeeWalletKeyManagerKeyExistence](wallet.KeyExistenceStructArg, proof.KeyExistence)
 		require.NoError(t, err)
 
 		require.Equal(t, walletProofs[walletExistenceProof.WalletId], walletExistenceProof)

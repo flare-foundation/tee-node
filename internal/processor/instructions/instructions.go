@@ -10,8 +10,8 @@ import (
 	"github.com/flare-foundation/tee-node/internal/processor/instructions/signutils"
 	"github.com/flare-foundation/tee-node/internal/processor/instructions/walletutils"
 	"github.com/flare-foundation/tee-node/internal/settings"
+	"github.com/flare-foundation/tee-node/pkg/op"
 	"github.com/flare-foundation/tee-node/pkg/types"
-	"github.com/flare-foundation/tee-node/pkg/utils"
 
 	commonpolicy "github.com/flare-foundation/go-flare-common/pkg/policy"
 
@@ -105,7 +105,7 @@ func ProcessInstruction(
 
 // Call forwards the call to the appropriate service and method
 func validateOrExecuteInstruction(
-	instructionMessage *instruction.DataFixed,
+	iData *instruction.DataFixed,
 	variableMessages []hexutil.Bytes,
 	signers []common.Address,
 	isSignerDataProvider []bool,
@@ -115,18 +115,18 @@ func validateOrExecuteInstruction(
 	var result []byte
 	var resultStatus []byte
 
-	switch utils.OpHashToString(instructionMessage.OpType) {
-	case "REG":
-		result, err = regInstruction(instructionMessage, submissionTag)
+	switch op.HashToOPType(iData.OpType) {
+	case op.Reg:
+		result, err = regInstruction(iData, submissionTag)
 
-	case "WALLET":
-		result, resultStatus, err = walletInstruction(instructionMessage, variableMessages, signers, isSignerDataProvider, submissionTag)
+	case op.Wallet:
+		result, resultStatus, err = walletInstruction(iData, variableMessages, signers, isSignerDataProvider, submissionTag)
 
-	case "XRP":
-		result, err = xrpInstruction(instructionMessage, signers, isSignerDataProvider, submissionTag)
+	case op.XRP:
+		result, err = xrpInstruction(iData, signers, isSignerDataProvider, submissionTag)
 
-	case "FTDC":
-		result, err = ftdcInstruction(instructionMessage, variableMessages, signers, isSignerDataProvider, submissionTag)
+	case op.FTDC:
+		result, err = ftdcInstruction(iData, variableMessages, signers, isSignerDataProvider, submissionTag)
 
 	default:
 		err = errors.New("invalid operation type")
@@ -135,22 +135,22 @@ func validateOrExecuteInstruction(
 	return result, resultStatus, err
 }
 
-func regInstruction(instructionData *instruction.DataFixed, submissionTag types.SubmissionTag) ([]byte, error) {
+func regInstruction(data *instruction.DataFixed, submissionTag types.SubmissionTag) ([]byte, error) {
 	var err error
 	var result []byte
 
 	switch submissionTag {
 	case types.Threshold:
-		switch utils.OpHashToString(instructionData.OpCommand) {
-		case "TEE_ATTESTATION":
-			result, err = regutils.TeeAttestation(instructionData)
+		switch op.HashToOPCommand(data.OpCommand) {
+		case op.TEEAttestation:
+			result, err = regutils.TeeAttestation(data)
 		default:
 			err = errors.New("Unknown OpCommand for REG OpType")
 		}
 	case types.End:
-		switch utils.OpHashToString(instructionData.OpCommand) {
-		case "TEE_ATTESTATION":
-			_, err = regutils.ValidateTeeAttestation(instructionData.OriginalMessage)
+		switch op.HashToOPCommand(data.OpCommand) {
+		case op.TEEAttestation:
+			_, err = regutils.ValidateTeeAttestation(data.OriginalMessage)
 		default:
 			err = errors.New("Unknown OpCommand for REG OpType")
 		}
@@ -162,7 +162,7 @@ func regInstruction(instructionData *instruction.DataFixed, submissionTag types.
 }
 
 func walletInstruction(
-	instructionData *instruction.DataFixed,
+	data *instruction.DataFixed,
 	variableMessages []hexutil.Bytes,
 	signers []common.Address,
 	isSignerDataProvider []bool,
@@ -174,29 +174,29 @@ func walletInstruction(
 
 	switch submissionTag {
 	case types.Threshold:
-		switch utils.OpHashToString(instructionData.OpCommand) {
-		case "KEY_GENERATE":
-			result, err = walletutils.NewWallet(instructionData)
+		switch op.HashToOPCommand(data.OpCommand) {
+		case op.KeyGenerate:
+			result, err = walletutils.NewWallet(data)
 
-		case "KEY_DELETE":
-			err = walletutils.DeleteWallet(instructionData)
+		case op.KeyDelete:
+			err = walletutils.DeleteWallet(data)
 
-		case "KEY_DATA_PROVIDER_RESTORE":
-			result, resultStatus, err = walletutils.KeyDataProviderRestore(instructionData, variableMessages, signers)
+		case op.KeyDataProviderRestore:
+			result, resultStatus, err = walletutils.KeyDataProviderRestore(data, variableMessages, signers)
 
 		default:
 			err = errors.New("Unknown OpCommand for WALLET OpType")
 		}
 	case types.End:
-		switch utils.OpHashToString(instructionData.OpCommand) {
-		case "KEY_GENERATE":
-			err = walletutils.ValidateNewWallet(instructionData)
+		switch op.HashToOPCommand(data.OpCommand) {
+		case op.KeyGenerate:
+			err = walletutils.ValidateNewWallet(data)
 
-		case "KEY_DELETE":
-			err = walletutils.ValidateDeleteWallet(instructionData)
+		case op.KeyDelete:
+			err = walletutils.ValidateDeleteWallet(data)
 
-		case "KEY_DATA_PROVIDER_RESTORE":
-			resultStatus, err = walletutils.ValidateKeyDataProviderRestore(instructionData, variableMessages, signers)
+		case op.KeyDataProviderRestore:
+			resultStatus, err = walletutils.ValidateKeyDataProviderRestore(data, variableMessages, signers)
 
 		default:
 			err = errors.New("Unknown OpCommand for WALLET OpType")
@@ -209,24 +209,24 @@ func walletInstruction(
 	return result, resultStatus, err
 }
 
-func xrpInstruction(instructionData *instruction.DataFixed, signers []common.Address, isSignerDataProvider []bool, submissionTag types.SubmissionTag) ([]byte, error) {
+func xrpInstruction(data *instruction.DataFixed, signers []common.Address, isSignerDataProvider []bool, submissionTag types.SubmissionTag) ([]byte, error) {
 	var err error
 	var result []byte
 
 	switch submissionTag {
 	case types.Threshold:
-		switch utils.OpHashToString(instructionData.OpCommand) {
-		case "PAY", "REISSUE":
-			result, err = signutils.SignPaymentTransaction(instructionData, signers, isSignerDataProvider)
+		switch op.HashToOPCommand(data.OpCommand) {
+		case op.Pay, op.Reissue:
+			result, err = signutils.SignPaymentTransaction(data, signers, isSignerDataProvider)
 
 		default:
 			err = errors.New("Unknown OpCommand for XRP OpType")
 		}
 	case types.End:
-		switch utils.OpHashToString(instructionData.OpCommand) {
-		case "PAY", "REISSUE":
+		switch op.HashToOPCommand(data.OpCommand) {
+		case op.Pay, op.Reissue:
 			// validation is just retrying to sign
-			_, err = signutils.SignPaymentTransaction(instructionData, signers, isSignerDataProvider)
+			_, err = signutils.SignPaymentTransaction(data, signers, isSignerDataProvider)
 
 		default:
 			err = errors.New("Unknown OpCommand for XRP OpType")
@@ -238,23 +238,23 @@ func xrpInstruction(instructionData *instruction.DataFixed, signers []common.Add
 	return result, err
 }
 
-func ftdcInstruction(instructionData *instruction.DataFixed, variableMessages []hexutil.Bytes, signers []common.Address, isSignerDataProvider []bool, submissionTag types.SubmissionTag) ([]byte, error) {
+func ftdcInstruction(data *instruction.DataFixed, variableMessages []hexutil.Bytes, signers []common.Address, isSignerDataProvider []bool, submissionTag types.SubmissionTag) ([]byte, error) {
 	var err error
 	var result []byte
 
 	switch submissionTag {
 	case types.Threshold:
-		switch utils.OpHashToString(instructionData.OpCommand) {
-		case "PROVE":
-			result, err = ftdcutils.ValidateProve(instructionData, variableMessages, signers, isSignerDataProvider)
+		switch op.HashToOPCommand(data.OpCommand) {
+		case op.Prove:
+			result, err = ftdcutils.ValidateProve(data, variableMessages, signers, isSignerDataProvider)
 
 		default:
 			err = errors.New("Unknown OpCommand for FTDC OpType")
 		}
 	case types.End:
-		switch utils.OpHashToString(instructionData.OpCommand) {
-		case "PROVE":
-			_, err = ftdcutils.ValidateProve(instructionData, variableMessages, signers, isSignerDataProvider)
+		switch op.HashToOPCommand(data.OpCommand) {
+		case op.Prove:
+			_, err = ftdcutils.ValidateProve(data, variableMessages, signers, isSignerDataProvider)
 
 		default:
 			err = errors.New("Unknown OpCommand for FTDC OpType")
@@ -266,12 +266,12 @@ func ftdcInstruction(instructionData *instruction.DataFixed, variableMessages []
 	return result, err
 }
 
-func checkInstructionData(instructionData *instruction.DataFixed) (*commonpolicy.SigningPolicy, error) {
-	if instructionData == nil {
+func checkInstructionData(data *instruction.DataFixed) (*commonpolicy.SigningPolicy, error) {
+	if data == nil {
 		return nil, errors.New("instruction data is nil")
 	}
 
-	if instructionData.TeeId.Hex() != node.GetTeeId().Hex() {
+	if data.TeeId.Hex() != node.TeeID().Hex() {
 		return nil, errors.New("invalid TEE id")
 	}
 
@@ -281,13 +281,13 @@ func checkInstructionData(instructionData *instruction.DataFixed) (*commonpolicy
 	}
 
 	// Todo: not sure if this check is still correct? Is is just last policy now or?
-	isActivePolicy := activeSigningPolicy.RewardEpochID == instructionData.RewardEpochId
-	isPreviousPolicy := activeSigningPolicy.RewardEpochID == instructionData.RewardEpochId+1
+	isActivePolicy := activeSigningPolicy.RewardEpochID == data.RewardEpochId
+	isPreviousPolicy := activeSigningPolicy.RewardEpochID == data.RewardEpochId+1
 	if !isActivePolicy && !isPreviousPolicy {
 		return nil, errors.New("reward epoch id too old")
 	}
 
-	valid := isValidCommand(utils.OpHashToString(instructionData.OpType), utils.OpHashToString(instructionData.OpCommand))
+	valid := op.IsValid(data.OpType, data.OpCommand)
 	if !valid {
 		return nil, errors.New("invalid command for operation type")
 	}

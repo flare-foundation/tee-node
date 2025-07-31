@@ -64,6 +64,10 @@ github.com/flare-foundation/go-flare-common v1.2.1-0.20250723124221-1e388f713d68
 github.com/flare-foundation/go-flare-common v1.2.1-0.20250723124221-1e388f713d68/go.mod h1:K2iYZL3lobfsJ10m1ddsaim3qDbNwQaMHZu8vHMEYF4=
 github.com/flare-foundation/go-flare-common v1.2.1-0.20250728144130-10a7ab7f0f48 h1:4Ztgj9t4qjfIyVZ6h6DebU7yFq8N/oejrLN/uSti+lQ=
 github.com/flare-foundation/go-flare-common v1.2.1-0.20250728144130-10a7ab7f0f48/go.mod h1:K2iYZL3lobfsJ10m1ddsaim3qDbNwQaMHZu8vHMEYF4=
+github.com/flare-foundation/go-flare-common v1.2.1-0.20250729154956-753b807f26f0 h1:rZkuTWdvCmmGJDzzvwMUhBCgssZxPSI4boOj/WXZwOI=
+github.com/flare-foundation/go-flare-common v1.2.1-0.20250729154956-753b807f26f0/go.mod h1:K2iYZL3lobfsJ10m1ddsaim3qDbNwQaMHZu8vHMEYF4=
+github.com/flare-foundation/go-flare-common v1.2.1-0.20250731072100-1ea048624538 h1:Yvoob44h/MttPN0yuZrew/54lNe7VBQLGfVf+0QM7A0=
+github.com/flare-foundation/go-flare-common v1.2.1-0.20250731072100-1ea048624538/go.mod h1:K2iYZL3lobfsJ10m1ddsaim3qDbNwQaMHZu8vHMEYF4=
 github.com/fsnotify/fsnotify v1.9.0 h1:2Ml+OJNzbYCTzsxtv8vKSFD9PbJjmhYF14k/jKC7S9k=
 github.com/fsnotify/fsnotify v1.9.0/go.mod h1:8jBTzvmWwFyi3Pb8djgCCO5IBqzKJ/Jwo8TRcHyHii0=
 github.com/gballet/go-libpcsclite v0.0.0-20190607065134-2772fd86a8ff h1:tY80oXqGNY4FhTFhk+o9oFHGINQ/+vhlm8HFzi6znCI=

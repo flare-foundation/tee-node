@@ -2,7 +2,6 @@ package utils
 
 import (
 	"slices"
-	"strings"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/pkg/errors"
@@ -20,14 +19,6 @@ func Sum[T Number](numbers []T) T {
 	}
 
 	return total
-}
-
-func OpHashToString(hash common.Hash) string {
-	return strings.TrimRight(string(hash.Bytes()), "\x00")
-}
-
-func StringToOpHash(str string) common.Hash {
-	return common.BytesToHash(common.RightPadBytes([]byte(str), 32))
 }
 
 func ConstantSlice(val uint16, n int) []uint16 {

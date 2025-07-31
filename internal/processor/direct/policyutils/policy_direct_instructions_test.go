@@ -96,7 +96,7 @@ func TestInitializingThePolicyTwice(t *testing.T) {
 func TestUpdatePolicy(t *testing.T) {
 	defer testutils.ResetTEEState() // Reset the state of the TEE after the test
 
-	err := node.InitNode(types.State{})
+	err := node.InitNode(&node.ZeroState{})
 	require.NoError(t, err)
 
 	// Generate random voters and corresponding private keys

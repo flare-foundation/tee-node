@@ -38,9 +38,7 @@ import (
 
 // todo: add cosigners to commonwallet, check xrp signature, verify signer sequence data (vote hash)
 func TestProcessorEndToEnd(t *testing.T) {
-	err := node.InitNode(types.State{
-		Status: big.NewInt(1234),
-	})
+	err := node.InitNode(node.ZeroState{})
 	require.NoError(t, err)
 
 	numVoters, startingEpochId := 100, uint32(1)
@@ -148,7 +146,7 @@ func initializePolicy(t *testing.T, actionInfoChan chan *types.Action,
 		PublicKeys:         pubKeys,
 	}
 
-	action := testutils.BuildMockQueuedAction(t, "POLICY", "INITIALIZE_POLICY", req)
+	action := testutils.BuildMockQueuedAction(t, constants.Policy, constants.InitializePolicy, req)
 
 	actionInfoChan <- action
 
@@ -166,7 +164,7 @@ func getTeeInfo(
 	req := &types.TeeInfoRequest{
 		Challenge: common.Hash(challenge),
 	}
-	action := testutils.BuildMockQueuedAction(t, "GET", "TEE_INFO", req)
+	action := testutils.BuildMockQueuedAction(t, constants.Get, constants.TEEInfo, req)
 
 	actionInfoChan <- action
 
@@ -196,7 +194,7 @@ func generateWallet(t *testing.T, actionInfoChan chan *types.Action,
 		TeeId:    teeId,
 		WalletId: walletId,
 		KeyId:    keyId,
-		OpType:   utils.StringToOpHash("WALLET"),
+		OpType:   constants.XRP.Hash(),
 		ConfigConstants: commonwallet.ITeeWalletKeyManagerKeyConfigConstants{
 			OpTypeConstants:    make([]byte, 0),
 			AdminsPublicKeys:   adminWalletPublicKeys,
@@ -210,7 +208,7 @@ func generateWallet(t *testing.T, actionInfoChan chan *types.Action,
 
 	// generate action sent when threshold reached
 	action, err := testutils.BuildMockQueuedActionInstruction(
-		"WALLET", "KEY_GENERATE", originalMessageEncoded, privKeys, teeId, rewardEpochId, nil, nil, types.Threshold, uint64(time.Now().Unix()),
+		constants.Wallet, constants.KeyGenerate, originalMessageEncoded, privKeys, teeId, rewardEpochId, nil, nil, types.Threshold, uint64(time.Now().Unix()),
 	)
 	require.NoError(t, err)
 
@@ -231,7 +229,7 @@ func generateWallet(t *testing.T, actionInfoChan chan *types.Action,
 
 	// generate action sent when voting closed
 	action, err = testutils.BuildMockQueuedActionInstruction(
-		"WALLET", "KEY_GENERATE", originalMessageEncoded, privKeys, teeId, rewardEpochId, nil, nil, types.End, uint64(time.Now().Unix()),
+		constants.Wallet, constants.KeyGenerate, originalMessageEncoded, privKeys, teeId, rewardEpochId, nil, nil, types.End, uint64(time.Now().Unix()),
 	)
 	require.NoError(t, err)
 
@@ -272,7 +270,7 @@ func signTransaction(t *testing.T, actionInfoChan chan *types.Action, actionResp
 	require.NoError(t, err)
 
 	action, err := testutils.BuildMockQueuedActionInstruction(
-		"XRP", "PAY", originalMessageEncoded, privKeys, teeId, rewardEpochId, []byte{}, nil, types.Threshold, uint64(time.Now().Unix()),
+		constants.XRP, constants.Pay, originalMessageEncoded, privKeys, teeId, rewardEpochId, []byte{}, nil, types.Threshold, uint64(time.Now().Unix()),
 	)
 	require.NoError(t, err)
 
@@ -288,7 +286,7 @@ func signTransaction(t *testing.T, actionInfoChan chan *types.Action, actionResp
 
 	// generate action sent when voting closed
 	action, err = testutils.BuildMockQueuedActionInstruction(
-		"XRP", "PAY", originalMessageEncoded, privKeys, teeId, rewardEpochId, []byte{}, nil, types.End, uint64(time.Now().Unix()),
+		constants.XRP, constants.Pay, originalMessageEncoded, privKeys, teeId, rewardEpochId, []byte{}, nil, types.End, uint64(time.Now().Unix()),
 	)
 	require.NoError(t, err)
 
@@ -320,7 +318,7 @@ func deleteWallet(t *testing.T, actionInfoChan chan *types.Action,
 	require.NoError(t, err)
 
 	action, err := testutils.BuildMockQueuedActionInstruction(
-		"WALLET", "KEY_DELETE", originalMessageEncoded, privKeys, teeId, rewardEpochId, nil, nil, types.Threshold, uint64(time.Now().Unix()),
+		constants.Wallet, constants.KeyDelete, originalMessageEncoded, privKeys, teeId, rewardEpochId, nil, nil, types.Threshold, uint64(time.Now().Unix()),
 	)
 	require.NoError(t, err)
 
@@ -334,7 +332,7 @@ func deleteWallet(t *testing.T, actionInfoChan chan *types.Action,
 
 	// generate action sent when voting closed
 	action, err = testutils.BuildMockQueuedActionInstruction(
-		"WALLET", "KEY_DELETE", originalMessageEncoded, privKeys, teeId, rewardEpochId, nil, nil, types.End, uint64(time.Now().Unix()),
+		constants.Wallet, constants.KeyDelete, originalMessageEncoded, privKeys, teeId, rewardEpochId, nil, nil, types.End, uint64(time.Now().Unix()),
 	)
 	require.NoError(t, err)
 
@@ -360,7 +358,7 @@ func getBackup(t *testing.T, actionInfoChan chan *types.Action,
 		KeyId:    keyId,
 	}
 
-	action := testutils.BuildMockQueuedAction(t, "GET", "TEE_BACKUP", message)
+	action := testutils.BuildMockQueuedAction(t, constants.Get, constants.TEEBackup, message)
 
 	actionInfoChan <- action
 
@@ -394,7 +392,7 @@ func recoverWallet(t *testing.T, actionInfoChan chan *types.Action,
 			TeeId:         teeId,
 			WalletId:      walletId,
 			KeyId:         keyId,
-			OpType:        utils.StringToOpHash("WALLET"),
+			OpType:        constants.XRP.Hash(),
 			PublicKey:     append(walletBackup.PublicKey.X[:], walletBackup.PublicKey.Y[:]...),
 			RewardEpochId: big.NewInt(int64(rewardEpochId)),
 			RandomNonce:   new(big.Int).SetBytes(walletBackup.RandomNonce[:]),
@@ -467,7 +465,7 @@ func recoverWallet(t *testing.T, actionInfoChan chan *types.Action,
 	}
 
 	action, err := testutils.BuildMockQueuedActionInstruction(
-		"WALLET", "KEY_DATA_PROVIDER_RESTORE", originalMessageEncoded, privKeys, teeId,
+		constants.Wallet, constants.KeyDataProviderRestore, originalMessageEncoded, privKeys, teeId,
 		rewardEpochId, additionalFixedMessage, additionalVariableMessages,
 		types.Threshold, uint64(time.Now().Unix()),
 	)
@@ -491,7 +489,7 @@ func recoverWallet(t *testing.T, actionInfoChan chan *types.Action,
 
 	// generate action sent when voting closed
 	action, err = testutils.BuildMockQueuedActionInstruction(
-		"WALLET", "KEY_DATA_PROVIDER_RESTORE", originalMessageEncoded, privKeys, teeId,
+		constants.Wallet, constants.KeyDataProviderRestore, originalMessageEncoded, privKeys, teeId,
 		rewardEpochId, additionalFixedMessage, additionalVariableMessages,
 		types.End, uint64(time.Now().Unix()),
 	)
@@ -527,21 +525,22 @@ func getTeeAttestation(
 	challenge := [32]byte(ch)
 
 	originalMessage := verification.ITeeVerificationTeeAttestation{
-		TeeMachine: verification.ITeeRegistryTeeMachineWithAttestationData{
+		Challenge: challenge,
+		TeeMachine: verification.ITeeMachineRegistryTeeMachineWithAttestationData{
 			TeeId:        teeId,
-			InitialTeeId: common.Address{},
+			InitialTeeId: teeId,
 			Url:          "bla",
 			CodeHash:     [32]byte{},
 			Platform:     [32]byte{},
 		},
-		Challenge: challenge,
 	}
+
 	originalMessageEncoded, err := abi.Arguments{verification.MessageArguments[constants.TEEAttestation]}.Pack(originalMessage)
 	require.NoError(t, err)
 
 	// generate action sent when threshold reached
 	action, err := testutils.BuildMockQueuedActionInstruction(
-		"REG", "TEE_ATTESTATION", originalMessageEncoded, privKeys, teeId, rewardEpochId, nil, nil, types.Threshold, uint64(time.Now().Unix()),
+		constants.Reg, constants.TEEAttestation, originalMessageEncoded, privKeys, teeId, rewardEpochId, nil, nil, types.Threshold, uint64(time.Now().Unix()),
 	)
 	require.NoError(t, err)
 
@@ -565,7 +564,7 @@ func getTeeAttestation(
 
 	// generate action sent when voting closed
 	action, err = testutils.BuildMockQueuedActionInstruction(
-		"REG", "TEE_ATTESTATION", originalMessageEncoded, privKeys, teeId, rewardEpochId, nil, nil, types.End, uint64(time.Now().Unix()),
+		constants.Reg, constants.TEEAttestation, originalMessageEncoded, privKeys, teeId, rewardEpochId, nil, nil, types.End, uint64(time.Now().Unix()),
 	)
 	require.NoError(t, err)
 
@@ -621,7 +620,7 @@ func ftdcProve(
 	require.NoError(t, err)
 
 	additionalFixedMessage := verification.ITeeVerificationTeeAttestation{
-		TeeMachine: verification.ITeeRegistryTeeMachineWithAttestationData{
+		TeeMachine: verification.ITeeMachineRegistryTeeMachineWithAttestationData{
 			TeeId:        teeId,
 			InitialTeeId: common.Address{},
 			Url:          "blabla",
@@ -660,7 +659,7 @@ func ftdcProve(
 	}
 
 	action, err := testutils.BuildMockQueuedActionInstruction(
-		"FTDC", "PROVE", originalMessageEncoded, privKeys, teeId, rewardEpochId, additionalFixedMessageEncoded, variableMessages, types.Threshold, timestamp,
+		constants.FTDC, constants.Prove, originalMessageEncoded, privKeys, teeId, rewardEpochId, additionalFixedMessageEncoded, variableMessages, types.Threshold, timestamp,
 	)
 	require.NoError(t, err)
 
@@ -694,7 +693,7 @@ func ftdcProve(
 
 	// generate action sent when voting closed
 	action, err = testutils.BuildMockQueuedActionInstruction(
-		"FTDC", "PROVE", originalMessageEncoded, privKeys, teeId, rewardEpochId, additionalFixedMessageEncoded, variableMessages, types.End, timestamp,
+		constants.FTDC, constants.Prove, originalMessageEncoded, privKeys, teeId, rewardEpochId, additionalFixedMessageEncoded, variableMessages, types.End, timestamp,
 	)
 	require.NoError(t, err)
 

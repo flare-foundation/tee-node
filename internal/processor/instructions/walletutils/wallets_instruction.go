@@ -32,7 +32,7 @@ func NewWallet(instructionData *instruction.DataFixed) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	if newWalletRequest.TeeId != node.GetTeeId() {
+	if newWalletRequest.TeeId != node.TeeID() {
 		return nil, errors.New("tee id does not match")
 	}
 
@@ -53,7 +53,7 @@ func NewWallet(instructionData *instruction.DataFixed) ([]byte, error) {
 		return nil, err
 	}
 
-	existenceProof := wallets.WalletToKeyExistenceProof(storedWallet, node.GetTeeId())
+	existenceProof := wallets.WalletToKeyExistenceProof(storedWallet, node.TeeID())
 	existenceProofEncoded, err := structs.Encode(wallet.KeyExistenceStructArg, existenceProof)
 	if err != nil {
 		return nil, err
@@ -72,7 +72,7 @@ func ValidateNewWallet(instructionData *instruction.DataFixed) error {
 	if err != nil {
 		return err
 	}
-	if newWalletRequest.TeeId != node.GetTeeId() {
+	if newWalletRequest.TeeId != node.TeeID() {
 		return errors.New("tee id does not match")
 	}
 
@@ -185,7 +185,7 @@ func KeyDataProviderRestore(instructionData *instruction.DataFixed,
 	if err != nil {
 		return nil, nil, err
 	}
-	existenceProof := wallets.WalletToKeyExistenceProof(storedWallet, node.GetTeeId())
+	existenceProof := wallets.WalletToKeyExistenceProof(storedWallet, node.TeeID())
 	existenceProofEncoded, err := structs.Encode(wallet.KeyExistenceStructArg, existenceProof)
 	if err != nil {
 		return nil, nil, err

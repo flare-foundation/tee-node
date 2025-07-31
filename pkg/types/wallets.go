@@ -105,8 +105,8 @@ func (wid *WalletBackupId) Hash() common.Hash {
 }
 
 type WalletSignedKeyExistenceProof struct {
-	KeyExistenceProof []byte
-	Signature         []byte
+	KeyExistence []byte `json:"keyExistence"`
+	Signature    []byte `json:"signature"`
 }
 
 type KeyDataProviderRestoreResultStatus struct {

@@ -122,9 +122,9 @@ func FetchPolicyHistory(ctx context.Context, params *PolicyHistoryParams, db *go
 			return nil, nil, err
 		}
 		// rewardEpochId := *abi.ConvertType(signNewSigningPolicyInputBytesArray[0], new(*big.Int)).(**big.Int)
-		newSigningPolicyHashBytes := *abi.ConvertType(signNewSigningPolicyInputBytesArray[1], new([32]byte)).(*[32]byte)
+		newSigningPolicyHashBytes := *abi.ConvertType(signNewSigningPolicyInputBytesArray[1], new([32]byte)).(*[32]byte) //nolint:forcetypeassert // type never changes and used only for test
 		newSigningPolicyHash := common.BytesToHash(newSigningPolicyHashBytes[:])
-		systemManageSignature := *abi.ConvertType(signNewSigningPolicyInputBytesArray[2], new(system.IFlareSystemsManagerSignature)).(*system.IFlareSystemsManagerSignature)
+		systemManageSignature := *abi.ConvertType(signNewSigningPolicyInputBytesArray[2], new(system.IFlareSystemsManagerSignature)).(*system.IFlareSystemsManagerSignature) //nolint:forcetypeassert // type never changes and used only for test
 
 		sigBytes := make([]byte, 65)
 		copy(sigBytes[0:32], systemManageSignature.R[:])
@@ -239,8 +239,8 @@ func FetchVotersPublicKeysMap(ctx context.Context, params *PolicyHistoryParams, 
 			return nil, err
 		}
 
-		voterAddress := *abi.ConvertType(registerVoterInputBytesArray[0], new(common.Address)).(*common.Address)
-		signature := *abi.ConvertType(registerVoterInputBytesArray[1], new(registry.RegistryVoterRegistered)).(*registry.RegistryVoterRegistered)
+		voterAddress := *abi.ConvertType(registerVoterInputBytesArray[0], new(common.Address)).(*common.Address)                                  //nolint:forcetypeassert // type never changes and used only for test
+		signature := *abi.ConvertType(registerVoterInputBytesArray[1], new(registry.RegistryVoterRegistered)).(*registry.RegistryVoterRegistered) //nolint:forcetypeassert // type never changes and used only for test
 
 		sigBytes := make([]byte, 65)
 		copy(sigBytes[0:32], signature.Signature.R[:])

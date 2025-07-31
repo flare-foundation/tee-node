@@ -124,8 +124,6 @@ func SerializeCompressed(pubKey *ecdsa.PublicKey) []byte {
 	return final
 }
 
-const XRP_ALPHABET = "rpshnaf39wBUDNEGHJKLM4PQRST7VWXYZ2bcdeCg65jkm8oFqi1tuvAxyz"
-
 // This should be a sec1 encoded public key
 // You can use SerializeCompressed to get the sec1 encoded public key
 func XRPLAddressFromSecp256k1PubKey(publicKey []byte) (string, error) {

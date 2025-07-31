@@ -18,7 +18,7 @@ import (
 
 func TestAbiDecodeFtdcAttestationResponse(t *testing.T) {
 	defer testutils.ResetTEEState() // Reset the state of the TEE after the test
-	err := node.InitNode(types.State{})
+	err := node.InitNode(&node.ZeroState{})
 	require.NoError(t, err)
 
 	numVoters, randSeed, epochId := 100, int64(12345), uint32(1)
