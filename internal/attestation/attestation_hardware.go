@@ -21,7 +21,7 @@ func CreateHardwareAttestation(nonce []byte) (*attest.Attestation, error) {
 		return nil, fmt.Errorf("failed to create TDX quote provider: %w", err)
 	}
 	attestOpts.TEEDevice = tdxDevice
-	defer func() { _ = tdxDevice.Close() }()
+	defer tdxDevice.Close() //nolint:errcheck
 
 	println("TDX device opened successfully: ")
 	fmt.Println(tdxDevice)
@@ -35,7 +35,7 @@ func CreateHardwareAttestation(nonce []byte) (*attest.Attestation, error) {
 			return nil, fmt.Errorf("failed to open TPM device: %w", err)
 		}
 	}
-	defer func() { _ = rwc.Close() }()
+	defer rwc.Close() //nolint:errcheck
 
 	println("TPM device opened successfully: ", rwc.Name())
 

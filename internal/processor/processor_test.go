@@ -18,7 +18,6 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/crypto/ecies"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/constants"
-	"github.com/flare-foundation/go-flare-common/pkg/tee/structs"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/structs/connector"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/structs/payment"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/structs/tee"
@@ -86,10 +85,9 @@ func TestProcessorEndToEnd(t *testing.T) {
 	var keyId = uint64(1)
 	walletProof := generateWallet(t, mainActionInfoChan, actionResponseChan, teeId, walletId, keyId,
 		providerPrivKeys, adminWalletPublicKeys, finalEpochId)
-	require.Equal(t, walletProof.Restored, false)
+	require.False(t, walletProof.Restored)
 
-	paymentHash := "560ccd6e79ba7166e82dbf2a5b9a52283a509b63c39d4a4cc7164db3e43484c4"
-	signTransaction(t, mainActionInfoChan, actionResponseChan, teeId, walletId, keyId, providerPrivKeys, finalEpochId, paymentHash)
+	signTransaction(t, mainActionInfoChan, actionResponseChan, teeId, walletId, keyId, providerPrivKeys, finalEpochId)
 
 	walletBackup := getBackup(t, readActionInfoChan, actionResponseChan, teeId, walletId, keyId)
 
@@ -214,12 +212,12 @@ func generateWallet(t *testing.T, actionInfoChan chan *types.Action,
 
 	actionInfoChan <- action
 
-	actionResponse := <-actionResponseChan
-	require.True(t, actionResponse.Result.Status)
-	err = utils.VerifySignature(crypto.Keccak256(actionResponse.Result.Data), actionResponse.Signature, teeId)
+	response := <-actionResponseChan
+	require.True(t, response.Result.Status)
+	err = utils.VerifySignature(crypto.Keccak256(response.Result.Data), response.Signature, teeId)
 	require.NoError(t, err)
 
-	walletExistenceProof, err := structs.Decode[commonwallet.ITeeWalletKeyManagerKeyExistence](commonwallet.KeyExistenceStructArg, actionResponse.Result.Data)
+	walletExistenceProof, err := types.ExtractKeyExistence(response.Result.Data)
 	require.NoError(t, err)
 
 	newWallet, err := wallets.Storage.GetWallet(types.WalletKeyIdPair{WalletId: walletId, KeyId: keyId})
@@ -235,24 +233,24 @@ func generateWallet(t *testing.T, actionInfoChan chan *types.Action,
 
 	actionInfoChan <- action
 
-	actionResponse = <-actionResponseChan
-	require.True(t, actionResponse.Result.Status)
-	err = utils.VerifySignature(crypto.Keccak256(actionResponse.Result.Data), actionResponse.Signature, teeId)
+	response = <-actionResponseChan
+	require.True(t, response.Result.Status)
+	err = utils.VerifySignature(crypto.Keccak256(response.Result.Data), response.Signature, teeId)
 	require.NoError(t, err)
 
 	var signerSequence types.RewardingData
-	err = json.Unmarshal(actionResponse.Result.Data, &signerSequence)
+	err = json.Unmarshal(response.Result.Data, &signerSequence)
 	require.NoError(t, err)
 
 	err = utils.VerifySignature(signerSequence.VoteSequence.VoteHash[:], signerSequence.Signature, teeId)
 	require.NoError(t, err)
 
-	return &walletExistenceProof
+	return walletExistenceProof
 }
 
 func signTransaction(t *testing.T, actionInfoChan chan *types.Action, actionResponseChan chan *types.ActionResponse,
 	teeId common.Address, walletId [32]byte, keyId uint64, privKeys []*ecdsa.PrivateKey,
-	rewardEpochId uint32, paymentHash string) {
+	rewardEpochId uint32) {
 	originalMessage := payment.ITeePaymentsPaymentInstructionMessage{
 		WalletId:         walletId,
 		TeeIdKeyIdPairs:  []payment.TeeIdKeyIdPair{{TeeId: teeId, KeyId: keyId}},
@@ -473,12 +471,12 @@ func recoverWallet(t *testing.T, actionInfoChan chan *types.Action,
 
 	actionInfoChan <- action
 
-	actionResponse := <-actionResponseChan
-	require.True(t, actionResponse.Result.Status)
-	err = utils.VerifySignature(crypto.Keccak256(actionResponse.Result.Data), actionResponse.Signature, teeId)
+	response := <-actionResponseChan
+	require.True(t, response.Result.Status)
+	err = utils.VerifySignature(crypto.Keccak256(response.Result.Data), response.Signature, teeId)
 	require.NoError(t, err)
 
-	walletExistenceProof, err := structs.Decode[commonwallet.ITeeWalletKeyManagerKeyExistence](commonwallet.KeyExistenceStructArg, actionResponse.Result.Data)
+	walletExistenceProof, err := types.ExtractKeyExistence(response.Result.Data)
 	require.NoError(t, err)
 
 	// check that commonwallet is actually on the tee
@@ -497,19 +495,19 @@ func recoverWallet(t *testing.T, actionInfoChan chan *types.Action,
 
 	actionInfoChan <- action
 
-	actionResponse = <-actionResponseChan
-	require.True(t, actionResponse.Result.Status)
-	err = utils.VerifySignature(crypto.Keccak256(actionResponse.Result.Data), actionResponse.Signature, teeId)
+	response = <-actionResponseChan
+	require.True(t, response.Result.Status)
+	err = utils.VerifySignature(crypto.Keccak256(response.Result.Data), response.Signature, teeId)
 	require.NoError(t, err)
 
 	var signerSequence types.RewardingData
-	err = json.Unmarshal(actionResponse.Result.Data, &signerSequence)
+	err = json.Unmarshal(response.Result.Data, &signerSequence)
 	require.NoError(t, err)
 
 	err = utils.VerifySignature(signerSequence.VoteSequence.VoteHash[:], signerSequence.Signature, teeId)
 	require.NoError(t, err)
 
-	return &walletExistenceProof
+	return walletExistenceProof
 }
 
 func getTeeAttestation(

@@ -20,7 +20,7 @@ func getAction(url string) (*types.Action, error) {
 		return nil, err
 	}
 
-	defer func() { _ = res.Body.Close() }()
+	defer res.Body.Close() //nolint:errcheck
 	body, err := io.ReadAll(res.Body)
 	if err != nil {
 		return nil, err
@@ -51,7 +51,7 @@ func postActionResponse(url string, response *types.ActionResponse) error {
 		return err
 	}
 
-	defer func() { _ = res.Body.Close() }()
+	defer res.Body.Close() //nolint:errcheck
 	body, err := io.ReadAll(res.Body)
 	if err != nil {
 		return err

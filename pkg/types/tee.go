@@ -14,8 +14,8 @@ type TeeInfoRequest struct {
 }
 
 type TeeInfoResponse struct {
-	TeeInfo     tee.TeeStructsAttestation
-	Attestation hexutil.Bytes
+	TeeInfo     tee.TeeStructsAttestation `json:"teeInfo"`
+	Attestation hexutil.Bytes             `json:"attestation"`
 }
 
 func EncodeTeeAttestationRequest(req *verification.ITeeVerificationTeeAttestation) (hexutil.Bytes, error) {

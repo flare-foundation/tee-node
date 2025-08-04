@@ -27,7 +27,7 @@ func TestSignPaymentTransaction(t *testing.T) {
 
 	numVoters, randSeed, epochId := 100, int64(12345), uint32(1)
 	_, _, privKeys, err := testutils.GenerateAndSetInitialPolicy(numVoters, randSeed, epochId)
-	require.NoError(t, err)
+	require.NoError(t, err, "generating")
 
 	testutils.CreateMockWallet(t, myNodeId, mockWalletId, mockKeyId, epochId, []*ecdsa.PrivateKey{privKeys[0]}, nil)
 
@@ -43,11 +43,9 @@ func TestSignPaymentTransaction(t *testing.T) {
 		AdditionalFixedMessage: nil,
 	}
 
-	response, err := signutils.SignPaymentTransaction(&instructionDataFixed, nil, nil)
-	require.NoError(t, err)
-
 	// todo: check response
-	_ = response
+	_, err = signutils.SignPaymentTransaction(&instructionDataFixed, nil, nil)
+	require.NoError(t, err, "response")
 }
 
 // // Query the signature before and after the threshold was reached and verify the results

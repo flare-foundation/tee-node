@@ -7,26 +7,14 @@ import (
 	"github.com/flare-foundation/go-flare-common/pkg/tee/structs/payment"
 )
 
-type SignPaymentAdditionalFixedMessage struct {
-	PaymentHash string
-	KeyId       uint64
-}
-
-func ParseSignPaymentRequest(instructionData *instruction.DataFixed) (payment.ITeePaymentsPaymentInstructionMessage, error) {
+func ParsePaymentInstruction(data *instruction.DataFixed) (payment.ITeePaymentsPaymentInstructionMessage, error) {
 	arg := payment.MessageArguments[constants.Pay]
 
-	var signPaymentRequest payment.ITeePaymentsPaymentInstructionMessage
-	err := structs.DecodeTo(arg, instructionData.OriginalMessage, &signPaymentRequest)
+	var instruction payment.ITeePaymentsPaymentInstructionMessage
+	err := structs.DecodeTo(arg, data.OriginalMessage, &instruction)
 	if err != nil {
 		return payment.ITeePaymentsPaymentInstructionMessage{}, err
 	}
 
-	return signPaymentRequest, nil
-}
-
-type GetPaymentSignatureResponse struct {
-	PaymentHash   string
-	TxnSignature  []byte
-	SigningPubKey []byte
-	Account       string
+	return instruction, nil
 }

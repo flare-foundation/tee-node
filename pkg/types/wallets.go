@@ -109,6 +109,22 @@ type WalletSignedKeyExistenceProof struct {
 	Signature    []byte `json:"signature"`
 }
 
+func ExtractKeyExistence(b []byte) (*wallet.ITeeWalletKeyManagerKeyExistence, error) {
+	var wskep WalletSignedKeyExistenceProof
+
+	err := json.Unmarshal(b, &wskep)
+	if err != nil {
+		return nil, err
+	}
+
+	keyExistence, err := structs.Decode[wallet.ITeeWalletKeyManagerKeyExistence](wallet.KeyExistenceStructArg, wskep.KeyExistence)
+	if err != nil {
+		return nil, err
+	}
+
+	return &keyExistence, nil
+}
+
 type KeyDataProviderRestoreResultStatus struct {
 	ErrorPositions []int
 	ErrorLogs      []string

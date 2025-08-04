@@ -120,7 +120,7 @@ func validateOrExecuteInstruction(
 		result, err = regInstruction(iData, submissionTag)
 
 	case op.Wallet:
-		result, resultStatus, err = walletInstruction(iData, variableMessages, signers, isSignerDataProvider, submissionTag)
+		result, resultStatus, err = walletInstruction(iData, variableMessages, signers, submissionTag)
 
 	case op.XRP:
 		result, err = xrpInstruction(iData, signers, isSignerDataProvider, submissionTag)
@@ -165,7 +165,6 @@ func walletInstruction(
 	data *instruction.DataFixed,
 	variableMessages []hexutil.Bytes,
 	signers []common.Address,
-	isSignerDataProvider []bool,
 	submissionTag types.SubmissionTag,
 ) ([]byte, []byte, error) {
 	var err error

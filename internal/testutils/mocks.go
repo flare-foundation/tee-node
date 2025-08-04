@@ -17,7 +17,6 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/constants"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/instruction"
-	"github.com/flare-foundation/go-flare-common/pkg/tee/structs"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/structs/payment"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/structs/verification"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/structs/wallet"
@@ -76,11 +75,13 @@ func CreateMockWallet(
 
 	walletProofBytes, err := walletutils.NewWallet(&instructionDataFixed)
 	require.NoError(t, err)
-	walletExistenceProof, err := structs.Decode[wallet.ITeeWalletKeyManagerKeyExistence](wallet.KeyExistenceStructArg, walletProofBytes)
+
+	walletExistenceProof, err := types.ExtractKeyExistence(walletProofBytes)
+	require.NoError(t, err)
 
 	require.NoError(t, err)
 
-	return walletExistenceProof
+	return *walletExistenceProof
 }
 
 func BuildMockPaymentOriginalMessage(t *testing.T, mockWallet common.Hash, teeID common.Address, keyID uint64) []byte {

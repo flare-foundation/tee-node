@@ -15,7 +15,6 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/constants"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/instruction"
-	"github.com/flare-foundation/go-flare-common/pkg/tee/structs"
 	walletcommon "github.com/flare-foundation/go-flare-common/pkg/tee/structs/wallet"
 	"github.com/stretchr/testify/require"
 )
@@ -78,7 +77,7 @@ func TestKeyGenerate(t *testing.T) {
 		t.Fatalf("Failed to sign the payment transaction: %v", err)
 	}
 
-	walletExistenceProof, err := structs.Decode[walletcommon.ITeeWalletKeyManagerKeyExistence](walletcommon.KeyExistenceStructArg, response)
+	walletExistenceProof, err := types.ExtractKeyExistence(response)
 	require.NoError(t, err)
 
 	require.Equal(t, teeId, walletExistenceProof.TeeId)
