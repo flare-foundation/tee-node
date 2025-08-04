@@ -2,7 +2,6 @@ package policy
 
 import (
 	"context"
-	"fmt"
 	"testing"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -24,10 +23,8 @@ func TestFetchPolicyHistory(t *testing.T) {
 	db, err := database.Connect(dbConfig)
 	require.NoError(t, err)
 
-	policies, signatures, err := FetchPolicyHistory(context.Background(), params, db)
+	_, _, err = FetchPolicyHistory(context.Background(), params, db)
 	require.NoError(t, err)
-	_ = policies
-	_ = signatures
 }
 
 func TestPublicKeys(t *testing.T) {
@@ -45,12 +42,7 @@ func TestPublicKeys(t *testing.T) {
 	rewardEpochId := uint32(1)
 	minBlockNum, maxBlockNum, err := FetchVoterRegisteredBlocksInfo(context.Background(), &params, db, rewardEpochId)
 	require.NoError(t, err)
-	_ = minBlockNum
-	_ = maxBlockNum
 
-	addressToPubKey, err := FetchVotersPublicKeysMap(context.Background(), &params, db, minBlockNum, maxBlockNum, rewardEpochId)
+	_, err = FetchVotersPublicKeysMap(context.Background(), &params, db, minBlockNum, maxBlockNum, rewardEpochId)
 	require.NoError(t, err)
-
-	_ = addressToPubKey
-	fmt.Println(addressToPubKey)
 }

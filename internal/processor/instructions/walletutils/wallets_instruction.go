@@ -59,7 +59,23 @@ func NewWallet(instructionData *instruction.DataFixed) ([]byte, error) {
 		return nil, err
 	}
 
-	return existenceProofEncoded, nil
+	hash := crypto.Keccak256Hash(existenceProofEncoded)
+	signature, err := node.Sign(hash[:])
+	if err != nil {
+		return nil, err
+	}
+
+	signedProof := types.WalletSignedKeyExistenceProof{
+		KeyExistence: existenceProofEncoded,
+		Signature:    signature,
+	}
+
+	resultEncoded, err := json.Marshal(signedProof)
+	if err != nil {
+		return nil, err
+	}
+
+	return resultEncoded, nil
 }
 
 func ValidateNewWallet(instructionData *instruction.DataFixed) error {
@@ -191,7 +207,23 @@ func KeyDataProviderRestore(instructionData *instruction.DataFixed,
 		return nil, nil, err
 	}
 
-	return existenceProofEncoded, resultStatus, nil
+	hash := crypto.Keccak256Hash(existenceProofEncoded)
+	signature, err := node.Sign(hash[:])
+	if err != nil {
+		return nil, nil, err
+	}
+
+	wskep := types.WalletSignedKeyExistenceProof{
+		KeyExistence: existenceProofEncoded,
+		Signature:    signature,
+	}
+
+	resultEncoded, err := json.Marshal(wskep)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return resultEncoded, resultStatus, nil
 }
 
 func ValidateKeyDataProviderRestore(instructionData *instruction.DataFixed,

@@ -278,13 +278,11 @@ func ValidateClaims(token jwt.Token, nonces []string) (bool, error) {
 		return false, errors.New("token not valid")
 	}
 
-	claims, ok := token.Claims.(*GoogleTeeClaims)
+	// todo check claims
+	_, ok := token.Claims.(*GoogleTeeClaims)
 	if !ok {
 		return false, errors.New("cannot parse claims")
 	}
-
-	// todo check claims
-	_ = claims
 
 	return true, nil
 }

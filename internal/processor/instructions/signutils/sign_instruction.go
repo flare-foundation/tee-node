@@ -18,7 +18,7 @@ import (
 )
 
 func SignPaymentTransaction(instructionData *instruction.DataFixed, signers []common.Address, isSignerDataProvider []bool) ([]byte, error) {
-	originalMessage, err := types.ParseSignPaymentRequest(instructionData)
+	originalMessage, err := types.ParsePaymentInstruction(instructionData)
 	if err != nil {
 		return nil, err
 	}

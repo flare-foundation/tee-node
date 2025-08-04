@@ -362,7 +362,7 @@ func Post[R any](url string, req any) (R, error) {
 	if err != nil {
 		return *new(R), err
 	}
-	defer func() { _ = res.Body.Close() }()
+	defer res.Body.Close() //nolint:errcheck
 	body, err := io.ReadAll(res.Body)
 	if err != nil {
 		return *new(R), err
