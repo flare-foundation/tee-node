@@ -36,8 +36,11 @@ func CreateMockWallet(
 	require.Less(t, 0, len(adminPrivKeys))
 	adminPubKeys := make([]wallet.PublicKey, 0)
 	for _, adminPrivKey := range adminPrivKeys {
-		adminPubKey := types.PubKeyToStruct(&adminPrivKey.PublicKey)
-		adminPubKeys = append(adminPubKeys, wallet.PublicKey(adminPubKey))
+		aPubKey := types.PubKeyToStruct(&adminPrivKey.PublicKey)
+		adminPubKeys = append(adminPubKeys, wallet.PublicKey{
+			X: aPubKey.X,
+			Y: aPubKey.Y,
+		})
 	}
 
 	cosignerPubKeys := make([]common.Address, 0)
@@ -63,11 +66,11 @@ func CreateMockWallet(
 	require.NoError(t, err)
 
 	instructionDataFixed := instruction.DataFixed{
-		InstructionId:          common.BytesToHash(instructionIdBytes),
-		TeeId:                  nodeId,
-		RewardEpochId:          rewardEpochId,
-		OpType:                 constants.Wallet.Hash(),
-		OpCommand:              constants.KeyGenerate.Hash(),
+		InstructionID:          common.BytesToHash(instructionIdBytes),
+		TeeID:                  nodeId,
+		RewardEpochID:          rewardEpochId,
+		OPType:                 constants.Wallet.Hash(),
+		OPCommand:              constants.KeyGenerate.Hash(),
 		OriginalMessage:        encoded,
 		AdditionalFixedMessage: nil,
 	}
@@ -131,11 +134,11 @@ func BuildMockQueuedActionInstruction(opType constants.OPType, opCommand constan
 	}
 
 	instructionDataFixed := instruction.DataFixed{
-		InstructionId:          common.BytesToHash(instructionId),
-		TeeId:                  teeId,
-		RewardEpochId:          rewardEpochId,
-		OpType:                 opType.Hash(),
-		OpCommand:              opCommand.Hash(),
+		InstructionID:          common.BytesToHash(instructionId),
+		TeeID:                  teeId,
+		RewardEpochID:          rewardEpochId,
+		OPType:                 opType.Hash(),
+		OPCommand:              opCommand.Hash(),
 		OriginalMessage:        originalMessage,
 		AdditionalFixedMessage: additionalFixedMessage,
 		Timestamp:              timestamp,

@@ -9,7 +9,6 @@ import (
 	"github.com/flare-foundation/tee-node/pkg/utils"
 
 	commonpolicy "github.com/flare-foundation/go-flare-common/pkg/policy"
-	"github.com/flare-foundation/go-flare-common/pkg/tee/structs/tee"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
@@ -125,7 +124,7 @@ func processUpdatePolicyRequest(policyRequest types.MultiSignedPolicy) (*commonp
 	return sigPolicy, nil
 }
 
-func processPolicyPublicKeys(publicKeys []tee.PublicKey, sigPolicy *commonpolicy.SigningPolicy) (map[common.Address]*ecdsa.PublicKey, error) {
+func processPolicyPublicKeys(publicKeys []types.PublicKey, sigPolicy *commonpolicy.SigningPolicy) (map[common.Address]*ecdsa.PublicKey, error) {
 	if len(publicKeys) != len(sigPolicy.Voters.Voters()) {
 		return nil, errors.New("the number of public keys and the number of voters do not match")
 	}

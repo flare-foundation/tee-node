@@ -5,11 +5,11 @@ import (
 	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/constants"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/instruction"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/structs"
-	"github.com/flare-foundation/go-flare-common/pkg/tee/structs/tee"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/structs/wallet"
 	"github.com/pkg/errors"
 )
@@ -76,28 +76,28 @@ func nonceCheck(nonce *big.Int) error {
 	return nil
 }
 
-type WalletKeyIdPair struct {
-	WalletId common.Hash
-	KeyId    uint64
+type WalletKeyIDPair struct {
+	WalletID common.Hash
+	KeyID    uint64
 }
 
 type WalletGetBackupResponse struct {
-	BackupId     WalletBackupId
+	BackupID     WalletBackupID
 	WalletBackup []byte
 }
 
-type WalletBackupId struct {
-	TeeId     common.Address
-	WalletId  common.Hash
-	KeyId     uint64
-	PublicKey tee.PublicKey
+type WalletBackupID struct {
+	TeeID     common.Address `json:"teeId"`
+	WalletID  common.Hash    `json:"walletId"`
+	KeyID     uint64         `json:"keyId"`
+	PublicKey PublicKey      `json:"publicKey"`
 
-	OpType        [32]byte
-	RewardEpochID uint32
-	RandomNonce   [32]byte
+	OPType        common.Hash `json:"opType"`
+	RewardEpochID uint32      `json:"rewardEpochId"`
+	RandomNonce   common.Hash `json:"randomNonce"`
 }
 
-func (wid *WalletBackupId) Hash() common.Hash {
+func (wid *WalletBackupID) Hash() common.Hash {
 	backupIdBytes, _ := json.Marshal(wid) //nolint:errchkjson // passed argument is safe
 	hash := crypto.Keccak256Hash(backupIdBytes)
 
@@ -105,8 +105,8 @@ func (wid *WalletBackupId) Hash() common.Hash {
 }
 
 type WalletSignedKeyExistenceProof struct {
-	KeyExistence []byte `json:"keyExistence"`
-	Signature    []byte `json:"signature"`
+	KeyExistence hexutil.Bytes `json:"keyExistence"`
+	Signature    hexutil.Bytes `json:"signature"`
 }
 
 func ExtractKeyExistence(b []byte) (*wallet.ITeeWalletKeyManagerKeyExistence, error) {

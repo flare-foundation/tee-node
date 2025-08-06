@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"slices"
 
-	"github.com/flare-foundation/go-flare-common/pkg/tee/structs/tee"
 	"github.com/flare-foundation/tee-node/internal/settings"
 	"github.com/flare-foundation/tee-node/internal/wallets"
 	"github.com/flare-foundation/tee-node/pkg/backup"
@@ -21,7 +20,7 @@ import (
 )
 
 func BackupWallet(givenWallet *wallets.Wallet, providerPubKeys []*ecdsa.PublicKey, signingPolicyWeights []uint16, rewardEpochId uint32, teeId common.Address) (*backup.WalletBackup, error) {
-	adminPubKeys := make([]tee.PublicKey, len(givenWallet.AdminPublicKeys))
+	adminPubKeys := make([]types.PublicKey, len(givenWallet.AdminPublicKeys))
 	for i, pubKey := range givenWallet.AdminPublicKeys {
 		adminPubKeys[i] = types.PubKeyToStruct(pubKey)
 	}
@@ -32,12 +31,12 @@ func BackupWallet(givenWallet *wallets.Wallet, providerPubKeys []*ecdsa.PublicKe
 	}
 
 	metaData := backup.WalletBackupMetaData{
-		WalletBackupId: types.WalletBackupId{
-			TeeId:         teeId,
-			WalletId:      givenWallet.WalletId,
-			KeyId:         givenWallet.KeyId,
+		WalletBackupID: types.WalletBackupID{
+			TeeID:         teeId,
+			WalletID:      givenWallet.WalletId,
+			KeyID:         givenWallet.KeyId,
 			PublicKey:     types.PubKeyToStruct(&givenWallet.PrivateKey.PublicKey),
-			OpType:        givenWallet.OpType,
+			OPType:        givenWallet.OpType,
 			RewardEpochID: rewardEpochId,
 			RandomNonce:   randomNonce,
 		},
@@ -56,13 +55,13 @@ func BackupWallet(givenWallet *wallets.Wallet, providerPubKeys []*ecdsa.PublicKe
 		return nil, err
 	}
 
-	weightsOne := utils.ConstantSlice(1, len(givenWallet.AdminPublicKeys))
-	adminEncryptedParts, err := SplitAndEncrypt(splitKey[0], givenWallet.AdminPublicKeys, givenWallet.AdminsThreshold, weightsOne, metaData.WalletBackupId, givenWallet.PrivateKey, true)
+	weightsOne := utils.ConstantSlice(uint16(1), len(givenWallet.AdminPublicKeys))
+	adminEncryptedParts, err := SplitAndEncrypt(splitKey[0], givenWallet.AdminPublicKeys, givenWallet.AdminsThreshold, weightsOne, metaData.WalletBackupID, givenWallet.PrivateKey, true)
 	if err != nil {
 		return nil, err
 	}
 
-	providerEncryptedParts, err := SplitAndEncrypt(splitKey[1], providerPubKeys, settings.DataProvidersBackupThreshold, normalizedWeights, metaData.WalletBackupId, givenWallet.PrivateKey, false)
+	providerEncryptedParts, err := SplitAndEncrypt(splitKey[1], providerPubKeys, settings.DataProvidersBackupThreshold, normalizedWeights, metaData.WalletBackupID, givenWallet.PrivateKey, false)
 	if err != nil {
 		return nil, err
 	}
@@ -86,14 +85,14 @@ func BackupWallet(givenWallet *wallets.Wallet, providerPubKeys []*ecdsa.PublicKe
 }
 
 func SplitAndEncrypt(key *ecdsa.PrivateKey, encryptionPubKeys []*ecdsa.PublicKey, threshold uint64,
-	weights []uint16, backupId types.WalletBackupId, sigPrivKey *ecdsa.PrivateKey, isAdmin bool) (*backup.EncryptedShares, error) {
+	weights []uint16, backupId types.WalletBackupID, sigPrivKey *ecdsa.PrivateKey, isAdmin bool) (*backup.EncryptedShares, error) {
 	if len(encryptionPubKeys) != len(weights) {
 		return nil, errors.New("number of encryption keys and weights do not match")
 	}
 
 	var numSplits = len(encryptionPubKeys)
 
-	encryptionPubKeysApi := make([]tee.PublicKey, numSplits)
+	encryptionPubKeysApi := make([]types.PublicKey, numSplits)
 	for i, pubKey := range encryptionPubKeys {
 		encryptionPubKeysApi[i] = types.PubKeyToStruct(pubKey)
 	}
@@ -114,7 +113,7 @@ func SplitAndEncrypt(key *ecdsa.PrivateKey, encryptionPubKeys []*ecdsa.PublicKey
 
 	weightCounter := 0
 	partialBackupId := backup.PartialWalletBackupId{
-		WalletBackupId: backupId, PartialPubKey: encryptedShares.PublicKey, IsAdmin: isAdmin,
+		WalletBackupID: backupId, PartialPubKey: encryptedShares.PublicKey, IsAdmin: isAdmin,
 	}
 	for i := range numSplits {
 		keySplitData := backup.KeySplitData{
@@ -199,8 +198,8 @@ func RecoverWallet(
 	}
 
 	return &wallets.Wallet{
-		WalletId:   backupMetaData.WalletId,
-		KeyId:      backupMetaData.KeyId,
+		WalletId:   backupMetaData.WalletID,
+		KeyId:      backupMetaData.KeyID,
 		PrivateKey: key,
 		Address:    crypto.PubkeyToAddress(key.PublicKey),
 		XrpAddress: xrpAddress,
@@ -210,7 +209,7 @@ func RecoverWallet(
 		AdminsThreshold:    backupMetaData.AdminsThreshold,
 		Cosigners:          backupMetaData.Cosigners,
 		CosignersThreshold: backupMetaData.CosignersThreshold,
-		OpType:             backupMetaData.OpType,
+		OpType:             backupMetaData.OPType,
 		OpTypeConstants:    backupMetaData.OpTypeConstants,
 
 		Status: &wallets.WalletStatus{Nonce: 0, StatusCode: 0},
@@ -234,7 +233,7 @@ func CheckKeyShares(splits []*backup.KeySplit, backupMetaData *backup.WalletBack
 		}
 	}
 
-	if partialBackupId.WalletBackupId != backupMetaData.WalletBackupId {
+	if partialBackupId.WalletBackupID != backupMetaData.WalletBackupID {
 		return errors.New("backup metadata's id does not match expected id")
 	}
 

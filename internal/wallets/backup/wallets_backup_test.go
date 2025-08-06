@@ -24,8 +24,8 @@ func TestBackupAndRecover(t *testing.T) {
 	err := node.InitNode(node.ZeroState{})
 	assert.NoError(t, err)
 
-	idPair := types.WalletKeyIdPair{WalletId: mockWalletId, KeyId: mockKeyId}
-	sk, err := utils.GenerateEthereumPrivateKey()
+	idPair := types.WalletKeyIDPair{WalletID: mockWalletId, KeyID: mockKeyId}
+	sk, err := crypto.GenerateKey()
 	assert.NoError(t, err)
 
 	xrpAddress := secp256k1.PrvToAddress(sk)
@@ -52,8 +52,8 @@ func TestBackupAndRecover(t *testing.T) {
 	adminsThreshold := uint64(2)
 
 	givenWallet := &wallets.Wallet{
-		WalletId:   idPair.WalletId,
-		KeyId:      idPair.KeyId,
+		WalletId:   idPair.WalletID,
+		KeyId:      idPair.KeyID,
 		PrivateKey: sk,
 		Address:    crypto.PubkeyToAddress(sk.PublicKey),
 		XrpAddress: xrpAddress,
@@ -117,7 +117,7 @@ func TestSplitAndEncrypt(t *testing.T) {
 	encryptionPubKeys := []*ecdsa.PublicKey{&pubKey1.PublicKey, &pubKey2.PublicKey}
 
 	// Split and encrypt the key
-	encryptedShares, err := SplitAndEncrypt(privateKey, encryptionPubKeys, 2, utils.ConstantSlice(1, 2), types.WalletBackupId{}, privateKey, false)
+	encryptedShares, err := SplitAndEncrypt(privateKey, encryptionPubKeys, 2, utils.ConstantSlice(uint16(1), 2), types.WalletBackupID{}, privateKey, false)
 	assert.NoError(t, err)
 	assert.NotNil(t, encryptedShares)
 }

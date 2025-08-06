@@ -20,10 +20,9 @@ import (
 	"github.com/flare-foundation/go-flare-common/pkg/tee/constants"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/structs/connector"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/structs/payment"
-	"github.com/flare-foundation/go-flare-common/pkg/tee/structs/tee"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/structs/verification"
 
-	commonwallet "github.com/flare-foundation/go-flare-common/pkg/tee/structs/wallet"
+	cwallet "github.com/flare-foundation/go-flare-common/pkg/tee/structs/wallet"
 	"github.com/flare-foundation/tee-node/internal/node"
 	"github.com/flare-foundation/tee-node/internal/settings"
 	"github.com/flare-foundation/tee-node/internal/testutils"
@@ -59,9 +58,13 @@ func TestProcessorEndToEnd(t *testing.T) {
 	adminPubKeys[numAdmins-1] = &providerPrivKeys[0].PublicKey
 
 	// change type
-	adminWalletPublicKeys := make([]commonwallet.PublicKey, len(adminPubKeys))
+	adminWalletPublicKeys := make([]cwallet.PublicKey, len(adminPubKeys))
 	for i, pubKey := range adminPubKeys {
-		adminWalletPublicKeys[i] = commonwallet.PublicKey(types.PubKeyToStruct(pubKey))
+		pk := types.PubKeyToStruct(pubKey)
+		adminWalletPublicKeys[i] = cwallet.PublicKey{
+			X: pk.X,
+			Y: pk.Y,
+		}
 	}
 
 	mainActionInfoChan := make(chan *types.Action, 100)
@@ -135,7 +138,7 @@ func initializePolicy(t *testing.T, actionInfoChan chan *types.Action,
 	nextPolicy, err := testutils.GenerateRandomPolicyData(startingEpochId+1, addresses, randSeed)
 	require.NoError(t, err)
 
-	pubKeys := make([]tee.PublicKey, len(privKeys))
+	pubKeys := make([]types.PublicKey, len(privKeys))
 	for i, voter := range privKeys {
 		pubKeys[i] = types.PubKeyToStruct(&voter.PublicKey)
 	}
@@ -187,13 +190,13 @@ func getTeeInfo(
 
 func generateWallet(t *testing.T, actionInfoChan chan *types.Action,
 	actionResponseChan chan *types.ActionResponse, teeId common.Address, walletId [32]byte, keyId uint64, privKeys []*ecdsa.PrivateKey,
-	adminWalletPublicKeys []commonwallet.PublicKey, rewardEpochId uint32) *commonwallet.ITeeWalletKeyManagerKeyExistence {
-	originalMessage := commonwallet.ITeeWalletKeyManagerKeyGenerate{
+	adminWalletPublicKeys []cwallet.PublicKey, rewardEpochId uint32) *cwallet.ITeeWalletKeyManagerKeyExistence {
+	originalMessage := cwallet.ITeeWalletKeyManagerKeyGenerate{
 		TeeId:    teeId,
 		WalletId: walletId,
 		KeyId:    keyId,
 		OpType:   constants.XRP.Hash(),
-		ConfigConstants: commonwallet.ITeeWalletKeyManagerKeyConfigConstants{
+		ConfigConstants: cwallet.ITeeWalletKeyManagerKeyConfigConstants{
 			OpTypeConstants:    make([]byte, 0),
 			AdminsPublicKeys:   adminWalletPublicKeys,
 			AdminsThreshold:    uint64(len(adminWalletPublicKeys)),
@@ -201,7 +204,7 @@ func generateWallet(t *testing.T, actionInfoChan chan *types.Action,
 			CosignersThreshold: 0,
 		},
 	}
-	originalMessageEncoded, err := abi.Arguments{commonwallet.MessageArguments[constants.KeyGenerate]}.Pack(originalMessage)
+	originalMessageEncoded, err := abi.Arguments{cwallet.MessageArguments[constants.KeyGenerate]}.Pack(originalMessage)
 	require.NoError(t, err)
 
 	// generate action sent when threshold reached
@@ -220,7 +223,7 @@ func generateWallet(t *testing.T, actionInfoChan chan *types.Action,
 	walletExistenceProof, err := types.ExtractKeyExistence(response.Result.Data)
 	require.NoError(t, err)
 
-	newWallet, err := wallets.Storage.GetWallet(types.WalletKeyIdPair{WalletId: walletId, KeyId: keyId})
+	newWallet, err := wallets.Storage.GetWallet(types.WalletKeyIDPair{WalletID: walletId, KeyID: keyId})
 	require.NoError(t, err)
 
 	require.Equal(t, newWallet.XrpAddress, walletExistenceProof.AddressStr)
@@ -306,13 +309,13 @@ func signTransaction(t *testing.T, actionInfoChan chan *types.Action, actionResp
 func deleteWallet(t *testing.T, actionInfoChan chan *types.Action,
 	actionResponseChan chan *types.ActionResponse, teeId common.Address, walletId [32]byte, keyId uint64,
 	privKeys []*ecdsa.PrivateKey, rewardEpochId uint32, nonce *big.Int) {
-	originalMessage := commonwallet.ITeeWalletKeyManagerKeyDelete{
+	originalMessage := cwallet.ITeeWalletKeyManagerKeyDelete{
 		TeeId:    teeId,
 		WalletId: walletId,
 		KeyId:    keyId,
 		Nonce:    nonce,
 	}
-	originalMessageEncoded, err := abi.Arguments{commonwallet.MessageArguments[constants.KeyDelete]}.Pack(originalMessage)
+	originalMessageEncoded, err := abi.Arguments{cwallet.MessageArguments[constants.KeyDelete]}.Pack(originalMessage)
 	require.NoError(t, err)
 
 	action, err := testutils.BuildMockQueuedActionInstruction(
@@ -325,7 +328,7 @@ func deleteWallet(t *testing.T, actionInfoChan chan *types.Action,
 	actionResponse := <-actionResponseChan
 	require.True(t, actionResponse.Result.Status)
 
-	_, err = wallets.Storage.GetWallet(types.WalletKeyIdPair{WalletId: walletId, KeyId: keyId})
+	_, err = wallets.Storage.GetWallet(types.WalletKeyIDPair{WalletID: walletId, KeyID: keyId})
 	require.Error(t, err)
 
 	// generate action sent when voting closed
@@ -351,9 +354,9 @@ func deleteWallet(t *testing.T, actionInfoChan chan *types.Action,
 
 func getBackup(t *testing.T, actionInfoChan chan *types.Action,
 	actionResponseChan chan *types.ActionResponse, teeId common.Address, walletId [32]byte, keyId uint64) *backup.WalletBackup {
-	message := types.WalletKeyIdPair{
-		WalletId: walletId,
-		KeyId:    keyId,
+	message := types.WalletKeyIDPair{
+		WalletID: walletId,
+		KeyID:    keyId,
 	}
 
 	action := testutils.BuildMockQueuedAction(t, constants.Get, constants.TEEBackup, message)
@@ -381,12 +384,12 @@ func getBackup(t *testing.T, actionInfoChan chan *types.Action,
 func recoverWallet(t *testing.T, actionInfoChan chan *types.Action,
 	actionResponseChan chan *types.ActionResponse, teeId common.Address, teePubKey *ecdsa.PublicKey, walletId [32]byte, keyId uint64,
 	providersPrivKeys, adminsPrivKeys []*ecdsa.PrivateKey, rewardEpochId uint32, nonce *big.Int,
-	walletBackup *backup.WalletBackup) *commonwallet.ITeeWalletKeyManagerKeyExistence {
-	originalMessage := commonwallet.ITeeWalletBackupManagerKeyDataProviderRestore{
+	walletBackup *backup.WalletBackup) *cwallet.ITeeWalletKeyManagerKeyExistence {
+	originalMessage := cwallet.ITeeWalletBackupManagerKeyDataProviderRestore{
 		TeeId:     teeId,
 		BackupUrl: "blabla",
 		Nonce:     nonce,
-		BackupId: commonwallet.ITeeWalletBackupManagerBackupId{
+		BackupId: cwallet.ITeeWalletBackupManagerBackupId{
 			TeeId:         teeId,
 			WalletId:      walletId,
 			KeyId:         keyId,
@@ -397,7 +400,7 @@ func recoverWallet(t *testing.T, actionInfoChan chan *types.Action,
 		},
 	}
 
-	originalMessageEncoded, err := abi.Arguments{commonwallet.MessageArguments[constants.KeyDataProviderRestore]}.Pack(originalMessage)
+	originalMessageEncoded, err := abi.Arguments{cwallet.MessageArguments[constants.KeyDataProviderRestore]}.Pack(originalMessage)
 	require.NoError(t, err)
 
 	additionalFixedMessage := walletBackup.WalletBackupMetaData
@@ -480,7 +483,7 @@ func recoverWallet(t *testing.T, actionInfoChan chan *types.Action,
 	require.NoError(t, err)
 
 	// check that commonwallet is actually on the tee
-	commonwallet, err := wallets.Storage.GetWallet(types.WalletKeyIdPair{WalletId: walletId, KeyId: keyId})
+	commonwallet, err := wallets.Storage.GetWallet(types.WalletKeyIDPair{WalletID: walletId, KeyID: keyId})
 	require.NoError(t, err)
 	require.Equal(t, walletId[:], commonwallet.WalletId[:])
 	require.Equal(t, keyId, commonwallet.KeyId)
@@ -592,7 +595,7 @@ func ftdcProve(
 	cosignerAddresses := make([]common.Address, len(cosignerPrivKeys))
 	cosignerAndProvider := make(map[common.Address]bool)
 	for j, cosignerPrivKey := range cosignerPrivKeys {
-		cosignerAddresses[j] = utils.PubkeyToAddress(&cosignerPrivKey.PublicKey)
+		cosignerAddresses[j] = crypto.PubkeyToAddress(cosignerPrivKey.PublicKey)
 		for _, providerPrivKey := range providerPrivKeys {
 			if cosignerAddresses[j] == crypto.PubkeyToAddress(providerPrivKey.PublicKey) {
 				cosignerAndProvider[cosignerAddresses[j]] = true
@@ -646,7 +649,7 @@ func ftdcProve(
 		privKeys = append(privKeys, privKey)
 	}
 	for _, privKey := range cosignerPrivKeys {
-		if _, check := cosignerAndProvider[utils.PubkeyToAddress(&privKey.PublicKey)]; check {
+		if _, check := cosignerAndProvider[crypto.PubkeyToAddress(privKey.PublicKey)]; check {
 			continue
 		}
 		variableMessage, err := utils.Sign(ftdcMsgHash[:], privKey)

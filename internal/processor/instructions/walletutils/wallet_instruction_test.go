@@ -15,7 +15,7 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/constants"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/instruction"
-	walletcommon "github.com/flare-foundation/go-flare-common/pkg/tee/structs/wallet"
+	cwallet "github.com/flare-foundation/go-flare-common/pkg/tee/structs/wallet"
 	"github.com/stretchr/testify/require"
 )
 
@@ -35,21 +35,25 @@ func TestKeyGenerate(t *testing.T) {
 		require.NoError(t, err)
 		adminPubKeys[i] = &adminPrivKeys[i].PublicKey
 	}
-	adminWalletPublicKeys := make([]walletcommon.PublicKey, len(adminPubKeys))
+	adminWalletPublicKeys := make([]cwallet.PublicKey, len(adminPubKeys))
 	for i, pubKey := range adminPubKeys {
-		adminWalletPublicKeys[i] = walletcommon.PublicKey(types.PubKeyToStruct(pubKey))
+		pk := types.PubKeyToStruct(pubKey)
+		adminWalletPublicKeys[i] = cwallet.PublicKey{
+			X: pk.X,
+			Y: pk.Y,
+		}
 	}
 
 	numVoters, randSeed, epochId := 100, int64(12345), uint32(1)
 	_, _, _, err = testutils.GenerateAndSetInitialPolicy(numVoters, randSeed, epochId)
 	require.NoError(t, err)
 
-	originalMessage := walletcommon.ITeeWalletKeyManagerKeyGenerate{
+	originalMessage := cwallet.ITeeWalletKeyManagerKeyGenerate{
 		TeeId:    teeId,
 		WalletId: walletId,
 		KeyId:    keyId,
 		OpType:   constants.XRP.Hash(),
-		ConfigConstants: walletcommon.ITeeWalletKeyManagerKeyConfigConstants{
+		ConfigConstants: cwallet.ITeeWalletKeyManagerKeyConfigConstants{
 			OpTypeConstants:    make([]byte, 0),
 			AdminsPublicKeys:   adminWalletPublicKeys,
 			AdminsThreshold:    uint64(len(adminWalletPublicKeys)),
@@ -57,17 +61,17 @@ func TestKeyGenerate(t *testing.T) {
 			CosignersThreshold: 0,
 		},
 	}
-	originalMessageEncoded, err := abi.Arguments{walletcommon.MessageArguments[constants.KeyGenerate]}.Pack(originalMessage)
+	originalMessageEncoded, err := abi.Arguments{cwallet.MessageArguments[constants.KeyGenerate]}.Pack(originalMessage)
 	require.NoError(t, err)
 
 	instructionId, err := utils.GenerateRandom()
 	require.NoError(t, err)
 	instructionDataFixed := instruction.DataFixed{
-		InstructionId:          instructionId,
-		TeeId:                  teeId,
-		RewardEpochId:          epochId,
-		OpType:                 constants.Wallet.Hash(),
-		OpCommand:              constants.KeyGenerate.Hash(),
+		InstructionID:          instructionId,
+		TeeID:                  teeId,
+		RewardEpochID:          epochId,
+		OPType:                 constants.Wallet.Hash(),
+		OPCommand:              constants.KeyGenerate.Hash(),
 		OriginalMessage:        originalMessageEncoded,
 		AdditionalFixedMessage: nil,
 	}

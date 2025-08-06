@@ -78,10 +78,10 @@ func ProcessInstruction(
 		voteSequence := types.RewardingData{
 			VoteSequence: types.VoteSequence{
 				VoteHash:                   voteHash,
-				InstructionId:              instructionData.InstructionId,
+				InstructionId:              instructionData.InstructionID,
 				InstructionHash:            instructionHash,
-				RewardEpochId:              instructionData.RewardEpochId,
-				TeeId:                      instructionData.TeeId,
+				RewardEpochId:              instructionData.RewardEpochID,
+				TeeId:                      instructionData.TeeID,
 				Signatures:                 signatures,
 				AdditionalVariableMessages: variableMessages,
 				Timestamps:                 timestamps,
@@ -115,7 +115,7 @@ func validateOrExecuteInstruction(
 	var result []byte
 	var resultStatus []byte
 
-	switch op.HashToOPType(iData.OpType) {
+	switch op.HashToOPType(iData.OPType) {
 	case op.Reg:
 		result, err = regInstruction(iData, submissionTag)
 
@@ -141,14 +141,14 @@ func regInstruction(data *instruction.DataFixed, submissionTag types.SubmissionT
 
 	switch submissionTag {
 	case types.Threshold:
-		switch op.HashToOPCommand(data.OpCommand) {
+		switch op.HashToOPCommand(data.OPCommand) {
 		case op.TEEAttestation:
 			result, err = regutils.TeeAttestation(data)
 		default:
 			err = errors.New("Unknown OpCommand for REG OpType")
 		}
 	case types.End:
-		switch op.HashToOPCommand(data.OpCommand) {
+		switch op.HashToOPCommand(data.OPCommand) {
 		case op.TEEAttestation:
 			_, err = regutils.ValidateTeeAttestation(data.OriginalMessage)
 		default:
@@ -173,7 +173,7 @@ func walletInstruction(
 
 	switch submissionTag {
 	case types.Threshold:
-		switch op.HashToOPCommand(data.OpCommand) {
+		switch op.HashToOPCommand(data.OPCommand) {
 		case op.KeyGenerate:
 			result, err = walletutils.NewWallet(data)
 
@@ -187,7 +187,7 @@ func walletInstruction(
 			err = errors.New("Unknown OpCommand for WALLET OpType")
 		}
 	case types.End:
-		switch op.HashToOPCommand(data.OpCommand) {
+		switch op.HashToOPCommand(data.OPCommand) {
 		case op.KeyGenerate:
 			err = walletutils.ValidateNewWallet(data)
 
@@ -214,7 +214,7 @@ func xrpInstruction(data *instruction.DataFixed, signers []common.Address, isSig
 
 	switch submissionTag {
 	case types.Threshold:
-		switch op.HashToOPCommand(data.OpCommand) {
+		switch op.HashToOPCommand(data.OPCommand) {
 		case op.Pay, op.Reissue:
 			result, err = signutils.SignPaymentTransaction(data, signers, isSignerDataProvider)
 
@@ -222,7 +222,7 @@ func xrpInstruction(data *instruction.DataFixed, signers []common.Address, isSig
 			err = errors.New("Unknown OpCommand for XRP OpType")
 		}
 	case types.End:
-		switch op.HashToOPCommand(data.OpCommand) {
+		switch op.HashToOPCommand(data.OPCommand) {
 		case op.Pay, op.Reissue:
 			// validation is just retrying to sign
 			_, err = signutils.SignPaymentTransaction(data, signers, isSignerDataProvider)
@@ -243,7 +243,7 @@ func ftdcInstruction(data *instruction.DataFixed, variableMessages []hexutil.Byt
 
 	switch submissionTag {
 	case types.Threshold:
-		switch op.HashToOPCommand(data.OpCommand) {
+		switch op.HashToOPCommand(data.OPCommand) {
 		case op.Prove:
 			result, err = ftdcutils.ValidateProve(data, variableMessages, signers, isSignerDataProvider)
 
@@ -251,7 +251,7 @@ func ftdcInstruction(data *instruction.DataFixed, variableMessages []hexutil.Byt
 			err = errors.New("Unknown OpCommand for FTDC OpType")
 		}
 	case types.End:
-		switch op.HashToOPCommand(data.OpCommand) {
+		switch op.HashToOPCommand(data.OPCommand) {
 		case op.Prove:
 			_, err = ftdcutils.ValidateProve(data, variableMessages, signers, isSignerDataProvider)
 
@@ -270,7 +270,7 @@ func checkInstructionData(data *instruction.DataFixed) (*commonpolicy.SigningPol
 		return nil, errors.New("instruction data is nil")
 	}
 
-	if data.TeeId.Hex() != node.TeeID().Hex() {
+	if data.TeeID.Hex() != node.TeeID().Hex() {
 		return nil, errors.New("invalid TEE id")
 	}
 
@@ -280,13 +280,13 @@ func checkInstructionData(data *instruction.DataFixed) (*commonpolicy.SigningPol
 	}
 
 	// Todo: not sure if this check is still correct? Is is just last policy now or?
-	isActivePolicy := activeSigningPolicy.RewardEpochID == data.RewardEpochId
-	isPreviousPolicy := activeSigningPolicy.RewardEpochID == data.RewardEpochId+1
+	isActivePolicy := activeSigningPolicy.RewardEpochID == data.RewardEpochID
+	isPreviousPolicy := activeSigningPolicy.RewardEpochID == data.RewardEpochID+1
 	if !isActivePolicy && !isPreviousPolicy {
 		return nil, errors.New("reward epoch id too old")
 	}
 
-	valid := op.IsValid(data.OpType, data.OpCommand)
+	valid := op.IsValid(data.OPType, data.OPCommand)
 	if !valid {
 		return nil, errors.New("invalid command for operation type")
 	}

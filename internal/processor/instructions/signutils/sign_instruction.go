@@ -47,7 +47,7 @@ func SignPaymentTransaction(instructionData *instruction.DataFixed, signers []co
 	signerItems := make([]*signer.Signer, 0, len(keyIDs))
 
 	for j := range keyIDs {
-		walletKeyIdPair := types.WalletKeyIdPair{WalletId: originalMessage.WalletId, KeyId: keyIDs[j]}
+		walletKeyIdPair := types.WalletKeyIDPair{WalletID: originalMessage.WalletId, KeyID: keyIDs[j]}
 
 		wallets.Storage.RLock()
 		key, err := wallets.Storage.GetWallet(walletKeyIdPair)

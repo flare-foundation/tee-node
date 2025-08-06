@@ -6,14 +6,10 @@ import (
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/flare-foundation/tee-node/internal/node"
 	"github.com/flare-foundation/tee-node/internal/settings"
 	"github.com/flare-foundation/tee-node/pkg/attestation"
 	"github.com/flare-foundation/tee-node/pkg/types"
-
-	"github.com/flare-foundation/go-flare-common/pkg/tee/structs"
-	"github.com/flare-foundation/go-flare-common/pkg/tee/structs/tee"
 
 	"github.com/pkg/errors"
 )
@@ -61,22 +57,21 @@ func ConstructTeeInfoResponse(challenge common.Hash, nodeInfo *node.NodeInfo, in
 		return nil, err
 	}
 
-	teeInfo := tee.TeeStructsAttestation{
+	teeInfo := types.TeeInfo{
 		Challenge:                challenge,
 		PublicKey:                nodeInfo.PublicKey,
-		InitialSigningPolicyId:   initialID,
+		InitialSigningPolicyID:   initialID,
 		InitialSigningPolicyHash: initialHash,
-		LastSigningPolicyId:      activeID,
+		LastSigningPolicyID:      activeID,
 		LastSigningPolicyHash:    activeHash,
 		State:                    state,
 		TeeTimestamp:             uint64(time.Now().Unix()),
 	}
 
-	enc, err := structs.Encode(tee.StructArg[tee.Attestation], teeInfo)
+	h, err := teeInfo.Hash()
 	if err != nil {
 		return nil, err
 	}
-	h := crypto.Keccak256(enc)
 
 	attestationBytes, err := GetGoogleAttestationToken([]string{hex.EncodeToString(h)}, attestation.PKITokenType)
 	if err != nil {

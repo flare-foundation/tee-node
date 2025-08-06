@@ -6,7 +6,6 @@ import (
 	"io"
 	"slices"
 
-	"github.com/flare-foundation/go-flare-common/pkg/tee/structs/tee"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/structs/wallet"
 	"github.com/flare-foundation/tee-node/pkg/types"
 
@@ -32,26 +31,16 @@ func GenerateRandom() ([32]byte, error) {
 	return r, nil
 }
 
-// GenerateEthereumPrivateKey generates a new Ethereum private key
-func GenerateEthereumPrivateKey() (*ecdsa.PrivateKey, error) {
-	return crypto.GenerateKey()
-}
-
 func Sign(msgHash []byte, privKey *ecdsa.PrivateKey) ([]byte, error) {
 	if len(msgHash) != 32 {
 		return nil, errors.Errorf("invalid message hash length")
 	}
 
-	hashSignature, err := crypto.Sign(accounts.TextHash(msgHash), privKey)
+	sig, err := crypto.Sign(accounts.TextHash(msgHash), privKey)
 	if err != nil {
 		return nil, err
 	}
-	return hashSignature, nil
-}
-
-// PubkeyToAddress converts an Ethereum public key to an Ethereum address
-func PubkeyToAddress(pubkey *ecdsa.PublicKey) common.Address {
-	return crypto.PubkeyToAddress(*pubkey)
+	return sig, nil
 }
 
 func CheckSignature(hash, signature []byte, voters []common.Address) (common.Address, error) {
@@ -92,7 +81,10 @@ func ParsePubKeys(pubKeys []wallet.PublicKey) ([]*ecdsa.PublicKey, error) {
 	parsedPubKeys := make([]*ecdsa.PublicKey, len(pubKeys))
 	var err error
 	for i, key := range pubKeys {
-		parsedPubKeys[i], err = types.ParsePubKey(tee.PublicKey(key))
+		parsedPubKeys[i], err = types.ParsePubKey(types.PublicKey{
+			X: key.X,
+			Y: key.Y,
+		})
 		if err != nil {
 			return nil, err
 		}

@@ -40,7 +40,7 @@ type WalletStatus struct {
 }
 
 func CreateNewWallet(walletInfo wallet.ITeeWalletKeyManagerKeyGenerate) (*Wallet, error) {
-	sk, err := utils.GenerateEthereumPrivateKey()
+	sk, err := crypto.GenerateKey()
 	if err != nil {
 		return nil, err
 	}
@@ -102,7 +102,12 @@ func CopyWallet(inputWallet *Wallet) *Wallet {
 func WalletToKeyExistenceProof(inputWallet *Wallet, teeId common.Address) *wallet.ITeeWalletKeyManagerKeyExistence {
 	adminPubKeys := make([]wallet.PublicKey, len(inputWallet.AdminPublicKeys))
 	for i, pubKey := range inputWallet.AdminPublicKeys {
-		adminPubKeys[i] = wallet.PublicKey(types.PubKeyToStruct(pubKey))
+		pkt := types.PubKeyToStruct(pubKey)
+
+		adminPubKeys[i] = wallet.PublicKey{
+			X: pkt.X,
+			Y: pkt.Y,
+		}
 	}
 
 	return &wallet.ITeeWalletKeyManagerKeyExistence{

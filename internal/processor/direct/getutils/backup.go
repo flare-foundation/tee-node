@@ -12,7 +12,7 @@ import (
 
 // todo: the returned backup should be uniquely identifiable
 func GetBackupPackage(getAction *types.DirectInstruction) ([]byte, error) {
-	var walletKeyId types.WalletKeyIdPair
+	var walletKeyId types.WalletKeyIDPair
 	err := json.Unmarshal(getAction.Message, &walletKeyId)
 	if err != nil {
 		return nil, err
@@ -60,7 +60,7 @@ func GetBackupPackage(getAction *types.DirectInstruction) ([]byte, error) {
 	}
 
 	responseBytes, err := json.Marshal(
-		types.WalletGetBackupResponse{WalletBackup: walletBackupBytes, BackupId: walletBackup.WalletBackupId},
+		types.WalletGetBackupResponse{WalletBackup: walletBackupBytes, BackupID: walletBackup.WalletBackupID},
 	)
 	if err != nil {
 		return nil, err

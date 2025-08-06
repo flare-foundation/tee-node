@@ -17,7 +17,6 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/instruction"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/structs"
-	"github.com/flare-foundation/go-flare-common/pkg/tee/structs/tee"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/structs/wallet"
 	"github.com/pkg/errors"
 )
@@ -48,7 +47,7 @@ func NewWallet(instructionData *instruction.DataFixed) ([]byte, error) {
 		return nil, err
 	}
 	// get stored wallet to also have the correct walletStatus
-	storedWallet, err := wallets.Storage.GetWallet(types.WalletKeyIdPair{WalletId: newWallet.WalletId, KeyId: newWallet.KeyId})
+	storedWallet, err := wallets.Storage.GetWallet(types.WalletKeyIDPair{WalletID: newWallet.WalletId, KeyID: newWallet.KeyId})
 	if err != nil {
 		return nil, err
 	}
@@ -98,7 +97,7 @@ func ValidateNewWallet(instructionData *instruction.DataFixed) error {
 	}
 
 	wallets.Storage.RLock()
-	walletNonce, err := wallets.Storage.GetNonce(types.WalletKeyIdPair{WalletId: newWalletRequest.WalletId, KeyId: newWalletRequest.KeyId})
+	walletNonce, err := wallets.Storage.GetNonce(types.WalletKeyIDPair{WalletID: newWalletRequest.WalletId, KeyID: newWalletRequest.KeyId})
 	wallets.Storage.RUnlock()
 	if err != nil {
 		return err
@@ -116,7 +115,7 @@ func DeleteWallet(instructionData *instruction.DataFixed) error {
 		return err
 	}
 
-	walletKeyId := types.WalletKeyIdPair{WalletId: delWalletRequest.WalletId, KeyId: delWalletRequest.KeyId}
+	walletKeyId := types.WalletKeyIDPair{WalletID: delWalletRequest.WalletId, KeyID: delWalletRequest.KeyId}
 
 	wallets.Storage.Lock()
 	defer wallets.Storage.Unlock()
@@ -136,7 +135,7 @@ func ValidateDeleteWallet(instructionData *instruction.DataFixed) error {
 	if err != nil {
 		return err
 	}
-	walletKeyId := types.WalletKeyIdPair{WalletId: delWalletRequest.WalletId, KeyId: delWalletRequest.KeyId}
+	walletKeyId := types.WalletKeyIDPair{WalletID: delWalletRequest.WalletId, KeyID: delWalletRequest.KeyId}
 
 	exists := wallets.Storage.WalletExists(walletKeyId)
 	if exists {
@@ -164,8 +163,8 @@ func KeyDataProviderRestore(instructionData *instruction.DataFixed,
 	if err != nil {
 		return nil, nil, err
 	}
-	walletBackupId := walletBackupMetadata.WalletBackupId
-	walletKeyId := types.WalletKeyIdPair{WalletId: walletBackupId.WalletId, KeyId: walletBackupId.KeyId}
+	walletBackupId := walletBackupMetadata.WalletBackupID
+	walletKeyId := types.WalletKeyIDPair{WalletID: walletBackupId.WalletID, KeyID: walletBackupId.KeyID}
 
 	wallets.Storage.RLock()
 	err = wallets.Storage.CheckNonce(walletKeyId, newWalletNonce)
@@ -234,8 +233,8 @@ func ValidateKeyDataProviderRestore(instructionData *instruction.DataFixed,
 	if err != nil {
 		return nil, err
 	}
-	walletBackupId := walletBackupMetadata.WalletBackupId
-	walletKeyId := types.WalletKeyIdPair{WalletId: walletBackupId.WalletId, KeyId: walletBackupId.KeyId}
+	walletBackupId := walletBackupMetadata.WalletBackupID
+	walletKeyId := types.WalletKeyIDPair{WalletID: walletBackupId.WalletID, KeyID: walletBackupId.KeyID}
 
 	keySplits, resultStatus, err := processKeySplitMessages(variableMessages, signersBothRoles, walletBackupId)
 	if err != nil {
@@ -280,7 +279,7 @@ func keyDataProviderRestoreCheck(instructionData *instruction.DataFixed, signers
 	if err != nil {
 		return nil, 0, nil, err
 	}
-	if walletBackupMetadata.WalletBackupId != walletBackupId {
+	if walletBackupMetadata.WalletBackupID != walletBackupId {
 		return nil, 0, nil, errors.New("wallet backup id in the metadata does not match the given id")
 	}
 	restoredWalletNonce := restoreWalletRequest.Nonce.Uint64()
@@ -296,7 +295,7 @@ func keyDataProviderRestoreCheck(instructionData *instruction.DataFixed, signers
 	return &walletBackupMetadata, restoredWalletNonce, isProviderAndAdmin, nil
 }
 
-func processKeySplitMessages(variableMessages []hexutil.Bytes, isProviderAndAdmin []bool, walletBackupId types.WalletBackupId) ([]*pkgbackup.KeySplit, []byte, error) {
+func processKeySplitMessages(variableMessages []hexutil.Bytes, isProviderAndAdmin []bool, walletBackupId types.WalletBackupID) ([]*pkgbackup.KeySplit, []byte, error) {
 	allKeySplits := make([]*pkgbackup.KeySplit, 0)
 	duplicateCheck := make(map[common.Hash]int)
 
@@ -337,7 +336,7 @@ func processKeySplitMessages(variableMessages []hexutil.Bytes, isProviderAndAdmi
 	return allKeySplits, resultStatus, nil
 }
 
-func processKeySplitMessage(keySplitMessage []byte, walletBackupId types.WalletBackupId, isProviderAndAdmin bool) ([]*pkgbackup.KeySplit, error) {
+func processKeySplitMessage(keySplitMessage []byte, walletBackupId types.WalletBackupID, isProviderAndAdmin bool) ([]*pkgbackup.KeySplit, error) {
 	keySplitsPlaintext, err := node.Decrypt(keySplitMessage)
 	if err != nil {
 		return nil, err
@@ -362,7 +361,7 @@ func processKeySplitMessage(keySplitMessage []byte, walletBackupId types.WalletB
 	}
 
 	for _, keySplit := range keySplits {
-		if keySplit.WalletBackupId != walletBackupId {
+		if keySplit.WalletBackupID != walletBackupId {
 			return nil, errors.New("wallet backup id in the share does not match the id in the key split")
 		}
 
@@ -375,7 +374,7 @@ func processKeySplitMessage(keySplitMessage []byte, walletBackupId types.WalletB
 	return keySplits, nil
 }
 
-func checkSigners(signers []common.Address, expectedProviders []common.Address, expectedAdmins []tee.PublicKey, adminThreshold uint64) ([]bool, error) {
+func checkSigners(signers []common.Address, expectedProviders []common.Address, expectedAdmins []types.PublicKey, adminThreshold uint64) ([]bool, error) {
 	adminAddresses := make(map[common.Address]bool)
 	countAdmins := uint64(0)
 	for _, admin := range expectedAdmins {
@@ -409,28 +408,28 @@ func checkSigners(signers []common.Address, expectedProviders []common.Address, 
 	return isProviderAndAdmin, nil
 }
 
-func backupRequestToBackupId(req *wallet.ITeeWalletBackupManagerKeyDataProviderRestore) (types.WalletBackupId, error) {
+func backupRequestToBackupId(req *wallet.ITeeWalletBackupManagerKeyDataProviderRestore) (types.WalletBackupID, error) {
 	if req.BackupId.RewardEpochId == nil {
-		return types.WalletBackupId{}, errors.New("reward epoch not given")
+		return types.WalletBackupID{}, errors.New("reward epoch not given")
 	}
 
-	walletBackupId := types.WalletBackupId{
-		TeeId:         req.BackupId.TeeId,
-		WalletId:      req.BackupId.WalletId,
-		KeyId:         req.BackupId.KeyId,
-		OpType:        req.BackupId.OpType,
+	walletBackupId := types.WalletBackupID{
+		TeeID:         req.BackupId.TeeId,
+		WalletID:      req.BackupId.WalletId,
+		KeyID:         req.BackupId.KeyId,
+		OPType:        req.BackupId.OpType,
 		RewardEpochID: uint32(req.BackupId.RewardEpochId.Uint64()),
 		RandomNonce:   [32]byte{},
 	}
 	if len(req.BackupId.PublicKey) != 64 {
-		return types.WalletBackupId{}, errors.New("unsupported public key format")
+		return types.WalletBackupID{}, errors.New("unsupported public key format")
 	}
 	copy(walletBackupId.PublicKey.X[:], req.BackupId.PublicKey[:32])
 	copy(walletBackupId.PublicKey.Y[:], req.BackupId.PublicKey[32:])
 
 	randomNonce := req.BackupId.RandomNonce.Bytes()
 	if len(randomNonce) > 32 {
-		return types.WalletBackupId{}, errors.New("random nonce too big")
+		return types.WalletBackupID{}, errors.New("random nonce too big")
 	}
 	randomNonce = append(make([]byte, 32-len(randomNonce)), randomNonce...)
 	copy(walletBackupId.RandomNonce[:], randomNonce)

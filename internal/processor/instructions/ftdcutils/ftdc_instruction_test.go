@@ -47,11 +47,11 @@ func TestAbiDecodeFtdcAttestationResponse(t *testing.T) {
 	timestamp := uint64(1234567890)
 
 	instructionData := instruction.DataFixed{
-		InstructionId: common.HexToHash("0x123"),
-		TeeId:         common.HexToAddress("0x123"),
-		RewardEpochId: 1,
-		OpType:        constants.FTDC.Hash(),
-		OpCommand:     constants.Prove.Hash(),
+		InstructionID: common.HexToHash("0x123"),
+		TeeID:         common.HexToAddress("0x123"),
+		RewardEpochID: 1,
+		OPType:        constants.FTDC.Hash(),
+		OPCommand:     constants.Prove.Hash(),
 		//
 		OriginalMessage:        originalMessageEncoded,
 		AdditionalFixedMessage: responseBody,

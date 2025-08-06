@@ -34,11 +34,11 @@ func TestSignPaymentTransaction(t *testing.T) {
 	instructionId, err := utils.GenerateRandom()
 	require.NoError(t, err)
 	instructionDataFixed := instruction.DataFixed{
-		InstructionId:          instructionId,
-		TeeId:                  myNodeId,
-		RewardEpochId:          epochId,
-		OpType:                 op.XRP.Hash(),
-		OpCommand:              op.Pay.Hash(),
+		InstructionID:          instructionId,
+		TeeID:                  myNodeId,
+		RewardEpochID:          epochId,
+		OPType:                 op.XRP.Hash(),
+		OPCommand:              op.Pay.Hash(),
 		OriginalMessage:        testutils.BuildMockPaymentOriginalMessage(t, mockWalletId, myNodeId, mockKeyId),
 		AdditionalFixedMessage: nil,
 	}

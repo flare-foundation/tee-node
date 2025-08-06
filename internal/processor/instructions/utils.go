@@ -19,12 +19,12 @@ import (
 
 // validateRequestSize checks the size of the request fields,
 func validateInstructionDataSize(data *instruction.DataFixed) error {
-	ok := op.IsValid(data.OpType, data.OpCommand)
+	ok := op.IsValid(data.OPType, data.OPCommand)
 	if !ok {
 		return errors.New("invalid OPType, OPCommand pair")
 	}
 
-	oc, ok := op.HashToOPCommandSafe(data.OpCommand)
+	oc, ok := op.HashToOPCommandSafe(data.OPCommand)
 	if !ok {
 		return errors.New("invalid OPCommand")
 	}
@@ -80,7 +80,7 @@ type pair struct {
 }
 
 func checkDataProvidersThreshold(data *instruction.DataFixed, signers []common.Address, sPolicy *commonpolicy.SigningPolicy) (bool, []bool, error) {
-	p := pair{op.HashToOPType(data.OpType), op.HashToOPCommand(data.OpCommand)}
+	p := pair{op.HashToOPType(data.OPType), op.HashToOPCommand(data.OPCommand)}
 	var threshold uint16
 	isDataProvider := make([]bool, len(signers))
 	for i, signer := range signers {

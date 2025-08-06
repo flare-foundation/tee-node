@@ -108,8 +108,8 @@ func processAction(action *types.Action) (*types.ActionResponse, error) {
 			return nil, err
 		}
 
-		result.OPCommand = instructionData.OpCommand
-		result.OPType = instructionData.OpType
+		result.OPCommand = instructionData.OPCommand
+		result.OPType = instructionData.OPType
 		result.Data = message
 
 	case types.Direct:

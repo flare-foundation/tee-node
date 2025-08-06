@@ -6,7 +6,6 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/flare-foundation/go-flare-common/pkg/tee/structs/tee"
 	"github.com/flare-foundation/tee-node/internal/node"
 	"github.com/flare-foundation/tee-node/internal/policy"
 	"github.com/flare-foundation/tee-node/internal/testutils"
@@ -27,7 +26,7 @@ func TestInitializePolicy(t *testing.T) {
 	initialPolicy, err := testutils.GenerateRandomPolicyData(epochId, voters, randSeed)
 	require.NoError(t, err)
 
-	pubKeys := make([]tee.PublicKey, len(voters))
+	pubKeys := make([]types.PublicKey, len(voters))
 	for i, voter := range voters {
 		pubKeys[i] = types.PubKeyToStruct(pubKeysMap[voter])
 	}
@@ -119,7 +118,7 @@ func TestUpdatePolicy(t *testing.T) {
 
 	policySignatures := testutils.BuildMultiSignedPolicy(nextPolicy.RawBytes(), privKeys)
 
-	pubKeys := make([]tee.PublicKey, len(voters))
+	pubKeys := make([]types.PublicKey, len(voters))
 	for i, voter := range voters {
 		pubKeys[i] = types.PubKeyToStruct(pubKeysMap[voter])
 	}

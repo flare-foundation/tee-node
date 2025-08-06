@@ -19,7 +19,6 @@ import (
 
 	"github.com/flare-foundation/go-flare-common/pkg/contracts/relay"
 	commonpolicy "github.com/flare-foundation/go-flare-common/pkg/policy"
-	"github.com/flare-foundation/go-flare-common/pkg/tee/structs/tee"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
@@ -103,7 +102,7 @@ func EncodeSigningPolicy(policy *relay.RelaySigningPolicyInitialized) ([]byte, e
 	return result, nil
 }
 
-func GenerateRandomValidPolicyAndSigners(epochId uint32, randSeed int64, numVoters int) (*commonpolicy.SigningPolicy, []common.Address, []*ecdsa.PrivateKey, []tee.PublicKey, error) {
+func GenerateRandomValidPolicyAndSigners(epochId uint32, randSeed int64, numVoters int) (*commonpolicy.SigningPolicy, []common.Address, []*ecdsa.PrivateKey, []types.PublicKey, error) {
 	// Generate random voters and corresponding private keys
 	voters, privKeys, pubKeysMap := GenerateRandomKeys(numVoters)
 
@@ -112,7 +111,7 @@ func GenerateRandomValidPolicyAndSigners(epochId uint32, randSeed int64, numVote
 		return nil, nil, nil, nil, err
 	}
 
-	pubKeys := make([]tee.PublicKey, len(voters))
+	pubKeys := make([]types.PublicKey, len(voters))
 	for i, voter := range voters {
 		pubKeys[i] = types.PubKeyToStruct(pubKeysMap[voter])
 	}
@@ -163,14 +162,14 @@ func GenerateRandomKeys(numVoters int) ([]common.Address, []*ecdsa.PrivateKey, m
 	pubKeys := make(map[common.Address]*ecdsa.PublicKey)
 
 	for i := range numVoters {
-		voterPrivKey, err := utils.GenerateEthereumPrivateKey()
+		voterPrivKey, err := crypto.GenerateKey()
 		if err != nil {
 			panic(err)
 		}
 		voterPubKey := voterPrivKey.PublicKey
 
 		privKeys[i] = voterPrivKey
-		voters[i] = utils.PubkeyToAddress(&voterPubKey)
+		voters[i] = crypto.PubkeyToAddress(voterPubKey)
 		pubKeys[voters[i]] = &voterPubKey
 	}
 
@@ -181,18 +180,7 @@ func GetSignerWeight(pubKey *ecdsa.PublicKey, policy *commonpolicy.SigningPolicy
 	// Convert the public key to an Ethereum address
 	address := crypto.PubkeyToAddress(*pubKey)
 
-	// Find the index of the voter in the policy
-	voterIndex := -1
-	for i, addr := range policy.Voters.Voters() {
-		if addr == address {
-			voterIndex = i
-			break
-		}
-	}
-	if voterIndex == -1 {
-		return 0
-	}
-	return policy.Voters.VoterWeight(voterIndex)
+	return policy.Voters.VoterWeightForAddress(address)
 }
 
 const TotalWeight = 1<<16 - 1

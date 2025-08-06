@@ -3,11 +3,11 @@ package node
 import (
 	"crypto/ecdsa"
 
-	"github.com/flare-foundation/go-flare-common/pkg/tee/structs/tee"
 	"github.com/flare-foundation/tee-node/pkg/types"
 	"github.com/flare-foundation/tee-node/pkg/utils"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/crypto/ecies"
 )
@@ -22,33 +22,33 @@ type Node struct {
 
 type NodeInfo struct {
 	TeeId     common.Address // The ethereum address of the node, derived from the PrivateKey
-	PublicKey tee.PublicKey
+	PublicKey types.PublicKey
 	State     State
 }
 
 type State interface {
 	// Encode ABI encodes the state
-	State() (tee.ITeeAvailabilityCheckTeeState, error)
+	State() (types.TeeState, error)
 }
 
 type ZeroState struct{}
 
-func (ZeroState) State() (tee.ITeeAvailabilityCheckTeeState, error) {
-	return tee.ITeeAvailabilityCheckTeeState{
-		SystemState:        []byte{},
-		SystemStateVersion: [32]byte{},
-		State:              []byte{},
-		StateVersion:       [32]byte{},
+func (ZeroState) State() (types.TeeState, error) {
+	return types.TeeState{
+		SystemState:        hexutil.Bytes{},
+		SystemStateVersion: common.Hash{},
+		State:              hexutil.Bytes{},
+		StateVersion:       common.Hash{},
 	}, nil
 }
 
-func NodeState() (tee.ITeeAvailabilityCheckTeeState, error) {
+func NodeState() (types.TeeState, error) {
 	return node.State.State()
 }
 
 func InitNode(state State) error {
 	var err error
-	node.PrivateKey, err = utils.GenerateEthereumPrivateKey()
+	node.PrivateKey, err = crypto.GenerateKey()
 	if err != nil {
 		return err
 	}

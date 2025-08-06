@@ -6,7 +6,6 @@ import (
 	"errors"
 	"math/big"
 
-	"github.com/flare-foundation/go-flare-common/pkg/tee/structs/tee"
 	"github.com/flare-foundation/tee-node/pkg/types"
 	"github.com/flare-foundation/tee-node/pkg/utils"
 
@@ -23,10 +22,10 @@ type WalletBackup struct {
 }
 
 type WalletBackupMetaData struct {
-	types.WalletBackupId
+	types.WalletBackupID
 	OpTypeConstants []byte
 
-	AdminsPublicKeys   []tee.PublicKey
+	AdminsPublicKeys   []types.PublicKey
 	AdminsThreshold    uint64
 	ProvidersThreshold uint64
 	Cosigners          []common.Address
@@ -35,9 +34,9 @@ type WalletBackupMetaData struct {
 
 type EncryptedShares struct {
 	Splits           [][]byte
-	OwnersPublicKeys []tee.PublicKey
+	OwnersPublicKeys []types.PublicKey
 	Threshold        uint64
-	PublicKey        tee.PublicKey
+	PublicKey        types.PublicKey
 	Weights          []uint16
 }
 
@@ -58,12 +57,12 @@ type KeySplit struct {
 type KeySplitData struct {
 	Shares []ShamirShare
 	PartialWalletBackupId
-	OwnerPublicKey tee.PublicKey
+	OwnerPublicKey types.PublicKey
 }
 
 type PartialWalletBackupId struct {
-	types.WalletBackupId
-	PartialPubKey tee.PublicKey
+	types.WalletBackupID
+	PartialPubKey types.PublicKey
 	IsAdmin       bool
 }
 

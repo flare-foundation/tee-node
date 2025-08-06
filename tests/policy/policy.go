@@ -19,7 +19,6 @@ import (
 	"github.com/flare-foundation/go-flare-common/pkg/database"
 	"github.com/flare-foundation/go-flare-common/pkg/logger"
 	common_policy "github.com/flare-foundation/go-flare-common/pkg/policy"
-	"github.com/flare-foundation/go-flare-common/pkg/tee/structs/tee"
 	"gorm.io/gorm"
 )
 
@@ -159,7 +158,7 @@ type PolicySignature struct {
 }
 
 func CreateInitializePolicyAction(t *testing.T, policy *relay.RelaySigningPolicyInitialized, pubKeysMap map[common.Address]*ecdsa.PublicKey) (*types.Action, error) {
-	pubKeys := make([]tee.PublicKey, len(policy.Voters))
+	pubKeys := make([]types.PublicKey, len(policy.Voters))
 	for i, voter := range policy.Voters {
 		pubKeys[i] = types.PubKeyToStruct(pubKeysMap[voter])
 	}
