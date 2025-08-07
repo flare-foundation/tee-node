@@ -13,6 +13,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/flare-foundation/go-flare-common/pkg/xrpl/signing/secp256k1"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -27,8 +28,7 @@ func TestBackupAndRecover(t *testing.T) {
 	sk, err := utils.GenerateEthereumPrivateKey()
 	assert.NoError(t, err)
 
-	sec1PubKey := utils.SerializeCompressed(&sk.PublicKey)
-	xrpAddress, err := utils.XRPLAddressFromSecp256k1PubKey(sec1PubKey)
+	xrpAddress := secp256k1.PrvToAddress(sk)
 	assert.NoError(t, err)
 
 	// Generate admin and provider public keys

@@ -16,6 +16,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/crypto/ecies"
+	"github.com/flare-foundation/go-flare-common/pkg/xrpl/signing/secp256k1"
 	"github.com/pkg/errors"
 )
 
@@ -187,11 +188,7 @@ func RecoverWallet(
 		return nil, errors.New("private key reconstruction error: final result does not match address")
 	}
 
-	sec1PubKey := utils.SerializeCompressed(&key.PublicKey)
-	xrpAddress, err := utils.XRPLAddressFromSecp256k1PubKey(sec1PubKey)
-	if err != nil {
-		return nil, err
-	}
+	xrpAddress := secp256k1.PrvToAddress(key)
 
 	adminsPubKeys := make([]*ecdsa.PublicKey, len(backupMetaData.AdminsPublicKeys))
 	for i, pubKey := range backupMetaData.AdminsPublicKeys {

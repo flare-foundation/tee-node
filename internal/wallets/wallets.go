@@ -10,6 +10,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/structs/wallet"
+	"github.com/flare-foundation/go-flare-common/pkg/xrpl/signing/secp256k1"
 )
 
 // Wallet is a struct carrying the private key of particular wallet. It
@@ -44,11 +45,7 @@ func CreateNewWallet(walletInfo wallet.ITeeWalletKeyManagerKeyGenerate) (*Wallet
 		return nil, err
 	}
 
-	sec1PubKey := utils.SerializeCompressed(&sk.PublicKey)
-	xrpAddress, err := utils.XRPLAddressFromSecp256k1PubKey(sec1PubKey)
-	if err != nil {
-		return nil, err
-	}
+	xrpAddress := secp256k1.PrvToAddress(sk)
 
 	adminsPubKeys, err := utils.ParsePubKeys(walletInfo.ConfigConstants.AdminsPublicKeys)
 	if err != nil {
