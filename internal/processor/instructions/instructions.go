@@ -42,7 +42,7 @@ func ProcessInstruction(
 		return nil, nil, err
 	}
 
-	thresholdReached, isSignerDataProvider, err := checkDataProvidersThreshold(instructionData, signers, signingPolicy)
+	thresholdReached, dataProviderIndex, err := checkDataProvidersThreshold(instructionData, signers, signingPolicy)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -50,7 +50,7 @@ func ProcessInstruction(
 		return nil, nil, errors.New("threshold not reached")
 	}
 
-	executionResult, resultStatus, err := validateOrExecuteInstruction(instructionData, variableMessages, signers, isSignerDataProvider, submissionTag)
+	executionResult, resultStatus, err := validateOrExecuteInstruction(instructionData, variableMessages, signers, dataProviderIndex, submissionTag, signingPolicy.RawBytes())
 	if err != nil {
 		return nil, resultStatus, err
 	}
@@ -108,8 +108,9 @@ func validateOrExecuteInstruction(
 	iData *instruction.DataFixed,
 	variableMessages []hexutil.Bytes,
 	signers []common.Address,
-	isSignerDataProvider []bool,
+	dataProviderIndex map[common.Address]int,
 	submissionTag types.SubmissionTag,
+	signingPolicyBytes []byte,
 ) ([]byte, []byte, error) {
 	var err error
 	var result []byte
@@ -123,10 +124,10 @@ func validateOrExecuteInstruction(
 		result, resultStatus, err = walletInstruction(iData, variableMessages, signers, submissionTag)
 
 	case op.XRP:
-		result, err = xrpInstruction(iData, signers, isSignerDataProvider, submissionTag)
+		result, err = xrpInstruction(iData, signers, dataProviderIndex, submissionTag)
 
 	case op.FTDC:
-		result, err = ftdcInstruction(iData, variableMessages, signers, isSignerDataProvider, submissionTag)
+		result, err = ftdcInstruction(iData, variableMessages, signers, dataProviderIndex, submissionTag, signingPolicyBytes)
 
 	default:
 		err = errors.New("invalid operation type")
@@ -208,7 +209,7 @@ func walletInstruction(
 	return result, resultStatus, err
 }
 
-func xrpInstruction(data *instruction.DataFixed, signers []common.Address, isSignerDataProvider []bool, submissionTag types.SubmissionTag) ([]byte, error) {
+func xrpInstruction(data *instruction.DataFixed, signers []common.Address, dataProviderIndex map[common.Address]int, submissionTag types.SubmissionTag) ([]byte, error) {
 	var err error
 	var result []byte
 
@@ -216,7 +217,7 @@ func xrpInstruction(data *instruction.DataFixed, signers []common.Address, isSig
 	case types.Threshold:
 		switch op.HashToOPCommand(data.OPCommand) {
 		case op.Pay, op.Reissue:
-			result, err = signutils.SignPaymentTransaction(data, signers, isSignerDataProvider)
+			result, err = signutils.SignPaymentTransaction(data, signers, dataProviderIndex)
 
 		default:
 			err = errors.New("Unknown OpCommand for XRP OpType")
@@ -225,7 +226,7 @@ func xrpInstruction(data *instruction.DataFixed, signers []common.Address, isSig
 		switch op.HashToOPCommand(data.OPCommand) {
 		case op.Pay, op.Reissue:
 			// validation is just retrying to sign
-			_, err = signutils.SignPaymentTransaction(data, signers, isSignerDataProvider)
+			_, err = signutils.SignPaymentTransaction(data, signers, dataProviderIndex)
 
 		default:
 			err = errors.New("Unknown OpCommand for XRP OpType")
@@ -237,7 +238,14 @@ func xrpInstruction(data *instruction.DataFixed, signers []common.Address, isSig
 	return result, err
 }
 
-func ftdcInstruction(data *instruction.DataFixed, variableMessages []hexutil.Bytes, signers []common.Address, isSignerDataProvider []bool, submissionTag types.SubmissionTag) ([]byte, error) {
+func ftdcInstruction(
+	data *instruction.DataFixed,
+	variableMessages []hexutil.Bytes,
+	signers []common.Address,
+	dataProviderIndex map[common.Address]int,
+	submissionTag types.SubmissionTag,
+	signingPolicyBytes []byte,
+) ([]byte, error) {
 	var err error
 	var result []byte
 
@@ -245,7 +253,7 @@ func ftdcInstruction(data *instruction.DataFixed, variableMessages []hexutil.Byt
 	case types.Threshold:
 		switch op.HashToOPCommand(data.OPCommand) {
 		case op.Prove:
-			result, err = ftdcutils.ValidateProve(data, variableMessages, signers, isSignerDataProvider)
+			result, err = ftdcutils.ValidateProve(data, variableMessages, signers, dataProviderIndex, signingPolicyBytes)
 
 		default:
 			err = errors.New("Unknown OpCommand for FTDC OpType")
@@ -253,7 +261,7 @@ func ftdcInstruction(data *instruction.DataFixed, variableMessages []hexutil.Byt
 	case types.End:
 		switch op.HashToOPCommand(data.OPCommand) {
 		case op.Prove:
-			_, err = ftdcutils.ValidateProve(data, variableMessages, signers, isSignerDataProvider)
+			_, err = ftdcutils.ValidateProve(data, variableMessages, signers, dataProviderIndex, signingPolicyBytes)
 
 		default:
 			err = errors.New("Unknown OpCommand for FTDC OpType")

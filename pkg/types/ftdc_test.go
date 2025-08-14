@@ -21,7 +21,7 @@ func TestAbiEncodeDecodeFTDCProveResponse(t *testing.T) {
 	}
 
 	// Encode the response header first
-	encoded, err := types.EncodeFTDCResponse(originalResponseHeader)
+	encoded, err := types.EncodeFTDCResponseHeader(originalResponseHeader)
 	require.NoError(t, err)
 	require.NotNil(t, encoded)
 

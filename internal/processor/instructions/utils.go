@@ -1,7 +1,6 @@
 package instructions
 
 import (
-	"slices"
 	"sort"
 
 	"github.com/flare-foundation/tee-node/internal/policy"
@@ -77,19 +76,20 @@ type pair struct {
 	Command op.Command
 }
 
-func checkDataProvidersThreshold(data *instruction.DataFixed, signers []common.Address, sPolicy *commonpolicy.SigningPolicy) (bool, []bool, error) {
+func checkDataProvidersThreshold(data *instruction.DataFixed, signers []common.Address, sPolicy *commonpolicy.SigningPolicy) (bool, map[common.Address]int, error) {
 	p := pair{op.HashToOPType(data.OPType), op.HashToOPCommand(data.OPCommand)}
 	var threshold uint16
-	isDataProvider := make([]bool, len(signers))
-	for i, signer := range signers {
-		if slices.Contains(sPolicy.Voters.Voters(), signer) {
-			isDataProvider[i] = true
+	dataProviderIndex := make(map[common.Address]int)
+	for _, signer := range signers {
+		index := sPolicy.Voters.VoterIndex(signer)
+		if index != -1 {
+			dataProviderIndex[signer] = index
 		}
 	}
 
 	switch p {
 	case pair{op.Wallet, op.KeyDataProviderRestore}:
-		return true, isDataProvider, nil
+		return true, dataProviderIndex, nil
 
 	case pair{op.FTDC, op.Prove}:
 		request, err := types.DecodeFTDCRequest(data.OriginalMessage)
@@ -123,7 +123,7 @@ func checkDataProvidersThreshold(data *instruction.DataFixed, signers []common.A
 
 	weight := policy.WeightOfSigners(signers, sPolicy)
 
-	return weight > threshold, isDataProvider, nil
+	return weight > threshold, dataProviderIndex, nil
 }
 
 func voteHash(instructionDataFixed *instruction.DataFixed, signatures, variableMessages []hexutil.Bytes, signers []common.Address, timestamps []uint64) (common.Hash, error) {

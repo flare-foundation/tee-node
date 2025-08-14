@@ -34,7 +34,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// todo: add cosigners to commonwallet, check xrp signature, verify signer sequence data (vote hash)
+// todo: add cosigners to commonwallet, check xrp signature, verify signer sequence data (vote hash), verify encoded data provider signatures in FTDC
 func TestProcessorEndToEnd(t *testing.T) {
 	err := node.InitNode(node.ZeroState{})
 	require.NoError(t, err)
@@ -282,9 +282,6 @@ func signTransaction(t *testing.T, actionInfoChan chan *types.Action, actionResp
 	err = utils.VerifySignature(crypto.Keccak256(actionResponse.Result.Data), actionResponse.Signature, teeId)
 	require.NoError(t, err)
 
-	// todo: check result
-	// fmt.Println("check sig", signatureData)
-
 	// generate action sent when voting closed
 	action, err = testutils.BuildMockQueuedActionInstruction(
 		op.XRP, op.Pay, originalMessageEncoded, privKeys, teeId, rewardEpochId, []byte{}, nil, types.End, uint64(time.Now().Unix()),
@@ -371,8 +368,6 @@ func getBackup(t *testing.T, actionInfoChan chan *types.Action,
 	var backupResponse types.WalletGetBackupResponse
 	err = json.Unmarshal(actionResponse.Result.Data, &backupResponse)
 	require.NoError(t, err)
-
-	// fmt.Println("backup size", len(backupResponse.WalletBackup))
 
 	var backup backup.WalletBackup
 	err = json.Unmarshal(backupResponse.WalletBackup, &backup)
@@ -630,13 +625,12 @@ func ftdcProve(
 		},
 		Challenge: [32]byte(challenge),
 	}
-	// types.EncodeTeeAttestationRequest(originalMessage)
 
 	additionalFixedMessageEncoded, err := types.EncodeTeeAttestationRequest(&additionalFixedMessage)
 	require.NoError(t, err)
 
 	timestamp := uint64(time.Now().Unix())
-	ftdcMsgHash, _, err := types.HashFTDCMessage(originalMessage, additionalFixedMessageEncoded, timestamp)
+	ftdcMsgHash, _, _, err := types.HashFTDCMessage(originalMessage, additionalFixedMessageEncoded, timestamp)
 	require.NoError(t, err)
 
 	variableMessages := make([]interface{}, 0)
@@ -675,16 +669,9 @@ func ftdcProve(
 	err = json.Unmarshal(actionResponse.Result.Data, &ftdcResponse)
 	require.NoError(t, err)
 
-	// ftdcResponse, err := types.DecodeFTDCResponse(actionResponse.Result.Data)
-	// require.NoError(t, err)
-
 	err = utils.VerifySignature(ftdcMsgHash.Bytes(), ftdcResponse.TEESignature, teeId)
 	require.NoError(t, err)
-	require.Equal(t, len(ftdcResponse.DataProviderSignatures), len(providerPrivKeys))
-	for i, signature := range ftdcResponse.DataProviderSignatures {
-		err = utils.VerifySignature(ftdcMsgHash.Bytes(), signature, crypto.PubkeyToAddress(providerPrivKeys[i].PublicKey))
-		require.NoError(t, err)
-	}
+
 	require.Equal(t, len(ftdcResponse.CosignerSignatures), len(cosignerPrivKeys))
 	for _, signature := range ftdcResponse.CosignerSignatures {
 		_, err = utils.CheckSignature(ftdcMsgHash.Bytes(), signature, cosignerAddresses)

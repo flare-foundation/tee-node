@@ -6,6 +6,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/instruction"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/op"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/structs/connector"
@@ -58,24 +59,22 @@ func TestAbiDecodeFtdcAttestationResponse(t *testing.T) {
 		Timestamp:              timestamp,
 	}
 
-	msgHash, _, err := types.HashFTDCMessage(originalMessage, responseBody, timestamp)
+	msgHash, _, _, err := types.HashFTDCMessage(originalMessage, responseBody, timestamp)
 	require.NoError(t, err)
 
 	var signatures []hexutil.Bytes
-	var isSignerDataProvider []bool
+	dataProviderIndex := make(map[common.Address]int)
 	for i, privKey := range privKeys {
 		signature, err := utils.Sign(msgHash[:], privKey)
 		require.NoError(t, err)
 		signatures = append(signatures, signature)
 
-		if i == 0 {
-			isSignerDataProvider = append(isSignerDataProvider, false)
-		} else {
-			isSignerDataProvider = append(isSignerDataProvider, true)
+		if i != 0 {
+			dataProviderIndex[crypto.PubkeyToAddress(privKey.PublicKey)] = i
 		}
 	}
 
-	res, err := ValidateProve(&instructionData, signatures, signers, isSignerDataProvider)
+	res, err := ValidateProve(&instructionData, signatures, signers, dataProviderIndex, []byte{})
 	require.NoError(t, err)
 
 	var proveResponse types.FTDCProveResponse

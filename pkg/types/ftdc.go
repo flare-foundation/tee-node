@@ -1,6 +1,8 @@
 package types
 
 import (
+	"bytes"
+
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/crypto"
@@ -15,7 +17,7 @@ type FTDCProveResponse struct {
 	ResponseBody           hexutil.Bytes
 	TEESignature           hexutil.Bytes
 	CosignerSignatures     []hexutil.Bytes
-	DataProviderSignatures []hexutil.Bytes
+	DataProviderSignatures hexutil.Bytes
 }
 
 // EncodeFTDCRequest encodes an FTDC attestation request to bytes.
@@ -33,8 +35,8 @@ func DecodeFTDCRequest(data []byte) (connector.IFtdcHubFtdcAttestationRequest, e
 	return req, nil
 }
 
-// EncodeFTDCResponse encodes an FTDC response header to bytes.
-func EncodeFTDCResponse(header connector.IFtdcHubFtdcResponseHeader) (hexutil.Bytes, error) {
+// EncodeFTDCResponseHeader encodes an FTDC response header to bytes.
+func EncodeFTDCResponseHeader(header connector.IFtdcHubFtdcResponseHeader) (hexutil.Bytes, error) {
 	return structs.Encode(connector.ResponseHeaderArg, &header)
 }
 
@@ -49,7 +51,7 @@ func DecodeFTDCResponse(data []byte) (connector.IFtdcHubFtdcResponseHeader, erro
 }
 
 // HashFTDCMessage creates a hash of the FTDC message components.
-func HashFTDCMessage(req connector.IFtdcHubFtdcAttestationRequest, responseBody []byte, timestamp uint64) (common.Hash, hexutil.Bytes, error) {
+func HashFTDCMessage(req connector.IFtdcHubFtdcAttestationRequest, responseBody []byte, timestamp uint64) (common.Hash, hexutil.Bytes, hexutil.Bytes, error) {
 	header := connector.IFtdcHubFtdcResponseHeader{
 		AttestationType:    req.Header.AttestationType,
 		SourceId:           req.Header.SourceId,
@@ -59,9 +61,9 @@ func HashFTDCMessage(req connector.IFtdcHubFtdcAttestationRequest, responseBody 
 		Timestamp:          timestamp,
 	}
 
-	encHeader, err := EncodeFTDCResponse(header)
+	encHeader, err := EncodeFTDCResponseHeader(header)
 	if err != nil {
-		return common.Hash{}, nil, err
+		return common.Hash{}, nil, nil, err
 	}
 
 	headerHash := crypto.Keccak256Hash(encHeader)
@@ -70,5 +72,13 @@ func HashFTDCMessage(req connector.IFtdcHubFtdcAttestationRequest, responseBody 
 
 	msgHash := crypto.Keccak256Hash(headerHash[:], reqBodyHash[:], resBodyHash[:])
 
-	return msgHash, encHeader, nil
+	buffer := bytes.NewBuffer(nil)
+	buffer.WriteByte(1)           // 1 byte (protocolId=1)
+	buffer.Write(make([]byte, 5)) // 4 bytes (votingRoundId=0), 1 byte (isSecureRandom=false)
+	buffer.Write(msgHash[:])      // 32 bytes
+	msgHashPrepended := buffer.Bytes()
+
+	hashToBeSigned := crypto.Keccak256Hash(msgHashPrepended)
+
+	return hashToBeSigned, msgHashPrepended, encHeader, nil
 }

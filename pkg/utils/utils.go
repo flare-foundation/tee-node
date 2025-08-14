@@ -32,12 +32,7 @@ func ConstantSlice[T any](val T, n int) []T {
 	return res
 }
 
-func CheckCosigners(signers []common.Address, isSignerDataProvider []bool, allCosigners []common.Address, threshold uint64) ([]bool, error) {
-	// this should be always false, but just in case
-	if len(signers) != len(isSignerDataProvider) {
-		return nil, errors.New("number of signers does not match isSignerDataProvider's length")
-	}
-
+func CheckCosigners(signers []common.Address, dataProviderIndex map[common.Address]int, allCosigners []common.Address, threshold uint64) ([]bool, error) {
 	countCosigners := uint64(0)
 	for _, cosigner := range allCosigners {
 		if ok := slices.Contains(signers, cosigner); ok {
@@ -48,7 +43,8 @@ func CheckCosigners(signers []common.Address, isSignerDataProvider []bool, allCo
 	isSignerCosigner := make([]bool, len(signers))
 	for i, signer := range signers {
 		isCosigner := slices.Contains(allCosigners, signer)
-		if !isCosigner && !isSignerDataProvider[i] {
+		_, isDataProvider := dataProviderIndex[signer]
+		if !isCosigner && !isDataProvider {
 			return nil, errors.New("signed by an entity that is nether data provider nor cosigner")
 		}
 		isSignerCosigner[i] = isCosigner
