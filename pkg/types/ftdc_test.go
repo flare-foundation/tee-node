@@ -42,11 +42,9 @@ func TestAbiEncodeDecodeFTDCProveRequest(t *testing.T) {
 	// Create a test attestation request
 	originalAttestationRequest := connector.IFtdcHubFtdcAttestationRequest{
 		Header: connector.IFtdcHubFtdcRequestHeader{
-			AttestationType:    [32]byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32},
-			SourceId:           [32]byte{33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64},
-			ThresholdBIPS:      7500, // 75%
-			Cosigners:          []common.Address{common.HexToAddress("0x1234567890123456789012345678901234567890"), common.HexToAddress("0xabcdefabcdefabcdefabcdefabcdefabcdefabcd")},
-			CosignersThreshold: 2,
+			AttestationType: [32]byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32},
+			SourceId:        [32]byte{33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64},
+			ThresholdBIPS:   7500, // 75%
 		},
 		RequestBody: []byte{0x01, 0x02, 0x03, 0x04, 0x05}, // Sample request body
 	}
@@ -64,7 +62,5 @@ func TestAbiEncodeDecodeFTDCProveRequest(t *testing.T) {
 	require.Equal(t, originalAttestationRequest.Header.AttestationType, decodedAttestationRequest.Header.AttestationType)
 	require.Equal(t, originalAttestationRequest.Header.SourceId, decodedAttestationRequest.Header.SourceId)
 	require.Equal(t, originalAttestationRequest.Header.ThresholdBIPS, decodedAttestationRequest.Header.ThresholdBIPS)
-	require.Equal(t, originalAttestationRequest.Header.Cosigners, decodedAttestationRequest.Header.Cosigners)
-	require.Equal(t, originalAttestationRequest.Header.CosignersThreshold, decodedAttestationRequest.Header.CosignersThreshold)
 	require.Equal(t, originalAttestationRequest.RequestBody, decodedAttestationRequest.RequestBody)
 }

@@ -3,6 +3,7 @@ package instructions
 import (
 	"encoding/json"
 
+	cpolicy "github.com/flare-foundation/go-flare-common/pkg/policy"
 	"github.com/flare-foundation/tee-node/internal/node"
 	"github.com/flare-foundation/tee-node/internal/policy"
 	"github.com/flare-foundation/tee-node/internal/processor/instructions/ftdcutils"
@@ -12,7 +13,6 @@ import (
 	"github.com/flare-foundation/tee-node/internal/settings"
 	"github.com/flare-foundation/tee-node/pkg/types"
 
-	commonpolicy "github.com/flare-foundation/go-flare-common/pkg/policy"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/op"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -27,7 +27,7 @@ func ProcessInstruction(
 	submissionTag types.SubmissionTag,
 	timestamps []uint64,
 ) ([]byte, []byte, error) {
-	signingPolicy, err := checkInstructionData(instructionData)
+	err := checkInstructionData(instructionData)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -42,15 +42,16 @@ func ProcessInstruction(
 		return nil, nil, err
 	}
 
-	thresholdReached, dataProviderIndex, err := checkDataProvidersThreshold(instructionData, signers, signingPolicy)
+	signingPolicy, err := policy.Storage.SigningPolicy(instructionData.RewardEpochID)
 	if err != nil {
 		return nil, nil, err
 	}
-	if !thresholdReached {
-		return nil, nil, errors.New("threshold not reached")
+	err = checkThresholds(instructionData, signers, signingPolicy)
+	if err != nil {
+		return nil, nil, err
 	}
 
-	executionResult, resultStatus, err := validateOrExecuteInstruction(instructionData, variableMessages, signers, dataProviderIndex, submissionTag, signingPolicy.RawBytes())
+	executionResult, resultStatus, err := validateOrExecuteInstruction(instructionData, variableMessages, signers, signingPolicy, submissionTag)
 	if err != nil {
 		return nil, resultStatus, err
 	}
@@ -108,9 +109,8 @@ func validateOrExecuteInstruction(
 	iData *instruction.DataFixed,
 	variableMessages []hexutil.Bytes,
 	signers []common.Address,
-	dataProviderIndex map[common.Address]int,
+	signingPolicy *cpolicy.SigningPolicy,
 	submissionTag types.SubmissionTag,
-	signingPolicyBytes []byte,
 ) ([]byte, []byte, error) {
 	var err error
 	var result []byte
@@ -124,10 +124,10 @@ func validateOrExecuteInstruction(
 		result, resultStatus, err = walletInstruction(iData, variableMessages, signers, submissionTag)
 
 	case op.XRP:
-		result, err = xrpInstruction(iData, signers, dataProviderIndex, submissionTag)
+		result, err = xrpInstruction(iData, signers, submissionTag)
 
 	case op.FTDC:
-		result, err = ftdcInstruction(iData, variableMessages, signers, dataProviderIndex, submissionTag, signingPolicyBytes)
+		result, err = ftdcInstruction(iData, variableMessages, signers, submissionTag, signingPolicy)
 
 	default:
 		err = errors.New("invalid operation type")
@@ -209,7 +209,7 @@ func walletInstruction(
 	return result, resultStatus, err
 }
 
-func xrpInstruction(data *instruction.DataFixed, signers []common.Address, dataProviderIndex map[common.Address]int, submissionTag types.SubmissionTag) ([]byte, error) {
+func xrpInstruction(data *instruction.DataFixed, signers []common.Address, submissionTag types.SubmissionTag) ([]byte, error) {
 	var err error
 	var result []byte
 
@@ -217,7 +217,7 @@ func xrpInstruction(data *instruction.DataFixed, signers []common.Address, dataP
 	case types.Threshold:
 		switch op.HashToOPCommand(data.OPCommand) {
 		case op.Pay, op.Reissue:
-			result, err = signutils.SignPaymentTransaction(data, signers, dataProviderIndex)
+			result, err = signutils.SignPaymentTransaction(data, signers)
 
 		default:
 			err = errors.New("Unknown OpCommand for XRP OpType")
@@ -226,7 +226,7 @@ func xrpInstruction(data *instruction.DataFixed, signers []common.Address, dataP
 		switch op.HashToOPCommand(data.OPCommand) {
 		case op.Pay, op.Reissue:
 			// validation is just retrying to sign
-			_, err = signutils.SignPaymentTransaction(data, signers, dataProviderIndex)
+			_, err = signutils.SignPaymentTransaction(data, signers)
 
 		default:
 			err = errors.New("Unknown OpCommand for XRP OpType")
@@ -242,9 +242,8 @@ func ftdcInstruction(
 	data *instruction.DataFixed,
 	variableMessages []hexutil.Bytes,
 	signers []common.Address,
-	dataProviderIndex map[common.Address]int,
 	submissionTag types.SubmissionTag,
-	signingPolicyBytes []byte,
+	signingPolicy *cpolicy.SigningPolicy,
 ) ([]byte, error) {
 	var err error
 	var result []byte
@@ -253,7 +252,7 @@ func ftdcInstruction(
 	case types.Threshold:
 		switch op.HashToOPCommand(data.OPCommand) {
 		case op.Prove:
-			result, err = ftdcutils.ValidateProve(data, variableMessages, signers, dataProviderIndex, signingPolicyBytes)
+			result, err = ftdcutils.ValidateProve(data, variableMessages, signers, signingPolicy)
 
 		default:
 			err = errors.New("Unknown OpCommand for FTDC OpType")
@@ -261,7 +260,7 @@ func ftdcInstruction(
 	case types.End:
 		switch op.HashToOPCommand(data.OPCommand) {
 		case op.Prove:
-			_, err = ftdcutils.ValidateProve(data, variableMessages, signers, dataProviderIndex, signingPolicyBytes)
+			_, err = ftdcutils.ValidateProve(data, variableMessages, signers, signingPolicy)
 
 		default:
 			err = errors.New("Unknown OpCommand for FTDC OpType")
@@ -273,31 +272,30 @@ func ftdcInstruction(
 	return result, err
 }
 
-func checkInstructionData(data *instruction.DataFixed) (*commonpolicy.SigningPolicy, error) {
+func checkInstructionData(data *instruction.DataFixed) error {
 	if data == nil {
-		return nil, errors.New("instruction data is nil")
+		return errors.New("instruction data is nil")
 	}
 
 	if data.TeeID.Hex() != node.TeeID().Hex() {
-		return nil, errors.New("invalid TEE id")
+		return errors.New("invalid TEE id")
 	}
 
 	activeSigningPolicy, err := policy.Storage.ActiveSigningPolicy()
 	if err != nil {
-		return nil, err
+		return err
 	}
 
-	// Todo: not sure if this check is still correct? Is is just last policy now or?
 	isActivePolicy := activeSigningPolicy.RewardEpochID == data.RewardEpochID
 	isPreviousPolicy := activeSigningPolicy.RewardEpochID == data.RewardEpochID+1
 	if !isActivePolicy && !isPreviousPolicy {
-		return nil, errors.New("reward epoch id too old")
+		return errors.New("reward epoch id too old")
 	}
 
 	valid := op.IsValidPair(data.OPType, data.OPCommand)
 	if !valid {
-		return nil, errors.New("invalid command for operation type")
+		return errors.New("invalid command for operation type")
 	}
 
-	return activeSigningPolicy, nil
+	return nil
 }

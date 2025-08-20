@@ -282,6 +282,14 @@ func keyDataProviderRestoreCheck(instructionData *instruction.DataFixed, signers
 	if walletBackupMetadata.WalletBackupID != walletBackupId {
 		return nil, 0, nil, errors.New("wallet backup id in the metadata does not match the given id")
 	}
+	adminAddresses, err := utils.PubKeysToAddresses(walletBackupMetadata.AdminsPublicKeys)
+	if err != nil {
+		return nil, 0, nil, err
+	}
+	err = utils.CheckMatchingCosigners(instructionData.Cosigners, adminAddresses, instructionData.CosignersThreshold, walletBackupMetadata.AdminsThreshold)
+	if err != nil {
+		return nil, 0, nil, err
+	}
 	restoredWalletNonce := restoreWalletRequest.Nonce.Uint64()
 
 	policyAtBackup, err := policy.Storage.SigningPolicy(walletBackupId.RewardEpochID)

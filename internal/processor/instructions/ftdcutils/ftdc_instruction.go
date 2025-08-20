@@ -11,7 +11,9 @@ import (
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/flare-foundation/go-flare-common/pkg/contracts/relay"
 	"github.com/flare-foundation/go-flare-common/pkg/encoding"
+	"github.com/flare-foundation/go-flare-common/pkg/policy"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/instruction"
+	"github.com/flare-foundation/go-flare-common/pkg/voters"
 	"github.com/flare-foundation/tee-node/internal/node"
 	"github.com/flare-foundation/tee-node/pkg/types"
 	"github.com/flare-foundation/tee-node/pkg/utils"
@@ -31,31 +33,27 @@ func init() {
 func ValidateProve(insData *instruction.DataFixed,
 	variableMessages []hexutil.Bytes,
 	signers []common.Address,
-	dataProviderIndex map[common.Address]int,
-	signingPolicyBytes []byte,
+	signingPolicy *policy.SigningPolicy,
 ) ([]byte, error) {
 	ftdcReq, err := types.DecodeFTDCRequest(insData.OriginalMessage)
 	if err != nil {
 		return nil, fmt.Errorf("failed to decode FTDC prove request: %w", err)
 	}
 
-	isSignerCosigner, err := utils.CheckCosigners(signers, dataProviderIndex, ftdcReq.Header.Cosigners, ftdcReq.Header.CosignersThreshold)
-	if err != nil {
-		return nil, err
-	}
-
-	hashToBeSigned, msgPrepended, encResHeader, err := types.HashFTDCMessage(ftdcReq, insData.AdditionalFixedMessage, insData.Timestamp)
+	hashToBeSigned, msgPrepended, encResHeader, err := types.HashFTDCMessage(
+		ftdcReq, insData.AdditionalFixedMessage, insData.Cosigners, insData.CosignersThreshold, insData.Timestamp,
+	)
 	if err != nil {
 		return nil, err
 	}
 
 	dpSigs, cosignerSigs, err := checkResponseSignatures(
-		hashToBeSigned, variableMessages, signers, dataProviderIndex, isSignerCosigner,
+		hashToBeSigned, variableMessages, signers, signingPolicy.Voters, insData.Cosigners,
 	)
 	if err != nil {
 		return nil, err
 	}
-	dpSigsEncoded, err := prepareFinalizationTxInput(signingPolicyBytes, msgPrepended, dpSigs)
+	dpSigsEncoded, err := prepareFinalizationTxInput(signingPolicy.RawBytes(), msgPrepended, dpSigs)
 	if err != nil {
 		return nil, err
 	}
@@ -85,10 +83,10 @@ func checkResponseSignatures(
 	msgHash common.Hash,
 	sigs []hexutil.Bytes,
 	signers []common.Address,
-	dataProviderIndex map[common.Address]int,
-	isSignerCos []bool,
+	dataProviders *voters.Set,
+	cosigners []common.Address,
 ) ([]encoding.IndexedSignature, []hexutil.Bytes, error) {
-	if err := validateSignatureInputs(sigs, signers, isSignerCos); err != nil {
+	if err := validateSignatureInputs(sigs, signers); err != nil {
 		return nil, nil, err
 	}
 
@@ -99,10 +97,10 @@ func checkResponseSignatures(
 		if err != nil {
 			return nil, nil, err
 		}
-		if index, isSignerDP := dataProviderIndex[signers[i]]; isSignerDP {
-			dpSigs = append(dpSigs, encoding.IndexedSignature{Index: index, Signature: signature})
+		if dpIndex := dataProviders.VoterIndex(signers[i]); dpIndex != -1 {
+			dpSigs = append(dpSigs, encoding.IndexedSignature{Index: dpIndex, Signature: signature})
 		}
-		if isSignerCos[i] {
+		if slices.Contains(cosigners, signers[i]) {
 			cosSigs = append(cosSigs, signature)
 		}
 	}
@@ -123,15 +121,10 @@ func checkResponseSignatures(
 }
 
 // validateSignatureInputs ensures all input slices have consistent lengths
-func validateSignatureInputs(sigs []hexutil.Bytes, signers []common.Address, isSignerCos []bool) error {
+func validateSignatureInputs(sigs []hexutil.Bytes, signers []common.Address) error {
 	sigCount := len(sigs)
-
 	if sigCount != len(signers) {
 		return errors.New("signature count does not match signer count")
-	}
-
-	if sigCount != len(isSignerCos) {
-		return errors.New("signature count does not match signer info length")
 	}
 
 	return nil

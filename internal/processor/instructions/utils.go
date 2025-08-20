@@ -1,6 +1,7 @@
 package instructions
 
 import (
+	"slices"
 	"sort"
 
 	"github.com/flare-foundation/tee-node/internal/policy"
@@ -10,7 +11,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
-	commonpolicy "github.com/flare-foundation/go-flare-common/pkg/policy"
+	cpolicy "github.com/flare-foundation/go-flare-common/pkg/policy"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/instruction"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/op"
 
@@ -76,54 +77,85 @@ type pair struct {
 	Command op.Command
 }
 
-func checkDataProvidersThreshold(data *instruction.DataFixed, signers []common.Address, sPolicy *commonpolicy.SigningPolicy) (bool, map[common.Address]int, error) {
-	p := pair{op.HashToOPType(data.OPType), op.HashToOPCommand(data.OPCommand)}
-	var threshold uint16
-	dataProviderIndex := make(map[common.Address]int)
+func checkThresholds(data *instruction.DataFixed, signers []common.Address, sPolicy *cpolicy.SigningPolicy) error {
+	err := checkCosigners(signers, data.Cosigners, data.CosignersThreshold)
+	if err != nil {
+		return err
+	}
+
+	dpThreshold, err := setDataProvidersThreshold(data, sPolicy)
+	if err != nil {
+		return err
+	}
+
+	weight := policy.WeightOfSigners(signers, sPolicy)
+	if weight < dpThreshold {
+		return errors.New("data providers threshold not reached")
+	}
+
 	for _, signer := range signers {
-		index := sPolicy.Voters.VoterIndex(signer)
-		if index != -1 {
-			dataProviderIndex[signer] = index
+		isCosigner := slices.Contains(data.Cosigners, signer)
+		voterIndex := sPolicy.Voters.VoterIndex(signer)
+		isDataProvider := voterIndex != -1
+		if !isCosigner && !isDataProvider {
+			return errors.New("signed by an entity that is nether data provider nor cosigner")
 		}
 	}
 
+	return nil
+}
+
+func checkCosigners(signers []common.Address, allCosigners []common.Address, threshold uint64) error {
+	countCosigners := uint64(0)
+	for _, cosigner := range allCosigners {
+		if ok := slices.Contains(signers, cosigner); ok {
+			countCosigners++
+		}
+	}
+
+	if countCosigners < threshold {
+		return errors.New("cosigners threshold not reached")
+	}
+
+	return nil
+}
+
+func setDataProvidersThreshold(data *instruction.DataFixed, sPolicy *cpolicy.SigningPolicy) (uint16, error) {
+	var dpThreshold uint16
+	p := pair{op.HashToOPType(data.OPType), op.HashToOPCommand(data.OPCommand)}
 	switch p {
 	case pair{op.Wallet, op.KeyDataProviderRestore}:
-		return true, dataProviderIndex, nil
+		dpThreshold = 0 // condition (weight >= threshold) always true
 
 	case pair{op.FTDC, op.Prove}:
 		request, err := types.DecodeFTDCRequest(data.OriginalMessage)
 		if err != nil {
-			return false, nil, err
+			return 0, err
+		}
+		rh := request.Header
+		if rh.ThresholdBIPS == 0 {
+			dpThreshold = sPolicy.Threshold + 1 // plus 1 to have condition (weight >= threshold)
+			break
 		}
 
 		totalWeight := policy.WeightOfSigners(sPolicy.Voters.Voters(), sPolicy)
-
-		rh := request.Header
-		if rh.ThresholdBIPS == 0 {
-			threshold = sPolicy.Threshold
-			break
-		} else {
-			threshold = (rh.ThresholdBIPS * totalWeight) / settings.MaxBIPS
-			if (rh.ThresholdBIPS*totalWeight)%settings.MaxBIPS > 0 {
-				threshold++
-			}
+		dpThreshold = (rh.ThresholdBIPS*totalWeight)/settings.MaxBIPS + 1 // plus 1 to have condition (weight >= threshold)
+		if (rh.ThresholdBIPS*totalWeight)%settings.MaxBIPS > 0 {
+			dpThreshold++
 		}
 
 		if float64(rh.ThresholdBIPS) < float64(settings.MaxBIPS)*settings.FtdcMinimumDataProvidersThreshold {
-			return false, nil, errors.New("data providers threshold too low")
+			return 0, errors.New("data providers threshold too low")
 		}
-		if float64(rh.ThresholdBIPS) < float64(settings.MaxBIPS)*0.5 && rh.CosignersThreshold*2 <= uint64(len(rh.Cosigners)) {
-			return false, nil, errors.New("one threshold should be above 50%")
+		if float64(rh.ThresholdBIPS) < float64(settings.MaxBIPS)*0.5 && data.CosignersThreshold*2 <= uint64(len(data.Cosigners)) {
+			return 0, errors.New("one threshold should be above 50%")
 		}
 
 	default:
-		threshold = sPolicy.Threshold
+		dpThreshold = sPolicy.Threshold + 1 // plus 1 to have condition (weight >= threshold)
 	}
 
-	weight := policy.WeightOfSigners(signers, sPolicy)
-
-	return weight > threshold, dataProviderIndex, nil
+	return dpThreshold, nil
 }
 
 func voteHash(instructionDataFixed *instruction.DataFixed, signatures, variableMessages []hexutil.Bytes, signers []common.Address, timestamps []uint64) (common.Hash, error) {

@@ -92,3 +92,16 @@ func ParsePubKeys(pubKeys []wallet.PublicKey) ([]*ecdsa.PublicKey, error) {
 
 	return parsedPubKeys, nil
 }
+
+func PubKeysToAddresses(pubKeys []types.PublicKey) ([]common.Address, error) {
+	addresses := make([]common.Address, len(pubKeys))
+	for i, pubKey := range pubKeys {
+		parsedPubKey, err := types.ParsePubKey(pubKey)
+		if err != nil {
+			return nil, err
+		}
+		addresses[i] = crypto.PubkeyToAddress(*parsedPubKey)
+	}
+
+	return addresses, nil
+}

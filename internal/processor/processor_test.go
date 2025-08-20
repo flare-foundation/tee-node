@@ -209,7 +209,7 @@ func generateWallet(t *testing.T, actionInfoChan chan *types.Action,
 
 	// generate action sent when threshold reached
 	action, err := testutils.BuildMockQueuedActionInstruction(
-		op.Wallet, op.KeyGenerate, originalMessageEncoded, privKeys, teeId, rewardEpochId, nil, nil, types.Threshold, uint64(time.Now().Unix()),
+		op.Wallet, op.KeyGenerate, originalMessageEncoded, privKeys, teeId, rewardEpochId, nil, nil, nil, 0, types.Threshold, uint64(time.Now().Unix()),
 	)
 	require.NoError(t, err)
 
@@ -230,7 +230,7 @@ func generateWallet(t *testing.T, actionInfoChan chan *types.Action,
 
 	// generate action sent when voting closed
 	action, err = testutils.BuildMockQueuedActionInstruction(
-		op.Wallet, op.KeyGenerate, originalMessageEncoded, privKeys, teeId, rewardEpochId, nil, nil, types.End, uint64(time.Now().Unix()),
+		op.Wallet, op.KeyGenerate, originalMessageEncoded, privKeys, teeId, rewardEpochId, nil, nil, nil, 0, types.End, uint64(time.Now().Unix()),
 	)
 	require.NoError(t, err)
 
@@ -271,7 +271,7 @@ func signTransaction(t *testing.T, actionInfoChan chan *types.Action, actionResp
 	require.NoError(t, err)
 
 	action, err := testutils.BuildMockQueuedActionInstruction(
-		op.XRP, op.Pay, originalMessageEncoded, privKeys, teeId, rewardEpochId, []byte{}, nil, types.Threshold, uint64(time.Now().Unix()),
+		op.XRP, op.Pay, originalMessageEncoded, privKeys, teeId, rewardEpochId, []byte{}, nil, nil, 0, types.Threshold, uint64(time.Now().Unix()),
 	)
 	require.NoError(t, err)
 
@@ -284,7 +284,7 @@ func signTransaction(t *testing.T, actionInfoChan chan *types.Action, actionResp
 
 	// generate action sent when voting closed
 	action, err = testutils.BuildMockQueuedActionInstruction(
-		op.XRP, op.Pay, originalMessageEncoded, privKeys, teeId, rewardEpochId, []byte{}, nil, types.End, uint64(time.Now().Unix()),
+		op.XRP, op.Pay, originalMessageEncoded, privKeys, teeId, rewardEpochId, []byte{}, nil, nil, 0, types.End, uint64(time.Now().Unix()),
 	)
 	require.NoError(t, err)
 
@@ -316,7 +316,7 @@ func deleteWallet(t *testing.T, actionInfoChan chan *types.Action,
 	require.NoError(t, err)
 
 	action, err := testutils.BuildMockQueuedActionInstruction(
-		op.Wallet, op.KeyDelete, originalMessageEncoded, privKeys, teeId, rewardEpochId, nil, nil, types.Threshold, uint64(time.Now().Unix()),
+		op.Wallet, op.KeyDelete, originalMessageEncoded, privKeys, teeId, rewardEpochId, nil, nil, nil, 0, types.Threshold, uint64(time.Now().Unix()),
 	)
 	require.NoError(t, err)
 
@@ -330,7 +330,7 @@ func deleteWallet(t *testing.T, actionInfoChan chan *types.Action,
 
 	// generate action sent when voting closed
 	action, err = testutils.BuildMockQueuedActionInstruction(
-		op.Wallet, op.KeyDelete, originalMessageEncoded, privKeys, teeId, rewardEpochId, nil, nil, types.End, uint64(time.Now().Unix()),
+		op.Wallet, op.KeyDelete, originalMessageEncoded, privKeys, teeId, rewardEpochId, nil, nil, nil, 0, types.End, uint64(time.Now().Unix()),
 	)
 	require.NoError(t, err)
 
@@ -401,6 +401,7 @@ func recoverWallet(t *testing.T, actionInfoChan chan *types.Action,
 	additionalFixedMessage := walletBackup.WalletBackupMetaData
 
 	adminAndProvider := make(map[common.Address]int)
+	adminAddresses := make([]common.Address, len(adminsPrivKeys))
 	for j, adminPrivKey := range adminsPrivKeys {
 		address := crypto.PubkeyToAddress(adminPrivKey.PublicKey)
 		for _, providerPrivKey := range providersPrivKeys {
@@ -408,7 +409,9 @@ func recoverWallet(t *testing.T, actionInfoChan chan *types.Action,
 				adminAndProvider[address] = j
 			}
 		}
+		adminAddresses[j] = address
 	}
+	adminsThreshold := uint64(len(adminAddresses))
 
 	teeEciesPubKey := ecies.ImportECDSAPublic(teePubKey)
 	additionalVariableMessages := make([]interface{}, 0)
@@ -462,7 +465,7 @@ func recoverWallet(t *testing.T, actionInfoChan chan *types.Action,
 
 	action, err := testutils.BuildMockQueuedActionInstruction(
 		op.Wallet, op.KeyDataProviderRestore, originalMessageEncoded, privKeys, teeId,
-		rewardEpochId, additionalFixedMessage, additionalVariableMessages,
+		rewardEpochId, additionalFixedMessage, additionalVariableMessages, adminAddresses, adminsThreshold,
 		types.Threshold, uint64(time.Now().Unix()),
 	)
 	require.NoError(t, err)
@@ -486,7 +489,7 @@ func recoverWallet(t *testing.T, actionInfoChan chan *types.Action,
 	// generate action sent when voting closed
 	action, err = testutils.BuildMockQueuedActionInstruction(
 		op.Wallet, op.KeyDataProviderRestore, originalMessageEncoded, privKeys, teeId,
-		rewardEpochId, additionalFixedMessage, additionalVariableMessages,
+		rewardEpochId, additionalFixedMessage, additionalVariableMessages, adminAddresses, adminsThreshold,
 		types.End, uint64(time.Now().Unix()),
 	)
 	require.NoError(t, err)
@@ -536,7 +539,7 @@ func getTeeAttestation(
 
 	// generate action sent when threshold reached
 	action, err := testutils.BuildMockQueuedActionInstruction(
-		op.Reg, op.TEEAttestation, originalMessageEncoded, privKeys, teeId, rewardEpochId, nil, nil, types.Threshold, uint64(time.Now().Unix()),
+		op.Reg, op.TEEAttestation, originalMessageEncoded, privKeys, teeId, rewardEpochId, nil, nil, nil, 0, types.Threshold, uint64(time.Now().Unix()),
 	)
 	require.NoError(t, err)
 
@@ -560,7 +563,7 @@ func getTeeAttestation(
 
 	// generate action sent when voting closed
 	action, err = testutils.BuildMockQueuedActionInstruction(
-		op.Reg, op.TEEAttestation, originalMessageEncoded, privKeys, teeId, rewardEpochId, nil, nil, types.End, uint64(time.Now().Unix()),
+		op.Reg, op.TEEAttestation, originalMessageEncoded, privKeys, teeId, rewardEpochId, nil, nil, nil, 0, types.End, uint64(time.Now().Unix()),
 	)
 	require.NoError(t, err)
 
@@ -597,14 +600,12 @@ func ftdcProve(
 			}
 		}
 	}
-
+	cosignersThreshold := uint64(len(cosignerAddresses) / 2)
 	originalMessage := connector.IFtdcHubFtdcAttestationRequest{
 		Header: connector.IFtdcHubFtdcRequestHeader{
-			AttestationType:    [32]byte{},
-			SourceId:           common.Hash{},
-			ThresholdBIPS:      uint16(testutils.TotalWeight * 0.6),
-			Cosigners:          cosignerAddresses,
-			CosignersThreshold: uint64(len(cosignerAddresses) / 2),
+			AttestationType: [32]byte{},
+			SourceId:        common.Hash{},
+			ThresholdBIPS:   uint16(testutils.TotalWeight * 0.6),
 		},
 		RequestBody: make([]byte, 10),
 	}
@@ -630,7 +631,7 @@ func ftdcProve(
 	require.NoError(t, err)
 
 	timestamp := uint64(time.Now().Unix())
-	ftdcMsgHash, _, _, err := types.HashFTDCMessage(originalMessage, additionalFixedMessageEncoded, timestamp)
+	ftdcMsgHash, _, _, err := types.HashFTDCMessage(originalMessage, additionalFixedMessageEncoded, cosignerAddresses, cosignersThreshold, timestamp)
 	require.NoError(t, err)
 
 	variableMessages := make([]interface{}, 0)
@@ -654,7 +655,7 @@ func ftdcProve(
 	}
 
 	action, err := testutils.BuildMockQueuedActionInstruction(
-		op.FTDC, op.Prove, originalMessageEncoded, privKeys, teeId, rewardEpochId, additionalFixedMessageEncoded, variableMessages, types.Threshold, timestamp,
+		op.FTDC, op.Prove, originalMessageEncoded, privKeys, teeId, rewardEpochId, additionalFixedMessageEncoded, variableMessages, cosignerAddresses, cosignersThreshold, types.Threshold, timestamp,
 	)
 	require.NoError(t, err)
 
@@ -681,7 +682,7 @@ func ftdcProve(
 
 	// generate action sent when voting closed
 	action, err = testutils.BuildMockQueuedActionInstruction(
-		op.FTDC, op.Prove, originalMessageEncoded, privKeys, teeId, rewardEpochId, additionalFixedMessageEncoded, variableMessages, types.End, timestamp,
+		op.FTDC, op.Prove, originalMessageEncoded, privKeys, teeId, rewardEpochId, additionalFixedMessageEncoded, variableMessages, cosignerAddresses, cosignersThreshold, types.End, timestamp,
 	)
 	require.NoError(t, err)
 
