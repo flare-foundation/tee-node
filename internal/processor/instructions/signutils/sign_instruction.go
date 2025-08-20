@@ -17,7 +17,7 @@ import (
 	"github.com/flare-foundation/go-flare-common/pkg/xrpl/signing/signer"
 )
 
-func SignPaymentTransaction(instructionData *instruction.DataFixed, signers []common.Address, dataProviderIndex map[common.Address]int) ([]byte, error) {
+func SignPaymentTransaction(instructionData *instruction.DataFixed, signers []common.Address) ([]byte, error) {
 	originalMessage, err := types.ParsePaymentInstruction(instructionData)
 	if err != nil {
 		return nil, err
@@ -56,7 +56,7 @@ func SignPaymentTransaction(instructionData *instruction.DataFixed, signers []co
 			return nil, err
 		}
 
-		_, err = utils.CheckCosigners(signers, dataProviderIndex, key.Cosigners, key.CosignersThreshold)
+		err = utils.CheckMatchingCosigners(instructionData.Cosigners, key.Cosigners, instructionData.CosignersThreshold, key.CosignersThreshold)
 		if err != nil {
 			return nil, err
 		}

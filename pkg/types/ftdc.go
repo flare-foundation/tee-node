@@ -51,13 +51,19 @@ func DecodeFTDCResponse(data []byte) (connector.IFtdcHubFtdcResponseHeader, erro
 }
 
 // HashFTDCMessage creates a hash of the FTDC message components.
-func HashFTDCMessage(req connector.IFtdcHubFtdcAttestationRequest, responseBody []byte, timestamp uint64) (common.Hash, hexutil.Bytes, hexutil.Bytes, error) {
+func HashFTDCMessage(
+	req connector.IFtdcHubFtdcAttestationRequest,
+	responseBody []byte,
+	cosigners []common.Address,
+	cosignersThreshold uint64,
+	timestamp uint64,
+) (common.Hash, hexutil.Bytes, hexutil.Bytes, error) {
 	header := connector.IFtdcHubFtdcResponseHeader{
 		AttestationType:    req.Header.AttestationType,
 		SourceId:           req.Header.SourceId,
 		ThresholdBIPS:      req.Header.ThresholdBIPS,
-		Cosigners:          req.Header.Cosigners,
-		CosignersThreshold: req.Header.CosignersThreshold,
+		Cosigners:          cosigners,
+		CosignersThreshold: cosignersThreshold,
 		Timestamp:          timestamp,
 	}
 

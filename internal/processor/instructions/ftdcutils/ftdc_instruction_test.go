@@ -23,15 +23,13 @@ func TestAbiDecodeFtdcAttestationResponse(t *testing.T) {
 	require.NoError(t, err)
 
 	numVoters, randSeed, epochId := 100, int64(12345), uint32(1)
-	_, signers, privKeys, err := testutils.GenerateAndSetInitialPolicy(numVoters, randSeed, epochId)
+	policy, signers, privKeys, err := testutils.GenerateAndSetInitialPolicy(numVoters, randSeed, epochId)
 	require.NoError(t, err)
 
 	requestHeader := connector.IFtdcHubFtdcRequestHeader{
-		AttestationType:    [32]byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32},
-		SourceId:           [32]byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32},
-		ThresholdBIPS:      100,
-		Cosigners:          signers[:2],
-		CosignersThreshold: 1,
+		AttestationType: [32]byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32},
+		SourceId:        [32]byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32},
+		ThresholdBIPS:   100,
 	}
 
 	requestBody := []byte{1, 2, 3, 4, 5}
@@ -57,9 +55,11 @@ func TestAbiDecodeFtdcAttestationResponse(t *testing.T) {
 		OriginalMessage:        originalMessageEncoded,
 		AdditionalFixedMessage: responseBody,
 		Timestamp:              timestamp,
+		Cosigners:              signers[:2],
+		CosignersThreshold:     1,
 	}
 
-	msgHash, _, _, err := types.HashFTDCMessage(originalMessage, responseBody, timestamp)
+	msgHash, _, _, err := types.HashFTDCMessage(originalMessage, responseBody, signers[:2], 1, timestamp)
 	require.NoError(t, err)
 
 	var signatures []hexutil.Bytes
@@ -74,7 +74,7 @@ func TestAbiDecodeFtdcAttestationResponse(t *testing.T) {
 		}
 	}
 
-	res, err := ValidateProve(&instructionData, signatures, signers, dataProviderIndex, []byte{})
+	res, err := ValidateProve(&instructionData, signatures, signers, policy)
 	require.NoError(t, err)
 
 	var proveResponse types.FTDCProveResponse
@@ -87,7 +87,7 @@ func TestAbiDecodeFtdcAttestationResponse(t *testing.T) {
 	require.Equal(t, responseHeader.AttestationType, originalMessage.Header.AttestationType)
 	require.Equal(t, responseHeader.SourceId, originalMessage.Header.SourceId)
 	require.Equal(t, responseHeader.ThresholdBIPS, originalMessage.Header.ThresholdBIPS)
-	require.Equal(t, responseHeader.Cosigners, originalMessage.Header.Cosigners)
-	require.Equal(t, responseHeader.CosignersThreshold, originalMessage.Header.CosignersThreshold)
+	require.Equal(t, responseHeader.Cosigners, instructionData.Cosigners)
+	require.Equal(t, responseHeader.CosignersThreshold, instructionData.CosignersThreshold)
 	require.Equal(t, responseHeader.Timestamp, timestamp)
 }

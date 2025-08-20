@@ -111,7 +111,7 @@ func BuildMockPaymentOriginalMessage(t *testing.T, mockWallet common.Hash, teeID
 
 func BuildMockQueuedActionInstruction(opType op.Type, opCommand op.Command, originalMessage []byte,
 	privKeys []*ecdsa.PrivateKey, teeId common.Address, rewardEpochId uint32,
-	additionalFixedMessageRaw any, variableMessages []any,
+	additionalFixedMessageRaw any, variableMessages []any, cosigners []common.Address, cosignersThreshold uint64,
 	submissionTag types.SubmissionTag, timestamp uint64,
 ) (*types.Action, error) {
 	instructionId, err := GenerateRandomBytes(32)
@@ -142,6 +142,8 @@ func BuildMockQueuedActionInstruction(opType op.Type, opCommand op.Command, orig
 		OriginalMessage:        originalMessage,
 		AdditionalFixedMessage: additionalFixedMessage,
 		Timestamp:              timestamp,
+		Cosigners:              cosigners,
+		CosignersThreshold:     cosignersThreshold,
 	}
 	instructionDataFixedEncoded, err := json.Marshal(instructionDataFixed)
 	if err != nil {

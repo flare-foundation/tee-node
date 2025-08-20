@@ -44,6 +44,6 @@ func TestSignPaymentTransaction(t *testing.T) {
 		AdditionalFixedMessage: nil,
 	}
 
-	_, err = signutils.SignPaymentTransaction(&instructionDataFixed, nil, nil)
+	_, err = signutils.SignPaymentTransaction(&instructionDataFixed, nil)
 	require.NoError(t, err, "response")
 }
