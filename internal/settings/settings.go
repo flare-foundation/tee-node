@@ -1,6 +1,8 @@
 package settings
 
 import (
+	"os"
+	"strconv"
 	"time"
 
 	"github.com/flare-foundation/go-flare-common/pkg/tee/op"
@@ -10,6 +12,14 @@ import (
 // - 0 production,
 // - 1 local (no attestation)
 var Mode = 1
+
+func init() {
+	if m, err := strconv.Atoi(os.Getenv("MODE")); err == nil {
+		Mode = m
+	} else {
+		Mode = 1
+	}
+}
 
 const MaxBIPS = 10000
 const FtdcMinimumDataProvidersThreshold = float64(0.4)

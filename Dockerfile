@@ -39,4 +39,5 @@ EXPOSE 5500
 
 # Run the application
 WORKDIR /app  
+ENV MODE=0
 CMD ["./server"]
