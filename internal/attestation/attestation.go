@@ -3,15 +3,14 @@ package attestation
 import (
 	"crypto/x509"
 	"encoding/hex"
+	"errors"
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/flare-foundation/tee-node/internal/node"
 	"github.com/flare-foundation/tee-node/internal/settings"
 	"github.com/flare-foundation/tee-node/pkg/attestation"
+	"github.com/flare-foundation/tee-node/pkg/node"
 	"github.com/flare-foundation/tee-node/pkg/types"
-
-	"github.com/pkg/errors"
 )
 
 var GoogleCert *x509.Certificate
@@ -50,8 +49,8 @@ func SelfAttest() error {
 	return nil
 }
 
-// ConstructTeeInfoResponse creates a tee info attestation response for the given challenge
-func ConstructTeeInfoResponse(challenge common.Hash, nodeInfo *node.NodeInfo, initialID uint32, initialHash common.Hash, activeID uint32, activeHash common.Hash) (*types.TeeInfoResponse, error) {
+// ConstructTEEInfoResponse creates a tee info attestation response for the given challenge
+func ConstructTEEInfoResponse(challenge common.Hash, nodeInfo *node.Info, initialID uint32, initialHash common.Hash, activeID uint32, activeHash common.Hash) (*types.TeeInfoResponse, error) {
 	state, err := nodeInfo.State.State()
 	if err != nil {
 		return nil, err

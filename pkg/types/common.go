@@ -2,10 +2,10 @@ package types
 
 import (
 	"crypto/ecdsa"
+	"errors"
 	"math/big"
 
 	"github.com/ethereum/go-ethereum/crypto/secp256k1"
-	"github.com/pkg/errors"
 )
 
 // todo: this should be in go-common

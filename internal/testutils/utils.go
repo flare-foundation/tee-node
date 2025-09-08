@@ -12,10 +12,10 @@ import (
 	"math/rand"
 	"net/http"
 
-	"github.com/flare-foundation/tee-node/internal/policy"
-	"github.com/flare-foundation/tee-node/internal/wallets"
 	"github.com/flare-foundation/tee-node/pkg/types"
 	"github.com/flare-foundation/tee-node/pkg/utils"
+
+	ppolicy "github.com/flare-foundation/tee-node/pkg/policy"
 
 	"github.com/flare-foundation/go-flare-common/pkg/contracts/relay"
 	commonpolicy "github.com/flare-foundation/go-flare-common/pkg/policy"
@@ -207,7 +207,6 @@ func GenerateRandomPolicyData(rewardEpochId uint32, voters []common.Address, see
 		Seed:               randSeed,
 		Voters:             voters,
 		Weights:            weights,
-		SigningPolicyBytes: []byte{},
 		Timestamp:          0,
 	}
 	policyBytes, err := EncodeSigningPolicy(&event)
@@ -249,7 +248,7 @@ func RandomNormalizedArray(n int, seed int64) []float64 {
 	numbers := make([]float64, n)
 	sum := 0.0
 
-	for i := 0; i < n; i++ {
+	for i := range n {
 		// Generate random float between 0 and 1
 		numbers[i] = r.Float64()
 		sum += numbers[i]
@@ -263,14 +262,8 @@ func RandomNormalizedArray(n int, seed int64) []float64 {
 	return numbers
 }
 
-// Resets the state of the TEE between tests
-func ResetTEEState() {
-	policy.Storage.DestroyState()
-	wallets.Storage.DestroyState()
-}
-
 // This will construct a Mock Signing Policy, set it on the Tee and return the policy
-func GenerateAndSetInitialPolicy(numVoters int, randSeed int64, epochId uint32) (*commonpolicy.SigningPolicy, []common.Address, []*ecdsa.PrivateKey, error) {
+func GenerateAndSetInitialPolicy(ps *ppolicy.Storage, numVoters int, randSeed int64, epochId uint32) (*commonpolicy.SigningPolicy, []common.Address, []*ecdsa.PrivateKey, error) {
 	// Generate random voters and corresponding private keys
 	voters, privKeys, pubKeys := GenerateRandomKeys(numVoters)
 
@@ -280,7 +273,7 @@ func GenerateAndSetInitialPolicy(numVoters int, randSeed int64, epochId uint32) 
 		return nil, nil, nil, err
 	}
 
-	err = policy.Storage.SetInitialPolicy(initialPolicy, pubKeys)
+	err = ps.SetInitialPolicy(initialPolicy, pubKeys)
 	return initialPolicy, voters, privKeys, err
 }
 

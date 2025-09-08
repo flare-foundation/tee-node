@@ -3,6 +3,8 @@ package utils
 import (
 	"crypto/ecdsa"
 	"crypto/rand"
+	"errors"
+	"fmt"
 	"io"
 	"slices"
 
@@ -12,7 +14,6 @@ import (
 	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/pkg/errors"
 )
 
 func GenerateRandom() ([32]byte, error) {
@@ -33,7 +34,7 @@ func GenerateRandom() ([32]byte, error) {
 
 func Sign(msgHash []byte, privKey *ecdsa.PrivateKey) ([]byte, error) {
 	if len(msgHash) != 32 {
-		return nil, errors.Errorf("invalid message hash length")
+		return nil, fmt.Errorf("invalid message hash length")
 	}
 
 	sig, err := crypto.Sign(accounts.TextHash(msgHash), privKey)

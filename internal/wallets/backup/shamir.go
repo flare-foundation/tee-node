@@ -2,12 +2,12 @@ package backup
 
 import (
 	"crypto/rand"
+	"errors"
 	"math/big"
 
-	"github.com/flare-foundation/tee-node/pkg/backup"
+	"github.com/flare-foundation/tee-node/pkg/wallets/backup"
 
 	"github.com/ethereum/go-ethereum/crypto/secp256k1"
-	"github.com/pkg/errors"
 )
 
 var P = secp256k1.S256().N

@@ -5,6 +5,7 @@ import (
 	"crypto/x509"
 	"encoding/base64"
 	"encoding/pem"
+	"errors"
 	"fmt"
 	"log"
 	"os"
@@ -12,7 +13,6 @@ import (
 	"time"
 
 	"github.com/golang-jwt/jwt/v4"
-	"github.com/pkg/errors"
 )
 
 // todo: this is a more or less copy paste of google example code, which needs to be worked on
@@ -53,14 +53,14 @@ func ValidatePKIToken(storedRootCertificate *x509.Certificate, attestationToken 
 
 	jwtHeaders, err := ExtractJWTHeaders(attestationToken)
 	if err != nil {
-		return jwt.Token{}, errors.Errorf("ExtractJWTHeaders(token) returned error: %v", err)
+		return jwt.Token{}, fmt.Errorf("ExtractJWTHeaders(token) returned error: %v", err)
 	}
 
 	if _, ok := jwtHeaders["alg"]; !ok {
 		return jwt.Token{}, errors.New("ValidatePKIToken(string, *attestpb.Attestation, *v1mainpb.VerifyAttestationRequest) - no alg field in the header")
 	}
 	if jwtHeaders["alg"] != "RS256" {
-		return jwt.Token{}, errors.Errorf("ValidatePKIToken(string, *attestpb.Attestation, *v1mainpb.VerifyAttestationRequest) - got Alg: %v, want: %v", jwtHeaders["alg"], "RS256")
+		return jwt.Token{}, fmt.Errorf("ValidatePKIToken(string, *attestpb.Attestation, *v1mainpb.VerifyAttestationRequest) - got Alg: %v, want: %v", jwtHeaders["alg"], "RS256")
 	}
 
 	// Additional Check: Validate the ALG in the header matches the certificate SPKI.

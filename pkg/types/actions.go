@@ -45,7 +45,7 @@ type ActionResponse struct {
 type ActionResult struct {
 	ID            common.Hash   `json:"id"`
 	SubmissionTag SubmissionTag `json:"submissionTag"`
-	Status        bool          `json:"status"`
+	Status        uint8         `json:"status"`
 	Log           string        `json:"log"`
 
 	OPType                 common.Hash   `json:"opType"`
@@ -57,8 +57,8 @@ type ActionResult struct {
 }
 
 type ActionInfo struct {
-	QueueId       string        `json:"queueId"`
-	ActionId      common.Hash   `json:"actionId"`
+	QueueID       string        `json:"queueId"`
+	ActionID      common.Hash   `json:"actionId"`
 	SubmissionTag SubmissionTag `json:"submissionTag"`
 }
 
@@ -70,12 +70,12 @@ type RewardingData struct {
 }
 
 type VoteSequence struct {
-	VoteHash                   common.Hash     `json:"voteHash"`
-	InstructionId              common.Hash     `json:"instructionId"`
-	InstructionHash            common.Hash     `json:"instructionHash"`
-	RewardEpochId              uint32          `json:"rewardEpochId"`
-	TeeId                      common.Address  `json:"teeId"`
-	Signatures                 []hexutil.Bytes `json:"signatures"` // Signatures of the signers and cosigners
-	AdditionalVariableMessages []hexutil.Bytes `json:"additionalVariableMessages"`
-	Timestamps                 []uint64        `json:"timestamps"`
+	VoteHash                        common.Hash     `json:"voteHash"`
+	InstructionID                   common.Hash     `json:"instructionId"`
+	InstructionHash                 common.Hash     `json:"instructionHash"`
+	RewardEpochID                   uint32          `json:"rewardEpochId"`
+	TeeID                           common.Address  `json:"teeId"`
+	Signatures                      []hexutil.Bytes `json:"signatures"` // Signatures of the signers and cosigners
+	AdditionalVariableMessageHashes []common.Hash   `json:"additionalVariableMessageHashes"`
+	Timestamps                      []uint64        `json:"timestamps"`
 }

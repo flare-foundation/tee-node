@@ -1,17 +1,68 @@
 package server
 
 import (
-	"github.com/flare-foundation/tee-node/internal/node"
-	"github.com/flare-foundation/tee-node/internal/processor"
+	exampleextension "github.com/flare-foundation/tee-node/internal/extension/example_extension"
+	"github.com/flare-foundation/tee-node/internal/extension/server"
+	"github.com/flare-foundation/tee-node/internal/router"
 	"github.com/flare-foundation/tee-node/internal/settings"
+	"github.com/flare-foundation/tee-node/pkg/node"
+	"github.com/flare-foundation/tee-node/pkg/policy"
+	"github.com/flare-foundation/tee-node/pkg/wallets"
+
+	"github.com/flare-foundation/go-flare-common/pkg/logger"
 )
 
-func StartServer() {
-	err := node.InitNode(node.ZeroState{})
+// Starts PMW tee node.
+//
+// setProxyPort is the port that exposes endpoint for setting proxy's url.
+func StartServerPMW(setProxyPort int) {
+	teeNode, err := node.Initialize(node.ZeroState{})
 	if err != nil {
-		panic(err)
+		logger.Fatalf("failed to initialize: %v", err)
 	}
-	go settings.ProxyUrlConfigServer()
 
-	processor.RunTeeProcessor()
+	ws := wallets.InitializeStorage()
+	ps := policy.InitializeStorage()
+
+	go settings.ProxyURLConfigServer(setProxyPort)
+
+	r := router.NewPMWRouter(teeNode, ps, ws)
+
+	r.Run(teeNode)
+}
+
+// Starts tee node for extensions.
+//
+// setProxyPort is the port that exposes endpoint for setting proxy's url.
+// serverPort is the port that exposes endpoints for extension interaction.
+// extensionPort is the port where where extension exposes /action endpoint.
+func StartServerExtension(setProxyPort, serverPort, extensionPort int) {
+	teeNode, err := node.Initialize(node.ZeroState{})
+	if err != nil {
+		logger.Fatalf("failed to initialize: %v", err)
+	}
+
+	ws := wallets.InitializeStorage()
+	ps := policy.InitializeStorage()
+
+	go settings.ProxyURLConfigServer(setProxyPort)
+
+	extServer := server.NewExtensionServer(serverPort, teeNode, ws)
+
+	go extServer.Serve() //nolint:errcheck
+
+	r := router.NewExtensionRouter(teeNode, ps, ws, extensionPort)
+
+	// Launch the json rpc server
+	r.Run(teeNode)
+}
+
+// Starts the example extension.
+//
+// serverPort is the port where tee node severs endpoints for interaction.
+// extensionPort is the port where where extension exposes /action endpoint.
+func StartExampleExtension(serverPort, extensionPort int) {
+	server := exampleextension.NewDummyExtensionServer(extensionPort, serverPort)
+
+	server.Serve() //nolint:errcheck
 }

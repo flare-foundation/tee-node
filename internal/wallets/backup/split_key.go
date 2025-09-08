@@ -3,10 +3,10 @@ package backup
 import (
 	"crypto/ecdsa"
 	"crypto/rand"
+	"errors"
 	"math/big"
 
 	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/pkg/errors"
 )
 
 func SplitPrivateKey(privateKey *ecdsa.PrivateKey, n int) ([]*ecdsa.PrivateKey, error) {

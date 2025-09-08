@@ -5,11 +5,15 @@ import (
 	"crypto/rand"
 	"encoding/json"
 	"math/big"
+	"slices"
 	"testing"
 
-	"github.com/flare-foundation/tee-node/internal/processor/instructions/walletutils"
+	"github.com/flare-foundation/tee-node/internal/processors/instructions/walletutils"
+	"github.com/flare-foundation/tee-node/pkg/node"
+	"github.com/flare-foundation/tee-node/pkg/policy"
 	"github.com/flare-foundation/tee-node/pkg/types"
 	"github.com/flare-foundation/tee-node/pkg/utils"
+	"github.com/flare-foundation/tee-node/pkg/wallets"
 
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
@@ -25,10 +29,12 @@ import (
 
 func CreateMockWallet(
 	t *testing.T,
-	nodeId common.Address,
-	walletId common.Hash,
-	keyId uint64,
-	rewardEpochId uint32,
+	iSndD node.IdentifierSignerAndDecrypter,
+	ps *policy.Storage,
+	ws *wallets.Storage,
+	walletID common.Hash,
+	keyID uint64,
+	rewardEpochID uint32,
 	adminPrivKeys, cosignerPrivKeys []*ecdsa.PrivateKey,
 ) wallet.ITeeWalletKeyManagerKeyExistence {
 	instructionIdBytes, _ := GenerateRandomBytes(32)
@@ -50,9 +56,9 @@ func CreateMockWallet(
 	}
 
 	request := wallet.ITeeWalletKeyManagerKeyGenerate{
-		TeeId:    nodeId,
-		WalletId: walletId,
-		KeyId:    keyId,
+		TeeId:    iSndD.TeeID(),
+		WalletId: walletID,
+		KeyId:    keyID,
 		OpType:   op.Wallet.Hash(),
 		ConfigConstants: wallet.ITeeWalletKeyManagerKeyConfigConstants{
 			OpTypeConstants:    make([]byte, 0),
@@ -67,8 +73,8 @@ func CreateMockWallet(
 
 	instructionDataFixed := instruction.DataFixed{
 		InstructionID:          common.BytesToHash(instructionIdBytes),
-		TeeID:                  nodeId,
-		RewardEpochID:          rewardEpochId,
+		TeeID:                  iSndD.TeeID(),
+		RewardEpochID:          rewardEpochID,
 		OPType:                 op.Wallet.Hash(),
 		OPCommand:              op.KeyGenerate.Hash(),
 		OriginalMessage:        encoded,
@@ -76,10 +82,14 @@ func CreateMockWallet(
 	}
 	require.NoError(t, err)
 
-	walletProofBytes, err := walletutils.NewWallet(&instructionDataFixed)
+	proc := walletutils.NewProcessor(
+		iSndD, ps, ws,
+	)
+
+	walletProofBytes, _, err := proc.KeyGenerate(types.Threshold, &instructionDataFixed, nil, nil, nil)
 	require.NoError(t, err)
 
-	walletExistenceProof, err := types.ExtractKeyExistence(walletProofBytes)
+	walletExistenceProof, err := wallets.ExtractKeyExistence(walletProofBytes)
 	require.NoError(t, err)
 
 	require.NoError(t, err)
@@ -109,10 +119,19 @@ func BuildMockPaymentOriginalMessage(t *testing.T, mockWallet common.Hash, teeID
 	return originalMessageEncoded
 }
 
-func BuildMockQueuedActionInstruction(opType op.Type, opCommand op.Command, originalMessage []byte,
-	privKeys []*ecdsa.PrivateKey, teeId common.Address, rewardEpochId uint32,
-	additionalFixedMessageRaw any, variableMessages []any, cosigners []common.Address, cosignersThreshold uint64,
-	submissionTag types.SubmissionTag, timestamp uint64,
+func BuildMockInstructionAction(
+	opType op.Type,
+	opCommand op.Command,
+	originalMessage []byte,
+	privKeys []*ecdsa.PrivateKey,
+	teeID common.Address,
+	rewardEpochID uint32,
+	additionalFixedMessageRaw any,
+	variableMessages []any,
+	cosigners []common.Address,
+	cosignersThreshold uint64,
+	submissionTag types.SubmissionTag,
+	timestamp uint64,
 ) (*types.Action, error) {
 	instructionId, err := GenerateRandomBytes(32)
 	if err != nil {
@@ -120,10 +139,12 @@ func BuildMockQueuedActionInstruction(opType op.Type, opCommand op.Command, orig
 	}
 	var additionalFixedMessage []byte
 	switch additionalFixedMessageRaw := additionalFixedMessageRaw.(type) {
+	case nil:
+		additionalFixedMessage = []byte{}
 	case []byte:
 		additionalFixedMessage = additionalFixedMessageRaw
 	case hexutil.Bytes:
-		additionalFixedMessage = additionalFixedMessageRaw[:]
+		additionalFixedMessage = additionalFixedMessageRaw
 	case common.Hash:
 		additionalFixedMessage = additionalFixedMessageRaw[:]
 	default:
@@ -135,8 +156,8 @@ func BuildMockQueuedActionInstruction(opType op.Type, opCommand op.Command, orig
 
 	instructionDataFixed := instruction.DataFixed{
 		InstructionID:          common.BytesToHash(instructionId),
-		TeeID:                  teeId,
-		RewardEpochID:          rewardEpochId,
+		TeeID:                  teeID,
+		RewardEpochID:          rewardEpochID,
 		OPType:                 opType.Hash(),
 		OPCommand:              opCommand.Hash(),
 		OriginalMessage:        originalMessage,
@@ -189,6 +210,8 @@ func BuildMockQueuedActionInstruction(opType op.Type, opCommand op.Command, orig
 		timestamps[i] = randInt.Uint64()
 	}
 
+	slices.Sort(timestamps)
+
 	action := types.Action{
 		Data: types.ActionData{
 			ID:            common.BytesToHash(instructionId),
@@ -205,12 +228,14 @@ func BuildMockQueuedActionInstruction(opType op.Type, opCommand op.Command, orig
 	return &action, nil
 }
 
-func BuildMockQueuedAction(t *testing.T, opType op.Type, opCommand op.Command, messageRaw any) *types.Action {
+func BuildMockDirectAction(t *testing.T, opType op.Type, opCommand op.Command, messageRaw any) *types.Action {
 	var message []byte
 	var err error
 	switch messageRaw := messageRaw.(type) {
 	case *verification.ITeeVerificationTeeAttestation:
 		message, err = types.EncodeTeeAttestationRequest(messageRaw)
+	case nil:
+		message = []byte{}
 	default:
 		message, err = json.Marshal(messageRaw)
 	}
