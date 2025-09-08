@@ -56,6 +56,7 @@ stages:
   - build
   - test
   - release-images
+  - deploy
 
 .rules:release:
   rules:
@@ -94,7 +95,7 @@ release-images:auth:
       dotenv:
         - auth.env
 
-release-images:
+.release-images:
   stage: release-images
   extends:
     - .rules:release
@@ -104,9 +105,6 @@ release-images:
   image:
     name: registry.gitlab.com/flarenetwork/infra-public/pipeliner/kaniko-executor-stbl:v1.23.2-debug
     entrypoint: [""]
-  variables:
-    DOCKERFILE: "Dockerfile"
-    IMAGE: "tee-node"
   before_script:
     - mkdir -p /kaniko/.docker
     - auth_encoded=$(echo -n "oauth2accesstoken:$GOOGLE_OAUTH_ACCESS_TOKEN" | base64 | tr -d "\n")
@@ -127,3 +125,87 @@ release-images:
       fi
     - /kaniko/executor $args
 
+release-tee-node:
+  extends: .release-images
+  variables:
+    DOCKERFILE: "Dockerfile"
+    IMAGE: "tee-node"
+
+release-tee-extension:
+  extends: .release-images
+  variables:
+    DOCKERFILE: "extension.Dockerfile"
+    IMAGE: "tee-node-extension"
+
+.deploy:
+  stage: deploy
+  image: google/cloud-sdk:latest
+  extends:
+    - .rules:release
+  variables:
+    IMAGE: tee-node
+  when: manual
+  script:
+    # Decode the Base64-encoded service account key and authenticate
+    - echo "$TEE_NODE_DEPLOYER_KEY" | base64 --decode > sa-key.json
+    - gcloud auth activate-service-account --key-file=sa-key.json
+
+    # Set project and zone
+    - gcloud config set project flare-network-staging
+    - gcloud config set compute/zone europe-west1-b
+
+    # Update metadata
+    - gcloud compute instances add-metadata tee-machine${TEE_MACHINE_SUFFIX} --metadata="tee-image-reference=europe-west1-docker.pkg.dev/flare-network-staging/containers/$IMAGE:$CI_COMMIT_TAG"
+
+    # Restart VM
+    - gcloud compute instances reset tee-machine${TEE_MACHINE_SUFFIX}
+
+    # # Fetch tee node internal IP
+    - |
+      TEE_NODE_INTERNAL_IP=$(gcloud compute instances describe tee-machine${TEE_MACHINE_SUFFIX} --format='get(networkInterfaces[0].networkIP)')
+      echo "TEE_NODE_INTERNAL_IP: $TEE_NODE_INTERNAL_IP"
+
+    # Fetch tee proxy internal IP
+    - |
+      TEE_PROXY_INTERNAL_IP=$(gcloud compute instances describe tee-proxy${TEE_MACHINE_SUFFIX} --format='get(networkInterfaces[0].networkIP)')
+      echo "TEE_PROXY_INTERNAL_IP: $TEE_PROXY_INTERNAL_IP"
+      
+
+    # Add private key
+    - eval $(ssh-agent -s)
+    - echo "$TEE_PROXY_DEPLOY_PRIVATE_KEY" | tr -d '\r' | ssh-add -
+
+    # Fetch tee proxy external IP
+    - |
+      TEE_PROXY_EXTERNAL_IP=$(gcloud compute instances describe tee-proxy${TEE_MACHINE_SUFFIX} --format='get(networkInterfaces[0].accessConfigs[0].natIP)')
+      echo "TEE_PROXY_EXTERNAL_IP: $TEE_PROXY_EXTERNAL_IP"
+    
+    # Send POST request with config file
+    - | 
+      ssh -o StrictHostKeyChecking=no deploy@$TEE_PROXY_EXTERNAL_IP "curl -X POST http://$TEE_NODE_INTERNAL_IP:5500/configure -H 'Content-Type: application/json' --data-binary '{\"url\":\"http://$TEE_PROXY_INTERNAL_IP:6661\"}'"
+
+
+    # Restart tee-proxy and redis
+    - ssh -o StrictHostKeyChecking=no deploy@$TEE_PROXY_EXTERNAL_IP "cd /home/deploy/e2e/docker/gcp-coston/gcp-proxy && docker compose stop tee-proxy && docker compose restart redis && docker compose start tee-proxy"
+    
+    
+deploy-package1:
+  extends: .deploy
+  variables:
+    TEE_MACHINE_SUFFIX: ''
+
+deploy-package2:
+  extends: .deploy
+  variables:
+    TEE_MACHINE_SUFFIX: '-2'
+
+deploy-package-extension:
+  extends: .deploy
+  variables:
+    TEE_MACHINE_SUFFIX: '-extension'
+    MAGE: tee-node-extension
+
+deploy-deploy-test:
+  extends: .deploy
+  variables:
+    TEE_MACHINE_SUFFIX: '-deploy-test'
