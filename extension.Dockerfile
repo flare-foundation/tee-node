@@ -26,4 +26,4 @@ COPY --from=builder /app/server /app/extension .
 
 ENV TZ=UTC  
 
-CMD ["gosu", "server", "./server", "&", "gosu", "extension", "./extension"]
+CMD ["sh", "-c", "gosu server ./server & gosu extension ./extension"]
