@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"os"
 	"sync"
 	"time"
 
@@ -26,9 +27,11 @@ func ProxyURLConfigServer(port int) {
 		Addr: addr,
 	}
 
+	setInitialProxyUrl()
+
 	mux := http.NewServeMux()
 	server.Handler = mux
-	mux.HandleFunc("POST /configure", setProxyURL)
+	mux.HandleFunc("POST /configure", handleConfigure)
 
 	for {
 		err := server.ListenAndServe()
@@ -40,7 +43,14 @@ func ProxyURLConfigServer(port int) {
 	}
 }
 
-func setProxyURL(w http.ResponseWriter, r *http.Request) {
+func setInitialProxyUrl() {
+	initialProxyUrl := os.Getenv("PROXY_URL")
+	if initialProxyUrl != "" {
+		setProxyUrl(initialProxyUrl)
+	}
+}
+
+func handleConfigure(w http.ResponseWriter, r *http.Request) {
 	var request types.ConfigureProxyUrlRequest
 	err := json.NewDecoder(r.Body).Decode(&request)
 	if err != nil {
@@ -48,8 +58,14 @@ func setProxyURL(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	setProxyUrl(request.Url)
+}
+
+func setProxyUrl(proxyUrl string) {
 	ProxyURL.Lock()
 	defer ProxyURL.Unlock()
 
-	ProxyURL.URL = request.Url
+	ProxyURL.URL = proxyUrl
+
+	logger.Infof("Setting proxy url to: %s", proxyUrl)
 }

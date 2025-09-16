@@ -76,14 +76,15 @@ func TestProcessorsEndToEnd(t *testing.T) {
 	proxyPort := 5501
 	go MockProxy(t, proxyPort, mainActionInfoChan, readActionInfoChan, actionResponseChan)
 
-	go settings.ProxyURLConfigServer(settings.ProxyConfigureServerPort)
+	proxyConfigureServerPort := 5502
+	go settings.ProxyURLConfigServer(proxyConfigureServerPort)
 
 	r := router.NewPMWRouter(testNode, pStorage, wStorage)
 
 	go r.Run(testNode)
 	time.Sleep(1 * time.Second)
 
-	setProxyUrl(t, proxyPort)
+	setProxyUrl(t, proxyPort, proxyConfigureServerPort)
 
 	teeId, teePubKey := getTeeInfo(t, readActionInfoChan, actionResponseChan)
 
@@ -119,7 +120,7 @@ func TestProcessorsEndToEnd(t *testing.T) {
 	// todo: update policy
 }
 
-func setProxyUrl(t *testing.T, proxyPort int) {
+func setProxyUrl(t *testing.T, proxyPort, setProxyPort int) {
 	request := types.ConfigureProxyUrlRequest{
 		Url: fmt.Sprintf("http://localhost:%d", proxyPort),
 	}
@@ -130,7 +131,7 @@ func setProxyUrl(t *testing.T, proxyPort int) {
 	requestBody, err := json.Marshal(request)
 	require.NoError(t, err)
 
-	r, err := client.Post(fmt.Sprintf("http://localhost:%d/configure", settings.ProxyConfigureServerPort), "application/json", bytes.NewBuffer(requestBody))
+	r, err := client.Post(fmt.Sprintf("http://localhost:%d/configure", setProxyPort), "application/json", bytes.NewBuffer(requestBody))
 	require.NoError(t, err)
 	require.Equal(t, r.StatusCode, http.StatusOK)
 }
@@ -762,7 +763,6 @@ func MockProxy(t *testing.T, proxyPort int, mainActionInfoChan, readActionInfoCh
 		var actionResponse types.ActionResponse
 		err = json.Unmarshal(body, &actionResponse)
 		require.NoError(t, err)
-
 		actionResponseChan <- &actionResponse
 		err = r.Body.Close()
 		require.NoError(t, err)

@@ -259,7 +259,7 @@ func TestPostResultHandler(t *testing.T) {
 	go server.Serve()                        //nolint:errcheck
 	defer server.Close(context.Background()) //nolint:errcheck
 
-	proxyPort := 5502
+	proxyPort := 5503
 	actionResponseChan := make(chan *types.ActionResponse, 1)
 	go mockProxyResult(t, proxyPort, actionResponseChan)
 	settings.ProxyURL.URL = fmt.Sprintf("http://localhost:%d", proxyPort)
