@@ -37,8 +37,9 @@ type ActionData struct {
 }
 
 type ActionResponse struct {
-	Result    ActionResult  `json:"result"`
-	Signature hexutil.Bytes `json:"signature"`
+	Result         ActionResult  `json:"result"`
+	Signature      hexutil.Bytes `json:"signature"`
+	ProxySignature hexutil.Bytes `json:"proxySignature"`
 }
 
 // The response received after queuing an action

@@ -1,56 +1,56 @@
 variables:
-    GOLANG_VERSION: "1.24.4"
-    GOLINT_VERSION: "v2.0.2"
-    COVERAGE_FILE: "coverage.out"
-    COBERTURA_FILE: "coverage.xml"
+  GOLANG_VERSION: "1.25.1"
+  GOLINT_VERSION: "v2.4.0"
+  COVERAGE_FILE: "coverage.out"
+  COBERTURA_FILE: "coverage.xml"
 
 .gocache:
-    variables:
-        GOPATH: ${CI_PROJECT_DIR}/.go
-    before_script:
-        - mkdir -p ${GOPATH}
-    cache:
-        paths:
-            - ${GOPATH}/pkg/mod/
-            - ${GOPATH}/bin
+  variables:
+    GOPATH: ${CI_PROJECT_DIR}/.go
+  before_script:
+    - mkdir -p ${GOPATH}
+  cache:
+    paths:
+      - ${GOPATH}/pkg/mod/
+      - ${GOPATH}/bin
 
 build:
-    stage: build
-    image: golang:${GOLANG_VERSION}
-    extends: .gocache
-    needs: []
-    script:
-        - go mod download
-        - go build ./cmd/main.go
+  stage: build
+  image: golang:${GOLANG_VERSION}
+  extends: .gocache
+  needs: []
+  script:
+    - go mod download
+    - go build ./cmd/main.go
 
 lint:
-    stage: test
-    needs: [build]
-    image: golangci/golangci-lint:${GOLINT_VERSION}
-    extends: .gocache
-    script:
-        - "! gofmt -l . | grep -q ."
-        - golangci-lint run --timeout 5m0s
+  stage: test
+  needs: [build]
+  image: golangci/golangci-lint:${GOLINT_VERSION}
+  extends: .gocache
+  script:
+    - "! gofmt -l . | grep -q ."
+    - golangci-lint run --timeout 5m0s
 
 test:
-    stage: test
-    image: golang:${GOLANG_VERSION}
-    needs: [build]
-    extends: .gocache
-    before_script:
-        - go get github.com/boumenot/gocover-cobertura
-    script:
-        - go test -v -coverpkg=github.com/flare-foundation/tee-node/... -coverprofile=${COVERAGE_FILE} -covermode count ./internal/... ./pkg/...
-        - go tool cover -func=${COVERAGE_FILE}
-        - go run github.com/boumenot/gocover-cobertura < ${COVERAGE_FILE} > ${COBERTURA_FILE}
-    artifacts:
-        paths:
-            - ${COVERAGE_FILE}
-        reports:
-            coverage_report:
-                coverage_format: cobertura
-                path: ${COBERTURA_FILE}
-    coverage: '/total:\s+\(statements\)\s+(\d+\.\d+)%/'
+  stage: test
+  image: golang:${GOLANG_VERSION}
+  needs: [build]
+  extends: .gocache
+  before_script:
+    - go get github.com/boumenot/gocover-cobertura
+  script:
+    - go test -v -coverpkg=github.com/flare-foundation/tee-node/... -coverprofile=${COVERAGE_FILE} -covermode count ./internal/... ./pkg/...
+    - go tool cover -func=${COVERAGE_FILE}
+    - go run github.com/boumenot/gocover-cobertura < ${COVERAGE_FILE} > ${COBERTURA_FILE}
+  artifacts:
+    paths:
+      - ${COVERAGE_FILE}
+    reports:
+      coverage_report:
+        coverage_format: cobertura
+        path: ${COBERTURA_FILE}
+  coverage: '/total:\s+\(statements\)\s+(\d+\.\d+)%/'
 
 stages:
   - build
@@ -169,7 +169,6 @@ release-tee-extension:
     - |
       TEE_PROXY_INTERNAL_IP=$(gcloud compute instances describe tee-proxy${TEE_MACHINE_SUFFIX} --format='get(networkInterfaces[0].networkIP)')
       echo "TEE_PROXY_INTERNAL_IP: $TEE_PROXY_INTERNAL_IP"
-      
 
     # Add private key
     - eval $(ssh-agent -s)
@@ -179,33 +178,31 @@ release-tee-extension:
     - |
       TEE_PROXY_EXTERNAL_IP=$(gcloud compute instances describe tee-proxy${TEE_MACHINE_SUFFIX} --format='get(networkInterfaces[0].accessConfigs[0].natIP)')
       echo "TEE_PROXY_EXTERNAL_IP: $TEE_PROXY_EXTERNAL_IP"
-    
-    # Send POST request with config file
-    - | 
-      ssh -o StrictHostKeyChecking=no deploy@$TEE_PROXY_EXTERNAL_IP "curl -X POST http://$TEE_NODE_INTERNAL_IP:5500/configure -H 'Content-Type: application/json' --data-binary '{\"url\":\"http://$TEE_PROXY_INTERNAL_IP:6661\"}'"
 
+    # Send POST request with config file
+    - |
+      ssh -o StrictHostKeyChecking=no deploy@$TEE_PROXY_EXTERNAL_IP "curl -X POST http://$TEE_NODE_INTERNAL_IP:5500/configure -H 'Content-Type: application/json' --data-binary '{\"url\":\"http://$TEE_PROXY_INTERNAL_IP:6661\"}'"
 
     # Restart tee-proxy and redis
     - ssh -o StrictHostKeyChecking=no deploy@$TEE_PROXY_EXTERNAL_IP "cd /home/deploy/e2e/docker/gcp-coston/gcp-proxy && docker compose stop tee-proxy && docker compose restart redis && docker compose start tee-proxy"
-    
-    
+
 deploy-package1:
   extends: .deploy
   variables:
-    TEE_MACHINE_SUFFIX: ''
+    TEE_MACHINE_SUFFIX: ""
 
 deploy-package2:
   extends: .deploy
   variables:
-    TEE_MACHINE_SUFFIX: '-2'
+    TEE_MACHINE_SUFFIX: "-2"
 
 deploy-package-extension:
   extends: .deploy
   variables:
-    TEE_MACHINE_SUFFIX: '-extension'
+    TEE_MACHINE_SUFFIX: "-extension"
     MAGE: tee-node-extension
 
 deploy-deploy-test:
   extends: .deploy
   variables:
-    TEE_MACHINE_SUFFIX: '-deploy-test'
+    TEE_MACHINE_SUFFIX: "-deploy-test"

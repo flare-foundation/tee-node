@@ -1,4 +1,4 @@
-FROM golang:1.24-alpine AS builder
+FROM golang:1.25.1-alpine AS builder
 
 RUN apk add --no-cache git ca-certificates tzdata
 
@@ -22,7 +22,7 @@ RUN adduser -DH -u 1000 server && adduser -DH -u 1001 extension
 
 COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
 COPY --from=builder /app/assets/google_confidential_space_root.crt assets/google_confidential_space_root.crt
-COPY --from=builder /app/server /app/extension .
+COPY --from=builder /app/server /app/extension ./
 
 ENV TZ=UTC  
 

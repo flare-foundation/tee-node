@@ -72,6 +72,11 @@ type TeeInfoResponse struct {
 	Attestation hexutil.Bytes `json:"attestation"`
 }
 
+type SignedTeeInfoResponse struct {
+	TeeInfoResponse
+	ProxySignature hexutil.Bytes `json:"proxySignature"`
+}
+
 func EncodeTeeAttestationRequest(req *verification.ITeeVerificationTeeAttestation) (hexutil.Bytes, error) {
 	arg := verification.MessageArguments[op.TEEAttestation]
 	return structs.Encode(arg, &req)
