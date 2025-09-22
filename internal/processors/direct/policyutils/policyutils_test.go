@@ -7,13 +7,16 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/flare-foundation/tee-node/internal/testutils"
+	"github.com/flare-foundation/tee-node/pkg/node"
+	"github.com/flare-foundation/tee-node/pkg/policy"
 	"github.com/flare-foundation/tee-node/pkg/types"
 )
 
 var numVoters int
 
 func TestInitializePolicy(t *testing.T) {
-	_, pStorage, _ := testutils.Setup(t)
+	pStorage := policy.InitializeStorage()
+	pp := NewProcessor(pStorage)
 
 	// Generate random voters and corresponding private keys
 	numVoters = 100
@@ -38,17 +41,15 @@ func TestInitializePolicy(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to build the mock initialize policy request: %v", err)
 	}
-
-	proc := Processor{pStorage}
-
-	_, err = proc.InitializePolicy(&types.DirectInstruction{Message: message})
+	_, err = pp.InitializePolicy(&types.DirectInstruction{Message: message})
 	if err != nil {
 		t.Errorf("Failed to initialize the policy: %v", err)
 	}
 }
 
 func TestInitializingThePolicyTwice(t *testing.T) {
-	_, pStorage, _ := testutils.Setup(t)
+	pStorage := policy.InitializeStorage()
+	pp := NewProcessor(pStorage)
 
 	epochId, randSeed := uint32(1), int64(12345)
 
@@ -66,10 +67,7 @@ func TestInitializingThePolicyTwice(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to build the mock initialize policy request: %v", err)
 	}
-
-	proc := Processor{pStorage}
-
-	_, err = proc.InitializePolicy(&types.DirectInstruction{Message: message})
+	_, err = pp.InitializePolicy(&types.DirectInstruction{Message: message})
 	if err != nil {
 		t.Errorf("Failed to initialize the policy: %v", err)
 	}
@@ -90,14 +88,18 @@ func TestInitializingThePolicyTwice(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to build the mock initialize policy request: %v", err)
 	}
-	_, err = proc.InitializePolicy(&types.DirectInstruction{Message: message2})
+	_, err = pp.InitializePolicy(&types.DirectInstruction{Message: message2})
 	if err.Error() != "policy already initialized" {
 		t.Errorf("expected 'policy already initialized', got %v", err)
 	}
 }
 
 func TestUpdatePolicy(t *testing.T) {
-	_, pStorage, _ := testutils.Setup(t)
+	pStorage := policy.InitializeStorage()
+	pp := NewProcessor(pStorage)
+
+	_, err := node.Initialize(node.ZeroState{})
+	require.NoError(t, err)
 
 	// Generate random voters and corresponding private keys
 	numVoters = 100
@@ -130,9 +132,8 @@ func TestUpdatePolicy(t *testing.T) {
 	}
 	updatePolicyRequestBytes, err := json.Marshal(updatePolicyRequest)
 	require.NoError(t, err)
-	proc := Processor{pStorage}
 
-	_, err = proc.UpdatePolicy(&types.DirectInstruction{Message: updatePolicyRequestBytes})
+	_, err = pp.UpdatePolicy(&types.DirectInstruction{Message: updatePolicyRequestBytes})
 	require.NoError(t, err)
 
 	// todo: check new policy

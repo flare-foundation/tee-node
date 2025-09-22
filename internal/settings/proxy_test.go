@@ -2,6 +2,7 @@ package settings_test
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"net/http"
 	"os"
@@ -13,39 +14,42 @@ import (
 )
 
 func TestInitialUrlNotSet(t *testing.T) {
-	// Reset state
-	settings.ProxyURL = settings.ProxyURLMutex{}
+	// Create and start the proxy config server
+	server := settings.NewProxyConfigServer(3000)
+	go server.Serve()                        //nolint:errcheck
+	defer server.Close(context.Background()) //nolint:errcheck
 
-	go settings.ProxyURLConfigServer(3000)
+	time.Sleep(100 * time.Millisecond)
 
-	settings.ProxyURL.RLock()
-	defer settings.ProxyURL.RUnlock()
-	require.Equal(t, "", settings.ProxyURL.URL)
+	server.ProxyUrl.RLock()
+	defer server.ProxyUrl.RUnlock()
+	require.Equal(t, "", server.ProxyUrl.URL)
 }
 
 func TestInitialUrlSet(t *testing.T) {
-	// Reset state
-	settings.ProxyURL = settings.ProxyURLMutex{}
+	// Create a new ProxyURLMutex instance
 
 	err := os.Setenv("PROXY_URL", "http://envproxy.com")
 	require.NoError(t, err)
 	defer os.Unsetenv("PROXY_URL") //nolint:errcheck
 
-	go settings.ProxyURLConfigServer(3001)
+	// Create and start the proxy config server
+	server := settings.NewProxyConfigServer(3001)
+	go server.Serve()                        //nolint:errcheck
+	defer server.Close(context.Background()) //nolint:errcheck
 
 	time.Sleep(100 * time.Millisecond)
 
-	settings.ProxyURL.RLock()
-	defer settings.ProxyURL.RUnlock()
-	require.Equal(t, "http://envproxy.com", settings.ProxyURL.URL)
+	server.ProxyUrl.RLock()
+	defer server.ProxyUrl.RUnlock()
+	require.Equal(t, "http://envproxy.com", server.ProxyUrl.URL)
 }
 
 func TestEndpointUrlSet(t *testing.T) {
-	// Reset state
-	settings.ProxyURL = settings.ProxyURLMutex{}
-
-	// os.Setenv("PROXY_URL", "ABC")
-	go settings.ProxyURLConfigServer(3002)
+	// Create and start the proxy config server
+	server := settings.NewProxyConfigServer(3002)
+	go server.Serve()                        //nolint:errcheck
+	defer server.Close(context.Background()) //nolint:errcheck
 
 	time.Sleep(100 * time.Millisecond)
 	// Prepare request
@@ -60,7 +64,7 @@ func TestEndpointUrlSet(t *testing.T) {
 	err = resp.Body.Close()
 	require.NoError(t, err)
 
-	settings.ProxyURL.RLock()
-	defer settings.ProxyURL.RUnlock()
-	require.Equal(t, "http://newproxy.com", settings.ProxyURL.URL)
+	server.ProxyUrl.RLock()
+	defer server.ProxyUrl.RUnlock()
+	require.Equal(t, "http://newproxy.com", server.ProxyUrl.URL)
 }

@@ -9,6 +9,7 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/op"
 	cwallet "github.com/flare-foundation/go-flare-common/pkg/tee/structs/wallet"
+	"github.com/flare-foundation/tee-node/internal/settings"
 	"github.com/flare-foundation/tee-node/internal/testutils"
 	"github.com/flare-foundation/tee-node/pkg/types"
 	"github.com/stretchr/testify/require"
@@ -45,9 +46,9 @@ func TestRoutID(t *testing.T) {
 }
 
 func TestRouterDirectActionRouting(t *testing.T) {
-	testNode, pStorage, wStorage := testutils.Setup(t)
+	testNode, ps, ws := testutils.Setup(t)
 
-	r := NewPMWRouter(testNode, pStorage, wStorage)
+	r := NewPMWRouter(testNode, ws, ps, &settings.ProxyURLMutex{})
 
 	// Create a direct action
 	action := testutils.BuildMockDirectAction(t, op.Get, op.TEEInfo, types.TeeInfoRequest{
@@ -64,16 +65,16 @@ func TestRouterDirectActionRouting(t *testing.T) {
 
 func TestRouterInstructionActionRoutingThreshold(t *testing.T) {
 	// Initialize node for testing
-	testNode, pStorage, wStorage := testutils.Setup(t)
+	teeNode, ps, ws := testutils.Setup(t)
 
 	numVoters, randSeed, epochId := 100, int64(12345), uint32(1)
-	_, _, providerPrivKeys, err := testutils.GenerateAndSetInitialPolicy(pStorage, numVoters, randSeed, epochId)
+	_, _, providerPrivKeys, err := testutils.GenerateAndSetInitialPolicy(ps, numVoters, randSeed, epochId)
 	require.NoError(t, err)
 
-	r := NewPMWRouter(testNode, pStorage, wStorage)
+	r := NewPMWRouter(teeNode, ws, ps, &settings.ProxyURLMutex{})
 
 	// Create an instruction action with Threshold submission tag
-	teeId := testNode.TeeID()
+	teeId := teeNode.TeeID()
 	walletId := common.HexToHash("0xabcdef")
 	keyId := uint64(1)
 
@@ -126,8 +127,8 @@ func TestRouterInstructionActionRoutingThreshold(t *testing.T) {
 }
 
 func TestRouterUnregisteredExtension(t *testing.T) {
-	testNode, pStorage, wStorage := testutils.Setup(t)
-	r := NewPMWRouter(testNode, pStorage, wStorage)
+	testNode, ps, ws := testutils.Setup(t)
+	r := NewPMWRouter(testNode, ws, ps, &settings.ProxyURLMutex{})
 
 	// Create a direct action for an unregistered extension (no processor registered)
 	action := testutils.BuildMockDirectAction(t, op.Type("UnregisteredExt"), op.Command("UnregisteredCmd"), nil)
@@ -141,8 +142,8 @@ func TestRouterUnregisteredExtension(t *testing.T) {
 }
 
 func TestRouterExtensionStartingWithF_NotConfigured(t *testing.T) {
-	testNode, pStorage, wStorage := testutils.Setup(t)
-	r := NewExtensionRouter(testNode, pStorage, wStorage, 8001)
+	testNode, ps, ws := testutils.Setup(t)
+	r := NewExtensionRouter(testNode, ws, ps, 8001, &settings.ProxyURLMutex{})
 
 	// Create a direct action for extension starting with F_ but not configured
 	action := testutils.BuildMockDirectAction(t, op.Type("F_CustomExtension"), op.Command("CustomCommand"), nil)

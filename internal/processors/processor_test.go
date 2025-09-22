@@ -73,18 +73,18 @@ func TestProcessorsEndToEnd(t *testing.T) {
 	mainActionInfoChan := make(chan *types.Action, 100)
 	readActionInfoChan := make(chan *types.Action, 100)
 	actionResponseChan := make(chan *types.ActionResponse, 100)
-	proxyPort := 5501
+	proxyPort := 8008 // Use different port for MockProxy
 	go MockProxy(t, proxyPort, mainActionInfoChan, readActionInfoChan, actionResponseChan)
 
-	proxyConfigureServerPort := 5502
-	go settings.ProxyURLConfigServer(proxyConfigureServerPort)
+	pc := settings.NewProxyConfigServer(settings.ProxyConfigureServerPort) // Use original port for ProxyConfigureServer
+	go pc.Serve()                                                          //nolint:errcheck
 
-	r := router.NewPMWRouter(testNode, pStorage, wStorage)
+	r := router.NewPMWRouter(testNode, wStorage, pStorage, pc.ProxyUrl)
 
 	go r.Run(testNode)
 	time.Sleep(1 * time.Second)
 
-	setProxyUrl(t, proxyPort, proxyConfigureServerPort)
+	setProxyUrl(t, proxyPort, settings.ProxyConfigureServerPort)
 
 	teeId, teePubKey := getTeeInfo(t, readActionInfoChan, actionResponseChan)
 
@@ -112,7 +112,7 @@ func TestProcessorsEndToEnd(t *testing.T) {
 	walletProof.Nonce = nonce
 	require.Equal(t, walletProof, recoveredWalletProof)
 
-	getTeeAttestation(t, mainActionInfoChan, actionResponseChan, teeId,
+	getTeeAttestation(t, wStorage, mainActionInfoChan, actionResponseChan, teeId,
 		providerPrivKeys, finalEpochId)
 
 	ftdcProve(t, mainActionInfoChan, actionResponseChan, teeId, providerPrivKeys, adminPrivKeys, finalEpochId)
@@ -159,6 +159,7 @@ func initializePolicy(t *testing.T, actionInfoChan chan *types.Action,
 	actionInfoChan <- action
 
 	actionResponse := <-actionResponseChan
+	fmt.Println(actionResponse.Result.Log)
 	require.Equal(t, uint8(1), actionResponse.Result.Status)
 }
 
@@ -532,6 +533,7 @@ func recoverWallet(t *testing.T, actionInfoChan chan *types.Action,
 
 func getTeeAttestation(
 	t *testing.T,
+	wStorage *wallets.Storage,
 	actionInfoChan chan *types.Action,
 	actionResponseChan chan *types.ActionResponse,
 	teeId common.Address,

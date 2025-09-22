@@ -73,7 +73,7 @@ func TestAbiDecodeFTDCAttestationResponse(t *testing.T) {
 		}
 	}
 
-	proc := Processor{testNode}
+	proc := NewProcessor(testNode)
 
 	res, _, err := proc.Prove(types.Threshold, &instructionData, signatures, signers, policy)
 	require.NoError(t, err)

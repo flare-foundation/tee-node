@@ -5,10 +5,11 @@ import (
 	"github.com/flare-foundation/tee-node/internal/router"
 	"github.com/flare-foundation/tee-node/internal/settings"
 	"github.com/flare-foundation/tee-node/pkg/node"
-	"github.com/flare-foundation/tee-node/pkg/policy"
-	"github.com/flare-foundation/tee-node/pkg/wallets"
 
 	"github.com/flare-foundation/go-flare-common/pkg/logger"
+
+	"github.com/flare-foundation/tee-node/pkg/policy"
+	"github.com/flare-foundation/tee-node/pkg/wallets"
 )
 
 func main() {
@@ -28,9 +29,10 @@ func main() {
 	// 	logger.Fatalf("self attestation failed: %v", err)
 	// }
 
-	go settings.ProxyURLConfigServer(settings.ProxyConfigureServerPort)
+	pc := settings.NewProxyConfigServer(settings.ProxyConfigureServerPort)
+	go pc.Serve() //nolint:errcheck
 
-	r := router.NewPMWRouter(teeNode, ps, ws)
+	r := router.NewPMWRouter(teeNode, ws, ps, pc.ProxyUrl)
 
 	// Launch the json rpc server
 	r.Run(teeNode)

@@ -8,6 +8,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"strconv"
 	"testing"
 	"time"
 
@@ -26,14 +27,18 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func setupTestServer(t *testing.T, port int) *ExtensionServer {
+func setupTestServer(t *testing.T, proxyPort int, port int) *ExtensionServer {
 	testNode, err := node.Initialize(node.ZeroState{})
 	require.NoError(t, err)
 
 	wStorage := pkgwallets.InitializeStorage()
 
+	proxyUrl := settings.ProxyURLMutex{
+		URL: "http://localhost:" + strconv.Itoa(proxyPort),
+	}
+
 	// Create test server
-	server := NewExtensionServer(port, testNode, wStorage)
+	server := NewExtensionServer(port, testNode, wStorage, &proxyUrl)
 
 	return server
 }
@@ -76,8 +81,8 @@ func setupTestWallet(t *testing.T, ws *pkgwallets.Storage) (*pkgwallets.Wallet, 
 
 func TestGetKeyInfoHandler(t *testing.T) {
 	port := 8880
-
-	extServer := setupTestServer(t, port)
+	proxyPort := 5507
+	extServer := setupTestServer(t, proxyPort, port)
 	go extServer.Serve()                        //nolint:errcheck
 	defer extServer.Close(context.Background()) //nolint:errcheck
 
@@ -111,8 +116,8 @@ func TestGetKeyInfoHandler(t *testing.T) {
 
 func TestSignWithKeyHandler(t *testing.T) {
 	port := 8881
-
-	server := setupTestServer(t, port)
+	proxyPort := 5503
+	server := setupTestServer(t, proxyPort, port)
 	go server.Serve()                        //nolint:errcheck
 	defer server.Close(context.Background()) //nolint:errcheck
 
@@ -153,7 +158,8 @@ func TestSignWithKeyHandler(t *testing.T) {
 
 func TestSignWithTeeHandler(t *testing.T) {
 	port := 8882
-	server := setupTestServer(t, port)
+	proxyPort := 5504
+	server := setupTestServer(t, proxyPort, port)
 	go server.Serve()                        //nolint:errcheck
 	defer server.Close(context.Background()) //nolint:errcheck
 
@@ -193,7 +199,8 @@ func TestSignWithTeeHandler(t *testing.T) {
 
 func TestDecryptWithKeyHandler(t *testing.T) {
 	port := 8883
-	server := setupTestServer(t, port)
+	proxyPort := 5505
+	server := setupTestServer(t, proxyPort, port)
 	go server.Serve()                        //nolint:errcheck
 	defer server.Close(context.Background()) //nolint:errcheck
 
@@ -224,7 +231,8 @@ func TestDecryptWithKeyHandler(t *testing.T) {
 
 func TestDecryptWithTeeHandler(t *testing.T) {
 	port := 8884
-	server := setupTestServer(t, port)
+	proxyPort := 5506
+	server := setupTestServer(t, proxyPort, port)
 	go server.Serve()                        //nolint:errcheck
 	defer server.Close(context.Background()) //nolint:errcheck
 
@@ -255,14 +263,13 @@ func TestDecryptWithTeeHandler(t *testing.T) {
 
 func TestPostResultHandler(t *testing.T) {
 	port := 8885
-	server := setupTestServer(t, port)
+	proxyPort := 5503
+	server := setupTestServer(t, proxyPort, port)
 	go server.Serve()                        //nolint:errcheck
 	defer server.Close(context.Background()) //nolint:errcheck
 
-	proxyPort := 5503
 	actionResponseChan := make(chan *types.ActionResponse, 1)
 	go mockProxyResult(t, proxyPort, actionResponseChan)
-	settings.ProxyURL.URL = fmt.Sprintf("http://localhost:%d", proxyPort)
 
 	actionResult := types.ActionResult{
 		ID:            common.HexToHash("0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef"),

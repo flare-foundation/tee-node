@@ -24,9 +24,10 @@ func StartServerPMW(setProxyPort int) {
 	ws := wallets.InitializeStorage()
 	ps := policy.InitializeStorage()
 
-	go settings.ProxyURLConfigServer(setProxyPort)
+	pc := settings.NewProxyConfigServer(setProxyPort)
+	go pc.Serve() //nolint:errcheck
 
-	r := router.NewPMWRouter(teeNode, ps, ws)
+	r := router.NewPMWRouter(teeNode, ws, ps, pc.ProxyUrl)
 
 	r.Run(teeNode)
 }
@@ -45,13 +46,14 @@ func StartServerExtension(setProxyPort, serverPort, extensionPort int) {
 	ws := wallets.InitializeStorage()
 	ps := policy.InitializeStorage()
 
-	go settings.ProxyURLConfigServer(setProxyPort)
+	pc := settings.NewProxyConfigServer(setProxyPort)
+	go pc.Serve() //nolint:errcheck
 
-	extServer := server.NewExtensionServer(serverPort, teeNode, ws)
+	extServer := server.NewExtensionServer(serverPort, teeNode, ws, pc.ProxyUrl)
 
 	go extServer.Serve() //nolint:errcheck
 
-	r := router.NewExtensionRouter(teeNode, ps, ws, extensionPort)
+	r := router.NewExtensionRouter(teeNode, ws, ps, extensionPort, pc.ProxyUrl)
 
 	// Launch the json rpc server
 	r.Run(teeNode)

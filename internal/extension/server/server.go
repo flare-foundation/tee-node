@@ -38,9 +38,11 @@ type ExtensionServer struct {
 	wStorage *wallets.Storage
 
 	node *node.Node
+
+	proxyUrl *settings.ProxyURLMutex
 }
 
-func NewExtensionServer(port int, node *node.Node, wStorage *wallets.Storage) *ExtensionServer {
+func NewExtensionServer(port int, node *node.Node, wStorage *wallets.Storage, proxyUrl *settings.ProxyURLMutex) *ExtensionServer {
 	addr := fmt.Sprintf(":%d", port)
 
 	server := &http.Server{
@@ -56,6 +58,7 @@ func NewExtensionServer(port int, node *node.Node, wStorage *wallets.Storage) *E
 		server:   server,
 		wStorage: wStorage,
 		node:     node,
+		proxyUrl: proxyUrl,
 	}
 
 	e.registerRoutes()
@@ -235,9 +238,9 @@ func (s *ExtensionServer) postResultHandler(w http.ResponseWriter, r *http.Reque
 		http.Error(w, "can not sign", http.StatusInternalServerError)
 	}
 
-	settings.ProxyURL.RLock()
-	proxyUrl := settings.ProxyURL.URL
-	settings.ProxyURL.RUnlock()
+	s.proxyUrl.RLock()
+	proxyUrl := s.proxyUrl.URL
+	s.proxyUrl.RUnlock()
 
 	if proxyUrl == "" {
 		http.Error(w, "proxy not set", http.StatusInternalServerError)

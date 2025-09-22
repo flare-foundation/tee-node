@@ -10,14 +10,15 @@ import (
 	"github.com/flare-foundation/tee-node/internal/processors/instructions/regutils"
 	"github.com/flare-foundation/tee-node/internal/processors/instructions/signutils"
 	"github.com/flare-foundation/tee-node/internal/processors/instructions/walletutils"
+	"github.com/flare-foundation/tee-node/internal/settings"
 	"github.com/flare-foundation/tee-node/pkg/policy"
 	"github.com/flare-foundation/tee-node/pkg/wallets"
 
 	pnode "github.com/flare-foundation/tee-node/pkg/node"
 )
 
-func NewPMWRouter(teeNode *pnode.Node, pStorage *policy.Storage, wStorage *wallets.Storage) Router {
-	r := New()
+func NewPMWRouter(teeNode *pnode.Node, wStorage *wallets.Storage, pStorage *policy.Storage, proxyUrl *settings.ProxyURLMutex) Router {
+	r := New(proxyUrl)
 
 	gp := getutils.NewProcessor(teeNode, pStorage, wStorage)
 	r.RegisterDirectProcessor(op.Get, op.KeyInfo, gp.KeysInfo)
@@ -29,6 +30,7 @@ func NewPMWRouter(teeNode *pnode.Node, pStorage *policy.Storage, wStorage *walle
 	r.RegisterDirectProcessor(op.Policy, op.UpdatePolicy, pp.UpdatePolicy)
 
 	wp := walletutils.NewProcessor(teeNode, pStorage, wStorage)
+
 	r.RegisterInstructionProcessor(op.Wallet, op.KeyGenerate, instructions.NewProcessor(wp.KeyGenerate, teeNode, pStorage))
 	r.RegisterInstructionProcessor(op.Wallet, op.KeyDelete, instructions.NewProcessor(wp.KeyDelete, teeNode, pStorage))
 	r.RegisterInstructionProcessor(op.Wallet, op.KeyDataProviderRestore, instructions.NewProcessor(wp.KeyDataProviderRestore, teeNode, pStorage))
@@ -46,8 +48,8 @@ func NewPMWRouter(teeNode *pnode.Node, pStorage *policy.Storage, wStorage *walle
 	return r
 }
 
-func NewExtensionRouter(teeNode *pnode.Node, pStorage *policy.Storage, wStorage *wallets.Storage, extensionPort int) Router {
-	r := New()
+func NewExtensionRouter(teeNode *pnode.Node, wStorage *wallets.Storage, pStorage *policy.Storage, extensionPort int, proxyUrl *settings.ProxyURLMutex) Router {
+	r := New(proxyUrl)
 
 	gp := getutils.NewProcessor(teeNode, pStorage, wStorage)
 	r.RegisterDirectProcessor(op.Get, op.KeyInfo, gp.KeysInfo)

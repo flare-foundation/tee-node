@@ -1,18 +1,15 @@
 package settings
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"os"
 	"sync"
-	"time"
 
-	"github.com/flare-foundation/go-flare-common/pkg/logger"
 	"github.com/flare-foundation/tee-node/pkg/types"
 )
-
-var ProxyURL ProxyURLMutex
 
 type ProxyURLMutex struct {
 	URL string
@@ -20,37 +17,56 @@ type ProxyURLMutex struct {
 	sync.RWMutex
 }
 
-func ProxyURLConfigServer(port int) {
-	addr := fmt.Sprintf(":%d", port)
+type ProxyConfigureServer struct {
+	server *http.Server
 
+	ProxyUrl *ProxyURLMutex
+}
+
+func NewProxyConfigServer(setProxyPort int) *ProxyConfigureServer {
+	proxyUrl := &ProxyURLMutex{}
+	proxyUrl.setProxyUrlFromEnv()
+
+	addr := fmt.Sprintf(":%d", setProxyPort)
 	server := &http.Server{
 		Addr: addr,
 	}
-
-	setInitialProxyUrl()
-
 	mux := http.NewServeMux()
 	server.Handler = mux
-	mux.HandleFunc("POST /configure", handleConfigure)
+	mux.HandleFunc("POST /configure", proxyUrl.setProxyURL)
 
-	for {
-		err := server.ListenAndServe()
-		if err != nil {
-			logger.Errorf("error serving proxy url config: %v", err)
-		}
-
-		time.Sleep(time.Second)
+	pc := ProxyConfigureServer{
+		server:   server,
+		ProxyUrl: proxyUrl,
 	}
+
+	return &pc
 }
 
-func setInitialProxyUrl() {
+// setProxyUrlFromEnv sets the proxy url from the environment variable PROXY_URL if it was not already set.
+func (proxyUrl *ProxyURLMutex) setProxyUrlFromEnv() {
+	proxyUrl.Lock()
+	defer proxyUrl.Unlock()
+
+	if proxyUrl.URL != "" {
+		return
+	}
+
 	initialProxyUrl := os.Getenv("PROXY_URL")
 	if initialProxyUrl != "" {
-		setProxyUrl(initialProxyUrl)
+		proxyUrl.URL = initialProxyUrl
 	}
 }
 
-func handleConfigure(w http.ResponseWriter, r *http.Request) {
+func (pc *ProxyConfigureServer) Serve() error {
+	return pc.server.ListenAndServe()
+}
+
+func (pc *ProxyConfigureServer) Close(ctx context.Context) error {
+	return pc.server.Shutdown(ctx)
+}
+
+func (proxyUrl *ProxyURLMutex) setProxyURL(w http.ResponseWriter, r *http.Request) {
 	var request types.ConfigureProxyUrlRequest
 	err := json.NewDecoder(r.Body).Decode(&request)
 	if err != nil {
@@ -58,14 +74,8 @@ func handleConfigure(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	setProxyUrl(request.Url)
-}
+	proxyUrl.Lock()
+	defer proxyUrl.Unlock()
 
-func setProxyUrl(proxyUrl string) {
-	ProxyURL.Lock()
-	defer ProxyURL.Unlock()
-
-	ProxyURL.URL = proxyUrl
-
-	logger.Infof("Setting proxy url to: %s", proxyUrl)
+	proxyUrl.URL = request.Url
 }

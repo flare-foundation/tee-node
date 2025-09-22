@@ -35,10 +35,12 @@ type Router struct {
 
 	defaultDirect      Processor
 	defaultInstruction Processor
+
+	proxyUrl *settings.ProxyURLMutex
 }
 
-func New() Router {
-	return Router{}
+func New(proxyUrl *settings.ProxyURLMutex) Router {
+	return Router{proxyUrl: proxyUrl}
 }
 
 func (r Router) Run(signer node.Signer) {
@@ -54,16 +56,16 @@ func (r *Router) ServeQueue(id processorutils.QueueID, signer node.Signer) {
 		var response *types.ActionResponse
 		var err error
 
-		settings.ProxyURL.RLock()
-		proxyURL := settings.ProxyURL.URL
-		settings.ProxyURL.RUnlock()
+		r.proxyUrl.RLock()
+		proxyURL := r.proxyUrl.URL
+		r.proxyUrl.RUnlock()
 		if proxyURL == "" {
 			goto sleep
 		}
 
 		action, err = queue.FetchAction(fmt.Sprintf("%s/queue/%s", proxyURL, id))
 		if err != nil {
-			logger.Errorf("error getting action: %v", err)
+			// logger.Errorf("error getting action: %v", err)
 			goto sleep
 		}
 		if action == nil || action.Data.ID == [32]byte{} {
