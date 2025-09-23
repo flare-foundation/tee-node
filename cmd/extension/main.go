@@ -13,6 +13,8 @@ import (
 )
 
 func main() {
+	logger.Set(logger.Config{Console: true, Level: settings.LogLevel})
+
 	teeNode, err := node.Initialize(node.ZeroState{})
 	if err != nil {
 		logger.Fatalf("failed to initialize: %v", err)

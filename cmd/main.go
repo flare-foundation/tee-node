@@ -13,12 +13,15 @@ import (
 )
 
 func main() {
+	logger.Set(logger.Config{Console: true, Level: settings.LogLevel})
+
 	teeNode, err := node.Initialize(node.ZeroState{})
 	if err != nil {
 		logger.Fatalf("failed to initialize: %v", err)
 	}
 	ws := wallets.InitializeStorage()
 	ps := policy.InitializeStorage()
+	logger.Info("tee node initialized")
 
 	err = attestation.SetGoogleCert()
 	if err != nil {
