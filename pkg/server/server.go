@@ -16,6 +16,8 @@ import (
 //
 // setProxyPort is the port that exposes endpoint for setting proxy's url.
 func StartServerPMW(setProxyPort int) {
+	logger.Set(logger.Config{Console: true, Level: settings.LogLevel})
+
 	teeNode, err := node.Initialize(node.ZeroState{})
 	if err != nil {
 		logger.Fatalf("failed to initialize: %v", err)
@@ -38,6 +40,8 @@ func StartServerPMW(setProxyPort int) {
 // serverPort is the port that exposes endpoints for extension interaction.
 // extensionPort is the port where where extension exposes /action endpoint.
 func StartServerExtension(setProxyPort, serverPort, extensionPort int) {
+	logger.Set(logger.Config{Console: true, Level: settings.LogLevel})
+
 	teeNode, err := node.Initialize(node.ZeroState{})
 	if err != nil {
 		logger.Fatalf("failed to initialize: %v", err)

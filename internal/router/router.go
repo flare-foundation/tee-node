@@ -50,6 +50,7 @@ func (r Router) Run(signer node.Signer) {
 
 // ServeQueue starts an endless loop that fetches actions from proxy's queue, processes them, and posts the response to the proxy.
 func (r *Router) ServeQueue(id processorutils.QueueID, signer node.Signer) {
+	logger.Infof("%s queue: processing started", id)
 	for {
 		var action *types.Action
 		var result types.ActionResult
@@ -65,20 +66,25 @@ func (r *Router) ServeQueue(id processorutils.QueueID, signer node.Signer) {
 
 		action, err = queue.FetchAction(fmt.Sprintf("%s/queue/%s", proxyURL, id))
 		if err != nil {
-			// logger.Errorf("error getting action: %v", err)
+			logger.Errorf("%s queue: error getting action: %v", id, err)
 			goto sleep
 		}
 		if action == nil || action.Data.ID == [32]byte{} {
 			goto sleep
 		}
+		logger.Infof("%s queue: fetched an action: id %v, type %v, submission tag %v", id, action.Data.ID, action.Data.Type, action.Data.SubmissionTag)
 
-		result = r.process(action)
+		result = r.process(action, id)
+		logger.Infof("%s queue: result obtained: status %v, log %v", id, result.Status, result.Log)
 
 		response, _ = SignResult(&result, signer)
+		if err != nil {
+			logger.Errorf("%s queue: error signing: %v", id, err)
+		}
 
 		err = queue.PostActionResponse(proxyURL+"/result", response)
 		if err != nil {
-			logger.Errorf("error posting result: %v", err)
+			logger.Errorf("%s queue: error posting result: %v", id, err)
 		}
 		continue
 
@@ -137,7 +143,7 @@ func (r *Router) RegisterDefaultInstruction(processor Processor) {
 	r.defaultInstruction = processor
 }
 
-func (r *Router) process(a *types.Action) types.ActionResult {
+func (r *Router) process(a *types.Action, queueId processorutils.QueueID) types.ActionResult {
 	err := processorutils.CheckAndAdapt(a)
 	if err != nil {
 		return processorutils.Invalid(a, err)
@@ -147,6 +153,7 @@ func (r *Router) process(a *types.Action) types.ActionResult {
 	if err != nil {
 		return processorutils.Invalid(a, err)
 	}
+	logger.Infof("%s queue: routing action with OPType, OPCommand: %v", queueId, id)
 
 	p, exists := r.routs[id]
 	if exists {
@@ -156,10 +163,12 @@ func (r *Router) process(a *types.Action) types.ActionResult {
 	switch a.Data.Type {
 	case types.Direct:
 		if r.defaultDirect != nil {
+			logger.Infof("%s queue: processing using default direct processor")
 			return r.defaultDirect.Process(a)
 		}
 	case types.Instruction:
 		if r.defaultInstruction != nil {
+			logger.Infof("%s queue: processing using default instruction processor")
 			return r.defaultInstruction.Process(a)
 		}
 	}

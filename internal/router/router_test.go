@@ -11,6 +11,7 @@ import (
 	cwallet "github.com/flare-foundation/go-flare-common/pkg/tee/structs/wallet"
 	"github.com/flare-foundation/tee-node/internal/settings"
 	"github.com/flare-foundation/tee-node/internal/testutils"
+	"github.com/flare-foundation/tee-node/pkg/processorutils"
 	"github.com/flare-foundation/tee-node/pkg/types"
 	"github.com/stretchr/testify/require"
 )
@@ -55,7 +56,7 @@ func TestRouterDirectActionRouting(t *testing.T) {
 		Challenge: common.Hash{0x1},
 	})
 
-	result := r.process(action)
+	result := r.process(action, processorutils.Main)
 
 	// Verify results
 	require.Equal(t, uint8(1), result.Status)
@@ -118,7 +119,7 @@ func TestRouterInstructionActionRoutingThreshold(t *testing.T) {
 	require.NoError(t, err)
 
 	// Process the action
-	result := r.process(action)
+	result := r.process(action, processorutils.Main)
 
 	// Verify results
 	require.Equal(t, uint8(1), result.Status)
@@ -134,7 +135,7 @@ func TestRouterUnregisteredExtension(t *testing.T) {
 	action := testutils.BuildMockDirectAction(t, op.Type("UnregisteredExt"), op.Command("UnregisteredCmd"), nil)
 
 	// Process the action - should fail
-	result := r.process(action)
+	result := r.process(action, processorutils.Main)
 
 	// Verify failure
 	require.Equal(t, uint8(0), result.Status)
@@ -149,7 +150,7 @@ func TestRouterExtensionStartingWithF_NotConfigured(t *testing.T) {
 	action := testutils.BuildMockDirectAction(t, op.Type("F_CustomExtension"), op.Command("CustomCommand"), nil)
 
 	// Process the action - should fail since no processor is registered
-	result := r.process(action)
+	result := r.process(action, processorutils.Main)
 
 	require.Equal(t, uint8(0), result.Status)
 	require.Contains(t, result.Log, "invalid OPType, OPCommand pair")

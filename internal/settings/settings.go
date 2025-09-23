@@ -9,13 +9,19 @@ import (
 // Modes:
 // - 0 production,
 // - 1 local (no attestation)
-var Mode = 1
+var Mode int
+var LogLevel string
 
 func init() {
 	if m, err := strconv.Atoi(os.Getenv("MODE")); err == nil {
 		Mode = m
 	} else {
 		Mode = 1
+	}
+	if logLevelEnv := os.Getenv("LOG_LEVEL"); len(logLevelEnv) != 0 {
+		LogLevel = logLevelEnv
+	} else {
+		LogLevel = "FATAL"
 	}
 }
 
