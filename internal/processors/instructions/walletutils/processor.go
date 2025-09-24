@@ -48,7 +48,7 @@ func (p *Processor) KeyGenerate(
 		return nil, nil, err
 	}
 
-	err = wallets.CheckKeyGenerate(req)
+	err = wallets.CheckKeyGenerate(req, p.TeeID())
 	if err != nil {
 		return nil, nil, err
 	}
@@ -142,7 +142,7 @@ func (p *Processor) KeyDataProviderRestore(
 	signers []common.Address,
 	_ *cpolicy.SigningPolicy,
 ) ([]byte, []byte, error) {
-	metadata, nonce, signersBothRoles, err := p.keyDataProviderRestoreCheck(dataFixed, signers)
+	metadata, nonce, signersBothRoles, err := p.keyDataProviderRestoreCheck(dataFixed, signers, p.TeeID())
 	if err != nil {
 		return nil, nil, err
 	}
@@ -163,7 +163,7 @@ func (p *Processor) KeyDataProviderRestore(
 	switch submissionTag {
 	case types.Threshold:
 		if p.wStorage.WalletExists(id) {
-			return nil, nil, errors.New("wallet with given wallet id and key id already exists")
+			return nil, nil, errors.New("wallet with given wallet-key id already exists")
 		}
 
 		p.wStorage.UpdateNonce(id, nonce)

@@ -8,28 +8,30 @@ import (
 	"github.com/flare-foundation/tee-node/pkg/utils"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/flare-foundation/go-flare-common/pkg/tee/op"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/structs/wallet"
-	"github.com/flare-foundation/go-flare-common/pkg/xrpl/signing/secp256k1"
 )
 
 // Wallet is a struct carrying the private key of particular wallet. It
 // should never be modified (apart from WalletStatus), after being created.
 type Wallet struct {
-	WalletID        common.Hash
-	KeyID           uint64
-	PrivateKey      *ecdsa.PrivateKey
-	Address         common.Address
-	ExternalAddress string
-	Restored        bool
+	WalletID    common.Hash
+	KeyID       uint64
+	PrivateKey  *ecdsa.PrivateKey
+	Address     common.Address
+	KeyType     common.Hash
+	SigningAlgo common.Hash
+
+	Restored bool
 
 	AdminPublicKeys    []*ecdsa.PublicKey
 	AdminsThreshold    uint64
 	Cosigners          []common.Address
 	CosignersThreshold uint64
-	OpType             [32]byte
-	OpTypeConstants    []byte
+
+	SettingsVersion common.Hash
+	Settings        hexutil.Bytes
 
 	Status *WalletStatus
 }
@@ -47,8 +49,6 @@ func GenerateNewKey(kg wallet.ITeeWalletKeyManagerKeyGenerate) (*Wallet, error) 
 		return nil, err
 	}
 
-	externalAddress := ExternalAddress(kg.OpType, sk)
-
 	adminsPubKeys, err := utils.ParsePubKeys(kg.ConfigConstants.AdminsPublicKeys)
 	if err != nil {
 		return nil, err
@@ -59,14 +59,17 @@ func GenerateNewKey(kg wallet.ITeeWalletKeyManagerKeyGenerate) (*Wallet, error) 
 		KeyID:              kg.KeyId,
 		PrivateKey:         sk,
 		Address:            crypto.PubkeyToAddress(sk.PublicKey),
-		ExternalAddress:    externalAddress,
+		KeyType:            kg.KeyType,
+		SigningAlgo:        kg.SigningAlgo,
+		Restored:           false,
 		AdminPublicKeys:    adminsPubKeys,
 		AdminsThreshold:    kg.ConfigConstants.AdminsThreshold,
 		Cosigners:          kg.ConfigConstants.Cosigners,
 		CosignersThreshold: kg.ConfigConstants.CosignersThreshold,
-		OpType:             kg.OpType,
-		OpTypeConstants:    kg.ConfigConstants.OpTypeConstants,
-		Status:             &WalletStatus{Nonce: 0, StatusCode: 0},
+		SettingsVersion:    common.Hash{},
+		Settings:           make(hexutil.Bytes, 0),
+
+		Status: &WalletStatus{Nonce: 0, StatusCode: 0},
 	}
 
 	return newWallet, nil
@@ -75,19 +78,22 @@ func GenerateNewKey(kg wallet.ITeeWalletKeyManagerKeyGenerate) (*Wallet, error) 
 // CopyWallet returns a deep copy of the wallet structure.
 func CopyWallet(inputWallet *Wallet) *Wallet {
 	walletCopy := &Wallet{
-		WalletID:        inputWallet.WalletID,
-		KeyID:           inputWallet.KeyID,
-		PrivateKey:      crypto.ToECDSAUnsafe(inputWallet.PrivateKey.D.Bytes()),
-		Address:         inputWallet.Address,
-		ExternalAddress: inputWallet.ExternalAddress,
-		Restored:        inputWallet.Restored,
+		WalletID:    inputWallet.WalletID,
+		KeyID:       inputWallet.KeyID,
+		PrivateKey:  crypto.ToECDSAUnsafe(inputWallet.PrivateKey.D.Bytes()),
+		Address:     inputWallet.Address,
+		KeyType:     inputWallet.KeyType,
+		SigningAlgo: inputWallet.SigningAlgo,
+
+		Restored: inputWallet.Restored,
 
 		AdminPublicKeys:    make([]*ecdsa.PublicKey, len(inputWallet.AdminPublicKeys)),
 		AdminsThreshold:    inputWallet.AdminsThreshold,
 		Cosigners:          make([]common.Address, len(inputWallet.Cosigners)),
 		CosignersThreshold: inputWallet.CosignersThreshold,
-		OpType:             inputWallet.OpType,
-		OpTypeConstants:    make([]byte, len(inputWallet.OpTypeConstants)),
+
+		SettingsVersion: inputWallet.SettingsVersion,
+		Settings:        make([]byte, len(inputWallet.Settings)),
 
 		Status: &WalletStatus{
 			Nonce:        inputWallet.Status.Nonce,
@@ -97,7 +103,7 @@ func CopyWallet(inputWallet *Wallet) *Wallet {
 	}
 	copy(walletCopy.AdminPublicKeys, inputWallet.AdminPublicKeys)
 	copy(walletCopy.Cosigners, inputWallet.Cosigners)
-	copy(walletCopy.OpTypeConstants, inputWallet.OpTypeConstants)
+	copy(walletCopy.Settings, inputWallet.Settings)
 
 	return walletCopy
 }
@@ -116,34 +122,21 @@ func WalletToKeyExistenceProof(inputWallet *Wallet, teeID common.Address) *walle
 	}
 
 	return &wallet.ITeeWalletKeyManagerKeyExistence{
-		TeeId:      teeID,
-		WalletId:   inputWallet.WalletID,
-		KeyId:      inputWallet.KeyID,
-		OpType:     inputWallet.OpType,
-		PublicKey:  types.PubKeyToBytes(&inputWallet.PrivateKey.PublicKey),
-		Nonce:      new(big.Int).SetUint64(inputWallet.Status.Nonce),
-		PauseNonce: new(big.Int).SetBytes(inputWallet.Status.PausingNonce[:]),
-		Status:     inputWallet.Status.StatusCode,
-		Restored:   inputWallet.Restored,
-		AddressStr: inputWallet.ExternalAddress,
+		TeeId:       teeID,
+		WalletId:    inputWallet.WalletID,
+		KeyId:       inputWallet.KeyID,
+		KeyType:     inputWallet.KeyType,
+		SigningAlgo: inputWallet.SigningAlgo,
+		PublicKey:   types.PubKeyToBytes(&inputWallet.PrivateKey.PublicKey),
+		Nonce:       new(big.Int).SetUint64(inputWallet.Status.Nonce),
+		Restored:    inputWallet.Restored,
 		ConfigConstants: wallet.ITeeWalletKeyManagerKeyConfigConstants{
 			AdminsPublicKeys:   adminPubKeys,
 			AdminsThreshold:    inputWallet.AdminsThreshold,
 			Cosigners:          inputWallet.Cosigners,
 			CosignersThreshold: inputWallet.CosignersThreshold,
-			OpTypeConstants:    inputWallet.OpTypeConstants,
 		},
-		ConfigSettings: wallet.ITeeWalletKeyManagerKeyConfigSettings{}, // V2
+		SettingsVersion: inputWallet.SettingsVersion,
+		Settings:        inputWallet.Settings,
 	}
-}
-
-// ExternalAddress returns the user-facing address representation for the
-// wallet key based on the operation type.
-func ExternalAddress(opType common.Hash, pk *ecdsa.PrivateKey) string {
-	t := op.HashToOPType(opType)
-	if t == op.XRP {
-		return secp256k1.PrvToAddress(pk)
-	}
-
-	return crypto.PubkeyToAddress(pk.PublicKey).String()
 }

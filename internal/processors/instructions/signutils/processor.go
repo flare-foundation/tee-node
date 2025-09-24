@@ -73,6 +73,14 @@ func (p *Processor) SignXRPLPayment(
 			return nil, nil, err
 		}
 
+		if key.KeyType != wallets.XRPType {
+			return nil, nil, errors.New("key type does not allow the action")
+		}
+
+		if key.SigningAlgo != wallets.XRPAlgo {
+			return nil, nil, errors.New("key's signing algorithm does not allow the action")
+		}
+
 		err = processorutils.CheckMatchingCosigners(dataFixed.Cosigners, key.Cosigners, dataFixed.CosignersThreshold, key.CosignersThreshold)
 		if err != nil {
 			return nil, nil, err

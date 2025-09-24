@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"math/big"
+	"slices"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -13,7 +14,13 @@ import (
 	"github.com/flare-foundation/go-flare-common/pkg/tee/structs"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/structs/wallet"
 	"github.com/flare-foundation/tee-node/pkg/types"
+	"github.com/flare-foundation/tee-node/pkg/utils"
 )
+
+var EVMAlgo = utils.ToHash("keccak256-secp256k1-ecdsa")
+var XRPAlgo = utils.ToHash("sha512half-secp256k1-ecdsa")
+var SigningAlgos = []common.Hash{EVMAlgo, XRPAlgo}
+var XRPType = utils.ToHash("XRP")
 
 // ParseKeyGenerate decodes the key generation instruction payload.
 func ParseKeyGenerate(instructionData *instruction.DataFixed) (wallet.ITeeWalletKeyManagerKeyGenerate, error) {
@@ -29,9 +36,17 @@ func ParseKeyGenerate(instructionData *instruction.DataFixed) (wallet.ITeeWallet
 }
 
 // CheckKeyGenerate performs basic validation on the key generation request.
-func CheckKeyGenerate(newWalletRequest wallet.ITeeWalletKeyManagerKeyGenerate) error {
+func CheckKeyGenerate(newWalletRequest wallet.ITeeWalletKeyManagerKeyGenerate, teeID common.Address) error {
+	if newWalletRequest.TeeId != teeID {
+		return errors.New("requested teeID does not match required")
+	}
+
 	if len(newWalletRequest.ConfigConstants.AdminsPublicKeys) == 0 {
 		return errors.New("no admin public keys")
+	}
+
+	if !slices.Contains(SigningAlgos, newWalletRequest.SigningAlgo) {
+		return errors.New("signing algorithm not supported")
 	}
 
 	return nil
@@ -97,7 +112,8 @@ type WalletBackupID struct {
 	KeyID     uint64          `json:"keyId"`
 	PublicKey types.PublicKey `json:"publicKey"`
 
-	OPType        common.Hash `json:"opType"`
+	KeyType       common.Hash `json:"keyType"`
+	SigningAlgo   common.Hash `json:"signingAlgo"`
 	RewardEpochID uint32      `json:"rewardEpochId"`
 	RandomNonce   common.Hash `json:"randomNonce"`
 }

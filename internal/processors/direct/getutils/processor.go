@@ -134,6 +134,14 @@ func (p *Processor) TEEBackup(i *types.DirectInstruction) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
+	hash, err := walletBackup.HashForSigning()
+	if err != nil {
+		return nil, err
+	}
+	walletBackup.TEESignature, err = p.Sign(hash[:])
+	if err != nil {
+		return nil, err
+	}
 
 	walletBackupBytes, err := json.Marshal(walletBackup)
 	if err != nil {

@@ -43,7 +43,7 @@ func setupTestServer(t *testing.T, proxyPort int, port int) *ExtensionServer {
 	return server
 }
 
-func setupTestWallet(t *testing.T, ws *pkgwallets.Storage) (*pkgwallets.Wallet, common.Hash, uint64) {
+func setupTestWallet(t *testing.T, ws *pkgwallets.Storage) *pkgwallets.Wallet {
 	// Generate a test private key
 	privateKey, err := crypto.GenerateKey()
 	require.NoError(t, err)
@@ -56,11 +56,10 @@ func setupTestWallet(t *testing.T, ws *pkgwallets.Storage) (*pkgwallets.Wallet, 
 	keyID := uint64(0)
 
 	wallet := &pkgwallets.Wallet{
-		WalletID:        walletID,
-		KeyID:           keyID,
-		PrivateKey:      privateKey,
-		Address:         crypto.PubkeyToAddress(privateKey.PublicKey),
-		ExternalAddress: "testXRPAddress",
+		WalletID:   walletID,
+		KeyID:      keyID,
+		PrivateKey: privateKey,
+		Address:    crypto.PubkeyToAddress(privateKey.PublicKey),
 		Status: &pkgwallets.WalletStatus{
 			Nonce:      0,
 			StatusCode: 0,
@@ -76,7 +75,7 @@ func setupTestWallet(t *testing.T, ws *pkgwallets.Storage) (*pkgwallets.Wallet, 
 	require.NoError(t, err)
 	require.NotNil(t, storedWallet)
 
-	return wallet, walletID, keyID
+	return wallet
 }
 
 func TestGetKeyInfoHandler(t *testing.T) {
@@ -86,8 +85,8 @@ func TestGetKeyInfoHandler(t *testing.T) {
 	go extServer.Serve()                        //nolint:errcheck
 	defer extServer.Close(context.Background()) //nolint:errcheck
 
-	testWallet, wID, kID := setupTestWallet(t, extServer.wStorage)
-
+	testWallet := setupTestWallet(t, extServer.wStorage)
+	wID, kID := testWallet.WalletID, testWallet.KeyID
 	url := fmt.Sprintf("http://localhost:%d/key-info/%s/%d", port, wID.Hex(), kID)
 
 	// wait for server to start
@@ -111,7 +110,6 @@ func TestGetKeyInfoHandler(t *testing.T) {
 	require.Equal(t, wID.Hex(), common.BytesToHash(response.WalletId[:]).Hex())
 	require.Equal(t, kID, response.KeyId)
 	require.Equal(t, kID, response.KeyId)
-	require.Equal(t, testWallet.ExternalAddress, response.AddressStr)
 }
 
 func TestSignWithKeyHandler(t *testing.T) {
@@ -121,7 +119,8 @@ func TestSignWithKeyHandler(t *testing.T) {
 	go server.Serve()                        //nolint:errcheck
 	defer server.Close(context.Background()) //nolint:errcheck
 
-	wallet, wID, kID := setupTestWallet(t, server.wStorage)
+	wallet := setupTestWallet(t, server.wStorage)
+	wID, kID := wallet.WalletID, wallet.KeyID
 
 	// Create test message
 	message := crypto.Keccak256([]byte("test message to sign"))
@@ -204,7 +203,8 @@ func TestDecryptWithKeyHandler(t *testing.T) {
 	go server.Serve()                        //nolint:errcheck
 	defer server.Close(context.Background()) //nolint:errcheck
 
-	wallet, walletId, keyId := setupTestWallet(t, server.wStorage)
+	wallet := setupTestWallet(t, server.wStorage)
+	walletId, keyId := wallet.WalletID, wallet.KeyID
 
 	// Create test encrypted message (this is a dummy encrypted message for testing)
 	message := []byte("encrypted test message")

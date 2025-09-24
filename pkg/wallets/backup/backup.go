@@ -11,6 +11,7 @@ import (
 	"github.com/flare-foundation/tee-node/pkg/wallets"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/crypto/ecies"
 )
@@ -19,13 +20,12 @@ type WalletBackup struct {
 	WalletBackupMetaData
 	AdminEncryptedParts    *EncryptedShares
 	ProviderEncryptedParts *EncryptedShares
-	Signature              []byte
-	TEESignature           []byte
+	Signature              hexutil.Bytes
+	TEESignature           hexutil.Bytes
 }
 
 type WalletBackupMetaData struct {
 	wallets.WalletBackupID
-	OpTypeConstants []byte
 
 	AdminsPublicKeys   []types.PublicKey
 	AdminsThreshold    uint64
@@ -35,7 +35,7 @@ type WalletBackupMetaData struct {
 }
 
 type EncryptedShares struct {
-	Splits           [][]byte
+	Splits           []hexutil.Bytes
 	OwnersPublicKeys []types.PublicKey
 	Threshold        uint64
 	PublicKey        types.PublicKey

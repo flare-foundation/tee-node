@@ -172,12 +172,12 @@ func (r *Router) process(a *types.Action, queueId processorutils.QueueID) types.
 	switch a.Data.Type {
 	case types.Direct:
 		if r.defaultDirect != nil {
-			logger.Infof("%s queue: processing using default direct processor")
+			logger.Infof("%s queue: processing using default direct processor", queueId)
 			return r.defaultDirect.Process(a)
 		}
 	case types.Instruction:
 		if r.defaultInstruction != nil {
-			logger.Infof("%s queue: processing using default instruction processor")
+			logger.Infof("%s queue: processing using default instruction processor", queueId)
 			return r.defaultInstruction.Process(a)
 		}
 	}

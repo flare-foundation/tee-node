@@ -208,12 +208,12 @@ func generateWallet(
 	rewardEpochId uint32,
 	wStorage *wallets.Storage) *cwallet.ITeeWalletKeyManagerKeyExistence {
 	originalMessage := cwallet.ITeeWalletKeyManagerKeyGenerate{
-		TeeId:    teeId,
-		WalletId: walletId,
-		KeyId:    keyId,
-		OpType:   op.XRP.Hash(),
+		TeeId:       teeId,
+		WalletId:    walletId,
+		KeyId:       keyId,
+		KeyType:     wallets.XRPType,
+		SigningAlgo: wallets.XRPAlgo,
 		ConfigConstants: cwallet.ITeeWalletKeyManagerKeyConfigConstants{
-			OpTypeConstants:    make([]byte, 0),
 			AdminsPublicKeys:   adminWalletPublicKeys,
 			AdminsThreshold:    uint64(len(adminWalletPublicKeys)),
 			Cosigners:          make([]common.Address, 0), // todo: add cosigners
@@ -243,7 +243,8 @@ func generateWallet(
 	newWallet, err := wStorage.Get(wallets.KeyIDPair{WalletID: walletId, KeyID: keyId})
 	require.NoError(t, err)
 
-	require.Equal(t, newWallet.ExternalAddress, walletExistenceProof.AddressStr)
+	require.Equal(t, newWallet.WalletID, common.Hash(walletExistenceProof.WalletId))
+	require.Equal(t, newWallet.KeyID, walletExistenceProof.KeyId)
 
 	// generate action sent when voting closed
 	action, err = testutils.BuildMockInstructionAction(
@@ -393,6 +394,16 @@ func getBackup(t *testing.T, actionInfoChan chan *types.Action,
 	err = json.Unmarshal(backupResponse.WalletBackup, &backup)
 	require.NoError(t, err)
 
+	backupHash, err := backup.HashForSigning()
+	require.NoError(t, err)
+	err = utils.VerifySignature(backupHash[:], backup.TEESignature, teeId)
+	require.NoError(t, err)
+
+	backupPubKey, err := types.ParsePubKey(backup.PublicKey)
+	require.NoError(t, err)
+	err = utils.VerifySignature(backupHash[:], backup.Signature, crypto.PubkeyToAddress(*backupPubKey))
+	require.NoError(t, err)
+
 	return &backup
 }
 
@@ -400,15 +411,18 @@ func recoverWallet(t *testing.T, actionInfoChan chan *types.Action,
 	actionResponseChan chan *types.ActionResponse, teeId common.Address, teePubKey *ecdsa.PublicKey, walletId [32]byte, keyId uint64,
 	providersPrivKeys, adminsPrivKeys []*ecdsa.PrivateKey, rewardEpochId uint32, nonce *big.Int,
 	walletBackup *backup.WalletBackup, wStorage *wallets.Storage) *cwallet.ITeeWalletKeyManagerKeyExistence {
+	teePubKeyParsed := types.PubKeyToStruct(teePubKey)
+
 	originalMessage := cwallet.ITeeWalletBackupManagerKeyDataProviderRestore{
-		TeeId:     teeId,
-		BackupUrl: "blabla",
-		Nonce:     nonce,
+		TeePublicKey: cwallet.PublicKey{X: teePubKeyParsed.X, Y: teePubKeyParsed.Y},
+		BackupUrl:    "blabla",
+		Nonce:        nonce,
 		BackupId: cwallet.ITeeWalletBackupManagerBackupId{
 			TeeId:         teeId,
 			WalletId:      walletId,
 			KeyId:         keyId,
-			OpType:        op.XRP.Hash(),
+			KeyType:       wallets.XRPType,
+			SigningAlgo:   wallets.XRPAlgo,
 			PublicKey:     append(walletBackup.PublicKey.X[:], walletBackup.PublicKey.Y[:]...),
 			RewardEpochId: big.NewInt(int64(rewardEpochId)),
 			RandomNonce:   new(big.Int).SetBytes(walletBackup.RandomNonce[:]),

@@ -13,6 +13,7 @@ import (
 	"github.com/flare-foundation/tee-node/internal/testutils"
 	"github.com/flare-foundation/tee-node/pkg/processorutils"
 	"github.com/flare-foundation/tee-node/pkg/types"
+	"github.com/flare-foundation/tee-node/pkg/wallets"
 	"github.com/stretchr/testify/require"
 )
 
@@ -95,12 +96,12 @@ func TestRouterInstructionActionRoutingThreshold(t *testing.T) {
 
 	// Create a proper KeyGenerate message
 	originalMessage := cwallet.ITeeWalletKeyManagerKeyGenerate{
-		TeeId:    teeId,
-		WalletId: walletId,
-		KeyId:    keyId,
-		OpType:   op.XRP.Hash(),
+		TeeId:       teeId,
+		WalletId:    walletId,
+		KeyId:       keyId,
+		KeyType:     wallets.XRPType,
+		SigningAlgo: wallets.XRPAlgo,
 		ConfigConstants: cwallet.ITeeWalletKeyManagerKeyConfigConstants{
-			OpTypeConstants:    make([]byte, 0),
 			AdminsPublicKeys:   adminPubKeys,
 			AdminsThreshold:    1,
 			Cosigners:          make([]common.Address, 0),
