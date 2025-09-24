@@ -14,6 +14,7 @@ import (
 	"github.com/flare-foundation/tee-node/pkg/utils"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/crypto/ecies"
 )
@@ -22,7 +23,8 @@ const NormalizationConstant = 1000
 const DataProvidersThreshold = uint64(666)
 
 // BackupWallet packages the wallet state and encrypted key shares for admins
-// and providers so it can be reconstructed later.
+// and providers so it can be reconstructed later. The result is signed with the
+// key that is split, but remains to be signed by the TEE.
 func BackupWallet(wallet *wallets.Wallet, providerPubKeys []*ecdsa.PublicKey, signingPolicyWeights []uint16, rewardEpochId uint32, teeID common.Address, normalizationParam uint16, dataProviderThreshold uint64) (*backup.WalletBackup, error) {
 	adminPubKeys := make([]types.PublicKey, len(wallet.AdminPublicKeys))
 	for i, pubKey := range wallet.AdminPublicKeys {
@@ -40,18 +42,17 @@ func BackupWallet(wallet *wallets.Wallet, providerPubKeys []*ecdsa.PublicKey, si
 			WalletID:      wallet.WalletID,
 			KeyID:         wallet.KeyID,
 			PublicKey:     types.PubKeyToStruct(&wallet.PrivateKey.PublicKey),
-			OPType:        wallet.OpType,
+			KeyType:       wallet.KeyType,
+			SigningAlgo:   wallet.SigningAlgo,
 			RewardEpochID: rewardEpochId,
 			RandomNonce:   randomNonce,
 		},
 		AdminsPublicKeys:   adminPubKeys,
 		AdminsThreshold:    wallet.AdminsThreshold,
 		ProvidersThreshold: dataProviderThreshold,
-		OpTypeConstants:    make([]byte, len(wallet.OpTypeConstants)),
 		Cosigners:          make([]common.Address, len(wallet.Cosigners)),
 		CosignersThreshold: wallet.CosignersThreshold,
 	}
-	copy(metaData.OpTypeConstants, wallet.OpTypeConstants)
 	copy(metaData.Cosigners, wallet.Cosigners)
 
 	splitKey, err := SplitPrivateKey(wallet.PrivateKey, 2)
@@ -128,7 +129,7 @@ func SplitAndEncrypt(
 		encryptionPubKeysApi[i] = types.PubKeyToStruct(pubKey)
 	}
 	encryptedShares := backup.EncryptedShares{
-		Splits:           make([][]byte, numSplits),
+		Splits:           make([]hexutil.Bytes, numSplits),
 		OwnersPublicKeys: encryptionPubKeysApi,
 		Threshold:        threshold,
 		PublicKey:        types.PubKeyToStruct(&key.PublicKey),
@@ -219,8 +220,6 @@ func RecoverWallet(
 		return nil, errors.New("private key reconstruction error: final result does not match address")
 	}
 
-	externalAddress := wallets.ExternalAddress(backupMetaData.OPType, key)
-
 	adminsPubKeys := make([]*ecdsa.PublicKey, len(backupMetaData.AdminsPublicKeys))
 	for i, pubKey := range backupMetaData.AdminsPublicKeys {
 		adminsPubKeys[i], err = types.ParsePubKey(pubKey)
@@ -230,19 +229,21 @@ func RecoverWallet(
 	}
 
 	return &wallets.Wallet{
-		WalletID:        backupMetaData.WalletID,
-		KeyID:           backupMetaData.KeyID,
-		PrivateKey:      key,
-		Address:         crypto.PubkeyToAddress(key.PublicKey),
-		ExternalAddress: externalAddress,
-		Restored:        true,
+		WalletID:    backupMetaData.WalletID,
+		KeyID:       backupMetaData.KeyID,
+		PrivateKey:  key,
+		Address:     crypto.PubkeyToAddress(key.PublicKey),
+		KeyType:     backupMetaData.KeyType,
+		SigningAlgo: backupMetaData.SigningAlgo,
+		Restored:    true,
 
 		AdminPublicKeys:    adminsPubKeys,
 		AdminsThreshold:    backupMetaData.AdminsThreshold,
 		Cosigners:          backupMetaData.Cosigners,
 		CosignersThreshold: backupMetaData.CosignersThreshold,
-		OpType:             backupMetaData.OPType,
-		OpTypeConstants:    backupMetaData.OpTypeConstants,
+
+		SettingsVersion: common.Hash{},
+		Settings:        hexutil.Bytes{},
 
 		Status: &wallets.WalletStatus{Nonce: 0, StatusCode: 0},
 	}, nil

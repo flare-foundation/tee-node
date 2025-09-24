@@ -11,9 +11,8 @@ import (
 	pbackup "github.com/flare-foundation/tee-node/pkg/wallets/backup"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/flare-foundation/go-flare-common/pkg/tee/op"
-	"github.com/flare-foundation/go-flare-common/pkg/xrpl/signing/secp256k1"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -25,9 +24,6 @@ func TestBackupAndRecover(t *testing.T) {
 
 	idPair := wallets.KeyIDPair{WalletID: mockWalletId, KeyID: mockKeyId}
 	sk, err := crypto.GenerateKey()
-	assert.NoError(t, err)
-
-	xrpAddress := secp256k1.PrvToAddress(sk)
 	assert.NoError(t, err)
 
 	// Generate admin and provider public keys
@@ -51,21 +47,23 @@ func TestBackupAndRecover(t *testing.T) {
 	adminsThreshold := uint64(2)
 
 	givenWallet := &wallets.Wallet{
-		WalletID:        idPair.WalletID,
-		KeyID:           idPair.KeyID,
-		PrivateKey:      sk,
-		Address:         crypto.PubkeyToAddress(sk.PublicKey),
-		ExternalAddress: xrpAddress,
-		Restored:        false,
+		WalletID:    idPair.WalletID,
+		KeyID:       idPair.KeyID,
+		PrivateKey:  sk,
+		Address:     crypto.PubkeyToAddress(sk.PublicKey),
+		KeyType:     wallets.XRPType,
+		SigningAlgo: wallets.XRPAlgo,
+		Restored:    false,
 
 		AdminPublicKeys:    adminPubKeys,
 		AdminsThreshold:    adminsThreshold,
 		Cosigners:          []common.Address{common.HexToAddress("aa")},
 		CosignersThreshold: 1,
-		OpType:             op.XRP.Hash(),
-		OpTypeConstants:    []byte("bla"),
 
 		Status: &wallets.WalletStatus{},
+
+		SettingsVersion: common.Hash{},
+		Settings:        hexutil.Bytes{},
 	}
 
 	rewardEpochId := uint32(100)

@@ -19,10 +19,25 @@ import (
 	"github.com/flare-foundation/go-flare-common/pkg/tee/structs/wallet"
 )
 
-func (p *Processor) keyDataProviderRestoreCheck(instructionData *instruction.DataFixed, signers []common.Address) (*pkgbackup.WalletBackupMetaData, uint64, []bool, error) {
+func (p *Processor) keyDataProviderRestoreCheck(
+	instructionData *instruction.DataFixed,
+	signers []common.Address,
+	teeID common.Address,
+) (*pkgbackup.WalletBackupMetaData, uint64, []bool, error) {
 	restoreRequest, err := wallets.ParseKeyDataProviderRestore(instructionData)
 	if err != nil {
 		return nil, 0, nil, err
+	}
+
+	teePubKey, err := types.ParsePubKey(types.PublicKey{X: restoreRequest.TeePublicKey.X, Y: restoreRequest.TeePublicKey.Y})
+	if err != nil {
+		return nil, 0, nil, err
+	}
+	if crypto.PubkeyToAddress(*teePubKey) != teeID {
+		return nil, 0, nil, errors.New("teeID does not match given public key")
+	}
+	if !slices.Contains(wallets.SigningAlgos, restoreRequest.BackupId.SigningAlgo) {
+		return nil, 0, nil, errors.New("signing algorithm not supported")
 	}
 
 	var backupMetadata pkgbackup.WalletBackupMetaData
@@ -183,9 +198,10 @@ func backupRequestToID(req *wallet.ITeeWalletBackupManagerKeyDataProviderRestore
 		TeeID:         req.BackupId.TeeId,
 		WalletID:      req.BackupId.WalletId,
 		KeyID:         req.BackupId.KeyId,
-		OPType:        req.BackupId.OpType,
+		KeyType:       req.BackupId.KeyType,
+		SigningAlgo:   req.BackupId.SigningAlgo,
 		RewardEpochID: uint32(req.BackupId.RewardEpochId.Uint64()),
-		RandomNonce:   [32]byte{},
+		RandomNonce:   common.Hash{},
 	}
 	if len(req.BackupId.PublicKey) != 64 {
 		return wallets.WalletBackupID{}, errors.New("unsupported public key format")

@@ -58,12 +58,12 @@ func CreateMockWallet(
 	}
 
 	request := wallet.ITeeWalletKeyManagerKeyGenerate{
-		TeeId:    iSndD.TeeID(),
-		WalletId: walletID,
-		KeyId:    keyID,
-		OpType:   op.Wallet.Hash(),
+		TeeId:       iSndD.TeeID(),
+		WalletId:    walletID,
+		KeyId:       keyID,
+		KeyType:     wallets.XRPType,
+		SigningAlgo: wallets.XRPAlgo,
 		ConfigConstants: wallet.ITeeWalletKeyManagerKeyConfigConstants{
-			OpTypeConstants:    make([]byte, 0),
 			AdminsPublicKeys:   adminPubKeys,
 			AdminsThreshold:    uint64(len(adminPubKeys)),
 			Cosigners:          cosignerPubKeys,

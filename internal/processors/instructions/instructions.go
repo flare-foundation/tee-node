@@ -104,7 +104,7 @@ func preprocess(a *types.Action, data *instruction.DataFixed, pStorage *policy.S
 		return nil, nil, err
 	}
 
-	err = validateInstructionData(data, a.AdditionalVariableMessages, teeId)
+	err = validateInstructionData(data, a.AdditionalVariableMessages, teeId, a.Data.ID)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -123,9 +123,12 @@ func preprocess(a *types.Action, data *instruction.DataFixed, pStorage *policy.S
 }
 
 // validateInstructionData validates the instruction data and counts the votes.
-func validateInstructionData(data *instruction.DataFixed, additionalVariableMessages []hexutil.Bytes, expectedTeeID common.Address) error {
+func validateInstructionData(data *instruction.DataFixed, additionalVariableMessages []hexutil.Bytes, expectedTeeID common.Address, actionID common.Hash) error {
 	if data.TeeID != expectedTeeID {
 		return errors.New("unexpected tee ID")
+	}
+	if data.InstructionID != actionID {
+		return errors.New("action ID and instruction ID do not match")
 	}
 
 	err := checkInstructionData(data)

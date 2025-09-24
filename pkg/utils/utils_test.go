@@ -3,6 +3,7 @@ package utils
 import (
 	"testing"
 
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/require"
 )
 
@@ -91,4 +92,12 @@ func TestConstantSlice(t *testing.T) {
 	require.Len(t, x, 10)
 
 	require.Equal(t, "a", x[3])
+}
+
+func TestToBytes32(t *testing.T) {
+	str := "keccak256-secp256k1-ecdsa"
+	a := common.BytesToHash(common.RightPadBytes([]byte(str), 32))
+	b := ToHash(str)
+
+	require.Equal(t, b, a)
 }

@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"github.com/ethereum/go-ethereum/common"
 	"golang.org/x/exp/constraints"
 )
 
@@ -26,4 +27,16 @@ func ConstantSlice[T any](val T, n int) []T {
 	}
 
 	return res
+}
+
+// ToHash returns Solidity's bytes32(s) ([]byte(s) appended with zeros to length 32)
+// String s can be at most 32 characters long, otherwise it is cut.
+func ToHash(s string) common.Hash {
+	if len(s) > 32 {
+		s = s[:32]
+	}
+	x := [32]byte{}
+	copy(x[:], s)
+
+	return x
 }
