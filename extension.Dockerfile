@@ -26,4 +26,10 @@ COPY --from=builder /app/server /app/extension ./
 
 ENV TZ=UTC  
 
-CMD ["sh", "-c", "gosu server ./server & gosu extension ./extension"]
+LABEL "tee.launch_policy.allow_env_override"="LOG_LEVEL"
+
+EXPOSE 5500
+
+ENV MODE=0
+
+CMD ["sh", "-c", "./server & gosu extension ./extension"]

@@ -32,7 +32,9 @@ COPY --from=builder /app/server /app/server
 COPY --from=builder /app/assets/google_confidential_space_root.crt /app/assets/google_confidential_space_root.crt
 
 # Set environment variables  
-ENV TZ=UTC  
+ENV TZ=UTC
+
+LABEL "tee.launch_policy.allow_env_override"="LOG_LEVEL"
 
 # Expose port (adjust as needed)  
 EXPOSE 5500
