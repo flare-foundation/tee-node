@@ -88,7 +88,7 @@ func nonceCheck(nonce *big.Int) error {
 	if nonce == nil {
 		return errors.New("nonce not given")
 	}
-	if nonce.BitLen() > 64 {
+	if nonce.BitLen() > 256 {
 		return errors.New("nonce too big")
 	}
 
