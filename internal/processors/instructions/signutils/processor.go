@@ -100,7 +100,7 @@ func (p *Processor) SignXRPLPayment(
 		return nil, nil, errors.New("invalid signer item") // This can not happen.
 	}
 
-	tx = signing.JoinMultisigJson(tx, signerItems)
+	tx = signing.JoinMultisigJSON(tx, signerItems)
 
 	jsonTx, err := json.Marshal(tx)
 	if err != nil {

@@ -20,6 +20,7 @@ var EVMAlgo = utils.ToHash("keccak256-secp256k1-ecdsa")
 var XRPAlgo = utils.ToHash("sha512half-secp256k1-ecdsa")
 var SigningAlgos = []common.Hash{EVMAlgo, XRPAlgo}
 var XRPType = utils.ToHash("XRP")
+var EVMType = utils.ToHash("EVM")
 
 // ParseKeyGenerate decodes the key generation instruction payload.
 func ParseKeyGenerate(instructionData *instruction.DataFixed) (wallet.ITeeWalletKeyManagerKeyGenerate, error) {
