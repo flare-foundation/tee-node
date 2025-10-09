@@ -11,6 +11,7 @@ import (
 	"github.com/ethereum/go-ethereum/crypto/ecies"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/structs/wallet"
 	"github.com/flare-foundation/tee-node/pkg/types"
+	"github.com/flare-foundation/tee-node/pkg/utils"
 	"github.com/stretchr/testify/require"
 )
 
@@ -75,7 +76,8 @@ func TestWallet(t *testing.T) {
 		publicKey := &privateKey.PublicKey
 
 		// Encrypt the message using ECIES
-		pubKeyECIES := ecies.ImportECDSAPublic(publicKey)
+		pubKeyECIES, err := utils.ECDSAPubKeyToECIES(publicKey)
+		require.NoError(t, err)
 		ciphertext, err := ecies.Encrypt(rand.Reader, pubKeyECIES, message, nil, nil)
 		require.NoError(t, err)
 

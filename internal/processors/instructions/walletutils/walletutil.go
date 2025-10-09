@@ -15,6 +15,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/flare-foundation/go-flare-common/pkg/logger"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/instruction"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/structs/wallet"
 )
@@ -113,7 +114,11 @@ func (p *Processor) processKeySplitMessages(variableMessages []hexutil.Bytes, is
 		}
 	}
 
-	resultStatus, err := json.Marshal(wallets.KeyDataProviderRestoreResultStatus{ErrorPositions: errorPositions, ErrorLogs: errorLogs})
+	restoreStatus := wallets.KeyDataProviderRestoreResultStatus{ErrorPositions: errorPositions, ErrorLogs: errorLogs}
+	if len(errorLogs) != 0 {
+		logger.Warnf("errors in restore process: %v", restoreStatus)
+	}
+	resultStatus, err := json.Marshal(restoreStatus)
 	if err != nil {
 		return nil, nil, err
 	}

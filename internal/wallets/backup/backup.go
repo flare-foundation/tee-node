@@ -174,7 +174,11 @@ func SplitAndEncrypt(
 			return nil, err
 		}
 
-		pubKey := ecies.ImportECDSAPublic(encryptionPubKeys[i])
+		pubKey, err := utils.ECDSAPubKeyToECIES(encryptionPubKeys[i])
+		if err != nil {
+			return nil, err
+		}
+
 		cipher, err := ecies.Encrypt(rand.Reader, pubKey, plaintext, nil, nil)
 		if err != nil {
 			return nil, err

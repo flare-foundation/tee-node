@@ -11,7 +11,6 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/crypto/ecies"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/structs/wallet"
 )
 
@@ -157,7 +156,10 @@ func (w *Wallet) Decrypt(cipher []byte) ([]byte, error) {
 	switch w.SigningAlgo {
 	case XRPAlgo, EVMAlgo:
 		prv := ToECDSAUnsafe(w.PrivateKey)
-		prvDecryption := ecies.ImportECDSA(prv)
+		prvDecryption, err := utils.ECDSAPrivKeyToECIES(prv)
+		if err != nil {
+			return nil, err
+		}
 		plaintext, err := prvDecryption.Decrypt(cipher, nil, nil)
 		if err != nil {
 			return nil, err

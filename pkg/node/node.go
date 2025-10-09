@@ -6,7 +6,6 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/crypto/ecies"
 	"github.com/flare-foundation/tee-node/pkg/types"
 	"github.com/flare-foundation/tee-node/pkg/utils"
 )
@@ -82,7 +81,11 @@ func (n *Node) Sign(msgHash []byte) ([]byte, error) {
 
 // Decrypt decrypts the ciphertext with the node's private key.
 func (n *Node) Decrypt(cipher []byte) ([]byte, error) {
-	privKeyDecryption := ecies.ImportECDSA(n.privateKey)
+	privKeyDecryption, err := utils.ECDSAPrivKeyToECIES(n.privateKey)
+	if err != nil {
+		return nil, err
+	}
+
 	plaintext, err := privKeyDecryption.Decrypt(cipher, nil, nil)
 	if err != nil {
 		return nil, err

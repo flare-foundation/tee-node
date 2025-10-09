@@ -14,6 +14,8 @@ import (
 	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/crypto/ecies"
+	"github.com/ethereum/go-ethereum/crypto/secp256k1"
 )
 
 // GenerateRandom returns a cryptographically secure 32-byte random value.
@@ -114,4 +116,21 @@ func PubKeysToAddresses(pubKeys []types.PublicKey) ([]common.Address, error) {
 	}
 
 	return addresses, nil
+}
+
+func ECDSAPubKeyToECIES(pubKey *ecdsa.PublicKey) (*ecies.PublicKey, error) {
+	if pubKey.Curve != secp256k1.S256() && pubKey.Curve != crypto.S256() {
+		return nil, errors.New("curve not S256")
+	}
+
+	return &ecies.PublicKey{X: pubKey.X, Y: pubKey.Y, Curve: ecies.DefaultCurve, Params: ecies.ECIES_AES128_SHA256}, nil
+}
+
+func ECDSAPrivKeyToECIES(privKey *ecdsa.PrivateKey) (*ecies.PrivateKey, error) {
+	pubKey, err := ECDSAPubKeyToECIES(&privKey.PublicKey)
+	if err != nil {
+		return nil, err
+	}
+
+	return &ecies.PrivateKey{PublicKey: *pubKey, D: privKey.D}, nil
 }

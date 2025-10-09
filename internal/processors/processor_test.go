@@ -445,7 +445,9 @@ func recoverWallet(t *testing.T, actionInfoChan chan *types.Action,
 	}
 	adminsThreshold := uint64(len(adminAddresses))
 
-	teeEciesPubKey := ecies.ImportECDSAPublic(teePubKey)
+	teeEciesPubKey, err := utils.ECDSAPubKeyToECIES(teePubKey)
+	require.NoError(t, err)
+
 	additionalVariableMessages := make([]interface{}, 0)
 	privKeys := make([]*ecdsa.PrivateKey, 0)
 	for i, privKey := range providersPrivKeys {

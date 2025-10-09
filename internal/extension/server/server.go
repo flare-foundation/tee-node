@@ -21,6 +21,7 @@ import (
 	"github.com/flare-foundation/tee-node/internal/settings"
 	"github.com/flare-foundation/tee-node/pkg/node"
 	"github.com/flare-foundation/tee-node/pkg/types"
+	"github.com/flare-foundation/tee-node/pkg/utils"
 	"github.com/flare-foundation/tee-node/pkg/wallets"
 )
 
@@ -352,7 +353,11 @@ func (s *ExtensionServer) decryptWithTeeHandler(w http.ResponseWriter, r *http.R
 // encrypt wraps the ECIES encryption helper for plaintext using the provided
 // public key.
 func encrypt(plaintext []byte, publicKey *ecdsa.PublicKey) ([]byte, error) {
-	pk := ecies.ImportECDSAPublic(publicKey)
+	pk, err := utils.ECDSAPubKeyToECIES(publicKey)
+	if err != nil {
+		return nil, err
+	}
+
 	privKeyEncryption, err := ecies.Encrypt(rand.Reader, pk, plaintext, nil, nil)
 	if err != nil {
 		return nil, err

@@ -14,7 +14,6 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/crypto/ecies"
 )
 
 type WalletBackup struct {
@@ -191,7 +190,10 @@ func (e *EncryptedShares) Check() error {
 
 // DecryptSplit decrypts an encrypted key split and verifies its integrity.
 func DecryptSplit(encryptedShare []byte, privKeyECDSA *ecdsa.PrivateKey) (*KeySplit, error) {
-	privKeyDecryption := ecies.ImportECDSA(privKeyECDSA)
+	privKeyDecryption, err := utils.ECDSAPrivKeyToECIES(privKeyECDSA)
+	if err != nil {
+		return nil, err
+	}
 	shareBytes, err := privKeyDecryption.Decrypt(encryptedShare, nil, nil)
 	if err != nil {
 		return nil, err

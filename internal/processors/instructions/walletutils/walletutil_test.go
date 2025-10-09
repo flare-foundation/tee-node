@@ -210,8 +210,8 @@ func TestKeyDataProviderRestore(t *testing.T) {
 
 	teePubKey, err := types.ParsePubKey(testNode.Info().PublicKey)
 	require.NoError(t, err)
-	eciesPub := ecies.ImportECDSAPublic(teePubKey)
-
+	eciesPub, err := utils.ECDSAPubKeyToECIES(teePubKey)
+	require.NoError(t, err)
 	weightAccum := 0
 	variableMessages := make([]hexutil.Bytes, 0)
 	signers := make([]common.Address, 0)
