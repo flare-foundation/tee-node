@@ -28,14 +28,14 @@ func main() {
 		logger.Fatalf("failed to load certificate: %v", err)
 	}
 
-	pc := settings.NewProxyConfigServer(settings.ProxyConfigureServerPort)
+	pc := settings.NewConfigServer(settings.ProxyConfigureServerPort, teeNode)
 	go pc.Serve() //nolint:errcheck
 
-	extServer := server.NewExtensionServer(settings.ExtensionServerPort, teeNode, ws, pc.ProxyUrl)
+	extServer := server.NewExtensionServer(settings.ExtensionServerPort, teeNode, ws, pc.ProxyURL)
 
 	go extServer.Serve() //nolint:errcheck
 
-	r := router.NewExtensionRouter(teeNode, ws, ps, settings.ExtensionPort, pc.ProxyUrl)
+	r := router.NewExtensionRouter(teeNode, ws, ps, settings.ExtensionPort, pc.ProxyURL)
 
 	// Launch the json rpc server
 	r.Run(teeNode)

@@ -181,7 +181,7 @@ release-tee-extension:
 
     # Send POST request with config file
     - |
-      ssh -o StrictHostKeyChecking=no deploy@$TEE_PROXY_EXTERNAL_IP "curl -X POST http://$TEE_NODE_INTERNAL_IP:5500/configure -H 'Content-Type: application/json' --data-binary '{\"url\":\"http://$TEE_PROXY_INTERNAL_IP:6661\"}'"
+      ssh -o StrictHostKeyChecking=no deploy@$TEE_PROXY_EXTERNAL_IP "curl -X POST http://$TEE_NODE_INTERNAL_IP:5500/proxy -H 'Content-Type: application/json' --data-binary '{\"url\":\"http://$TEE_PROXY_INTERNAL_IP:6661\"}'"
 
     # Restart tee-proxy and redis
     - ssh -o StrictHostKeyChecking=no deploy@$TEE_PROXY_EXTERNAL_IP "cd /home/deploy/e2e/docker/gcp-coston/gcp-proxy && docker compose stop tee-proxy && docker compose restart redis && docker compose start tee-proxy"

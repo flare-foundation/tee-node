@@ -99,6 +99,14 @@ func DecodeTeeAttestationRequest(attReq []byte) (verification.ITeeVerificationTe
 	return unpacked, nil
 }
 
-type ConfigureProxyUrlRequest struct {
-	Url string
+type ConfigureProxyURLRequest struct {
+	URL string `json:"url"`
+}
+
+type ConfigureInitialOwnerRequest struct {
+	Owner common.Address `json:"owner"`
+}
+
+type ConfigureExtensionIDRequest struct {
+	ExtensionID common.Hash `json:"extensionId"`
 }

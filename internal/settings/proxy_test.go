@@ -15,15 +15,15 @@ import (
 
 func TestInitialUrlNotSet(t *testing.T) {
 	// Create and start the proxy config server
-	server := settings.NewProxyConfigServer(3000)
+	server := settings.NewConfigServer(3000, nil)
 	go server.Serve()                        //nolint:errcheck
 	defer server.Close(context.Background()) //nolint:errcheck
 
 	time.Sleep(100 * time.Millisecond)
 
-	server.ProxyUrl.RLock()
-	defer server.ProxyUrl.RUnlock()
-	require.Equal(t, "", server.ProxyUrl.URL)
+	server.ProxyURL.RLock()
+	defer server.ProxyURL.RUnlock()
+	require.Equal(t, "", server.ProxyURL.URL)
 }
 
 func TestInitialUrlSet(t *testing.T) {
@@ -34,20 +34,20 @@ func TestInitialUrlSet(t *testing.T) {
 	defer os.Unsetenv("PROXY_URL") //nolint:errcheck
 
 	// Create and start the proxy config server
-	server := settings.NewProxyConfigServer(3001)
+	server := settings.NewConfigServer(3001, nil)
 	go server.Serve()                        //nolint:errcheck
 	defer server.Close(context.Background()) //nolint:errcheck
 
 	time.Sleep(100 * time.Millisecond)
 
-	server.ProxyUrl.RLock()
-	defer server.ProxyUrl.RUnlock()
-	require.Equal(t, "http://envproxy.com", server.ProxyUrl.URL)
+	server.ProxyURL.RLock()
+	defer server.ProxyURL.RUnlock()
+	require.Equal(t, "http://envproxy.com", server.ProxyURL.URL)
 }
 
 func TestEndpointUrlSet(t *testing.T) {
 	// Create and start the proxy config server
-	server := settings.NewProxyConfigServer(3002)
+	server := settings.NewConfigServer(3002, nil)
 	go server.Serve()                        //nolint:errcheck
 	defer server.Close(context.Background()) //nolint:errcheck
 
@@ -57,14 +57,14 @@ func TestEndpointUrlSet(t *testing.T) {
 	data, err := json.Marshal(payload)
 	require.NoError(t, err)
 
-	resp, err := http.Post("http://localhost:3002/configure", "application/json", bytes.NewBuffer(data))
+	resp, err := http.Post("http://localhost:3002/proxy", "application/json", bytes.NewBuffer(data))
 	require.NoError(t, err)
 
 	require.Equal(t, http.StatusOK, resp.StatusCode)
 	err = resp.Body.Close()
 	require.NoError(t, err)
 
-	server.ProxyUrl.RLock()
-	defer server.ProxyUrl.RUnlock()
-	require.Equal(t, "http://newproxy.com", server.ProxyUrl.URL)
+	server.ProxyURL.RLock()
+	defer server.ProxyURL.RUnlock()
+	require.Equal(t, "http://newproxy.com", server.ProxyURL.URL)
 }

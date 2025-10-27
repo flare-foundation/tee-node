@@ -18,6 +18,11 @@ type Informer interface {
 	Info() Info
 }
 
+type Configurer interface {
+	SetOwner(common.Address) error
+	SetExtensionID(common.Hash) error
+}
+
 type IdentifierSignerAndDecrypter interface {
 	Identifier
 	Signer

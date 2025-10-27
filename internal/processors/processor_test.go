@@ -75,10 +75,11 @@ func TestProcessorsEndToEnd(t *testing.T) {
 	proxyPort := 8008 // Use different port for MockProxy
 	go MockProxy(t, proxyPort, mainActionInfoChan, readActionInfoChan, actionResponseChan)
 
-	pc := settings.NewProxyConfigServer(settings.ProxyConfigureServerPort) // Use original port for ProxyConfigureServer
-	go pc.Serve()                                                          //nolint:errcheck
+	pc := settings.NewConfigServer(settings.ProxyConfigureServerPort, testNode) // Use original port for ProxyConfigureServer
 
-	r := router.NewPMWRouter(testNode, wStorage, pStorage, pc.ProxyUrl)
+	go pc.Serve() //nolint:errcheck
+
+	r := router.NewPMWRouter(testNode, wStorage, pStorage, pc.ProxyURL)
 
 	go r.Run(testNode)
 	time.Sleep(1 * time.Second)
@@ -120,8 +121,8 @@ func TestProcessorsEndToEnd(t *testing.T) {
 }
 
 func setProxyUrl(t *testing.T, proxyPort, setProxyPort int) {
-	request := types.ConfigureProxyUrlRequest{
-		Url: fmt.Sprintf("http://localhost:%d", proxyPort),
+	request := types.ConfigureProxyURLRequest{
+		URL: fmt.Sprintf("http://localhost:%d", proxyPort),
 	}
 
 	client := http.Client{
@@ -130,7 +131,7 @@ func setProxyUrl(t *testing.T, proxyPort, setProxyPort int) {
 	requestBody, err := json.Marshal(request)
 	require.NoError(t, err)
 
-	r, err := client.Post(fmt.Sprintf("http://localhost:%d/configure", setProxyPort), "application/json", bytes.NewBuffer(requestBody))
+	r, err := client.Post(fmt.Sprintf("http://localhost:%d/proxy", setProxyPort), "application/json", bytes.NewBuffer(requestBody))
 	require.NoError(t, err)
 	require.Equal(t, r.StatusCode, http.StatusOK)
 }
