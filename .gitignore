@@ -9,3 +9,7 @@ notes.txt
 FlareTEE.docx
 
 .DS_Store
+
+*.out
+
+.env

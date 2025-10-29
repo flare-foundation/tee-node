@@ -46,7 +46,6 @@ func GetGoogleAttestationToken(nonces []string, tokenType attestation.TokenType)
 
 	requestBody, err := json.Marshal(data)
 	if err != nil {
-		fmt.Println("Error:", err)
 		return nil, err
 	}
 

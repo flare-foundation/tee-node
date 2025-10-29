@@ -69,8 +69,22 @@ type TeeState struct {
 }
 
 type TeeInfoResponse struct {
-	TeeInfo     TeeInfo       `json:"teeInfo"`
-	Attestation hexutil.Bytes `json:"attestation"`
+	TeeInfo       TeeInfo       `json:"teeInfo"`
+	MachineData   MachineData   `json:"machineData"`
+	DataSignature hexutil.Bytes `json:"dataSignature"`
+	Attestation   hexutil.Bytes `json:"attestation"`
+}
+
+type MachineData struct {
+	ExtensionID  common.Hash    `json:"extensionId"`
+	InitialOwner common.Address `json:"initialOwner"`
+	CodeHash     common.Hash    `json:"codeHash"`
+	Platform     common.Hash    `json:"platform"`
+	PublicKey    PublicKey      `json:"publicKey"`
+}
+
+func (md *MachineData) Hash() common.Hash {
+	return common.BytesToHash([]byte("todo"))
 }
 
 type SignedTeeInfoResponse struct {

@@ -4,7 +4,7 @@ go 1.25.1
 
 require (
 	github.com/ethereum/go-ethereum v1.16.3
-	github.com/flare-foundation/go-flare-common v1.2.1-0.20251009071915-ab8320f110cb
+	github.com/flare-foundation/go-flare-common v1.2.1-0.20251029151926-b999d4887340
 	github.com/golang-jwt/jwt/v4 v4.5.2
 	github.com/google/go-tpm-tools v0.4.5
 	github.com/pkg/errors v0.9.1
@@ -29,6 +29,7 @@ require (
 	github.com/fsnotify/fsnotify v1.9.0 // indirect
 	github.com/go-ole/go-ole v1.3.0 // indirect
 	github.com/go-sql-driver/mysql v1.9.3 // indirect
+	github.com/golang-jwt/jwt/v5 v5.3.0 // indirect
 	github.com/google/go-configfs-tsm v0.3.3 // indirect
 	github.com/google/go-sev-guest v0.13.0 // indirect
 	github.com/google/go-tdx-guest v0.3.2-0.20241009005452-097ee70d0843 // indirect

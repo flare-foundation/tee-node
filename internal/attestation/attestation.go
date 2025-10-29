@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
+	googlecloud "github.com/flare-foundation/go-flare-common/pkg/tee/attestation/google_cloud"
 	"github.com/flare-foundation/tee-node/internal/settings"
 	"github.com/flare-foundation/tee-node/pkg/attestation"
 	"github.com/flare-foundation/tee-node/pkg/node"
@@ -81,8 +82,36 @@ func ConstructTEEInfoResponse(challenge common.Hash, nodeInfo *node.Info, initia
 		return nil, err
 	}
 
+	var mData types.MachineData
+
+	if settings.Mode == 0 {
+		_, claims, err := googlecloud.ParsePKITokenUnverified(string(attestationBytes))
+		if err != nil {
+			return nil, err
+		}
+
+		cHash, err := claims.CodeHash()
+		if err != nil {
+			return nil, err
+		}
+
+		platform, err := claims.Platform()
+		if err != nil {
+			return nil, err
+		}
+
+		mData = types.MachineData{
+			ExtensionID:  nodeInfo.ExtensionID,
+			InitialOwner: nodeInfo.InitialOwner,
+			CodeHash:     cHash,
+			Platform:     platform,
+			PublicKey:    nodeInfo.PublicKey,
+		}
+	}
+
 	teeInfoResponse := types.TeeInfoResponse{
 		TeeInfo:     teeInfo,
+		MachineData: mData,
 		Attestation: attestationBytes,
 	}
 
