@@ -16,16 +16,16 @@ import (
 )
 
 type Processor struct {
-	node.Informer
+	node.InformerAndSigner
 	pStorage *policy.Storage
 }
 
 // NewProcessor returns a registration utility processor bound to the provided
-// node informer and policy storage.
-func NewProcessor(informer node.Informer, pStorage *policy.Storage) Processor {
+// node informerAndSigner and policy storage.
+func NewProcessor(infoAndSig node.InformerAndSigner, pStorage *policy.Storage) Processor {
 	return Processor{
-		Informer: informer,
-		pStorage: pStorage,
+		InformerAndSigner: infoAndSig,
+		pStorage:          pStorage,
 	}
 }
 
@@ -57,6 +57,17 @@ func (p *Processor) TEEAttestation(
 		if err != nil {
 			return nil, nil, err
 		}
+
+		mdHash, err := teeInfoResponse.MachineData.Hash()
+		if err != nil {
+			return nil, nil, err
+		}
+
+		mdSignature, err := p.Sign(mdHash[:])
+		if err != nil {
+			return nil, nil, err
+		}
+		teeInfoResponse.DataSignature = mdSignature
 
 		resultEncoded, err := json.Marshal(teeInfoResponse)
 		if err != nil {

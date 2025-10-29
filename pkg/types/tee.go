@@ -6,6 +6,7 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/op"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/structs"
+	"github.com/flare-foundation/go-flare-common/pkg/tee/structs/machineregistry"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/structs/tee"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/structs/verification"
 )
@@ -83,8 +84,28 @@ type MachineData struct {
 	PublicKey    PublicKey      `json:"publicKey"`
 }
 
-func (md *MachineData) Hash() common.Hash {
-	return common.BytesToHash([]byte("todo"))
+func (md *MachineData) Hash() (common.Hash, error) {
+	encoded := md.prepareForEncoding()
+	enc, err := structs.Encode(machineregistry.TeeMachineDataStructArg, encoded)
+	if err != nil {
+		return common.Hash{}, err
+	}
+
+	hash := crypto.Keccak256Hash(enc)
+	return hash, nil
+}
+
+func (md *MachineData) prepareForEncoding() machineregistry.ITeeMachineRegistryTeeMachineData {
+	return machineregistry.ITeeMachineRegistryTeeMachineData{
+		ExtensionId:  md.ExtensionID.Big(),
+		InitialOwner: md.InitialOwner,
+		CodeHash:     md.CodeHash,
+		Platform:     md.Platform,
+		PublicKey: machineregistry.PublicKey{
+			X: md.PublicKey.X,
+			Y: md.PublicKey.Y,
+		},
+	}
 }
 
 type SignedTeeInfoResponse struct {

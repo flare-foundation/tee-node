@@ -50,6 +50,17 @@ func (p *Processor) TEEInfo(i *types.DirectInstruction) ([]byte, error) {
 		return nil, err
 	}
 
+	mdHash, err := response.MachineData.Hash()
+	if err != nil {
+		return nil, err
+	}
+
+	mdSignature, err := p.Sign(mdHash[:])
+	if err != nil {
+		return nil, err
+	}
+	response.DataSignature = mdSignature
+
 	resultEncoded, err := json.Marshal(response)
 	if err != nil {
 		return nil, err
