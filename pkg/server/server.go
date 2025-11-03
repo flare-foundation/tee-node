@@ -1,6 +1,9 @@
 package server
 
 import (
+	"testing"
+
+	"github.com/ethereum/go-ethereum/common"
 	exampleextension "github.com/flare-foundation/tee-node/internal/extension/example_extension"
 	"github.com/flare-foundation/tee-node/internal/extension/server"
 	"github.com/flare-foundation/tee-node/internal/router"
@@ -57,6 +60,32 @@ func StartServerExtension(setProxyPort, serverPort, extensionPort int) {
 
 	// Launch the json rpc server
 	r.Run(teeNode)
+}
+
+func StartTestServerExtension(t *testing.T, setProxyPort, serverPort, extensionPort int) (common.Address, *wallets.Storage) {
+	logger.Set(logger.Config{Console: true, Level: settings.LogLevel})
+
+	teeNode, err := node.Initialize(node.ZeroState{})
+	if err != nil {
+		t.Fatalf("failed to initialize: %v", err)
+	}
+
+	ws := wallets.InitializeStorage()
+	ps := policy.InitializeStorage()
+
+	pc := settings.NewProxyConfigServer(setProxyPort)
+	go pc.Serve() //nolint:errcheck
+
+	extServer := server.NewExtensionServer(serverPort, teeNode, ws, pc.ProxyUrl)
+
+	go extServer.Serve() //nolint:errcheck
+
+	r := router.NewExtensionRouter(teeNode, ws, ps, extensionPort, pc.ProxyUrl)
+
+	// Launch the json rpc server
+	go r.Run(teeNode)
+
+	return teeNode.TeeID(), ws
 }
 
 // StartExampleExtension launches the dummy extension server on the configured
