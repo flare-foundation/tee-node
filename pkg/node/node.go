@@ -136,6 +136,10 @@ func (n *Node) SetOwner(owner common.Address) error {
 		return errors.New("initial owner already set")
 	}
 
+	if owner == zeroAddress {
+		return errors.New("initial owner cannot be zero address")
+	}
+
 	n.initialOwner = owner
 
 	return nil
@@ -169,6 +173,10 @@ func (n *Node) SetExtensionID(id common.Hash) error {
 	zeroHash := common.Hash{}
 	if n.extensionID != zeroHash {
 		return errors.New("extension id already set")
+	}
+
+	if id == zeroHash {
+		return errors.New("extension id cannot be zero hash")
 	}
 
 	n.extensionID = id

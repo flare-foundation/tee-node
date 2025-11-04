@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
 	"os"
 	"sync"
 
@@ -57,9 +58,9 @@ func (u *ProxyURLMutex) setProxyURLFromEnv() {
 		return
 	}
 
-	initialProxyUrl := os.Getenv("PROXY_URL")
-	if initialProxyUrl != "" {
-		u.URL = initialProxyUrl
+	initialProxyURL := os.Getenv("PROXY_URL")
+	if initialProxyURL != "" {
+		u.URL = initialProxyURL
 	}
 }
 
@@ -75,9 +76,17 @@ func (pc *ProxyConfigureServer) Close(ctx context.Context) error {
 
 func (u *ProxyURLMutex) setProxyURL(w http.ResponseWriter, r *http.Request) {
 	var request types.ConfigureProxyURLRequest
-	err := json.NewDecoder(r.Body).Decode(&request)
+	decoder := json.NewDecoder(r.Body)
+	decoder.DisallowUnknownFields()
+	err := decoder.Decode(&request)
 	if err != nil {
 		http.Error(w, "Invalid JSON", http.StatusBadRequest)
+		return
+	}
+
+	_, err = url.ParseRequestURI(request.URL)
+	if err != nil {
+		http.Error(w, "Invalid URL", http.StatusBadRequest)
 		return
 	}
 
@@ -92,7 +101,9 @@ func (u *ProxyURLMutex) setProxyURL(w http.ResponseWriter, r *http.Request) {
 func extensionIDHandler(configurer node.Configurer) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var request types.ConfigureExtensionIDRequest
-		err := json.NewDecoder(r.Body).Decode(&request)
+		decoder := json.NewDecoder(r.Body)
+		decoder.DisallowUnknownFields()
+		err := decoder.Decode(&request)
 		if err != nil {
 			http.Error(w, "Invalid JSON", http.StatusBadRequest)
 			return
@@ -110,7 +121,9 @@ func extensionIDHandler(configurer node.Configurer) http.HandlerFunc {
 func initialOwnerHandler(configurer node.Configurer) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var request types.ConfigureInitialOwnerRequest
-		err := json.NewDecoder(r.Body).Decode(&request)
+		decoder := json.NewDecoder(r.Body)
+		decoder.DisallowUnknownFields()
+		err := decoder.Decode(&request)
 		if err != nil {
 			http.Error(w, "Invalid JSON", http.StatusBadRequest)
 			return
