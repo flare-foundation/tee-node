@@ -64,3 +64,60 @@ func TestAbiEncodeDecodeFTDCProveRequest(t *testing.T) {
 	require.Equal(t, originalAttestationRequest.Header.ThresholdBIPS, decodedAttestationRequest.Header.ThresholdBIPS)
 	require.Equal(t, originalAttestationRequest.RequestBody, decodedAttestationRequest.RequestBody)
 }
+
+func TestHashMessage(t *testing.T) {
+	// Sample data for the header
+	attestationType := [32]byte{1, 2, 3}
+	sourceId := [32]byte{10, 11, 12}
+	thresholdBIPS := uint16(9200)
+	cosigners := []common.Address{
+		common.HexToAddress("0x1111111111111111111111111111111111111111"),
+		common.HexToAddress("0x2222222222222222222222222222222222222222"),
+	}
+	cosignersThreshold := uint64(1)
+	timestamp := uint64(1717171717)
+	requestBody := []byte{0xde, 0xad, 0xbe, 0xef}
+	responseBody := []byte{0xca, 0xfe, 0xba, 0xbe}
+
+	// Input request
+	req := connector.IFtdcHubFtdcAttestationRequest{
+		Header: connector.IFtdcHubFtdcRequestHeader{
+			AttestationType: attestationType,
+			SourceId:        sourceId,
+			ThresholdBIPS:   thresholdBIPS,
+		},
+		RequestBody: requestBody,
+	}
+
+	hash, msgHashPrepended, encHeader, err := ftdc.HashMessage(req, responseBody, cosigners, cosignersThreshold, timestamp)
+	require.NoError(t, err)
+	require.NotEmpty(t, hash)
+	require.NotEmpty(t, msgHashPrepended)
+	require.NotEmpty(t, encHeader)
+
+	require.Equal(t, 38, len(msgHashPrepended), "msgHashPrepended should be 38 bytes (1+5+32)")
+	require.Greater(t, len(encHeader), 0)
+	require.Equal(t, 32, len(hash.Bytes()))
+
+	// Changing any input should result in a different hash
+	req2 := req
+	req2.RequestBody = []byte{0xaa, 0xbb, 0xcc}
+	hash2, _, _, err := ftdc.HashMessage(req2, responseBody, cosigners, cosignersThreshold, timestamp)
+	require.NoError(t, err)
+	require.NotEqual(t, hash, hash2, "Changing the request body should produce a different hash")
+
+	// Test with empty cosigners
+	hash3, _, _, err := ftdc.HashMessage(req, responseBody, []common.Address{}, cosignersThreshold, timestamp)
+	require.NoError(t, err)
+	require.NotEqual(t, hash, hash3, "Changing the cosigners should produce a different hash")
+
+	// Changing timestamp should change the hash
+	hash4, _, _, err := ftdc.HashMessage(req, responseBody, cosigners, cosignersThreshold, timestamp+1)
+	require.NoError(t, err)
+	require.NotEqual(t, hash, hash4, "Changing the timestamp should produce a different hash")
+
+	// Changing responseBody should change the hash
+	hash5, _, _, err := ftdc.HashMessage(req, []byte{0x99, 0x98, 0x97}, cosigners, cosignersThreshold, timestamp)
+	require.NoError(t, err)
+	require.NotEqual(t, hash, hash5, "Changing the responseBody should produce a different hash")
+}
