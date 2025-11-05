@@ -95,6 +95,8 @@ func TestGetKeyInfoHandler(t *testing.T) {
 	resp, err := http.Get(url)
 	require.NoError(t, err)
 
+	defer resp.Body.Close() //nolint:errcheck
+
 	// Assert response
 	require.Equal(t, http.StatusOK, resp.StatusCode)
 	require.Equal(t, "application/json", resp.Header.Get("Content-Type"))

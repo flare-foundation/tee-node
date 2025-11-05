@@ -53,6 +53,8 @@ func GetGoogleAttestationToken(nonces []string, tokenType attestation.TokenType)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get raw token response: %w", err)
 	}
+	defer resp.Body.Close() //nolint:errcheck
+
 	tokenBytes, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read token body: %w", err)

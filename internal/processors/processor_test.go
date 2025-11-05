@@ -134,6 +134,9 @@ func setProxyUrl(t *testing.T, proxyPort, setProxyPort int) {
 	r, err := client.Post(fmt.Sprintf("http://localhost:%d/proxy", setProxyPort), "application/json", bytes.NewBuffer(requestBody))
 	require.NoError(t, err)
 	require.Equal(t, r.StatusCode, http.StatusOK)
+
+	err = r.Body.Close()
+	require.NoError(t, err)
 }
 
 func initializePolicy(t *testing.T, actionInfoChan chan *types.Action,
