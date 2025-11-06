@@ -39,11 +39,11 @@ func TestRoutID(t *testing.T) {
 	for j, test := range tests {
 		da := testutils.BuildMockDirectAction(t, test.opt, test.opc, nil)
 
-		rID, err := routID(da)
+		opID, err := types.GetOpID(da)
 		require.NoError(t, err, j)
 
-		require.Equal(t, test.opt.Hash(), rID.OPType)
-		require.Equal(t, test.opc.Hash(), rID.OPCommand)
+		require.Equal(t, test.opt.Hash(), opID.OPType)
+		require.Equal(t, test.opc.Hash(), opID.OPCommand)
 	}
 }
 

@@ -32,7 +32,7 @@ func (p ProcessFunc) Process(a *types.Action) types.ActionResult {
 //
 // Actions that do not have a designated processor are routed to defaultDirect or defaultInstruction based on action type.
 type Router struct {
-	routs map[rID]Processor
+	routs map[types.OpID]Processor
 
 	defaultDirect      Processor
 	defaultInstruction Processor
@@ -102,13 +102,13 @@ func (r *Router) ServeQueue(id processorutils.QueueID, signer node.Signer) {
 //
 // Only one processor per pair is allowed.
 func (r *Router) RegisterProcessor(opType op.Type, opCommand op.Command, processor Processor) {
-	routID := rID{
+	routID := types.OpID{
 		OPType:    opType.Hash(),
 		OPCommand: opCommand.Hash(),
 	}
 
 	if r.routs == nil {
-		r.routs = make(map[rID]Processor)
+		r.routs = make(map[types.OpID]Processor)
 	}
 
 	if _, exists := r.routs[routID]; exists {
@@ -158,7 +158,7 @@ func (r *Router) process(a *types.Action, queueId processorutils.QueueID) types.
 		return processorutils.Invalid(a, err)
 	}
 
-	id, err := routID(a)
+	id, err := types.GetOpID(a)
 	if err != nil {
 		return processorutils.Invalid(a, err)
 	}

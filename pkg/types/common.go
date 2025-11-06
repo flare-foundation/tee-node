@@ -2,11 +2,31 @@ package types
 
 import (
 	"crypto/ecdsa"
+	"encoding/json"
 	"errors"
 	"math/big"
 
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto/secp256k1"
+	"github.com/flare-foundation/go-flare-common/pkg/tee/op"
 )
+
+type OpID struct {
+	OPType    common.Hash `json:"opType"`
+	OPCommand common.Hash `json:"opCommand"`
+}
+
+// GetOpID extracts OpID from the action.
+func GetOpID(a *Action) (OpID, error) {
+	var id OpID
+	err := json.Unmarshal(a.Data.Message, &id)
+	return id, err
+}
+
+// String returns the textual representation of the operation identifiers.
+func (i OpID) String() string {
+	return string(op.HashToOPType(i.OPType)) + ", " + string(op.HashToOPCommand(i.OPCommand))
+}
 
 // ParsePubKey converts the serialized public key into an ECDSA key.
 func ParsePubKey(key PublicKey) (*ecdsa.PublicKey, error) {
