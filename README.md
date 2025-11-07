@@ -33,7 +33,7 @@ go mod download
 3. Build the server:
 
 ```bash
-go build -o tee-node cmd/server/main.go
+go build -o tee-node cmd/main.go
 ```
 
 ## Usage

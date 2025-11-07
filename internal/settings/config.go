@@ -43,8 +43,8 @@ func NewConfigServer(port int, configurer Configurer) *ProxyConfigureServer {
 	mux := http.NewServeMux()
 	server.Handler = mux
 	mux.HandleFunc("POST "+SetProxyURLEndpoint, proxyUrl.setProxyURL)
-	mux.HandleFunc("POST"+SetInitialOwnerEndpoint, initialOwnerHandler(configurer))
-	mux.HandleFunc("POST"+SetExtensionIDEndpoint, extensionIDHandler(configurer))
+	mux.HandleFunc("POST "+SetInitialOwnerEndpoint, initialOwnerHandler(configurer))
+	mux.HandleFunc("POST "+SetExtensionIDEndpoint, extensionIDHandler(configurer))
 
 	pc := ProxyConfigureServer{
 		server:   server,
@@ -63,10 +63,7 @@ func (u *ProxyURLMutex) setProxyURLFromEnv() {
 		return
 	}
 
-	initialProxyURL := os.Getenv(ProxyURLEnvVar)
-	if initialProxyURL != "" {
-		u.URL = initialProxyURL
-	}
+	u.URL = os.Getenv(ProxyURLEnvVar)
 }
 
 // Serve starts the proxy configuration server and blocks until it stops.
@@ -79,6 +76,7 @@ func (pc *ProxyConfigureServer) Close(ctx context.Context) error {
 	return pc.server.Shutdown(ctx)
 }
 
+// setProxyURL handles requests to /proxy.
 func (u *ProxyURLMutex) setProxyURL(w http.ResponseWriter, r *http.Request) {
 	var request types.ConfigureProxyURLRequest
 	decoder := json.NewDecoder(r.Body)
@@ -103,6 +101,7 @@ func (u *ProxyURLMutex) setProxyURL(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 }
 
+// extensionIDHandler returns a handler of requests to /extension-id.
 func extensionIDHandler(configurer Configurer) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var request types.ConfigureExtensionIDRequest
@@ -123,6 +122,8 @@ func extensionIDHandler(configurer Configurer) http.HandlerFunc {
 		w.WriteHeader(http.StatusOK)
 	}
 }
+
+// extensionIDHandler returns a handler of requests to /initial-owner.
 func initialOwnerHandler(configurer Configurer) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var request types.ConfigureInitialOwnerRequest
