@@ -34,10 +34,7 @@ COPY --from=builder /app/assets/google_confidential_space_root.crt /app/assets/g
 # Set environment variables  
 ENV TZ=UTC
 
-LABEL "tee.launch_policy.allow_env_override"="LOG_LEVEL"
-LABEL "tee.launch_policy.allow_env_override"="PROXY_URL"
-LABEL "tee.launch_policy.allow_env_override"="INITIAL_OWNER"
-LABEL "tee.launch_policy.allow_env_override"="EXTENSION_ID"
+LABEL "tee.launch_policy.allow_env_override"="LOG_LEVEL,PROXY_URL,INITIAL_OWNER,EXTENSION_ID"
 
 # Expose port (adjust as needed)  
 EXPOSE 5500
