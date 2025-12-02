@@ -27,18 +27,18 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func setupTestServer(t *testing.T, proxyPort int, port int) *ExtensionServer {
+func setupTestServer(t *testing.T, proxyPort int, port int) *ExtenderServer {
 	testNode, err := node.Initialize(node.ZeroState{})
 	require.NoError(t, err)
 
 	wStorage := wallets.InitializeStorage()
 
-	proxyUrl := settings.ProxyURLMutex{
+	proxyURL := settings.ProxyURLMutex{
 		URL: "http://localhost:" + strconv.Itoa(proxyPort),
 	}
 
 	// Create test server
-	server := NewExtensionServer(port, testNode, wStorage, &proxyUrl)
+	server := NewExtenderServer(port, testNode, wStorage, &proxyURL)
 
 	return server
 }
@@ -206,7 +206,7 @@ func TestDecryptWithKeyHandler(t *testing.T) {
 	defer server.Close(context.Background()) //nolint:errcheck
 
 	wallet := setupTestWallet(t, server.wStorage, wallets.XRPAlgo)
-	walletId, keyId := wallet.WalletID, wallet.KeyID
+	walletID, keyID := wallet.WalletID, wallet.KeyID
 
 	// Create test encrypted message (this is a dummy encrypted message for testing)
 	message := []byte("encrypted test message")
@@ -218,7 +218,7 @@ func TestDecryptWithKeyHandler(t *testing.T) {
 	requestBody := types.DecryptRequest{
 		EncryptedMessage: encryptedMessage,
 	}
-	url := fmt.Sprintf("http://localhost:%d/decrypt/%s/%d", port, walletId.Hex(), keyId)
+	url := fmt.Sprintf("http://localhost:%d/decrypt/%s/%d", port, walletID.Hex(), keyID)
 	body, err := post(url, requestBody)
 	require.NoError(t, err)
 

@@ -40,7 +40,7 @@ func main() {
 		}
 	}()
 
-	extServer := server.NewExtensionServer(settings.ExtensionServerPort, teeNode, ws, pc.ProxyURL)
+	extServer := server.NewExtenderServer(settings.ExtensionServerPort, teeNode, ws, pc.ProxyURL)
 	go func() {
 		err := extServer.Serve()
 		if err != nil {
@@ -48,7 +48,7 @@ func main() {
 		}
 	}()
 
-	r := router.NewExtensionRouter(teeNode, ws, ps, settings.ExtensionPort, pc.ProxyURL)
+	r := router.NewForwardRouter(teeNode, ws, ps, settings.ExtensionPort, pc.ProxyURL)
 
 	// Launch the json rpc server
 	r.Run(teeNode)

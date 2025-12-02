@@ -135,13 +135,14 @@ func DecodeTeeAttestationRequest(attReq []byte) (verification.ITeeVerificationTe
 }
 
 type ConfigureProxyURLRequest struct {
-	URL string `json:"url"`
+	URL *string `json:"url"` // The pointer ensures {} and {"url": ""} unmarshal distinctly.
+
 }
 
 type ConfigureInitialOwnerRequest struct {
-	Owner common.Address `json:"owner"`
+	Owner *common.Address `json:"owner"`
 }
 
 type ConfigureExtensionIDRequest struct {
-	ExtensionID common.Hash `json:"extensionId"`
+	ExtensionID *common.Hash `json:"extensionId"`
 }

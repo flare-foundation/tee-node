@@ -25,6 +25,7 @@ import (
 	"github.com/ethereum/go-ethereum/crypto/ecies"
 	"github.com/ethereum/go-ethereum/crypto/secp256k1"
 	commonpolicy "github.com/flare-foundation/go-flare-common/pkg/policy"
+	"github.com/flare-foundation/go-flare-common/pkg/random"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/instruction"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/op"
 	cwallet "github.com/flare-foundation/go-flare-common/pkg/tee/structs/wallet"
@@ -107,7 +108,7 @@ func (s *keyGenerateTestSetup) buildKeyGenerateInstruction(t *testing.T, msg cwa
 	originalMessageEncoded, err := abi.Arguments{cwallet.MessageArguments[op.KeyGenerate]}.Pack(msg)
 	require.NoError(t, err)
 
-	instructionID, err := utils.GenerateRandom()
+	instructionID, err := random.Hash()
 	require.NoError(t, err)
 
 	return &instruction.DataFixed{
@@ -345,7 +346,7 @@ func (s *keyDeleteTestSetup) buildKeyDeleteInstruction(t *testing.T, msg cwallet
 	encodedDeleteReq, err := abi.Arguments{cwallet.MessageArguments[op.KeyDelete]}.Pack(msg)
 	require.NoError(t, err)
 
-	instructionID, err := utils.GenerateRandom()
+	instructionID, err := random.Hash()
 	require.NoError(t, err)
 
 	return &instruction.DataFixed{
@@ -650,7 +651,7 @@ func (s *keyDataProviderRestoreTestSetup) buildRestoreInstruction(
 	metadataBytes, err := json.Marshal(s.walletBackup.WalletBackupMetaData)
 	require.NoError(t, err)
 
-	instructionID, err := utils.GenerateRandom()
+	instructionID, err := random.Hash()
 	require.NoError(t, err)
 
 	// Cosigners should be admin addresses (as checked by keyDataProviderRestoreCheck)

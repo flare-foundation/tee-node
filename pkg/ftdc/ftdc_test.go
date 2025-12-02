@@ -68,7 +68,7 @@ func TestAbiEncodeDecodeFTDCProveRequest(t *testing.T) {
 func TestHashMessage(t *testing.T) {
 	// Sample data for the header
 	attestationType := [32]byte{1, 2, 3}
-	sourceId := [32]byte{10, 11, 12}
+	sourceID := [32]byte{10, 11, 12}
 	thresholdBIPS := uint16(9200)
 	cosigners := []common.Address{
 		common.HexToAddress("0x1111111111111111111111111111111111111111"),
@@ -83,7 +83,7 @@ func TestHashMessage(t *testing.T) {
 	req := connector.IFtdcHubFtdcAttestationRequest{
 		Header: connector.IFtdcHubFtdcRequestHeader{
 			AttestationType: attestationType,
-			SourceId:        sourceId,
+			SourceId:        sourceID,
 			ThresholdBIPS:   thresholdBIPS,
 		},
 		RequestBody: requestBody,

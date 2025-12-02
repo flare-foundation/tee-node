@@ -72,6 +72,11 @@ func Initialize(state State) (*Node, error) {
 		teeID:      id,
 		privateKey: privKey,
 		state:      state,
+
+		extensionID: extensionID{
+			set:   false,
+			value: settings.DefaultExtensionID,
+		},
 	}
 
 	err = n.initialOwnerFromEnv()

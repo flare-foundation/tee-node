@@ -7,9 +7,9 @@ import (
 	"github.com/flare-foundation/tee-node/internal/processors/instructions/signutils"
 	"github.com/flare-foundation/tee-node/internal/testutils"
 	"github.com/flare-foundation/tee-node/pkg/types"
-	"github.com/flare-foundation/tee-node/pkg/utils"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/flare-foundation/go-flare-common/pkg/random"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/instruction"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/op"
 
@@ -19,22 +19,21 @@ import (
 var mockWalletID = common.HexToHash("0xabcdef")
 var mockKeyID = uint64(1)
 
-// Send enough signatures for the payment hash, to pass the threshold.
 func TestSignPaymentTransaction(t *testing.T) {
 	testNode, pStorage, wStorage := testutils.Setup(t)
 
-	numVoters, randSeed, epochId := 100, int64(12345), uint32(1)
-	_, _, privKeys, err := testutils.GenerateAndSetInitialPolicy(pStorage, numVoters, randSeed, epochId)
+	numVoters, randSeed, epochID := 100, int64(12345), uint32(1)
+	_, _, privKeys, err := testutils.GenerateAndSetInitialPolicy(pStorage, numVoters, randSeed, epochID)
 	require.NoError(t, err, "generating")
 
-	testutils.CreateMockWallet(t, testNode, pStorage, wStorage, mockWalletID, mockKeyID, epochId, []*ecdsa.PrivateKey{privKeys[0]}, nil)
+	testutils.CreateMockWallet(t, testNode, pStorage, wStorage, mockWalletID, mockKeyID, epochID, []*ecdsa.PrivateKey{privKeys[0]}, nil)
 
-	instructionId, err := utils.GenerateRandom()
+	instructionID, err := random.Hash()
 	require.NoError(t, err)
 	instructionDataFixed := instruction.DataFixed{
-		InstructionID:          instructionId,
+		InstructionID:          instructionID,
 		TeeID:                  testNode.TeeID(),
-		RewardEpochID:          epochId,
+		RewardEpochID:          epochID,
 		OPType:                 op.XRP.Hash(),
 		OPCommand:              op.Pay.Hash(),
 		OriginalMessage:        testutils.BuildMockPaymentOriginalMessage(t, mockWalletID, testNode.TeeID(), mockKeyID),

@@ -19,6 +19,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/flare-foundation/go-flare-common/pkg/random"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/instruction"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/op"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/structs/payment"
@@ -39,7 +40,8 @@ func CreateMockWallet(
 	rewardEpochID uint32,
 	adminPrivKeys, cosignerPrivKeys []*ecdsa.PrivateKey,
 ) wallet.ITeeWalletKeyManagerKeyExistence {
-	instructionIdBytes, _ := GenerateRandomBytes(32)
+	instructionID, err := random.Hash()
+	require.NoError(t, err)
 
 	require.Less(t, 0, len(adminPrivKeys))
 	adminPubKeys := make([]wallet.PublicKey, 0)
@@ -74,7 +76,7 @@ func CreateMockWallet(
 	require.NoError(t, err)
 
 	instructionDataFixed := instruction.DataFixed{
-		InstructionID:          common.BytesToHash(instructionIdBytes),
+		InstructionID:          instructionID,
 		TeeID:                  iSndD.TeeID(),
 		RewardEpochID:          rewardEpochID,
 		OPType:                 op.Wallet.Hash(),
@@ -139,7 +141,7 @@ func BuildMockInstructionAction(
 	submissionTag types.SubmissionTag,
 	timestamp uint64,
 ) (*types.Action, error) {
-	instructionId, err := GenerateRandomBytes(32)
+	instructionID, err := random.Hash()
 	if err != nil {
 		return nil, err
 	}
@@ -161,7 +163,7 @@ func BuildMockInstructionAction(
 	}
 
 	instructionDataFixed := instruction.DataFixed{
-		InstructionID:          common.BytesToHash(instructionId),
+		InstructionID:          instructionID,
 		TeeID:                  teeID,
 		RewardEpochID:          rewardEpochID,
 		OPType:                 opType.Hash(),
@@ -220,7 +222,7 @@ func BuildMockInstructionAction(
 
 	action := types.Action{
 		Data: types.ActionData{
-			ID:            common.BytesToHash(instructionId),
+			ID:            instructionID,
 			Type:          types.Instruction,
 			Message:       instructionDataFixedEncoded,
 			SubmissionTag: submissionTag,
@@ -256,13 +258,13 @@ func BuildMockDirectAction(t *testing.T, opType op.Type, opCommand op.Command, m
 	enc, err := json.Marshal(di)
 	require.NoError(t, err)
 
-	actionId, err := GenerateRandomBytes(32)
+	actionID, err := random.Hash()
 	require.NoError(t, err)
 
 	action := types.Action{
 		Data: types.ActionData{
 			SubmissionTag: types.Submit,
-			ID:            common.BytesToHash(actionId),
+			ID:            actionID,
 			Type:          types.Direct,
 			Message:       enc,
 		},

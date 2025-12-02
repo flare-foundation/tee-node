@@ -2,10 +2,8 @@ package utils
 
 import (
 	"crypto/ecdsa"
-	"crypto/rand"
 	"errors"
 	"fmt"
-	"io"
 	"slices"
 
 	"github.com/flare-foundation/go-flare-common/pkg/tee/structs/wallet"
@@ -17,23 +15,6 @@ import (
 	"github.com/ethereum/go-ethereum/crypto/ecies"
 	"github.com/ethereum/go-ethereum/crypto/secp256k1"
 )
-
-// GenerateRandom returns a cryptographically secure 32-byte random value.
-func GenerateRandom() ([32]byte, error) {
-	b := make([]byte, 32)
-	n, err := io.ReadFull(rand.Reader, b)
-	if err != nil {
-		return [32]byte{}, err
-	}
-	if n != 32 {
-		return [32]byte{}, errors.New("failed to read random 32 bytes")
-	}
-
-	var r [32]byte
-	copy(r[:], b)
-
-	return r, nil
-}
 
 // Sign signs the provided hash with the given private key.
 func Sign(msgHash []byte, privKey *ecdsa.PrivateKey) ([]byte, error) {

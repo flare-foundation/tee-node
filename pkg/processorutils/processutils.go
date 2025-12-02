@@ -32,10 +32,10 @@ func Parse[T validRequestType](message []byte) (*T, error) {
 	case *types.DirectInstruction:
 		maxBodySize = settings.MaxActionSize
 	default:
-		return nil, errors.New("Invalid request type")
+		return nil, errors.New("invalid request type")
 	}
 
-	// Check if the request body size exceeds the limit
+	// Check if the request body size exceeds the limit.
 	if len(message) > maxBodySize {
 		return nil, errors.New("request too large")
 	}

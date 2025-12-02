@@ -1,6 +1,20 @@
+<div align="center">
+  <a href="https://flare.network/" target="blank">
+    <img src="https://content.flare.network/Flare-2.svg" width="300" alt="Flare Logo" />
+  </a>
+  <br />
+  <a href="CONTRIBUTING.md">Contributing</a>
+  ·
+  <a href="SECURITY.md">Security</a>
+  ·
+  <a href="CHANGELOG.md">Changelog</a>
+</div>
+
 # Flare TEE server node
 
 Flare TEE server node is a secure gRPC server implementation running inside a Trusted Execution Environment (TEE). It provides network managed wallets.
+
+[![API Reference](https://pkg.go.dev/badge/github.com/flare-foundation/tee-node)](https://pkg.go.dev/github.com/flare-foundation/tee-node?tab=doc)
 
 ### Features
 
@@ -147,8 +161,6 @@ gcloud compute firewall-rules create allow-port-8545 \
 ```
 
 ⚠️ **Security Note**: The current firewall rule allows access from any IP (`0.0.0.0/0`). For production environments, we would restrict this to only specific IPs (data provider or other TEEs).
-
-
 
 ### Run tests
 

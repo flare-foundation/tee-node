@@ -1,6 +1,7 @@
 package server
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -15,83 +16,99 @@ import (
 	"github.com/flare-foundation/go-flare-common/pkg/logger"
 )
 
-// StartServerPMW boots the PMW TEE node and exposes the proxy configuration
+// initialize new node, wallet and policy storages, and start a config server.
+func initialize(configPort int) (*node.Node, *wallets.Storage, *policy.Storage, *settings.ConfigServer, error) {
+	// Create a node, storages and a config server.
+	teeNode, err := node.Initialize(node.ZeroState{})
+	if err != nil {
+		return nil, nil, nil, nil, fmt.Errorf("failed to initialize: %w", err)
+	}
+	ws := wallets.InitializeStorage()
+	ps := policy.InitializeStorage()
+	cs := settings.NewConfigServer(configPort, teeNode)
+
+	// Start the config server.
+	go func() {
+		err := cs.Serve()
+		if err != nil {
+			logger.Errorf("config server error: %v", err)
+		}
+	}()
+
+	return teeNode, ws, ps, cs, nil
+}
+
+// StartServerPMW boots the PMW TEE node and exposes the configuration
 // endpoint on the provided port.
-func StartServerPMW(setProxyPort int) {
-	logger.Set(logger.Config{Console: true, Level: settings.LogLevel})
-
-	teeNode, err := node.Initialize(node.ZeroState{})
+func StartServerPMW(configPort int) {
+	// Initialize.
+	teeNode, ws, ps, cs, err := initialize(configPort)
 	if err != nil {
-		logger.Fatalf("failed to initialize: %v", err)
+		logger.Errorf("node initialization failed: %v", err)
+		return
 	}
 
-	ws := wallets.InitializeStorage()
-	ps := policy.InitializeStorage()
-
-	pc := settings.NewConfigServer(setProxyPort, teeNode)
-	go pc.Serve() //nolint:errcheck
-
-	r := router.NewPMWRouter(teeNode, ws, ps, pc.ProxyURL)
-
-	r.Run(teeNode)
+	// Start a PMW router.
+	router.NewPMWRouter(teeNode, ws, ps, cs.ProxyURL).Run(teeNode)
 }
 
-// StartServerExtension runs the extension-enabled TEE node and supporting
-// HTTP servers.
-func StartServerExtension(setProxyPort, serverPort, extensionPort int) {
-	logger.Set(logger.Config{Console: true, Level: settings.LogLevel})
-
-	teeNode, err := node.Initialize(node.ZeroState{})
+// StartTestServerExtension runs the extension-enabled TEE node and supporting
+// HTTP servers for testing purposes.
+//
+// configPort is a node's port for receiving configuration requests (like setting proxy URL).
+// extenderPort is a node's port for receiving action results from extensions.
+// extensionPort is an extension's port that receives actions from its node.
+func StartServerExtension(configPort, extenderPort, extensionPort int) {
+	// Initialize.
+	teeNode, ws, ps, cs, err := initialize(configPort)
 	if err != nil {
-		logger.Fatalf("failed to initialize: %v", err)
+		logger.Errorf("node initialization failed: %v", err)
+		return
 	}
 
-	ws := wallets.InitializeStorage()
-	ps := policy.InitializeStorage()
+	// Start an extender server.
+	go func() {
+		err := server.NewExtenderServer(extenderPort, teeNode, ws, cs.ProxyURL).Serve()
+		if err != nil {
+			logger.Errorf("extension server error: %v", err)
+		}
+	}()
 
-	pc := settings.NewConfigServer(setProxyPort, teeNode)
-	go pc.Serve() //nolint:errcheck
-
-	extServer := server.NewExtensionServer(serverPort, teeNode, ws, pc.ProxyURL)
-
-	go extServer.Serve() //nolint:errcheck
-
-	r := router.NewExtensionRouter(teeNode, ws, ps, extensionPort, pc.ProxyURL)
-
-	// Launch the json rpc server
-	r.Run(teeNode)
+	// Start a forward router.
+	router.NewForwardRouter(teeNode, ws, ps, extensionPort, cs.ProxyURL).Run(teeNode)
 }
 
-func StartTestServerExtension(t *testing.T, setProxyPort, serverPort, extensionPort int) (common.Address, *wallets.Storage) {
-	logger.Set(logger.Config{Console: true, Level: settings.LogLevel})
-
-	teeNode, err := node.Initialize(node.ZeroState{})
+// StartTestServerExtension runs the extension-enabled TEE node and supporting
+// HTTP servers for testing purposes.
+//
+// configPort is a node's port for receiving configuration requests (like setting proxy URL).
+// extenderPort is a node's port for receiving action results from extensions.
+// extensionPort is an extension's port that receives actions from its node.
+func StartTestServerExtension(t *testing.T, configPort, extenderPort, extensionPort int) (common.Address, *wallets.Storage) {
+	// Initialize.
+	teeNode, ws, ps, cs, err := initialize(configPort)
 	if err != nil {
-		t.Fatalf("failed to initialize: %v", err)
+		t.Errorf("node initialization failed: %v", err)
 	}
 
-	ws := wallets.InitializeStorage()
-	ps := policy.InitializeStorage()
+	// Start an extender server.
+	go func() {
+		err := server.NewExtenderServer(extenderPort, teeNode, ws, cs.ProxyURL).Serve()
+		if err != nil {
+			t.Errorf("extension server error: %v", err)
+		}
+	}()
 
-	pc := settings.NewConfigServer(setProxyPort, teeNode)
-	go pc.Serve() //nolint:errcheck
-
-	extServer := server.NewExtensionServer(serverPort, teeNode, ws, pc.ProxyURL)
-
-	go extServer.Serve() //nolint:errcheck
-
-	r := router.NewExtensionRouter(teeNode, ws, ps, extensionPort, pc.ProxyURL)
-
-	// Launch the json rpc server
-	go r.Run(teeNode)
+	// Start a forward router.
+	go router.NewForwardRouter(teeNode, ws, ps, extensionPort, cs.ProxyURL).Run(teeNode)
 
 	return teeNode.TeeID(), ws
 }
 
 // StartExampleExtension launches the dummy extension server on the configured
 // ports.
-func StartExampleExtension(serverPort, extensionPort int) {
-	server := exampleextension.NewDummyExtensionServer(extensionPort, serverPort)
+func StartExampleExtension(extenderPort, extensionPort int) {
+	server := exampleextension.NewDummyExtensionServer(extensionPort, extenderPort)
 
 	server.Serve() //nolint:errcheck,gosec
 }

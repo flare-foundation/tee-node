@@ -33,19 +33,19 @@ const (
 	walletID      = "walletID"
 )
 
-type ExtensionServer struct {
+type ExtenderServer struct {
 	server *http.Server
 
 	wStorage *wallets.Storage
 
 	node *node.Node
 
-	proxyUrl *settings.ProxyURLMutex
+	proxyURL *settings.ProxyURLMutex
 }
 
-// NewExtensionServer constructs an HTTP server that exposes wallet and TEE
+// NewExtenderServer constructs an HTTP server that exposes wallet and TEE
 // functionality to extension clients on the provided port.
-func NewExtensionServer(port int, node *node.Node, wStorage *wallets.Storage, proxyUrl *settings.ProxyURLMutex) *ExtensionServer {
+func NewExtenderServer(port int, node *node.Node, wStorage *wallets.Storage, proxyURL *settings.ProxyURLMutex) *ExtenderServer {
 	addr := fmt.Sprintf(":%d", port)
 
 	server := &http.Server{
@@ -57,11 +57,11 @@ func NewExtensionServer(port int, node *node.Node, wStorage *wallets.Storage, pr
 		// MaxHeaderBytes:               0,
 	}
 
-	e := ExtensionServer{
+	e := ExtenderServer{
 		server:   server,
 		wStorage: wStorage,
 		node:     node,
-		proxyUrl: proxyUrl,
+		proxyURL: proxyURL,
 	}
 
 	e.registerRoutes()
@@ -70,16 +70,16 @@ func NewExtensionServer(port int, node *node.Node, wStorage *wallets.Storage, pr
 }
 
 // Serve starts the server.
-func (s *ExtensionServer) Serve() error {
+func (s *ExtenderServer) Serve() error {
 	return s.server.ListenAndServe()
 }
 
 // Close gracefully closes the server.
-func (s *ExtensionServer) Close(ctx context.Context) error {
+func (s *ExtenderServer) Close(ctx context.Context) error {
 	return s.server.Shutdown(ctx)
 }
 
-func (s *ExtensionServer) registerRoutes() {
+func (s *ExtenderServer) registerRoutes() {
 	mux := http.NewServeMux()
 	s.server.Handler = addContentType(mux, "application/json")
 
@@ -93,7 +93,7 @@ func (s *ExtensionServer) registerRoutes() {
 }
 
 // getKeyInfoHandler handles GET /key-info/{walletID}/{keyID}.
-func (s *ExtensionServer) getKeyInfoHandler(w http.ResponseWriter, r *http.Request) {
+func (s *ExtenderServer) getKeyInfoHandler(w http.ResponseWriter, r *http.Request) {
 	wID, err := hashParam(r, walletID)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
@@ -132,7 +132,7 @@ func (s *ExtensionServer) getKeyInfoHandler(w http.ResponseWriter, r *http.Reque
 }
 
 // signWithKeyHandler handles POST /sign/{walletID}/{keyID}.
-func (s *ExtensionServer) signWithKeyHandler(w http.ResponseWriter, r *http.Request) {
+func (s *ExtenderServer) signWithKeyHandler(w http.ResponseWriter, r *http.Request) {
 	wID, err := hashParam(r, walletID)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
@@ -184,7 +184,7 @@ func (s *ExtensionServer) signWithKeyHandler(w http.ResponseWriter, r *http.Requ
 }
 
 // signWithTeeHandler handles POST /sign.
-func (s *ExtensionServer) signWithTeeHandler(w http.ResponseWriter, r *http.Request) {
+func (s *ExtenderServer) signWithTeeHandler(w http.ResponseWriter, r *http.Request) {
 	// Parse request body
 	var signRequest types.SignRequest
 
@@ -220,7 +220,7 @@ func (s *ExtensionServer) signWithTeeHandler(w http.ResponseWriter, r *http.Requ
 }
 
 // postResultHandler handles POST /result.
-func (s *ExtensionServer) postResultHandler(w http.ResponseWriter, r *http.Request) {
+func (s *ExtenderServer) postResultHandler(w http.ResponseWriter, r *http.Request) {
 	// Parse request body
 	var result types.ActionResult
 
@@ -236,11 +236,11 @@ func (s *ExtensionServer) postResultHandler(w http.ResponseWriter, r *http.Reque
 		http.Error(w, "can not sign", http.StatusInternalServerError)
 	}
 
-	s.proxyUrl.RLock()
-	proxyUrl := s.proxyUrl.URL
-	s.proxyUrl.RUnlock()
+	s.proxyURL.RLock()
+	url := s.proxyURL.URL
+	s.proxyURL.RUnlock()
 
-	if proxyUrl == "" {
+	if url == "" {
 		http.Error(w, "proxy not set", http.StatusInternalServerError)
 		return
 	}
@@ -248,7 +248,7 @@ func (s *ExtensionServer) postResultHandler(w http.ResponseWriter, r *http.Reque
 	var postErr error
 	deadline := time.Now().Add(100 * time.Millisecond)
 	for {
-		postErr = queue.PostActionResponse(fmt.Sprintf("%s/result", proxyUrl), response)
+		postErr = queue.PostActionResponse(fmt.Sprintf("%s/result", url), response)
 		if postErr == nil {
 			break
 		}
@@ -263,8 +263,8 @@ func (s *ExtensionServer) postResultHandler(w http.ResponseWriter, r *http.Reque
 	w.WriteHeader(http.StatusOK)
 }
 
-// decryptWithKeyHandler handles POST /decrypt/{walletId}/{keyId}.
-func (s *ExtensionServer) decryptWithKeyHandler(w http.ResponseWriter, r *http.Request) {
+// decryptWithKeyHandler handles POST /decrypt/{walletD}/{keyID}.
+func (s *ExtenderServer) decryptWithKeyHandler(w http.ResponseWriter, r *http.Request) {
 	wID, err := hashParam(r, walletID)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
@@ -318,7 +318,7 @@ func (s *ExtensionServer) decryptWithKeyHandler(w http.ResponseWriter, r *http.R
 }
 
 // decryptWithTeeHandler handles POST /decrypt.
-func (s *ExtensionServer) decryptWithTeeHandler(w http.ResponseWriter, r *http.Request) {
+func (s *ExtenderServer) decryptWithTeeHandler(w http.ResponseWriter, r *http.Request) {
 	// Parse request body
 	var decryptRequest types.DecryptRequest
 

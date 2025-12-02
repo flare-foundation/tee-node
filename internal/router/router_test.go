@@ -75,16 +75,16 @@ func TestRouterInstructionActionRoutingThreshold(t *testing.T) {
 	// Initialize node for testing
 	teeNode, ps, ws := testutils.Setup(t)
 
-	numVoters, randSeed, epochId := 100, int64(12345), uint32(1)
-	_, _, providerPrivKeys, err := testutils.GenerateAndSetInitialPolicy(ps, numVoters, randSeed, epochId)
+	numVoters, randSeed, epochID := 100, int64(12345), uint32(1)
+	_, _, providerPrivKeys, err := testutils.GenerateAndSetInitialPolicy(ps, numVoters, randSeed, epochID)
 	require.NoError(t, err)
 
 	r := NewPMWRouter(teeNode, ws, ps, &settings.ProxyURLMutex{})
 
 	// Create an instruction action with Threshold submission tag
-	teeId := teeNode.TeeID()
-	walletId := common.HexToHash("0xabcdef")
-	keyId := uint64(1)
+	teeID := teeNode.TeeID()
+	walletID := common.HexToHash("0xabcdef")
+	keyID := uint64(1)
 
 	numAdmins := 3
 	adminPubKeys := make([]cwallet.PublicKey, numAdmins)
@@ -102,9 +102,9 @@ func TestRouterInstructionActionRoutingThreshold(t *testing.T) {
 
 	// Create a proper KeyGenerate message
 	originalMessage := cwallet.ITeeWalletKeyManagerKeyGenerate{
-		TeeId:       teeId,
-		WalletId:    walletId,
-		KeyId:       keyId,
+		TeeId:       teeID,
+		WalletId:    walletID,
+		KeyId:       keyID,
 		KeyType:     wallets.XRPType,
 		SigningAlgo: wallets.XRPAlgo,
 		ConfigConstants: cwallet.ITeeWalletKeyManagerKeyConfigConstants{
@@ -120,8 +120,8 @@ func TestRouterInstructionActionRoutingThreshold(t *testing.T) {
 	require.NoError(t, err)
 
 	action, err := testutils.BuildMockInstructionAction(
-		op.Wallet, op.KeyGenerate, originalMessageEncoded, providerPrivKeys, teeId,
-		epochId, nil, nil, nil, 0, types.Threshold, 1234567890,
+		op.Wallet, op.KeyGenerate, originalMessageEncoded, providerPrivKeys, teeID,
+		epochID, nil, nil, nil, 0, types.Threshold, 1234567890,
 	)
 	require.NoError(t, err)
 
@@ -151,7 +151,7 @@ func TestRouterUnregisteredExtension(t *testing.T) {
 
 func TestRouterExtensionStartingWithF_NotConfigured(t *testing.T) {
 	testNode, ps, ws := testutils.Setup(t)
-	r := NewExtensionRouter(testNode, ws, ps, 8001, &settings.ProxyURLMutex{})
+	r := NewForwardRouter(testNode, ws, ps, 8001, &settings.ProxyURLMutex{})
 
 	// Create a direct action for extension starting with F_ but not configured
 	action := testutils.BuildMockDirectAction(t, op.Type("F_CustomExtension"), op.Command("CustomCommand"), nil)
@@ -223,7 +223,7 @@ func TestServeQueueBasic(t *testing.T) {
 
 	// Set the proxy URL
 	proxyURL := &settings.ProxyURLMutex{URL: server.URL}
-	r.proxyUrl = proxyURL
+	r.proxyURL = proxyURL
 
 	// Run ServeQueue in a goroutine with a timeout
 	go func() {
@@ -294,9 +294,9 @@ func TestServeQueueEmptyProxyURL(t *testing.T) {
 
 	time.Sleep(settings.QueuedActionsSleepTime)
 
-	r.proxyUrl.Lock()
-	r.proxyUrl.URL = server.URL
-	r.proxyUrl.Unlock()
+	r.proxyURL.Lock()
+	r.proxyURL.URL = server.URL
+	r.proxyURL.Unlock()
 
 	select {
 	case <-actionFetched:

@@ -37,12 +37,12 @@ type Router struct {
 	defaultDirect      Processor
 	defaultInstruction Processor
 
-	proxyUrl *settings.ProxyURLMutex
+	proxyURL *settings.ProxyURLMutex
 }
 
 // New creates a router associated with the provided proxy URL mutex.
-func New(proxyUrl *settings.ProxyURLMutex) Router {
-	return Router{proxyUrl: proxyUrl}
+func New(proxyURL *settings.ProxyURLMutex) Router {
+	return Router{proxyURL: proxyURL}
 }
 
 // Run spawns workers processing queues for both the instructions and
@@ -62,9 +62,9 @@ func (r *Router) ServeQueue(id processorutils.QueueID, signer node.Signer) {
 		var response *types.ActionResponse
 		var err error
 
-		r.proxyUrl.RLock()
-		proxyURL := r.proxyUrl.URL
-		r.proxyUrl.RUnlock()
+		r.proxyURL.RLock()
+		proxyURL := r.proxyURL.URL
+		r.proxyURL.RUnlock()
 		if proxyURL == "" {
 			goto sleep
 		}
@@ -152,7 +152,7 @@ func (r *Router) RegisterDefaultInstruction(processor Processor) {
 	r.defaultInstruction = processor
 }
 
-func (r *Router) process(a *types.Action, queueId processorutils.QueueID) types.ActionResult {
+func (r *Router) process(a *types.Action, queueID processorutils.QueueID) types.ActionResult {
 	err := processorutils.CheckAndAdapt(a)
 	if err != nil {
 		return processorutils.Invalid(a, err)
@@ -162,7 +162,7 @@ func (r *Router) process(a *types.Action, queueId processorutils.QueueID) types.
 	if err != nil {
 		return processorutils.Invalid(a, err)
 	}
-	logger.Infof("%s queue: routing action with OPType, OPCommand: %v", queueId, id)
+	logger.Infof("%s queue: routing action with OPType, OPCommand: %v", queueID, id)
 
 	p, exists := r.routs[id]
 	if exists {
@@ -172,12 +172,12 @@ func (r *Router) process(a *types.Action, queueId processorutils.QueueID) types.
 	switch a.Data.Type {
 	case types.Direct:
 		if r.defaultDirect != nil {
-			logger.Infof("%s queue: processing using default direct processor", queueId)
+			logger.Infof("%s queue: processing using default direct processor", queueID)
 			return r.defaultDirect.Process(a)
 		}
 	case types.Instruction:
 		if r.defaultInstruction != nil {
-			logger.Infof("%s queue: processing using default instruction processor", queueId)
+			logger.Infof("%s queue: processing using default instruction processor", queueID)
 			return r.defaultInstruction.Process(a)
 		}
 	}

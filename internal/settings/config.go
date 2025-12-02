@@ -8,6 +8,7 @@ import (
 	"net/url"
 	"os"
 	"sync"
+	"time"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/flare-foundation/tee-node/pkg/types"
@@ -17,41 +18,6 @@ type ProxyURLMutex struct {
 	URL string
 
 	sync.RWMutex
-}
-
-type ProxyConfigureServer struct {
-	server *http.Server
-
-	ProxyURL *ProxyURLMutex
-}
-
-type Configurer interface {
-	SetOwner(common.Address) error
-	SetExtensionID(common.Hash) error
-}
-
-// NewConfigServer creates an HTTP server that accepts proxy configuration
-// requests on the provided port and exposes the configured URL via ProxyUrl.
-func NewConfigServer(port int, configurer Configurer) *ProxyConfigureServer {
-	proxyUrl := &ProxyURLMutex{}
-	proxyUrl.setProxyURLFromEnv()
-
-	addr := fmt.Sprintf(":%d", port)
-	server := &http.Server{
-		Addr: addr,
-	}
-	mux := http.NewServeMux()
-	server.Handler = mux
-	mux.HandleFunc("POST "+SetProxyURLEndpoint, proxyUrl.setProxyURL)
-	mux.HandleFunc("POST "+SetInitialOwnerEndpoint, initialOwnerHandler(configurer))
-	mux.HandleFunc("POST "+SetExtensionIDEndpoint, extensionIDHandler(configurer))
-
-	pc := ProxyConfigureServer{
-		server:   server,
-		ProxyURL: proxyUrl,
-	}
-
-	return &pc
 }
 
 // setProxyURLFromEnv sets the proxy url from the environment variable PROXY_URL if it was not already set.
@@ -66,28 +32,73 @@ func (u *ProxyURLMutex) setProxyURLFromEnv() {
 	u.URL = os.Getenv(ProxyURLEnvVar)
 }
 
+type ConfigServer struct {
+	server   *http.Server
+	ProxyURL *ProxyURLMutex
+}
+
+type Configurer interface {
+	SetOwner(common.Address) error
+	SetExtensionID(common.Hash) error
+}
+
+// NewConfigServer creates an HTTP server that accepts proxy configuration
+// requests on the provided port and exposes the configured URL via ProxyURL.
+func NewConfigServer(port int, configurer Configurer) *ConfigServer {
+	proxyURL := &ProxyURLMutex{}
+	proxyURL.setProxyURLFromEnv()
+
+	addr := fmt.Sprintf(":%d", port)
+	server := &http.Server{
+		Addr:              addr,
+		ReadTimeout:       5 * time.Second,
+		ReadHeaderTimeout: 2 * time.Second,
+		MaxHeaderBytes:    2 << 10, // 2 KiB
+	}
+
+	mux := http.NewServeMux()
+	server.Handler = mux
+	mux.HandleFunc("POST "+SetProxyURLEndpoint, proxyURL.proxyHandler)
+	mux.HandleFunc("POST "+SetInitialOwnerEndpoint, initialOwnerHandler(configurer))
+	mux.HandleFunc("POST "+SetExtensionIDEndpoint, extensionIDHandler(configurer))
+
+	pc := ConfigServer{
+		server:   server,
+		ProxyURL: proxyURL,
+	}
+
+	return &pc
+}
+
 // Serve starts the proxy configuration server and blocks until it stops.
-func (pc *ProxyConfigureServer) Serve() error {
+func (pc *ConfigServer) Serve() error {
 	return pc.server.ListenAndServe()
 }
 
 // Close gracefully shuts down the proxy configuration server.
-func (pc *ProxyConfigureServer) Close(ctx context.Context) error {
+func (pc *ConfigServer) Close(ctx context.Context) error {
 	return pc.server.Shutdown(ctx)
 }
 
-// setProxyURL handles requests to /proxy.
-func (u *ProxyURLMutex) setProxyURL(w http.ResponseWriter, r *http.Request) {
+// proxyHandler handles requests to /proxy.
+func (u *ProxyURLMutex) proxyHandler(w http.ResponseWriter, r *http.Request) {
 	var request types.ConfigureProxyURLRequest
+
 	decoder := json.NewDecoder(r.Body)
 	decoder.DisallowUnknownFields()
-	err := decoder.Decode(&request)
-	if err != nil {
+	if err := decoder.Decode(&request); err != nil {
 		http.Error(w, "Invalid JSON", http.StatusBadRequest)
 		return
 	}
 
-	_, err = url.ParseRequestURI(request.URL)
+	if request.URL == nil {
+		http.Error(w, "Missing URL in request", http.StatusBadRequest)
+		return
+	}
+
+	URL := *request.URL
+
+	_, err := url.ParseRequestURI(URL)
 	if err != nil {
 		http.Error(w, "Invalid URL", http.StatusBadRequest)
 		return
@@ -96,7 +107,7 @@ func (u *ProxyURLMutex) setProxyURL(w http.ResponseWriter, r *http.Request) {
 	u.Lock()
 	defer u.Unlock()
 
-	u.URL = request.URL
+	u.URL = URL
 
 	w.WriteHeader(http.StatusOK)
 }
@@ -113,7 +124,12 @@ func extensionIDHandler(configurer Configurer) http.HandlerFunc {
 			return
 		}
 
-		err = configurer.SetExtensionID(request.ExtensionID)
+		if request.ExtensionID == nil {
+			http.Error(w, "Missing extension ID in request", http.StatusBadRequest)
+			return
+		}
+
+		err = configurer.SetExtensionID(*request.ExtensionID)
 		if err != nil {
 			http.Error(w, fmt.Sprintf("Failed to set extension ID: %v", err), http.StatusForbidden)
 			return
@@ -129,14 +145,17 @@ func initialOwnerHandler(configurer Configurer) http.HandlerFunc {
 		var request types.ConfigureInitialOwnerRequest
 		decoder := json.NewDecoder(r.Body)
 		decoder.DisallowUnknownFields()
-		err := decoder.Decode(&request)
-		if err != nil {
+		if err := decoder.Decode(&request); err != nil {
 			http.Error(w, "Invalid JSON", http.StatusBadRequest)
 			return
 		}
 
-		err = configurer.SetOwner(request.Owner)
-		if err != nil {
+		if request.Owner == nil {
+			http.Error(w, "Missing owner in request", http.StatusBadRequest)
+			return
+		}
+
+		if err := configurer.SetOwner(*request.Owner); err != nil {
 			http.Error(w, fmt.Sprintf("Failed to set initial owner: %v", err), http.StatusForbidden)
 			return
 		}

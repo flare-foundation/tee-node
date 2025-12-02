@@ -23,8 +23,8 @@ func TestInitializePolicy(t *testing.T) {
 	voters, _, pubKeysMap := testutils.GenerateRandomKeys(numVoters)
 	// Generate a random initial policy
 	randSeed := int64(12345)
-	epochId := uint32(1)
-	initialPolicy, err := testutils.GenerateRandomPolicyData(epochId, voters, randSeed)
+	epochID := uint32(1)
+	initialPolicy, err := testutils.GenerateRandomPolicyData(epochID, voters, randSeed)
 	require.NoError(t, err)
 
 	pubKeys := make([]types.PublicKey, len(voters))
@@ -51,10 +51,10 @@ func TestInitializingThePolicyTwice(t *testing.T) {
 	pStorage := policy.InitializeStorage()
 	pp := NewProcessor(pStorage)
 
-	epochId, randSeed := uint32(1), int64(12345)
+	epochID, randSeed := uint32(1), int64(12345)
 
 	numVoters := 100
-	initialPolicy, _, _, pubKeys, err := testutils.GenerateRandomValidPolicyAndSigners(epochId, randSeed, numVoters)
+	initialPolicy, _, _, pubKeys, err := testutils.GenerateRandomValidPolicyAndSigners(epochID, randSeed, numVoters)
 	if err != nil {
 		t.Errorf("Failed to generate the initial policy")
 	}
@@ -73,9 +73,9 @@ func TestInitializingThePolicyTwice(t *testing.T) {
 	}
 
 	// & Try to initialize the policy again ------------------------------------------- //
-	epochId2, randSeed2 := uint32(2), int64(54321)
+	epochID2, randSeed2 := uint32(2), int64(54321)
 
-	initialPolicy2, _, _, pubKeys2, err := testutils.GenerateRandomValidPolicyAndSigners(epochId2, randSeed2, numVoters)
+	initialPolicy2, _, _, pubKeys2, err := testutils.GenerateRandomValidPolicyAndSigners(epochID2, randSeed2, numVoters)
 	if err != nil {
 		t.Errorf("Failed to generate the initial policy")
 	}
@@ -106,17 +106,17 @@ func TestUpdatePolicy(t *testing.T) {
 	voters, privKeys, pubKeysMap := testutils.GenerateRandomKeys(numVoters)
 	// Generate a random initial policy
 	randSeed := int64(12345)
-	epochId := uint32(1)
-	initialPolicy, err := testutils.GenerateRandomPolicyData(epochId, voters, randSeed)
+	epochID := uint32(1)
+	initialPolicy, err := testutils.GenerateRandomPolicyData(epochID, voters, randSeed)
 	require.NoError(t, err)
 
 	// Set the initial policy hash in the config
 	err = pStorage.SetInitialPolicy(initialPolicy, pubKeysMap)
 	require.NoError(t, err)
 
-	epochId++
+	epochID++
 	randSeed++
-	nextPolicy, err := testutils.GenerateRandomPolicyData(epochId, voters, randSeed)
+	nextPolicy, err := testutils.GenerateRandomPolicyData(epochID, voters, randSeed)
 	require.NoError(t, err)
 
 	policySignatures := testutils.BuildMultiSignedPolicy(nextPolicy.RawBytes(), privKeys)

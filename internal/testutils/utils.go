@@ -3,7 +3,6 @@ package testutils
 import (
 	"bytes"
 	"crypto/ecdsa"
-	cryptorand "crypto/rand"
 	"encoding/binary"
 	"encoding/json"
 	"fmt"
@@ -23,16 +22,6 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
 )
-
-// GenerateRandomBytes returns n cryptographically secure random bytes.
-func GenerateRandomBytes(n int) ([]byte, error) {
-	b := make([]byte, n)
-	if _, err := io.ReadFull(cryptorand.Reader, b); err != nil {
-		return nil, err
-	}
-
-	return b, nil
-}
 
 // EncodeSigningPolicy serializes a relay signing policy into the byte layout
 // expected by the TEE.
@@ -198,11 +187,11 @@ const TotalWeight = 1<<16 - 1
 
 // GenerateRandomPolicyData constructs a pseudo-random signing policy based on
 // the provided voters and seed.
-func GenerateRandomPolicyData(rewardEpochId uint32, voters []common.Address, seed int64) (*commonpolicy.SigningPolicy, error) {
+func GenerateRandomPolicyData(rewardEpochID uint32, voters []common.Address, seed int64) (*commonpolicy.SigningPolicy, error) {
 	// Use specific seed for deterministic results
 	rgen := rand.New(rand.NewSource(seed)) //nolint:gosec // only used for tests
 
-	startVotingRoundId := rgen.Uint32()
+	startVotingRoundID := rgen.Uint32()
 
 	threshold := uint16(TotalWeight / 2)
 	randSeed := big.NewInt(rgen.Int63())
@@ -214,8 +203,8 @@ func GenerateRandomPolicyData(rewardEpochId uint32, voters []common.Address, see
 	}
 
 	event := relay.RelaySigningPolicyInitialized{
-		RewardEpochId:      big.NewInt(int64(rewardEpochId)),
-		StartVotingRoundId: startVotingRoundId,
+		RewardEpochId:      big.NewInt(int64(rewardEpochID)),
+		StartVotingRoundId: startVotingRoundID,
 		Threshold:          threshold,
 		Seed:               randSeed,
 		Voters:             voters,
@@ -277,12 +266,12 @@ func RandomNormalizedArray(n int, seed int64) []float64 {
 
 // GenerateAndSetInitialPolicy creates a mock policy, stores it in the provided
 // storage, and returns the policy with its voters and keys.
-func GenerateAndSetInitialPolicy(ps *ppolicy.Storage, numVoters int, randSeed int64, epochId uint32) (*commonpolicy.SigningPolicy, []common.Address, []*ecdsa.PrivateKey, error) {
+func GenerateAndSetInitialPolicy(ps *ppolicy.Storage, numVoters int, randSeed int64, epochID uint32) (*commonpolicy.SigningPolicy, []common.Address, []*ecdsa.PrivateKey, error) {
 	// Generate random voters and corresponding private keys
 	voters, privKeys, pubKeys := GenerateRandomKeys(numVoters)
 
 	// Generate a random initial policy
-	initialPolicy, err := GenerateRandomPolicyData(epochId, voters, randSeed)
+	initialPolicy, err := GenerateRandomPolicyData(epochID, voters, randSeed)
 	if err != nil {
 		return nil, nil, nil, err
 	}

@@ -19,20 +19,20 @@ import (
 func TestKeyInfo(t *testing.T) {
 	testNode, pStorage, wStorage := testutils.Setup(t)
 
-	numVoters, randSeed, epochId := 100, int64(12345), uint32(1)
-	_, _, privKeys, err := testutils.GenerateAndSetInitialPolicy(pStorage, numVoters, randSeed, epochId)
+	numVoters, randSeed, epochID := 100, int64(12345), uint32(1)
+	_, _, privKeys, err := testutils.GenerateAndSetInitialPolicy(pStorage, numVoters, randSeed, epochID)
 	require.NoError(t, err)
 
 	mockWalletID1 := common.HexToHash("0xabcdef")
 	mockKeyID1 := uint64(1)
 	walletProofs := make(map[common.Hash]wallet.ITeeWalletKeyManagerKeyExistence)
 
-	walletProofs[mockWalletID1] = testutils.CreateMockWallet(t, testNode, pStorage, wStorage, mockWalletID1, mockKeyID1, epochId, []*ecdsa.PrivateKey{privKeys[0]}, nil)
+	walletProofs[mockWalletID1] = testutils.CreateMockWallet(t, testNode, pStorage, wStorage, mockWalletID1, mockKeyID1, epochID, []*ecdsa.PrivateKey{privKeys[0]}, nil)
 
 	mockWalletID2 := common.HexToHash("0xabcdefab")
 	mockKeyID2 := uint64(2)
 
-	walletProofs[mockWalletID2] = testutils.CreateMockWallet(t, testNode, pStorage, wStorage, mockWalletID2, mockKeyID2, epochId, []*ecdsa.PrivateKey{privKeys[1]}, nil)
+	walletProofs[mockWalletID2] = testutils.CreateMockWallet(t, testNode, pStorage, wStorage, mockWalletID2, mockKeyID2, epochID, []*ecdsa.PrivateKey{privKeys[1]}, nil)
 
 	proc := Processor{
 		InformerAndSigner: testNode,

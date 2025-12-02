@@ -17,13 +17,13 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-var mockWalletId = common.HexToHash("0xabcdef")
-var mockKeyId = uint64(1)
+var mockWalletID = common.HexToHash("0xabcdef")
+var mockKeyID = uint64(1)
 
 func TestBackupAndRecover(t *testing.T) {
 	testNode, _, _ := testutils.Setup(t)
 
-	idPair := wallets.KeyIDPair{WalletID: mockWalletId, KeyID: mockKeyId}
+	idPair := wallets.KeyIDPair{WalletID: mockWalletID, KeyID: mockKeyID}
 	sk, err := crypto.GenerateKey()
 	assert.NoError(t, err)
 
@@ -66,10 +66,10 @@ func TestBackupAndRecover(t *testing.T) {
 		Settings:        hexutil.Bytes{},
 	}
 
-	rewardEpochId := uint32(100)
+	rewardEpochID := uint32(100)
 
 	// Backup the wallet
-	walletBackup, err := backup.BackupWallet(givenWallet, providerPubKeys, weights, rewardEpochId, testNode.TeeID(), uint16(normalizationParam), dataProvidersBackupThreshold)
+	walletBackup, err := backup.BackupWallet(givenWallet, providerPubKeys, weights, rewardEpochID, testNode.TeeID(), uint16(normalizationParam), dataProvidersBackupThreshold)
 	assert.NoError(t, err)
 	assert.NotNil(t, walletBackup)
 	err = walletBackup.Check()
@@ -120,7 +120,7 @@ func TestSplitAndEncrypt(t *testing.T) {
 func TestRecoverWithMissingShares(t *testing.T) {
 	testNode, _, _ := testutils.Setup(t)
 
-	idPair := wallets.KeyIDPair{WalletID: mockWalletId, KeyID: mockKeyId}
+	idPair := wallets.KeyIDPair{WalletID: mockWalletID, KeyID: mockKeyID}
 	sk, err := crypto.GenerateKey()
 	assert.NoError(t, err)
 
@@ -163,10 +163,10 @@ func TestRecoverWithMissingShares(t *testing.T) {
 		Settings:        hexutil.Bytes{},
 	}
 
-	rewardEpochId := uint32(100)
+	rewardEpochID := uint32(100)
 
 	// Backup the wallet
-	walletBackup, err := backup.BackupWallet(givenWallet, providerPubKeys, weights, rewardEpochId, testNode.TeeID(), uint16(normalizationParam), dataProvidersBackupThreshold)
+	walletBackup, err := backup.BackupWallet(givenWallet, providerPubKeys, weights, rewardEpochID, testNode.TeeID(), uint16(normalizationParam), dataProvidersBackupThreshold)
 	assert.NoError(t, err)
 	assert.NotNil(t, walletBackup)
 	err = walletBackup.Check()

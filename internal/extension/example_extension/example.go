@@ -43,6 +43,7 @@ func NewDummyExtensionServer(port, teePort int) *DummyExtensionServer {
 	return &e
 }
 
+// registerRoutes registers the /action endpoint.
 func (d *DummyExtensionServer) registerRoutes() {
 	mux := http.NewServeMux()
 	d.server.Handler = mux
@@ -51,6 +52,7 @@ func (d *DummyExtensionServer) registerRoutes() {
 	mux.HandleFunc("POST /action", d.actionHandler)
 }
 
+// actionHandler handles /action requests.
 func (d *DummyExtensionServer) actionHandler(w http.ResponseWriter, r *http.Request) {
 	// Parse request body
 	var action types.Action
@@ -106,8 +108,8 @@ func (d *DummyExtensionServer) actionHandler(w http.ResponseWriter, r *http.Requ
 	}
 }
 
+// validateAction checks that action fields are not zero.
 func (d *DummyExtensionServer) validateAction(action *types.Action) error {
-	// Basic validation
 	if action.Data.ID == [32]byte{} {
 		return fmt.Errorf("action ID is required")
 	}
@@ -127,6 +129,7 @@ func (d *DummyExtensionServer) validateAction(action *types.Action) error {
 	return nil
 }
 
+// processAction mocks processing an action.
 func (d *DummyExtensionServer) processAction(action *types.Action) error {
 	// Dummy processing logic
 	// In a real extension, this would:
@@ -155,6 +158,7 @@ func (d *DummyExtensionServer) processAction(action *types.Action) error {
 	return nil
 }
 
+// mockPostActionResult sleeps and posts a mock action result to localhost:teePort/result.
 func (d *DummyExtensionServer) mockPostActionResult(action *types.Action) {
 	time.Sleep(50 * time.Millisecond)
 	url := fmt.Sprintf("http://localhost:%d/result", d.teePort)
@@ -181,6 +185,7 @@ func (d *DummyExtensionServer) mockPostActionResult(action *types.Action) {
 	}
 }
 
+// mockActionResult sleeps and returns a mock action result.
 func (d *DummyExtensionServer) mockActionResult(action *types.Action) types.ActionResult {
 	time.Sleep(50 * time.Millisecond)
 
@@ -218,7 +223,7 @@ type ops struct {
 	OPCommand common.Hash `json:"opCommand"`
 }
 
-// routID extracts routID from the action.
+// opInfo extracts [ops] from the action.
 func opInfo(a *types.Action) (ops, error) {
 	var ops ops
 	err := json.Unmarshal(a.Data.Message, &ops)

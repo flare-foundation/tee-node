@@ -19,8 +19,8 @@ import (
 
 // NewPMWRouter wires direct and instruction processors for the Protocol Managed
 // Wallet service, without the extension defaults.
-func NewPMWRouter(teeNode *pnode.Node, wStorage *wallets.Storage, pStorage *policy.Storage, proxyUrl *settings.ProxyURLMutex) Router {
-	r := New(proxyUrl)
+func NewPMWRouter(teeNode *pnode.Node, wStorage *wallets.Storage, pStorage *policy.Storage, proxyURL *settings.ProxyURLMutex) Router {
+	r := New(proxyURL)
 
 	gp := getutils.NewProcessor(teeNode, pStorage, wStorage)
 	r.RegisterDirectProcessor(op.Get, op.KeyInfo, gp.KeysInfo)
@@ -50,10 +50,10 @@ func NewPMWRouter(teeNode *pnode.Node, wStorage *wallets.Storage, pStorage *poli
 	return r
 }
 
-// NewExtensionRouter assembles a router that manages base actions and
+// NewForwardRouter assembles a router that manages base actions and
 // forwards remaining actions to the external extension service.
-func NewExtensionRouter(teeNode *pnode.Node, wStorage *wallets.Storage, pStorage *policy.Storage, extensionPort int, proxyUrl *settings.ProxyURLMutex) Router {
-	r := New(proxyUrl)
+func NewForwardRouter(teeNode *pnode.Node, wStorage *wallets.Storage, pStorage *policy.Storage, extensionPort int, proxyURL *settings.ProxyURLMutex) Router {
+	r := New(proxyURL)
 
 	gp := getutils.NewProcessor(teeNode, pStorage, wStorage)
 	r.RegisterDirectProcessor(op.Get, op.KeyInfo, gp.KeysInfo)

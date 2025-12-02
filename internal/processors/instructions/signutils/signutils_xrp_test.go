@@ -9,7 +9,6 @@ import (
 	"github.com/flare-foundation/tee-node/internal/testutils"
 	"github.com/flare-foundation/tee-node/pkg/node"
 	"github.com/flare-foundation/tee-node/pkg/types"
-	"github.com/flare-foundation/tee-node/pkg/utils"
 	"github.com/flare-foundation/tee-node/pkg/wallets"
 
 	"crypto/ecdsa"
@@ -17,6 +16,7 @@ import (
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/flare-foundation/go-flare-common/pkg/random"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/instruction"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/op"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/structs/payment"
@@ -90,7 +90,7 @@ func (s *signXRPLTestSetup) buildPaymentInstruction(t *testing.T, teeKeyPairs []
 	enc, err := abi.Arguments{payment.MessageArguments[op.Pay]}.Pack(msg)
 	require.NoError(t, err)
 
-	instructionID, err := utils.GenerateRandom()
+	instructionID, err := random.Hash()
 	require.NoError(t, err)
 
 	return &instruction.DataFixed{
@@ -265,7 +265,7 @@ func TestSignXRPL_InvalidXRPParameters(t *testing.T) {
 	enc, err := abi.Arguments{payment.MessageArguments[op.Pay]}.Pack(msg)
 	require.NoError(t, err)
 
-	instructionID, err := utils.GenerateRandom()
+	instructionID, err := random.Hash()
 	require.NoError(t, err)
 
 	instr := &instruction.DataFixed{

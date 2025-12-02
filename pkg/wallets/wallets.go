@@ -155,9 +155,9 @@ func (wid *WalletBackupID) encodeABI() []byte {
 // Hash returns the keccak hash of the wallet backup identifier.
 // Will silently fail if the PublicKey is (absurdly) too large. The length should be checked beforehand.
 func (wid *WalletBackupID) Hash() common.Hash {
-	backupIdBytes := wid.encodeABI()
+	backupIDBytes := wid.encodeABI()
 
-	hash := crypto.Keccak256Hash(backupIdBytes)
+	hash := crypto.Keccak256Hash(backupIDBytes)
 
 	return hash
 }

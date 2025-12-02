@@ -7,6 +7,7 @@ import (
 	"errors"
 	"slices"
 
+	"github.com/flare-foundation/go-flare-common/pkg/random"
 	"github.com/flare-foundation/tee-node/pkg/wallets"
 	"github.com/flare-foundation/tee-node/pkg/wallets/backup"
 
@@ -25,7 +26,7 @@ const DataProvidersThreshold = uint64(666)
 // BackupWallet packages the wallet state and encrypted key shares for admins
 // and providers so it can be reconstructed later. The result is signed with the
 // key that is split, but remains to be signed by the TEE.
-func BackupWallet(wallet *wallets.Wallet, providerPubKeys []*ecdsa.PublicKey, signingPolicyWeights []uint16, rewardEpochId uint32, teeID common.Address, normalizationParam uint16, dataProviderThreshold uint64) (*backup.WalletBackup, error) {
+func BackupWallet(wallet *wallets.Wallet, providerPubKeys []*ecdsa.PublicKey, signingPolicyWeights []uint16, rewardEpochID uint32, teeID common.Address, normalizationParam uint16, dataProviderThreshold uint64) (*backup.WalletBackup, error) {
 	switch wallet.SigningAlgo {
 	case wallets.XRPAlgo, wallets.EVMAlgo:
 		// continue
@@ -38,7 +39,7 @@ func BackupWallet(wallet *wallets.Wallet, providerPubKeys []*ecdsa.PublicKey, si
 		adminPubKeys[i] = types.PubKeyToStruct(pubKey)
 	}
 	normalizedWeights := weightsNormalization(signingPolicyWeights, normalizationParam)
-	randomNonce, err := utils.GenerateRandom()
+	randomNonce, err := random.Hash()
 	if err != nil {
 		return nil, err
 	}
@@ -53,7 +54,7 @@ func BackupWallet(wallet *wallets.Wallet, providerPubKeys []*ecdsa.PublicKey, si
 			PublicKey:     types.PubKeyToBytes(&sk.PublicKey),
 			KeyType:       wallet.KeyType,
 			SigningAlgo:   wallet.SigningAlgo,
-			RewardEpochID: rewardEpochId,
+			RewardEpochID: rewardEpochID,
 			RandomNonce:   randomNonce,
 		},
 		AdminsPublicKeys:   adminPubKeys,
@@ -267,9 +268,9 @@ func CheckKeyShares(splits []*backup.KeySplit, backupMetaData *backup.WalletBack
 	if len(splits) == 0 {
 		return errors.New("shares should not be empty")
 	}
-	partialBackupId := splits[0].PartialWalletBackupID
+	partialBackupID := splits[0].PartialWalletBackupID
 	for _, split := range splits {
-		if !split.PartialWalletBackupID.Equal(&partialBackupId) { //nolint:staticcheck // to avoid confusion we do not call split.Equal
+		if !split.PartialWalletBackupID.Equal(&partialBackupID) { //nolint:staticcheck // to avoid confusion we do not call split.Equal
 			return errors.New("one of key split's ids does not match expected id")
 		}
 
@@ -280,7 +281,7 @@ func CheckKeyShares(splits []*backup.KeySplit, backupMetaData *backup.WalletBack
 		}
 	}
 
-	if !partialBackupId.WalletBackupID.Equal(&backupMetaData.WalletBackupID) {
+	if !partialBackupID.WalletBackupID.Equal(&backupMetaData.WalletBackupID) {
 		return errors.New("backup metadata's id does not match expected id")
 	}
 

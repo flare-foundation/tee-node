@@ -10,6 +10,7 @@ import (
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/crypto"
 	commonpolicy "github.com/flare-foundation/go-flare-common/pkg/policy"
+	"github.com/flare-foundation/go-flare-common/pkg/random"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/instruction"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/op"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/structs/connector"
@@ -105,7 +106,7 @@ func (s *ftdcProveTestSetup) buildInstruction(t *testing.T, request connector.IF
 	originalMessageEncoded, err := ftdc.EncodeRequest(request)
 	require.NoError(t, err)
 
-	instructionID, err := utils.GenerateRandom()
+	instructionID, err := random.Hash()
 	require.NoError(t, err)
 
 	return &instruction.DataFixed{

@@ -248,7 +248,7 @@ func TestPostActionResponse_Timeout(t *testing.T) {
 
 	// Override server handler to delay response beyond timeout
 	setup.server.Config.Handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		time.Sleep(2 * time.Second) // Longer than ProxyTimeout
+		time.Sleep(3 * time.Second) // Longer than ProxyTimeout
 		w.WriteHeader(http.StatusOK)
 	})
 

@@ -18,7 +18,7 @@ type Storage struct {
 
 	active           *policy.SigningPolicy // Current policy that is being used for signing
 	activePublicKeys map[common.Address]*ecdsa.PublicKey
-	signingPolicies  map[uint32]*policy.SigningPolicy // map of rewardEpochId to policy
+	signingPolicies  map[uint32]*policy.SigningPolicy // map of rewardEpochID to policy
 
 	sync.RWMutex
 }
