@@ -34,12 +34,9 @@ const (
 )
 
 type ExtenderServer struct {
-	server *http.Server
-
+	server   *http.Server
 	wStorage *wallets.Storage
-
-	node *node.Node
-
+	node     *node.Node
 	proxyURL *settings.ProxyURLMutex
 }
 
@@ -106,7 +103,13 @@ func (s *ExtenderServer) getKeyInfoHandler(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	wallet, err := s.wStorage.Get(wallets.KeyIDPair{WalletID: wID, KeyID: kID})
+	s.wStorage.RLock()
+	defer s.wStorage.RUnlock()
+
+	wallet, err := s.wStorage.Get(wallets.KeyIDPair{
+		WalletID: wID,
+		KeyID:    kID,
+	})
 	if err != nil {
 		if errors.Is(err, wallets.ErrWalletNonExistent) {
 			http.Error(w, err.Error(), http.StatusNotFound)
@@ -153,6 +156,9 @@ func (s *ExtenderServer) signWithKeyHandler(w http.ResponseWriter, r *http.Reque
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
+
+	s.wStorage.RLock()
+	defer s.wStorage.RUnlock()
 
 	wallet, err := s.wStorage.Get(wallets.KeyIDPair{WalletID: wID, KeyID: kID})
 	if err != nil {
@@ -291,6 +297,9 @@ func (s *ExtenderServer) decryptWithKeyHandler(w http.ResponseWriter, r *http.Re
 		return
 	}
 
+	s.wStorage.RLock()
+	defer s.wStorage.RUnlock()
+
 	wallet, err := s.wStorage.Get(wallets.KeyIDPair{WalletID: wID, KeyID: kID})
 	if err != nil {
 		if errors.Is(err, wallets.ErrWalletNonExistent) {
@@ -304,6 +313,7 @@ func (s *ExtenderServer) decryptWithKeyHandler(w http.ResponseWriter, r *http.Re
 	decryptedMessage, err := wallet.Decrypt(decryptRequest.EncryptedMessage)
 	if err != nil {
 		http.Error(w, "can not decrypt", http.StatusBadRequest)
+		return
 	}
 
 	// Return success response
@@ -338,6 +348,7 @@ func (s *ExtenderServer) decryptWithTeeHandler(w http.ResponseWriter, r *http.Re
 	decryptedMessage, err := s.node.Decrypt(decryptRequest.EncryptedMessage)
 	if err != nil {
 		http.Error(w, "can not decrypt", http.StatusBadRequest)
+		return
 	}
 	// Return success response
 	w.WriteHeader(http.StatusOK)

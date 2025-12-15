@@ -53,6 +53,9 @@ func (p *Processor) KeyGenerate(
 		return nil, nil, err
 	}
 
+	p.wStorage.Lock()
+	defer p.wStorage.Unlock()
+
 	if submissionTag == types.Threshold {
 		key, err := wallets.GenerateNewKey(req)
 		if err != nil {
@@ -108,7 +111,14 @@ func (p *Processor) KeyDelete(
 		return nil, nil, err
 	}
 
+	p.wStorage.Lock()
+	defer p.wStorage.Unlock()
+
 	id := wallets.KeyIDPair{WalletID: req.WalletId, KeyID: req.KeyId}
+
+	if !p.wStorage.WalletExistsPermanent(id) {
+		return nil, nil, errors.New("wallet never existed")
+	}
 
 	switch submissionTag {
 	case types.Threshold:
@@ -117,20 +127,28 @@ func (p *Processor) KeyDelete(
 			return nil, nil, err
 		}
 
+		var additionalResultStatus []byte
+
+		exists := p.wStorage.WalletExists(id)
+		if !exists {
+			additionalResultStatus = []byte("key not stored")
+		}
 		p.wStorage.Remove(id)
 		p.wStorage.UpdateNonce(id, req.Nonce.Uint64())
 
 		encodedID, err := json.Marshal(id)
-		if err != nil {
-			return nil, nil, err
-		}
 
-		return encodedID, nil, nil
+		return encodedID, additionalResultStatus, err
+
 	case types.End:
-
 		exists := p.wStorage.WalletExists(id)
 		if exists {
 			return nil, nil, errors.New("wallet not deleted, still exists")
+		}
+
+		err = p.wStorage.CheckNonce(id, req.Nonce.Uint64())
+		if err == nil {
+			return nil, nil, errors.New("nonce not used")
 		}
 
 	default:
@@ -149,7 +167,7 @@ func (p *Processor) KeyDataProviderRestore(
 	signers []common.Address,
 	_ *cpolicy.SigningPolicy,
 ) ([]byte, []byte, error) {
-	metadata, nonce, signersBothRoles, err := p.keyDataProviderRestoreCheck(dataFixed, signers, p.TeeID())
+	metadata, nonce, signersBothRoles, err := p.keyRestoreDataCheck(dataFixed, signers, p.TeeID())
 	if err != nil {
 		return nil, nil, err
 	}
@@ -166,6 +184,9 @@ func (p *Processor) KeyDataProviderRestore(
 	if err != nil {
 		return nil, status, err
 	}
+
+	p.wStorage.Lock()
+	defer p.wStorage.Unlock()
 
 	switch submissionTag {
 	case types.Threshold:

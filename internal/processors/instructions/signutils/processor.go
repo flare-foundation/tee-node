@@ -72,6 +72,9 @@ func (p *Processor) SignXRPLPayment(
 		return nil, nil, errors.New("no keys for signing")
 	}
 
+	p.RLock()
+	defer p.RUnlock()
+
 	signerItems := make([]*signer.Signer, 0, len(keyIDs))
 	for j := range keyIDs {
 		idPair := wallets.KeyIDPair{WalletID: inst.WalletId, KeyID: keyIDs[j]}

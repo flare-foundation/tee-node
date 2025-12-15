@@ -39,7 +39,7 @@ func SplitPrivateKey(privateKey *ecdsa.PrivateKey, n int) ([]*ecdsa.PrivateKey, 
 }
 
 // JoinPrivateKeys recombines additive key shares back into a single key.
-func JoinPrivateKeys(privateKeys []*ecdsa.PrivateKey) (*ecdsa.PrivateKey, error) {
+func JoinPrivateKeys(privateKeys ...*ecdsa.PrivateKey) (*ecdsa.PrivateKey, error) {
 	if len(privateKeys) == 0 {
 		return nil, errors.New("no private keys")
 	}

@@ -34,6 +34,8 @@ type signXRPLTestSetup struct {
 }
 
 func setupSignXRPLTest(t *testing.T) *signXRPLTestSetup {
+	t.Helper()
+
 	testNode, _, wStorage := testutils.Setup(t)
 
 	return &signXRPLTestSetup{
@@ -48,6 +50,8 @@ func setupSignXRPLTest(t *testing.T) *signXRPLTestSetup {
 
 // createWallet stores a wallet with provided parameters in storage
 func (s *signXRPLTestSetup) createWallet(t *testing.T, keyID uint64, keyType, algo common.Hash, cosigners []common.Address, cosignersThreshold uint64) *wallets.Wallet {
+	t.Helper()
+
 	sk, err := wallets.GenerateKey(algo)
 	require.NoError(t, err)
 
@@ -67,6 +71,9 @@ func (s *signXRPLTestSetup) createWallet(t *testing.T, keyID uint64, keyType, al
 		Status:             &wallets.WalletStatus{Nonce: 0, StatusCode: 0},
 	}
 
+	s.wStorage.Lock()
+	defer s.wStorage.Unlock()
+
 	err = s.wStorage.Store(wal)
 	require.NoError(t, err)
 	return wal
@@ -74,6 +81,8 @@ func (s *signXRPLTestSetup) createWallet(t *testing.T, keyID uint64, keyType, al
 
 // buildPaymentInstruction creates a payment.DataFixed using provided tee/key pairs and cosigner data
 func (s *signXRPLTestSetup) buildPaymentInstruction(t *testing.T, teeKeyPairs []payment.TeeIdKeyIdPair, cosigners []common.Address, cosignerThreshold uint64) *instruction.DataFixed {
+	t.Helper()
+
 	msg := payment.ITeePaymentsPaymentInstructionMessage{
 		WalletId:         s.walletID,
 		TeeIdKeyIdPairs:  teeKeyPairs,
@@ -108,6 +117,8 @@ func (s *signXRPLTestSetup) buildPaymentInstruction(t *testing.T, teeKeyPairs []
 
 // decodeSignersLength returns number of signers in the returned XRPL JSON tx
 func decodeSignersLength(t *testing.T, jsonTx []byte) int {
+	t.Helper()
+
 	var tx map[string]any
 	require.NoError(t, json.Unmarshal(jsonTx, &tx))
 	signers, ok := tx["Signers"].([]any)
@@ -120,7 +131,7 @@ func decodeSignersLength(t *testing.T, jsonTx []byte) int {
 // ============================ Tests ============================
 
 // Basic XRP Payment Signing Success
-func TestSignXRPL_BasicSuccess(t *testing.T) {
+func TestSignXRPLBasicSuccess(t *testing.T) {
 	setup := setupSignXRPLTest(t)
 
 	// Create one XRP wallet/key
@@ -138,7 +149,7 @@ func TestSignXRPL_BasicSuccess(t *testing.T) {
 }
 
 // Multi-Key Multisig Signing
-func TestSignXRPL_MultiKeyMultisig(t *testing.T) {
+func TestSignXRPLMultiKeyMultisig(t *testing.T) {
 	setup := setupSignXRPLTest(t)
 
 	// Two XRP keys for same wallet
@@ -154,7 +165,7 @@ func TestSignXRPL_MultiKeyMultisig(t *testing.T) {
 }
 
 // Cosigner Validation and Threshold Enforcement
-func TestSignXRPL_CosignerValidation_Threshold(t *testing.T) {
+func TestSignXRPLCosignerValidationThreshold(t *testing.T) {
 	setup := setupSignXRPLTest(t)
 
 	// Wallet requires 2 cosigners (store cosigners on wallet)
@@ -183,7 +194,7 @@ func TestSignXRPL_CosignerValidation_Threshold(t *testing.T) {
 }
 
 // Invalid Payment Instruction Parsing
-func TestSignXRPL_InvalidInstructionParsing(t *testing.T) {
+func TestSignXRPLInvalidInstructionParsing(t *testing.T) {
 	setup := setupSignXRPLTest(t)
 
 	// Malformed original message
@@ -196,7 +207,7 @@ func TestSignXRPL_InvalidInstructionParsing(t *testing.T) {
 }
 
 // Invalid Key Type Rejection and Invalid Signing Algorithm Rejection
-func TestSignXRPL_InvalidKeyType_Algo_Rejection(t *testing.T) {
+func TestSignXRPLInvalidKeyTypeAlgoRejection(t *testing.T) {
 	setup := setupSignXRPLTest(t)
 
 	// EVM type with XRP algo -> should fail on key type
@@ -216,7 +227,7 @@ func TestSignXRPL_InvalidKeyType_Algo_Rejection(t *testing.T) {
 }
 
 // Wallet Not Found Error
-func TestSignXRPL_WalletNotFound(t *testing.T) {
+func TestSignXRPLWalletNotFound(t *testing.T) {
 	setup := setupSignXRPLTest(t)
 
 	// Reference non-existent key
@@ -227,7 +238,7 @@ func TestSignXRPL_WalletNotFound(t *testing.T) {
 }
 
 // TEE ID Mismatch Handling
-func TestSignXRPL_TeeIDMismatch_NoKeysForSigning(t *testing.T) {
+func TestSignXRPLTeeIDMismatchNoKeysForSigning(t *testing.T) {
 	setup := setupSignXRPLTest(t)
 
 	// Create a valid key for this wallet, but reference a different TEE in instruction pairs
@@ -243,7 +254,7 @@ func TestSignXRPL_TeeIDMismatch_NoKeysForSigning(t *testing.T) {
 // * ============================================================================
 
 // Invalid XRP Payment Parameters (hits xrpl.CheckNativePayment error)
-func TestSignXRPL_InvalidXRPParameters(t *testing.T) {
+func TestSignXRPLInvalidXRPParameters(t *testing.T) {
 	setup := setupSignXRPLTest(t)
 
 	setup.createWallet(t, 1, wallets.XRPType, wallets.XRPAlgo, []common.Address{}, 0)
@@ -296,7 +307,7 @@ func TestSignXRPL_InvalidXRPParameters(t *testing.T) {
 }
 
 // Invalid Private Key Conversion (hits crypto.ToECDSA error)
-func TestSignXRPL_InvalidPrivateKey(t *testing.T) {
+func TestSignXRPLInvalidPrivateKey(t *testing.T) {
 	setup := setupSignXRPLTest(t)
 
 	// Create wallet with corrupted private key

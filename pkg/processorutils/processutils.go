@@ -85,18 +85,18 @@ func CheckAndAdapt(a *types.Action) error {
 	return nil
 }
 
-// CheckMatchingCosigners ensures the provided cosigners align with stored data.
-func CheckMatchingCosigners(givenCosigners, cosigners []common.Address, givenThreshold, threshold uint64) error {
-	for _, cosigner := range givenCosigners {
+// CheckMatchingCosigners provided cosigners match the expected cosigners.
+func CheckMatchingCosigners(expectedCosigners, cosigners []common.Address, expectedThreshold, threshold uint64) error {
+	for _, cosigner := range expectedCosigners {
 		if !slices.Contains(cosigners, cosigner) {
 			return errors.New("provided cosigners do not match saved cosigners")
 		}
 	}
-	if len(givenCosigners) != len(cosigners) {
+	if len(expectedCosigners) != len(cosigners) {
 		return errors.New("the number of provided cosigners does not match the number of saved cosigners")
 	}
-	if int(givenThreshold) != int(threshold) {
-		return fmt.Errorf("the threshold of provided cosigners does not match the threshold of saved cosigners, %d != %d", givenThreshold, threshold)
+	if expectedThreshold != threshold {
+		return fmt.Errorf("the threshold of provided cosigners does not match the threshold of saved cosigners, %d != %d", expectedThreshold, threshold)
 	}
 
 	return nil

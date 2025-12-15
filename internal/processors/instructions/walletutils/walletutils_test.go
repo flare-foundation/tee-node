@@ -53,6 +53,8 @@ type keyGenerateTestSetup struct {
 
 // setupKeyGenerateTest creates a standard test environment for key generation tests
 func setupKeyGenerateTest(t *testing.T) *keyGenerateTestSetup {
+	t.Helper()
+
 	testNode, pStorage, wStorage := testutils.Setup(t)
 
 	numAdmins := 3
@@ -105,6 +107,8 @@ func setupKeyGenerateTest(t *testing.T) *keyGenerateTestSetup {
 
 // buildKeyGenerateInstruction creates a key generation instruction with the given parameters
 func (s *keyGenerateTestSetup) buildKeyGenerateInstruction(t *testing.T, msg cwallet.ITeeWalletKeyManagerKeyGenerate) *instruction.DataFixed {
+	t.Helper()
+
 	originalMessageEncoded, err := abi.Arguments{cwallet.MessageArguments[op.KeyGenerate]}.Pack(msg)
 	require.NoError(t, err)
 
@@ -159,11 +163,14 @@ func TestKeyGenerate(t *testing.T) {
 	require.Equal(t, [32]byte(wallets.XRPAlgo), walletExistenceProof.SigningAlgo)
 	require.Equal(t, [32]byte(wallets.XRPType), walletExistenceProof.KeyType)
 
+	setup.wStorage.RLock()
+	defer setup.wStorage.RUnlock()
+
 	allWallets := setup.wStorage.GetWallets()
 	require.Len(t, allWallets, 1)
 }
 
-func TestKeyGenerate_NoCosigners(t *testing.T) {
+func TestKeyGenerateNoCosigners(t *testing.T) {
 	setup := setupKeyGenerateTest(t)
 
 	msg := setup.defaultKeyGenerateMessage()
@@ -175,7 +182,7 @@ func TestKeyGenerate_NoCosigners(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func TestKeyGenerate_InvalidTeeID(t *testing.T) {
+func TestKeyGenerateInvalidTeeID(t *testing.T) {
 	setup := setupKeyGenerateTest(t)
 
 	msg := setup.defaultKeyGenerateMessage()
@@ -187,7 +194,7 @@ func TestKeyGenerate_InvalidTeeID(t *testing.T) {
 	require.Contains(t, err.Error(), "teeID does not match")
 }
 
-func TestKeyGenerate_NoAdminPublicKeys(t *testing.T) {
+func TestKeyGenerateNoAdminPublicKeys(t *testing.T) {
 	setup := setupKeyGenerateTest(t)
 
 	msg := setup.defaultKeyGenerateMessage()
@@ -200,7 +207,7 @@ func TestKeyGenerate_NoAdminPublicKeys(t *testing.T) {
 	require.Contains(t, err.Error(), "no admin public keys")
 }
 
-func TestKeyGenerate_UnsupportedSigningAlgo(t *testing.T) {
+func TestKeyGenerateUnsupportedSigningAlgo(t *testing.T) {
 	setup := setupKeyGenerateTest(t)
 
 	msg := setup.defaultKeyGenerateMessage()
@@ -212,7 +219,7 @@ func TestKeyGenerate_UnsupportedSigningAlgo(t *testing.T) {
 	require.Contains(t, err.Error(), "signing algorithm not supported")
 }
 
-func TestKeyGenerate_DuplicateWallet(t *testing.T) {
+func TestKeyGenerateDuplicateWallet(t *testing.T) {
 	setup := setupKeyGenerateTest(t)
 
 	msg := setup.defaultKeyGenerateMessage()
@@ -229,7 +236,7 @@ func TestKeyGenerate_DuplicateWallet(t *testing.T) {
 	require.Contains(t, err.Error(), "already exists")
 }
 
-func TestKeyGenerate_ThresholdExceedsAdmins(t *testing.T) {
+func TestKeyGenerateThresholdExceedsAdmins(t *testing.T) {
 	setup := setupKeyGenerateTest(t)
 
 	msg := setup.defaultKeyGenerateMessage()
@@ -241,7 +248,7 @@ func TestKeyGenerate_ThresholdExceedsAdmins(t *testing.T) {
 	require.Contains(t, err.Error(), "admins threshold cannot be greater than the number of admins")
 }
 
-func TestKeyGenerate_ZeroThreshold(t *testing.T) {
+func TestKeyGenerateZeroThreshold(t *testing.T) {
 	setup := setupKeyGenerateTest(t)
 
 	msg := setup.defaultKeyGenerateMessage()
@@ -253,7 +260,7 @@ func TestKeyGenerate_ZeroThreshold(t *testing.T) {
 	require.Contains(t, err.Error(), "admins threshold cannot be zero")
 }
 
-func TestKeyGenerate_ThresholdExceedsCosigners(t *testing.T) {
+func TestKeyGenerateThresholdExceedsCosigners(t *testing.T) {
 	setup := setupKeyGenerateTest(t)
 
 	msg := setup.defaultKeyGenerateMessage()
@@ -265,7 +272,7 @@ func TestKeyGenerate_ThresholdExceedsCosigners(t *testing.T) {
 	require.Contains(t, err.Error(), "cosigners threshold cannot be greater than the number of cosigners")
 }
 
-func TestParseKeyGenerate_NilData(t *testing.T) {
+func TestParseKeyGenerateNilData(t *testing.T) {
 	instructionData := &instruction.DataFixed{
 		OriginalMessage: nil,
 	}
@@ -274,7 +281,7 @@ func TestParseKeyGenerate_NilData(t *testing.T) {
 	require.Error(t, err)
 }
 
-func TestParseKeyGenerate_EmptyData(t *testing.T) {
+func TestParseKeyGenerateEmptyData(t *testing.T) {
 	instructionData := &instruction.DataFixed{
 		OriginalMessage: []byte{},
 	}
@@ -283,9 +290,8 @@ func TestParseKeyGenerate_EmptyData(t *testing.T) {
 	require.Error(t, err)
 }
 
-func TestParseKeyGenerate_InvalidData(t *testing.T) {
-	randomData := make([]byte, 928) // Note: 928 = same size as the valid original message in first test
-	_, err := rand.Read(randomData)
+func TestParseKeyGenerateInvalidData(t *testing.T) {
+	randomData, err := random.Bytes(928)
 	require.NoError(t, err)
 
 	instructionData := &instruction.DataFixed{
@@ -313,6 +319,8 @@ type keyDeleteTestSetup struct {
 
 // setupKeyDeleteTest creates a standard test environment for key deletion tests
 func setupKeyDeleteTest(t *testing.T) *keyDeleteTestSetup {
+	t.Helper()
+
 	testNode, pStorage, wStorage := testutils.Setup(t)
 
 	numVoters, randSeed, epochID := 50, int64(6789), uint32(3)
@@ -342,6 +350,8 @@ func setupKeyDeleteTest(t *testing.T) *keyDeleteTestSetup {
 
 // buildKeyDeleteInstruction creates a key deletion instruction with the given parameters
 func (s *keyDeleteTestSetup) buildKeyDeleteInstruction(t *testing.T, msg cwallet.ITeeWalletKeyManagerKeyDelete) *instruction.DataFixed {
+	t.Helper()
+
 	encodedDeleteReq, err := abi.Arguments{cwallet.MessageArguments[op.KeyDelete]}.Pack(msg)
 	require.NoError(t, err)
 
@@ -401,13 +411,76 @@ func TestKeyDelete(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, uint64(1), nonce)
 
+	// reapply not possible
 	resp, status, err := setup.processor.KeyDelete(types.End, deleteInstruction, nil, nil, nil)
 	require.NoError(t, err)
 	require.Nil(t, resp)
 	require.Nil(t, status)
+
+	// delete already deleted key
+	msg = setup.defaultKeyDeleteMessage(2)
+
+	deleteInstruction = setup.buildKeyDeleteInstruction(t, msg)
+
+	encID, status, err = setup.processor.KeyDelete(types.Threshold, deleteInstruction, nil, nil, nil)
+	require.NoError(t, err)
+	require.Equal(t, []byte("key not stored"), status)
+
+	var idPair2 wallets.KeyIDPair
+	err = json.Unmarshal(encID, &idPair2)
+	require.NoError(t, err)
+
+	require.Equal(t, idPair2.KeyID, setup.keyID)
+	require.Equal(t, idPair2.WalletID, setup.walletID)
+
+	// delete key that never existed deleted key
+	msg = setup.defaultKeyDeleteMessage(2)
+	msg.WalletId, err = random.Hash()
+	require.NoError(t, err)
+
+	deleteInstruction = setup.buildKeyDeleteInstruction(t, msg)
+
+	_, _, err = setup.processor.KeyDelete(types.Threshold, deleteInstruction, nil, nil, nil)
+	require.Error(t, err)
 }
 
-func TestKeyDelete_InvalidNonce(t *testing.T) {
+func TestKeyDeleteEnd(t *testing.T) {
+	setup := setupKeyDeleteTest(t)
+
+	// check the nonce is zero
+	nonce, err := setup.wStorage.Nonce(wallets.KeyIDPair{WalletID: setup.walletID, KeyID: setup.keyID})
+	require.NoError(t, err)
+	require.Equal(t, uint64(0), nonce)
+
+	msg := setup.defaultKeyDeleteMessage(1)
+	deleteInstruction := setup.buildKeyDeleteInstruction(t, msg)
+
+	_, _, err = setup.processor.KeyDelete(types.End, deleteInstruction, nil, nil, nil)
+	require.Error(t, err)
+
+	_, _, err = setup.processor.KeyDelete(types.Threshold, deleteInstruction, nil, nil, nil)
+	require.NoError(t, err)
+
+	_, _, err = setup.processor.KeyDelete(types.End, deleteInstruction, nil, nil, nil)
+	require.NoError(t, err)
+
+	// nonce not used
+	msg = setup.defaultKeyDeleteMessage(2)
+	deleteInstruction = setup.buildKeyDeleteInstruction(t, msg)
+
+	_, _, err = setup.processor.KeyDelete(types.End, deleteInstruction, nil, nil, nil)
+	require.Error(t, err)
+
+	// nonexistent key
+	msg.WalletId, err = random.Hash()
+	require.NoError(t, err)
+
+	deleteInstruction = setup.buildKeyDeleteInstruction(t, msg)
+	_, _, err = setup.processor.KeyDelete(types.End, deleteInstruction, nil, nil, nil)
+	require.Error(t, err)
+}
+
+func TestKeyDeleteInvalidNonce(t *testing.T) {
 	setup := setupKeyDeleteTest(t)
 
 	// Verify the initial nonce is 0
@@ -428,7 +501,7 @@ func TestKeyDelete_InvalidNonce(t *testing.T) {
 	require.True(t, setup.wStorage.WalletExists(idPair))
 }
 
-func TestKeyDelete_NonceTooSmall(t *testing.T) {
+func TestKeyDeleteNonceTooSmall(t *testing.T) {
 	setup := setupKeyDeleteTest(t)
 
 	// First, successfully delete with nonce 1
@@ -500,6 +573,8 @@ type keyDataProviderRestoreTestSetup struct {
 
 // setupKeyDataProviderRestoreTest creates a standard test environment for key data provider restore tests
 func setupKeyDataProviderRestoreTest(t *testing.T) *keyDataProviderRestoreTestSetup {
+	t.Helper()
+
 	testNode, pStorage, wStorage := testutils.Setup(t)
 
 	const (
@@ -585,6 +660,8 @@ func (s *keyDataProviderRestoreTestSetup) buildVariableMessages(
 	numProviders int,
 	numAdmins int,
 ) ([]hexutil.Bytes, []common.Address) {
+	t.Helper()
+
 	require.LessOrEqual(t, numProviders, len(s.voterPrivKeys), "numProviders exceeds available voters")
 	require.LessOrEqual(t, numAdmins, len(s.adminPrivKeys), "numAdmins exceeds available admins")
 
@@ -644,6 +721,8 @@ func (s *keyDataProviderRestoreTestSetup) buildRestoreInstruction(
 	t *testing.T,
 	restoreReq cwallet.ITeeWalletBackupManagerKeyDataProviderRestore,
 ) *instruction.DataFixed {
+	t.Helper()
+
 	encodedRestoreReq, err := abi.Arguments{cwallet.MessageArguments[op.KeyDataProviderRestore]}.Pack(restoreReq)
 	require.NoError(t, err)
 
@@ -679,13 +758,14 @@ func (s *keyDataProviderRestoreTestSetup) buildVariableMessagesWithInvalidSignat
 	numAdmins int,
 	invalidIndex int,
 ) ([]hexutil.Bytes, []common.Address) {
+	t.Helper()
+
 	variableMessages, signers := s.buildVariableMessages(t, numProviders, numAdmins)
 
 	// Corrupt the signature of the share at invalidIndex
 	if invalidIndex < len(variableMessages) {
 		// Decrypt, corrupt signature, re-encrypt
 		var share *pkgbackup.KeySplit
-		var privKey *ecdsa.PrivateKey
 
 		if invalidIndex < numProviders {
 			var err error
@@ -707,7 +787,6 @@ func (s *keyDataProviderRestoreTestSetup) buildVariableMessagesWithInvalidSignat
 		cipher, err := ecies.Encrypt(rand.Reader, s.eciesPub, shareBytes, nil, nil)
 		require.NoError(t, err)
 		variableMessages[invalidIndex] = cipher
-		_ = privKey
 	}
 
 	return variableMessages, signers
@@ -752,7 +831,7 @@ func TestKeyDataProviderRestore(t *testing.T) {
 	require.Equal(t, status, endStatus)
 }
 
-func TestKeyDataProviderRestore_AdminThresholdNotMet(t *testing.T) {
+func TestKeyDataProviderRestoreAdminThresholdNotMet(t *testing.T) {
 	setup := setupKeyDataProviderRestoreTest(t)
 
 	variableMessages, signers := setup.buildVariableMessages(t, len(setup.voterPrivKeys), setup.adminThreshold-1)
@@ -764,7 +843,7 @@ func TestKeyDataProviderRestore_AdminThresholdNotMet(t *testing.T) {
 	require.True(t, err.Error() == "admin threshold not reached")
 }
 
-func TestKeyDataProviderRestore_ProviderThresholdNotMet(t *testing.T) {
+func TestKeyDataProviderRestoreProviderThresholdNotMet(t *testing.T) {
 	setup := setupKeyDataProviderRestoreTest(t)
 
 	weightAccum := 0
@@ -788,7 +867,7 @@ func TestKeyDataProviderRestore_ProviderThresholdNotMet(t *testing.T) {
 	require.Contains(t, err.Error(), "threshold of shares is not reached")
 }
 
-func TestKeyDataProviderRestore_WalletAlreadyExists(t *testing.T) {
+func TestKeyDataProviderRestoreWalletAlreadyExists(t *testing.T) {
 	setup := setupKeyDataProviderRestoreTest(t)
 
 	// First, restore the wallet successfully
@@ -804,7 +883,7 @@ func TestKeyDataProviderRestore_WalletAlreadyExists(t *testing.T) {
 	require.Contains(t, err.Error(), "wallet with given wallet-key id already exists")
 }
 
-func TestKeyDataProviderRestore_WalletDoesNotExist_EndPhase(t *testing.T) {
+func TestKeyDataProviderRestoreWalletDoesNotExistEndPhase(t *testing.T) {
 	setup := setupKeyDataProviderRestoreTest(t)
 
 	// Build restore instruction but don't execute Threshold phase
@@ -817,7 +896,7 @@ func TestKeyDataProviderRestore_WalletDoesNotExist_EndPhase(t *testing.T) {
 	require.Contains(t, err.Error(), "wallet does not exists")
 }
 
-func TestKeyDataProviderRestore_InvalidSignatureOnKeySplit_EnoughValidShares(t *testing.T) {
+func TestKeyDataProviderRestoreInvalidSignatureOnKeySplitEnoughValidShares(t *testing.T) {
 	setup := setupKeyDataProviderRestoreTest(t)
 
 	// Invlaidate the first provider's signature
@@ -848,7 +927,7 @@ func TestKeyDataProviderRestore_InvalidSignatureOnKeySplit_EnoughValidShares(t *
 	require.True(t, restoredWallet.Restored)
 }
 
-func TestKeyDataProviderRestore_InvalidSignatureOnKeySplit_NotEnoughValidShares(t *testing.T) {
+func TestKeyDataProviderRestoreInvalidSignatureOnKeySplitNotEnoughValidShares(t *testing.T) {
 	setup := setupKeyDataProviderRestoreTest(t)
 
 	weightAccum := 0
@@ -863,10 +942,7 @@ func TestKeyDataProviderRestore_InvalidSignatureOnKeySplit_NotEnoughValidShares(
 
 	// Use minimum + 1 providers and all admins, then invalidate the LAST provider's signature
 	// This ensures after removing the invalid one, we have SOME shares but NOT enough to meet threshold
-	numProvidersToUse := minProvidersNeeded + 1
-	if numProvidersToUse > len(setup.voterPrivKeys) {
-		numProvidersToUse = len(setup.voterPrivKeys)
-	}
+	numProvidersToUse := min(minProvidersNeeded+1, len(setup.voterPrivKeys))
 
 	// Invalidate the last provider (so we still have minProvidersNeeded-1 valid providers, which is below threshold)
 	variableMessages, signers := setup.buildVariableMessagesWithInvalidSignature(t, numProvidersToUse, len(setup.adminPrivKeys), numProvidersToUse-1)
@@ -888,7 +964,7 @@ func TestKeyDataProviderRestore_InvalidSignatureOnKeySplit_NotEnoughValidShares(
 	require.False(t, exists)
 }
 
-func TestKeyDataProviderRestore_PublicKeyMismatch(t *testing.T) {
+func TestKeyDataProviderRestorePublicKeyMismatch(t *testing.T) {
 	setup := setupKeyDataProviderRestoreTest(t)
 
 	// Build messages first with valid backup
@@ -935,7 +1011,7 @@ func TestKeyDataProviderRestore_PublicKeyMismatch(t *testing.T) {
 		"Expected reconstruction or validation error, got: %s", err.Error())
 }
 
-func TestKeyDataProviderRestore_DuplicateKeySplits(t *testing.T) {
+func TestKeyDataProviderRestoreDuplicateKeySplits(t *testing.T) {
 	setup := setupKeyDataProviderRestoreTest(t)
 
 	variableMessages, signers := setup.buildVariableMessages(t, len(setup.voterPrivKeys), len(setup.adminPrivKeys))
@@ -971,12 +1047,12 @@ func TestKeyDataProviderRestore_DuplicateKeySplits(t *testing.T) {
 	require.True(t, foundDuplicate, "Expected duplicate error in logs")
 }
 
-func TestKeyDataProviderRestore_DecryptionFailure(t *testing.T) {
+func TestKeyDataProviderRestoreDecryptionFailure(t *testing.T) {
 	setup := setupKeyDataProviderRestoreTest(t)
 
 	variableMessages, signers := setup.buildVariableMessages(t, len(setup.voterPrivKeys), len(setup.adminPrivKeys))
 	// Corrupt the first provider's message
-	for i := 0; i < 10; i++ {
+	for i := range 10 {
 		variableMessages[0][i] ^= 0xFF
 	}
 
@@ -996,7 +1072,7 @@ func TestKeyDataProviderRestore_DecryptionFailure(t *testing.T) {
 	require.Contains(t, restoreStatus.ErrorPositions, 0)
 }
 
-func TestKeyDataProviderRestore_UnauthorizedSigner(t *testing.T) {
+func TestKeyDataProviderRestoreUnauthorizedSigner(t *testing.T) {
 	setup := setupKeyDataProviderRestoreTest(t)
 
 	// Build normal admin messages
@@ -1033,7 +1109,7 @@ func TestKeyDataProviderRestore_UnauthorizedSigner(t *testing.T) {
 	require.Equal(t, err.Error(), "signed by an entity that is nether a provider nor an admin")
 }
 
-func TestKeyDataProviderRestore_InvalidBackupIdTeeID(t *testing.T) {
+func TestKeyDataProviderRestoreInvalidBackupIdTeeID(t *testing.T) {
 	setup := setupKeyDataProviderRestoreTest(t)
 
 	variableMessages, signers := setup.buildVariableMessages(t, len(setup.voterPrivKeys), len(setup.adminPrivKeys))
@@ -1049,19 +1125,19 @@ func TestKeyDataProviderRestore_InvalidBackupIdTeeID(t *testing.T) {
 	require.Equal(t, err.Error(), "wallet backup id in the metadata does not match the given id")
 }
 
-func TestKeyDataProviderRestore_InvalidTeeID(t *testing.T) {
+func TestKeyDataProviderRestoreInvalidTeeID(t *testing.T) {
 	setup := setupKeyDataProviderRestoreTest(t)
 
 	variableMessages, signers := setup.buildVariableMessages(t, len(setup.voterPrivKeys), len(setup.adminPrivKeys))
 
 	// Generator point (not the valid TEE Public Key)
-	Gx := secp256k1.S256().Gx.Bytes()
-	Gy := secp256k1.S256().Gy.Bytes()
+	gx := secp256k1.S256().Gx.Bytes()
+	gy := secp256k1.S256().Gy.Bytes()
 
 	// Create restore request with invalid TEE ID
 	backupID := setup.walletBackup.WalletBackupID
 	restoreReq := cwallet.ITeeWalletBackupManagerKeyDataProviderRestore{
-		TeePublicKey: cwallet.PublicKey{X: [32]byte(Gx), Y: [32]byte(Gy)},
+		TeePublicKey: cwallet.PublicKey{X: [32]byte(gx), Y: [32]byte(gy)},
 		BackupId: cwallet.ITeeWalletBackupManagerBackupId{
 			TeeId:         backupID.TeeID,
 			WalletId:      backupID.WalletID,
@@ -1083,7 +1159,7 @@ func TestKeyDataProviderRestore_InvalidTeeID(t *testing.T) {
 	require.Equal(t, err.Error(), "teeID does not match given public key")
 }
 
-func TestKeyDataProviderRestore_UnsupportedSigningAlgorithm(t *testing.T) {
+func TestKeyDataProviderRestoreUnsupportedSigningAlgorithm(t *testing.T) {
 	setup := setupKeyDataProviderRestoreTest(t)
 
 	variableMessages, signers := setup.buildVariableMessages(t, len(setup.voterPrivKeys), len(setup.adminPrivKeys))

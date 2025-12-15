@@ -35,6 +35,8 @@ func init() {
 
 // setupTestStorage creates a test storage with initial policy
 func setupTestStorage(t *testing.T) (*policy.Storage, common.Hash) {
+	t.Helper()
+
 	storage := policy.InitializeStorage()
 
 	// Generate test data
@@ -289,12 +291,9 @@ func TestConcurrentAccess(t *testing.T) {
 	var wg sync.WaitGroup
 
 	// Test concurrent reads
-	for i := 0; i < numGoroutines; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-
-			// Read operations should be safe
+	for range numGoroutines {
+		wg.Go(func() {
+			// Concurrent read operations should be safe
 			_, err := storage.ActiveSigningPolicy()
 			assert.NoError(t, err)
 
@@ -302,7 +301,7 @@ func TestConcurrentAccess(t *testing.T) {
 			assert.NoError(t, err)
 
 			storage.Info()
-		}()
+		})
 	}
 
 	wg.Wait()

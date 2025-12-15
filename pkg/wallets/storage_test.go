@@ -31,6 +31,9 @@ func TestStoreAndGetWallet(t *testing.T) {
 	w := createTestWalletForStorage()
 	idPair := KeyIDPair{WalletID: w.WalletID, KeyID: w.KeyID}
 
+	s.Lock()
+	defer s.Unlock()
+
 	require.False(t, s.WalletExists(idPair))
 
 	err := s.Store(w)
@@ -49,6 +52,9 @@ func TestStoreDuplicateWallet(t *testing.T) {
 	s := InitializeStorage()
 	w := createTestWalletForStorage()
 
+	s.Lock()
+	defer s.Unlock()
+
 	err := s.Store(w)
 	require.NoError(t, err)
 
@@ -62,16 +68,25 @@ func TestRemoveWallet(t *testing.T) {
 	w := createTestWalletForStorage()
 	idPair := KeyIDPair{WalletID: w.WalletID, KeyID: w.KeyID}
 
-	_ = s.Store(w)
+	s.Lock()
+	err := s.Store(w)
+	require.NoError(t, err)
 	require.True(t, s.WalletExists(idPair))
+	s.Unlock()
 
+	s.Lock()
 	s.Remove(idPair)
 	require.False(t, s.WalletExists(idPair))
+	s.Unlock()
 }
 
-func TestGet_NonExistentWallet(t *testing.T) {
+func TestGetNonExistentWallet(t *testing.T) {
 	s := InitializeStorage()
 	idPair := KeyIDPair{WalletID: common.HexToHash("0xFAFA"), KeyID: 4321}
+
+	s.RLock()
+	defer s.RUnlock()
+
 	_, err := s.Get(idPair)
 	require.Error(t, err)
 	require.True(t, errors.Is(err, ErrWalletNonExistent))
@@ -84,18 +99,26 @@ func TestGetWallets(t *testing.T) {
 	w2.WalletID = common.HexToHash("0x78")
 	w2.KeyID = 888
 
+	s.Lock()
 	require.NoError(t, s.Store(w1))
 	require.NoError(t, s.Store(w2))
+	s.Unlock()
+
+	s.RLock()
+	defer s.RUnlock()
 
 	wallets := s.GetWallets()
 	// Both w1 and w2 should be stored
 	require.Len(t, wallets, 2)
 
 	// All returned wallets should be copies, mutations don't affect storage
-	original, _ := s.Get(KeyIDPair{WalletID: w1.WalletID, KeyID: w1.KeyID})
+	original, err := s.Get(KeyIDPair{WalletID: w1.WalletID, KeyID: w1.KeyID})
+	require.NoError(t, err)
 	require.Equal(t, w1.WalletID, original.WalletID)
 	wallets[0].WalletID = common.HexToHash("0x999")
-	original2, _ := s.Get(KeyIDPair{WalletID: w1.WalletID, KeyID: w1.KeyID})
+
+	original2, err := s.Get(KeyIDPair{WalletID: w1.WalletID, KeyID: w1.KeyID})
+	require.NoError(t, err)
 	require.Equal(t, w1.WalletID, original2.WalletID)
 }
 
@@ -104,8 +127,13 @@ func TestWalletExists(t *testing.T) {
 	w := createTestWalletForStorage()
 	idPair := KeyIDPair{WalletID: w.WalletID, KeyID: w.KeyID}
 
+	s.Lock()
+	defer s.Unlock()
+
 	require.False(t, s.WalletExists(idPair))
-	_ = s.Store(w)
+	err := s.Store(w)
+	require.NoError(t, err)
+
 	require.True(t, s.WalletExists(idPair))
 }
 
@@ -113,10 +141,15 @@ func TestCheckNonce(t *testing.T) {
 	s := InitializeStorage()
 	w := createTestWalletForStorage()
 	idPair := KeyIDPair{WalletID: w.WalletID, KeyID: w.KeyID}
-	_ = s.Store(w)
+
+	s.Lock()
+	defer s.Unlock()
+
+	err := s.Store(w)
+	require.NoError(t, err)
 
 	// nonce greater than current is allowed
-	err := s.CheckNonce(idPair, w.Status.Nonce+1)
+	err = s.CheckNonce(idPair, w.Status.Nonce+1)
 	require.NoError(t, err)
 
 	// nonce equal to current should error
@@ -129,10 +162,9 @@ func TestCheckNonce(t *testing.T) {
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "nonce too small")
 
-	// for non-existent wallet, should allow any nonce
 	missingPair := KeyIDPair{WalletID: common.HexToHash("0x1234"), KeyID: 99999}
 	err = s.CheckNonce(missingPair, 1)
-	require.NoError(t, err)
+	require.Error(t, err)
 }
 
 func TestNonceAndUpdateNonce(t *testing.T) {
@@ -140,6 +172,9 @@ func TestNonceAndUpdateNonce(t *testing.T) {
 	w := createTestWalletForStorage()
 	idPair := KeyIDPair{WalletID: w.WalletID, KeyID: w.KeyID}
 	_ = s.Store(w)
+
+	s.Lock()
+	defer s.Unlock()
 
 	got, err := s.Nonce(idPair)
 	require.NoError(t, err)
@@ -163,7 +198,12 @@ func TestStorePreservesStatusPointer(t *testing.T) {
 	w := createTestWalletForStorage()
 	idPair := KeyIDPair{WalletID: w.WalletID, KeyID: w.KeyID}
 
-	_ = s.Store(w)
+	s.Lock()
+	defer s.Unlock()
+
+	err := s.Store(w)
+	require.NoError(t, err)
+
 	// Mutate nonce through UpdateNonce, should reflect in .Get()
 	s.UpdateNonce(idPair, 555)
 	got, err := s.Get(idPair)

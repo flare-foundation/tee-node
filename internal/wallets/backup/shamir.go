@@ -36,7 +36,7 @@ func SplitToShamirShares(val *big.Int, numShares uint64, threshold uint64) ([]ba
 	}
 
 	shamirShares := make([]backup.ShamirShare, numShares)
-	for i := uint64(0); i < numShares; i++ {
+	for i := range numShares {
 		shamirShares[i] = backup.ShamirShare{
 			X: big.NewInt(int64(i + 1)),
 			Y: evalPolynomial(polynomial, big.NewInt(int64(i+1))),

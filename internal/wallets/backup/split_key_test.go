@@ -9,6 +9,8 @@ import (
 )
 
 func generateTestPrivateKey(t *testing.T) *ecdsa.PrivateKey {
+	t.Helper()
+
 	privateKey, err := crypto.GenerateKey()
 	assert.NoError(t, err)
 	return privateKey
@@ -36,12 +38,12 @@ func TestJoinPrivateKeys(t *testing.T) {
 	assert.NoError(t, err)
 
 	// Join the private keys
-	joinedKey, err := JoinPrivateKeys(splits)
+	joinedKey, err := JoinPrivateKeys(splits...)
 	assert.NoError(t, err)
 	assert.Equal(t, privateKey.D, joinedKey.D)
 
 	// Test with no private keys
-	joinedKey, err = JoinPrivateKeys([]*ecdsa.PrivateKey{})
+	joinedKey, err = JoinPrivateKeys()
 	assert.Error(t, err)
 	assert.Nil(t, joinedKey)
 }

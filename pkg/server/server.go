@@ -85,6 +85,8 @@ func StartServerExtension(configPort, extenderPort, extensionPort int) {
 // extenderPort is a node's port for receiving action results from extensions.
 // extensionPort is an extension's port that receives actions from its node.
 func StartTestServerExtension(t *testing.T, configPort, extenderPort, extensionPort int) (common.Address, *wallets.Storage) {
+	t.Helper()
+
 	// Initialize.
 	teeNode, ws, ps, cs, err := initialize(configPort)
 	if err != nil {

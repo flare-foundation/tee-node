@@ -23,12 +23,11 @@ func InitializeStorage() *Storage {
 }
 
 // Store adds the wallet to storage while preserving status state.
+//
+// s.RWMutex Lock should be used when calling this method.
 func (s *Storage) Store(wallet *Wallet) error {
 	idPair := KeyIDPair{WalletID: wallet.WalletID, KeyID: wallet.KeyID}
 	walletCopied := wallet.Copy()
-
-	s.Lock()
-	defer s.Unlock()
 
 	if _, ok := s.wallets[idPair]; ok {
 		return errors.New("wallet with given walletID and keyID already exists")
@@ -46,18 +45,21 @@ func (s *Storage) Store(wallet *Wallet) error {
 }
 
 // Remove deletes the wallet entry for the given identifier pair.
-func (s *Storage) Remove(idPair KeyIDPair) {
-	s.Lock()
-	defer s.Unlock()
+//
+// s.RWMutex Lock should be used when calling this method.
+func (s *Storage) Remove(idPair KeyIDPair) bool {
+	_, exists := s.wallets[idPair]
 	delete(s.wallets, idPair)
+
+	return exists
 }
 
 var ErrWalletNonExistent = errors.New("wallet non-existent")
 
 // Get retrieves a copy of the wallet or returns ErrWalletNonExistent.
+//
+// s.RWMutex RLock should be used when calling this method.
 func (s *Storage) Get(idPair KeyIDPair) (*Wallet, error) {
-	s.RLock()
-	defer s.RUnlock()
 	wallet, ok := s.wallets[idPair]
 	if !ok || wallet == nil {
 		return nil, ErrWalletNonExistent
@@ -68,11 +70,12 @@ func (s *Storage) Get(idPair KeyIDPair) (*Wallet, error) {
 }
 
 // GetWallets returns deep copies of all stored wallets.
+//
+// s.RWMutex RLock should be used when calling this method.
 func (s *Storage) GetWallets() []*Wallet {
 	wallets := make([]*Wallet, len(s.wallets))
 	i := 0
-	s.RLock()
-	defer s.RUnlock()
+
 	for _, wallet := range s.wallets {
 		wallets[i] = wallet.Copy()
 		i++
@@ -82,20 +85,28 @@ func (s *Storage) GetWallets() []*Wallet {
 }
 
 // WalletExists reports whether the wallet is present in storage.
+//
+// s.RWMutex RLock should be used when calling this method.
 func (s *Storage) WalletExists(idPair KeyIDPair) bool {
-	s.RLock()
-	defer s.RUnlock()
 	_, ok := s.wallets[idPair]
 	return ok
 }
 
+// WalletExistsPermanent reports whether the wallet is present in permanent storage.
+//
+// s.RWMutex RLock should be used when calling this method.
+func (s *Storage) WalletExistsPermanent(idPair KeyIDPair) bool {
+	_, ok := s.permanent[idPair]
+	return ok
+}
+
 // CheckNonce ensures the provided nonce is newer than the stored one.
+//
+// s.RWMutex RLock should be used when calling this method.
 func (s *Storage) CheckNonce(idPair KeyIDPair, nonce uint64) error {
-	s.RLock()
-	defer s.RUnlock()
 	walletStatus, ok := s.permanent[idPair]
 	if !ok {
-		return nil
+		return errors.New("no permanent record of the wallet")
 	}
 	if nonce <= walletStatus.Nonce {
 		return errors.New("nonce too small")
@@ -105,9 +116,9 @@ func (s *Storage) CheckNonce(idPair KeyIDPair, nonce uint64) error {
 }
 
 // Nonce returns the stored nonce for the wallet.
+//
+// s.RWMutex RLock should be used when calling this method.
 func (s *Storage) Nonce(idPair KeyIDPair) (uint64, error) {
-	s.RLock()
-	defer s.RUnlock()
 	walletStatus, ok := s.permanent[idPair]
 	if !ok {
 		return 0, errors.New("no wallet nonce")
@@ -117,9 +128,9 @@ func (s *Storage) Nonce(idPair KeyIDPair) (uint64, error) {
 }
 
 // UpdateNonce sets the wallet's nonce to the provided value.
+//
+// s.RWMutex Lock should be used when calling this method.
 func (s *Storage) UpdateNonce(idPair KeyIDPair, nonce uint64) {
-	s.Lock()
-	defer s.Unlock()
 	if walletStatus, ok := s.permanent[idPair]; ok {
 		walletStatus.Nonce = nonce
 	}

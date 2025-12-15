@@ -20,7 +20,16 @@ import (
 	"github.com/flare-foundation/go-flare-common/pkg/tee/structs/wallet"
 )
 
-func (p *Processor) keyDataProviderRestoreCheck(
+// keyRestoreDataCheck checks the following thing:
+//
+//   - the teeID in the instruction data matches the teeID of the current TEE
+//   - the signing algorithm is supported
+//   - the wallet backup ID in the metadata matches the ID in the instruction data
+//   - the cosigners and cosigner threshold stated in the instruction match the admin addresses admin threshold in backup data
+//   - the admin threshold is met,
+//
+// and returns backup metadata, action nonce, slice of indicator of signers that are both data providers and admins, and error.
+func (p *Processor) keyRestoreDataCheck(
 	instructionData *instruction.DataFixed,
 	signers []common.Address,
 	teeID common.Address,
@@ -30,7 +39,10 @@ func (p *Processor) keyDataProviderRestoreCheck(
 		return nil, 0, nil, err
 	}
 
-	teePubKey, err := types.ParsePubKey(types.PublicKey{X: restoreRequest.TeePublicKey.X, Y: restoreRequest.TeePublicKey.Y})
+	teePubKey, err := types.ParsePubKey(types.PublicKey{
+		X: restoreRequest.TeePublicKey.X,
+		Y: restoreRequest.TeePublicKey.Y,
+	})
 	if err != nil {
 		return nil, 0, nil, err
 	}
@@ -54,112 +66,62 @@ func (p *Processor) keyDataProviderRestoreCheck(
 	if !backupMetadata.WalletBackupID.Equal(&backupID) { //nolint:staticcheck // to avoid confusion we do not call backupMetadata.Equal
 		return nil, 0, nil, errors.New("wallet backup id in the metadata does not match the given id")
 	}
+
 	adminAddresses, err := utils.PubKeysToAddresses(backupMetadata.AdminsPublicKeys)
 	if err != nil {
 		return nil, 0, nil, err
 	}
+
 	err = processorutils.CheckMatchingCosigners(instructionData.Cosigners, adminAddresses, instructionData.CosignersThreshold, backupMetadata.AdminsThreshold)
 	if err != nil {
 		return nil, 0, nil, err
 	}
-	restoredWalletNonce := restoreRequest.Nonce.Uint64()
+
+	if !restoreRequest.Nonce.IsUint64() {
+		return nil, 0, nil, errors.New("nonce too large")
+	}
+
+	keyActionNonce := restoreRequest.Nonce.Uint64()
 
 	policyAtBackup, err := p.pStorage.SigningPolicy(backupID.RewardEpochID)
 	if err != nil {
 		return nil, 0, nil, err
 	}
+
 	isProviderAndAdmin, err := checkSigners(signers, policyAtBackup.Voters.Voters(), backupMetadata.AdminsPublicKeys, backupMetadata.AdminsThreshold) // threshold is checked at recover
 	if err != nil {
 		return nil, 0, nil, err
 	}
-	return &backupMetadata, restoredWalletNonce, isProviderAndAdmin, nil
+
+	return &backupMetadata, keyActionNonce, isProviderAndAdmin, nil
 }
 
-func (p *Processor) processKeySplitMessages(variableMessages []hexutil.Bytes, isProviderAndAdmin []bool, walletBackupId wallets.WalletBackupID) ([]*pkgbackup.KeySplit, []byte, error) {
-	allKeySplits := make([]*pkgbackup.KeySplit, 0)
-	duplicateCheck := make(map[common.Hash]int)
-
-	errorPositions := make([]int, 0)
-	errorLogs := make([]string, 0)
-	var keySplits []*pkgbackup.KeySplit
-	for i, keySplitMessage := range variableMessages {
-		keySplitsPlaintext, err := p.Decrypt(keySplitMessage)
-		if err != nil {
-			goto errorSave
-		}
-		keySplits, err = processKeySplitMessage(keySplitsPlaintext, walletBackupId, isProviderAndAdmin[i])
-		if err != nil {
-			goto errorSave
-		}
-
-		for _, keySplit := range keySplits {
-			var keySplitHash common.Hash
-			keySplitHash, err = keySplit.HashForSigning()
-			if err != nil {
-				goto errorSave
-			}
-			if _, ok := duplicateCheck[keySplitHash]; ok {
-				err = errors.New("duplicate key split")
-				goto errorSave
-			}
-			duplicateCheck[keySplitHash] = i
-		}
-
-		allKeySplits = append(allKeySplits, keySplits...)
-
-	errorSave:
-		if err != nil {
-			errorPositions = append(errorPositions, i)
-			errorLogs = append(errorLogs, err.Error())
-		}
+// backupRequestToID constructs wallet backup ID from the restore request.
+func backupRequestToID(req *wallet.ITeeWalletBackupManagerKeyDataProviderRestore) (wallets.WalletBackupID, error) {
+	if len(req.BackupId.PublicKey) != 64 {
+		return wallets.WalletBackupID{}, errors.New("unsupported public key format")
 	}
 
-	restoreStatus := wallets.KeyDataProviderRestoreResultStatus{ErrorPositions: errorPositions, ErrorLogs: errorLogs}
-	if len(errorLogs) != 0 {
-		logger.Warnf("errors in restore process: %v", restoreStatus)
-	}
-	resultStatus, err := json.Marshal(restoreStatus)
-	if err != nil {
-		return nil, nil, err
+	backupID := wallets.WalletBackupID{
+		TeeID:         req.BackupId.TeeId,
+		WalletID:      req.BackupId.WalletId,
+		KeyID:         req.BackupId.KeyId,
+		KeyType:       req.BackupId.KeyType,
+		SigningAlgo:   req.BackupId.SigningAlgo,
+		PublicKey:     append(make([]byte, 0, len(req.BackupId.PublicKey)), req.BackupId.PublicKey...),
+		RewardEpochID: req.BackupId.RewardEpochId,
+		RandomNonce:   req.BackupId.RandomNonce,
 	}
 
-	return allKeySplits, resultStatus, nil
+	return backupID, nil
 }
 
-func processKeySplitMessage(keySplitsPlaintext []byte, walletBackupId wallets.WalletBackupID, isProviderAndAdmin bool) ([]*pkgbackup.KeySplit, error) {
-	var err error
-	keySplits := make([]*pkgbackup.KeySplit, 0)
-	if !isProviderAndAdmin {
-		var keySplit pkgbackup.KeySplit
-		err = json.Unmarshal(keySplitsPlaintext, &keySplit)
-		if err != nil {
-			return nil, err
-		}
-		keySplits = append(keySplits, &keySplit)
-	} else {
-		var twoKeySplits [2]pkgbackup.KeySplit
-		err = json.Unmarshal(keySplitsPlaintext, &twoKeySplits)
-		if err != nil {
-			return nil, err
-		}
-		keySplits = append(keySplits, &twoKeySplits[0])
-		keySplits = append(keySplits, &twoKeySplits[1])
-	}
-
-	for _, keySplit := range keySplits {
-		if !keySplit.WalletBackupID.Equal(&walletBackupId) {
-			return nil, errors.New("wallet backup id in the share does not match the id in the key split")
-		}
-
-		err = keySplit.VerifySignature()
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	return keySplits, nil
-}
-
+// checkSigners checks the following:
+//
+//   - all signers are either data providers or admins,
+//   - the admin threshold is met,
+//
+// and returns a slice of booleans indicating whether each signer is both a provider and an admin.
 func checkSigners(signers []common.Address, expectedProviders []common.Address, expectedAdmins []types.PublicKey, adminThreshold uint64) ([]bool, error) {
 	adminAddresses := make(map[common.Address]bool)
 	countAdmins := uint64(0)
@@ -194,21 +156,90 @@ func checkSigners(signers []common.Address, expectedProviders []common.Address, 
 	return isProviderAndAdmin, nil
 }
 
-func backupRequestToID(req *wallet.ITeeWalletBackupManagerKeyDataProviderRestore) (wallets.WalletBackupID, error) {
-	if len(req.BackupId.PublicKey) != 64 {
-		return wallets.WalletBackupID{}, errors.New("unsupported public key format")
+func (p *Processor) processKeySplitMessages(variableMessages []hexutil.Bytes, isProviderAndAdmin []bool, walletBackupId wallets.WalletBackupID) ([]*pkgbackup.KeySplit, []byte, error) {
+	allKeySplits := make([]*pkgbackup.KeySplit, 0)
+	duplicateCheck := make(map[common.Hash]int)
+
+	restoreStatus := wallets.NewKeyDataProviderRestoreResultStatus()
+
+outer:
+	for i, keySplitMessage := range variableMessages {
+		keySplitsPlaintext, err := p.Decrypt(keySplitMessage)
+		if err != nil {
+			restoreStatus.AddError(i, err)
+			continue outer
+		}
+
+		keySplits, err := processKeySplitPlaintext(keySplitsPlaintext, walletBackupId, isProviderAndAdmin[i])
+		if err != nil {
+			restoreStatus.AddError(i, err)
+			continue outer
+		}
+
+		for _, keySplit := range keySplits {
+			keySplitHash, err := keySplit.HashForSigning()
+			if err != nil {
+				restoreStatus.AddError(i, err)
+				continue outer
+			}
+			if _, ok := duplicateCheck[keySplitHash]; ok {
+				err = errors.New("duplicate key split")
+				restoreStatus.AddError(i, err)
+				continue outer
+			}
+			duplicateCheck[keySplitHash] = i
+		}
+
+		allKeySplits = append(allKeySplits, keySplits...)
 	}
 
-	backupID := wallets.WalletBackupID{
-		TeeID:         req.BackupId.TeeId,
-		WalletID:      req.BackupId.WalletId,
-		KeyID:         req.BackupId.KeyId,
-		KeyType:       req.BackupId.KeyType,
-		SigningAlgo:   req.BackupId.SigningAlgo,
-		PublicKey:     append(make([]byte, 0, len(req.BackupId.PublicKey)), req.BackupId.PublicKey...),
-		RewardEpochID: req.BackupId.RewardEpochId,
-		RandomNonce:   req.BackupId.RandomNonce,
+	if !restoreStatus.Empty() {
+		logger.Warnf("errors in restore process: %v", restoreStatus)
 	}
 
-	return backupID, nil
+	resultStatus, err := json.Marshal(restoreStatus)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return allKeySplits, resultStatus, nil
+}
+
+// processKeySplitPlaintext decodes plaintext to slice of KeySplits and validates them.
+//
+// If the plaintext belongs to an entity that is both data provider and admin, two splits are expected.
+// Otherwise, one split is expected.
+//
+// It is checked that the splits have the expected backupID and that the signature is valid.
+func processKeySplitPlaintext(plaintext []byte, walletBackupID wallets.WalletBackupID, isProviderAndAdmin bool) ([]*pkgbackup.KeySplit, error) {
+	var err error
+	keySplits := make([]*pkgbackup.KeySplit, 0)
+	if !isProviderAndAdmin {
+		var keySplit pkgbackup.KeySplit
+		err = json.Unmarshal(plaintext, &keySplit)
+		if err != nil {
+			return nil, err
+		}
+		keySplits = append(keySplits, &keySplit)
+	} else {
+		var twoKeySplits [2]pkgbackup.KeySplit
+		err = json.Unmarshal(plaintext, &twoKeySplits)
+		if err != nil {
+			return nil, err
+		}
+		keySplits = append(keySplits, &twoKeySplits[0], &twoKeySplits[1])
+	}
+
+	for _, keySplit := range keySplits {
+		if !keySplit.WalletBackupID.Equal(&walletBackupID) {
+			return nil, errors.New("wallet backup id in the share does not match the id in the key split")
+		}
+
+		err = keySplit.VerifySignature()
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return keySplits, nil
 }

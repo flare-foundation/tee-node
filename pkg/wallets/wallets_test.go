@@ -21,6 +21,8 @@ import (
 )
 
 func generateAdminKeyPair(t *testing.T) (*ecdsa.PrivateKey, []wallet.PublicKey) {
+	t.Helper()
+
 	adminPrivateKey, err := crypto.GenerateKey()
 	require.NoError(t, err)
 
@@ -52,6 +54,8 @@ func createKeyGenerateRequest(teeID common.Address, walletID common.Hash, keyID 
 }
 
 func createTestWallet(t *testing.T, kg wallet.ITeeWalletKeyManagerKeyGenerate) *Wallet {
+	t.Helper()
+
 	w, err := GenerateNewKey(kg)
 	require.NoError(t, err)
 
@@ -227,7 +231,7 @@ func TestNonceCheck(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func TestWallet_Copy(t *testing.T) {
+func TestWalletCopy(t *testing.T) {
 	adminPrivateKey, _ := generateAdminKeyPair(t)
 	adminPubKeys := []*ecdsa.PublicKey{&adminPrivateKey.PublicKey}
 

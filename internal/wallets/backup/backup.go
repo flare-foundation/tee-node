@@ -225,7 +225,7 @@ func RecoverWallet(
 		return nil, err
 	}
 
-	key, err := JoinPrivateKeys([]*ecdsa.PrivateKey{adminKey, providerKey})
+	key, err := JoinPrivateKeys(adminKey, providerKey)
 	if err != nil {
 		return nil, err
 	}

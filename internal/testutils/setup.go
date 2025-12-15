@@ -11,6 +11,8 @@ import (
 
 // Setup provisions a test node and fresh storages for integration-style tests.
 func Setup(t *testing.T) (*node.Node, *policy.Storage, *wallets.Storage) {
+	t.Helper()
+
 	node, err := node.Initialize(node.ZeroState{})
 	require.NoError(t, err)
 

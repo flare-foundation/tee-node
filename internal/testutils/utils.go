@@ -140,7 +140,7 @@ func randomNormalizedArray(n int, seed int64) []float64 {
 	}
 
 	// Normalize to sum to 1
-	for i := 0; i < n; i++ {
+	for i := range n {
 		numbers[i] /= sum
 	}
 
@@ -150,6 +150,8 @@ func randomNormalizedArray(n int, seed int64) []float64 {
 // GenerateAndSetInitialPolicy creates a mock policy, stores it in the provided
 // storage, and returns the policy with its voters and keys.
 func GenerateAndSetInitialPolicy(t *testing.T, ps *ppolicy.Storage, numVoters int, randSeed int64, epochID uint32) (*commonpolicy.SigningPolicy, []common.Address, []*ecdsa.PrivateKey) {
+	t.Helper()
+
 	// Generate random voters and corresponding private keys
 	voters, privKeys, pubKeys := GenerateRandomKeys(t, numVoters)
 
@@ -220,7 +222,7 @@ func encodeSigningPolicy(policy *relay.RelaySigningPolicyInitialized) ([]byte, e
 	pos += 32
 
 	// Write voters and weights
-	for i := 0; i < len(voters); i++ {
+	for i := range voters {
 		// Write voter address (20 bytes)
 		copy(result[pos:], voters[i][:])
 		pos += 20

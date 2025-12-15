@@ -193,3 +193,19 @@ type KeyDataProviderRestoreResultStatus struct {
 	ErrorPositions []int
 	ErrorLogs      []string
 }
+
+func NewKeyDataProviderRestoreResultStatus() *KeyDataProviderRestoreResultStatus {
+	return &KeyDataProviderRestoreResultStatus{
+		ErrorPositions: make([]int, 0),
+		ErrorLogs:      make([]string, 0),
+	}
+}
+
+func (s *KeyDataProviderRestoreResultStatus) AddError(i int, err error) {
+	s.ErrorPositions = append(s.ErrorPositions, i)
+	s.ErrorLogs = append(s.ErrorLogs, err.Error())
+}
+
+func (s *KeyDataProviderRestoreResultStatus) Empty() bool {
+	return len(s.ErrorPositions) == 0
+}

@@ -28,6 +28,8 @@ import (
 )
 
 func setupTestServer(t *testing.T, proxyPort int, port int) *ExtenderServer {
+	t.Helper()
+
 	testNode, err := node.Initialize(node.ZeroState{})
 	require.NoError(t, err)
 
@@ -44,6 +46,8 @@ func setupTestServer(t *testing.T, proxyPort int, port int) *ExtenderServer {
 }
 
 func setupTestWallet(t *testing.T, ws *wallets.Storage, signingAlgo common.Hash) *wallets.Wallet {
+	t.Helper()
+
 	// Generate a test private key
 	privateKey, err := wallets.GenerateKey(signingAlgo)
 	require.NoError(t, err)
@@ -66,19 +70,23 @@ func setupTestWallet(t *testing.T, ws *wallets.Storage, signingAlgo common.Hash)
 		},
 	}
 
+	ws.Lock()
 	// Store wallet in storage
 	err = ws.Store(wallet)
 	require.NoError(t, err)
+	ws.Unlock()
 
+	ws.RLock()
 	// Verify wallet was stored
 	storedWallet, err := ws.Get(wallets.KeyIDPair{WalletID: walletID, KeyID: keyID})
 	require.NoError(t, err)
 	require.NotNil(t, storedWallet)
+	defer ws.RUnlock()
 
 	return wallet
 }
 
-func TestGetKeyInfoHandler(t *testing.T) {
+func TestGetKeyInfo(t *testing.T) {
 	port := 8880
 	proxyPort := 5507
 	extServer := setupTestServer(t, proxyPort, port)
@@ -114,7 +122,7 @@ func TestGetKeyInfoHandler(t *testing.T) {
 	require.Equal(t, kID, response.KeyId)
 }
 
-func TestSignWithKeyHandler(t *testing.T) {
+func TestSignWithKey(t *testing.T) {
 	port := 8881
 	proxyPort := 5503
 	server := setupTestServer(t, proxyPort, port)
@@ -157,7 +165,7 @@ func TestSignWithKeyHandler(t *testing.T) {
 	require.Equal(t, wallets.ToECDSAUnsafe(wallet.PrivateKey).PublicKey, *pubKey)
 }
 
-func TestSignWithTeeHandler(t *testing.T) {
+func TestSignWithTee(t *testing.T) {
 	port := 8882
 	proxyPort := 5504
 	server := setupTestServer(t, proxyPort, port)
@@ -198,7 +206,7 @@ func TestSignWithTeeHandler(t *testing.T) {
 	require.Equal(t, *expectedPubKey, *pubKey)
 }
 
-func TestDecryptWithKeyHandler(t *testing.T) {
+func TestDecryptWithKey(t *testing.T) {
 	port := 8883
 	proxyPort := 5505
 	server := setupTestServer(t, proxyPort, port)
@@ -231,7 +239,7 @@ func TestDecryptWithKeyHandler(t *testing.T) {
 	require.Equal(t, message, response.DecryptedMessage)
 }
 
-func TestDecryptWithTeeHandler(t *testing.T) {
+func TestDecryptWithTee(t *testing.T) {
 	port := 8884
 	proxyPort := 5506
 	server := setupTestServer(t, proxyPort, port)
@@ -263,7 +271,7 @@ func TestDecryptWithTeeHandler(t *testing.T) {
 	require.Equal(t, message, response.DecryptedMessage)
 }
 
-func TestPostResultHandler(t *testing.T) {
+func TestPostResult(t *testing.T) {
 	port := 8885
 	proxyPort := 5503
 	server := setupTestServer(t, proxyPort, port)
@@ -293,6 +301,8 @@ func TestPostResultHandler(t *testing.T) {
 }
 
 func mockProxyResult(t *testing.T, proxyPort int, actionResponseChan chan *types.ActionResponse) {
+	t.Helper()
+
 	router := http.NewServeMux()
 
 	router.HandleFunc("POST /result", func(w http.ResponseWriter, r *http.Request) {

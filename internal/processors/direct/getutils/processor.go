@@ -73,7 +73,9 @@ func (p *Processor) TEEInfo(i *types.DirectInstruction) ([]byte, error) {
 func (p *Processor) KeysInfo(_ *types.DirectInstruction) ([]byte, error) {
 	teeID := p.Info().TeeID
 
+	p.wStorage.RLock()
 	storedWallets := p.wStorage.GetWallets()
+	p.wStorage.RUnlock()
 
 	signedProofs := make([]wallets.SignedKeyExistenceProof, len(storedWallets))
 	for i, storedWallet := range storedWallets {
@@ -110,6 +112,9 @@ func (p *Processor) TEEBackup(i *types.DirectInstruction) ([]byte, error) {
 		return nil, err
 	}
 	teeID := p.Info().TeeID
+
+	p.wStorage.RLock()
+	defer p.wStorage.RUnlock()
 
 	wallet, err := p.wStorage.Get(idPair)
 	if err != nil {

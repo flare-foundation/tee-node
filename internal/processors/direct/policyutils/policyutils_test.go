@@ -115,7 +115,7 @@ func (s *policyTestSetup) executeUpdatePolicy(t *testing.T, req *types.UpdatePol
 	return s.processor.UpdatePolicy(&types.DirectInstruction{Message: message})
 }
 
-func TestInitializePolicy_BasicFlow(t *testing.T) {
+func TestInitializePolicyBasicFlow(t *testing.T) {
 	setup := setupPolicyTest(t)
 
 	req := &types.InitializePolicyRequest{
@@ -131,7 +131,7 @@ func TestInitializePolicy_BasicFlow(t *testing.T) {
 	require.Equal(t, setup.initialPolicy.Hash(), activePolicy.Hash())
 }
 
-func TestInitializePolicy_AlreadyInitialized(t *testing.T) {
+func TestInitializePolicyAlreadyInitialized(t *testing.T) {
 	setup := setupPolicyTestWithInitializedPolicy(t)
 
 	// Try to initialize again with a different policy
@@ -147,7 +147,7 @@ func TestInitializePolicy_AlreadyInitialized(t *testing.T) {
 	require.Equal(t, "policy already initialized", err.Error())
 }
 
-func TestInitializePolicy_InvalidJSON(t *testing.T) {
+func TestInitializePolicyInvalidJSON(t *testing.T) {
 	setup := setupPolicyTest(t)
 
 	invalidMessage := []byte(`{"invalid": "json"`)
@@ -155,7 +155,7 @@ func TestInitializePolicy_InvalidJSON(t *testing.T) {
 	require.Error(t, err)
 }
 
-func TestInitializePolicy_InvalidPolicyBytes(t *testing.T) {
+func TestInitializePolicyInvalidPolicyBytes(t *testing.T) {
 	setup := setupPolicyTest(t)
 
 	req := &types.InitializePolicyRequest{
@@ -167,7 +167,7 @@ func TestInitializePolicy_InvalidPolicyBytes(t *testing.T) {
 	require.Error(t, err)
 }
 
-func TestInitializePolicy_EmptyPolicyBytes(t *testing.T) {
+func TestInitializePolicyEmptyPolicyBytes(t *testing.T) {
 	setup := setupPolicyTest(t)
 
 	req := &types.InitializePolicyRequest{
@@ -180,20 +180,20 @@ func TestInitializePolicy_EmptyPolicyBytes(t *testing.T) {
 	require.Contains(t, err.Error(), "message to short for decoding signing policy")
 }
 
-func TestInitializePolicy_MismatchedPublicKeysCount(t *testing.T) {
+func TestInitializePolicyMismatchedPublicKeysCount(t *testing.T) {
 	setup := setupPolicyTest(t)
 
 	// Provide fewer public keys than voters
 	req := &types.InitializePolicyRequest{
 		InitialPolicyBytes: setup.initialPolicy.RawBytes(),
-		PublicKeys:         setup.pubKeys[:50],
+		PublicKeys:         setup.pubKeys[:numVoters/2],
 	}
 	_, err := setup.executeInitializePolicy(t, req)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "number of public keys and the number of voters do not match")
 }
 
-func TestInitializePolicy_EmptyPublicKeys(t *testing.T) {
+func TestInitializePolicyEmptyPublicKeys(t *testing.T) {
 	setup := setupPolicyTest(t)
 
 	req := &types.InitializePolicyRequest{
@@ -205,51 +205,54 @@ func TestInitializePolicy_EmptyPublicKeys(t *testing.T) {
 	require.Contains(t, err.Error(), "number of public keys and the number of voters do not match")
 }
 
-func TestInitializePolicy_WrongPublicKeyAddress(t *testing.T) {
-	setup := setupPolicyTest(t)
+func TestInitializePolicyWrongPublicKeyAddress(t *testing.T) {
+	for range 10 {
+		setup := setupPolicyTest(t)
 
-	// Replace first public key with a different one
-	wrongPubKeys := make([]types.PublicKey, len(setup.pubKeys))
-	copy(wrongPubKeys, setup.pubKeys)
+		// Replace first public key with a different one
+		wrongPubKeys := make([]types.PublicKey, len(setup.pubKeys))
 
-	wrongPubKeys[0] = types.PublicKey{
-		X: [32]byte{0, 1, 2, 3}, // not a valid public key
-		Y: [32]byte{3, 4, 5, 6},
+		copy(wrongPubKeys, setup.pubKeys)
+
+		wrongPubKeys[0] = types.PublicKey{
+			X: [32]byte{0, 1, 2, 3}, // not a valid public key
+			Y: [32]byte{3, 4, 5, 6},
+		}
+
+		req := &types.InitializePolicyRequest{
+			InitialPolicyBytes: setup.initialPolicy.RawBytes(),
+			PublicKeys:         wrongPubKeys,
+		}
+		_, err := setup.executeInitializePolicy(t, req)
+		require.Contains(t, err.Error(), "invalid public key bytes")
+		require.Error(t, err)
+
+		// Generate a new key that doesn't match the first voter, but is a valid public key
+		newPrivKey, err := crypto.GenerateKey()
+		require.NoError(t, err)
+
+		wrongPubKeys[0] = types.PublicKey{
+			X: common.BigToHash(newPrivKey.X),
+			Y: common.BigToHash(newPrivKey.Y),
+		}
+
+		req2 := &types.InitializePolicyRequest{
+			InitialPolicyBytes: setup.initialPolicy.RawBytes(),
+			PublicKeys:         wrongPubKeys,
+		}
+		_, err = setup.executeInitializePolicy(t, req2)
+		require.Contains(t, err.Error(), "public key and address do not match")
+		require.Error(t, err)
 	}
-
-	req := &types.InitializePolicyRequest{
-		InitialPolicyBytes: setup.initialPolicy.RawBytes(),
-		PublicKeys:         wrongPubKeys,
-	}
-	_, err := setup.executeInitializePolicy(t, req)
-	require.Contains(t, err.Error(), "invalid public key bytes")
-	require.Error(t, err)
-
-	// Generate a new key that doesn't match the first voter, but is a valid public key
-	newPrivKey, err := crypto.GenerateKey()
-	require.NoError(t, err)
-
-	wrongPubKeys[0] = types.PublicKey{
-		X: common.Hash(newPrivKey.X.Bytes()),
-		Y: common.Hash(newPrivKey.Y.Bytes()),
-	}
-
-	req2 := &types.InitializePolicyRequest{
-		InitialPolicyBytes: setup.initialPolicy.RawBytes(),
-		PublicKeys:         wrongPubKeys,
-	}
-	_, err = setup.executeInitializePolicy(t, req2)
-	require.Contains(t, err.Error(), "public key and address do not match")
-	require.Error(t, err)
 }
 
-func TestInitializePolicy_RollbackOnError(t *testing.T) {
+func TestInitializePolicyRollbackOnError(t *testing.T) {
 	setup := setupPolicyTest(t)
 
 	// Try to initialize with invalid public keys
 	req := &types.InitializePolicyRequest{
 		InitialPolicyBytes: setup.initialPolicy.RawBytes(),
-		PublicKeys:         setup.pubKeys[:50],
+		PublicKeys:         setup.pubKeys[:numVoters/2],
 	}
 	_, err := setup.executeInitializePolicy(t, req)
 	require.Error(t, err)
@@ -260,7 +263,7 @@ func TestInitializePolicy_RollbackOnError(t *testing.T) {
 	require.Equal(t, "signing policy not initialized", err.Error())
 }
 
-func TestUpdatePolicy_BasicFlow(t *testing.T) {
+func TestUpdatePolicyBasicFlow(t *testing.T) {
 	setup := setupPolicyTestWithInitializedPolicy(t)
 
 	// Generate next policy
@@ -280,7 +283,7 @@ func TestUpdatePolicy_BasicFlow(t *testing.T) {
 	require.Equal(t, nextPolicy.Hash(), activePolicy.Hash())
 }
 
-func TestUpdatePolicy_NotInitialized(t *testing.T) {
+func TestUpdatePolicyNotInitialized(t *testing.T) {
 	setup := setupPolicyTest(t)
 
 	// Try to update without initializing first
@@ -295,7 +298,7 @@ func TestUpdatePolicy_NotInitialized(t *testing.T) {
 	require.Contains(t, err.Error(), "signing policy not initialized")
 }
 
-func TestUpdatePolicy_InvalidJSON(t *testing.T) {
+func TestUpdatePolicyInvalidJSON(t *testing.T) {
 	setup := setupPolicyTestWithInitializedPolicy(t)
 
 	invalidMessage := []byte(`{"invalid": "json"`)
@@ -304,7 +307,7 @@ func TestUpdatePolicy_InvalidJSON(t *testing.T) {
 	require.Contains(t, err.Error(), "unexpected end of JSON input")
 }
 
-func TestUpdatePolicy_InvalidPolicyBytes(t *testing.T) {
+func TestUpdatePolicyInvalidPolicyBytes(t *testing.T) {
 	setup := setupPolicyTestWithInitializedPolicy(t)
 
 	req := &types.UpdatePolicyRequest{
@@ -320,7 +323,7 @@ func TestUpdatePolicy_InvalidPolicyBytes(t *testing.T) {
 	require.Contains(t, err.Error(), "message to short for decoding signing policy")
 }
 
-func TestUpdatePolicy_EmptyPolicyBytes(t *testing.T) {
+func TestUpdatePolicyEmptyPolicyBytes(t *testing.T) {
 	setup := setupPolicyTestWithInitializedPolicy(t)
 
 	req := &types.UpdatePolicyRequest{
@@ -336,7 +339,7 @@ func TestUpdatePolicy_EmptyPolicyBytes(t *testing.T) {
 	require.Contains(t, err.Error(), "message to short for decoding signing policy")
 }
 
-func TestUpdatePolicy_WrongEpochID(t *testing.T) {
+func TestUpdatePolicyWrongEpochID(t *testing.T) {
 	setup := setupPolicyTestWithInitializedPolicy(t)
 
 	// Generate policy with wrong epoch (skip one)
@@ -352,7 +355,7 @@ func TestUpdatePolicy_WrongEpochID(t *testing.T) {
 	require.Contains(t, err.Error(), "policy is not active")
 }
 
-func TestUpdatePolicy_SameEpochID(t *testing.T) {
+func TestUpdatePolicySameEpochID(t *testing.T) {
 	setup := setupPolicyTestWithInitializedPolicy(t)
 
 	// Try to update with same epoch ID
@@ -367,7 +370,7 @@ func TestUpdatePolicy_SameEpochID(t *testing.T) {
 	require.Contains(t, err.Error(), "policy is not active")
 }
 
-func TestUpdatePolicy_InsufficientSignatures(t *testing.T) {
+func TestUpdatePolicyInsufficientSignatures(t *testing.T) {
 	setup := setupPolicyTestWithInitializedPolicy(t)
 
 	nextPolicy, pubKeys := setup.generateNextPolicy(t, 1)
@@ -384,7 +387,7 @@ func TestUpdatePolicy_InsufficientSignatures(t *testing.T) {
 	require.Contains(t, err.Error(), "threshold for updating policy not reached")
 }
 
-func TestUpdatePolicy_NoSignatures(t *testing.T) {
+func TestUpdatePolicyNoSignatures(t *testing.T) {
 	setup := setupPolicyTestWithInitializedPolicy(t)
 
 	nextPolicy, pubKeys := setup.generateNextPolicy(t, 1)
@@ -402,7 +405,7 @@ func TestUpdatePolicy_NoSignatures(t *testing.T) {
 	require.Contains(t, err.Error(), "threshold for updating policy not reached")
 }
 
-func TestUpdatePolicy_InvalidSignatureLength(t *testing.T) {
+func TestUpdatePolicyInvalidSignatureLength(t *testing.T) {
 	setup := setupPolicyTestWithInitializedPolicy(t)
 
 	nextPolicy, pubKeys := setup.generateNextPolicy(t, 1)
@@ -421,7 +424,7 @@ func TestUpdatePolicy_InvalidSignatureLength(t *testing.T) {
 	require.Contains(t, err.Error(), "invalid signature length")
 }
 
-func TestUpdatePolicy_InvalidSignature(t *testing.T) {
+func TestUpdatePolicyInvalidSignature(t *testing.T) {
 	setup := setupPolicyTestWithInitializedPolicy(t)
 
 	nextPolicy, pubKeys := setup.generateNextPolicy(t, 1)
@@ -450,7 +453,7 @@ func TestUpdatePolicy_InvalidSignature(t *testing.T) {
 	require.Contains(t, err.Error(), "not a voter")
 }
 
-func TestUpdatePolicy_MismatchedPublicKeysCount(t *testing.T) {
+func TestUpdatePolicyMismatchedPublicKeysCount(t *testing.T) {
 	setup := setupPolicyTestWithInitializedPolicy(t)
 
 	nextPolicy, _ := setup.generateNextPolicy(t, 1)
@@ -458,14 +461,14 @@ func TestUpdatePolicy_MismatchedPublicKeysCount(t *testing.T) {
 	// Provide fewer public keys than voters
 	req := &types.UpdatePolicyRequest{
 		NewPolicy:  testutils.BuildMultiSignedPolicy(t, nextPolicy.RawBytes(), setup.privKeys),
-		PublicKeys: setup.pubKeys[:50],
+		PublicKeys: setup.pubKeys[:numVoters/2],
 	}
 	_, err := setup.executeUpdatePolicy(t, req)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "number of public keys and the number of voters do not match")
 }
 
-func TestUpdatePolicy_MultipleUpdates(t *testing.T) {
+func TestUpdatePolicyMultipleUpdates(t *testing.T) {
 	setup := setupPolicyTestWithInitializedPolicy(t)
 
 	// First update

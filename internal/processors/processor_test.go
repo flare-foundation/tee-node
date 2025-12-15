@@ -113,7 +113,7 @@ func TestProcessorsEndToEnd(t *testing.T) {
 	walletProof.Nonce = nonce
 	require.Equal(t, walletProof, recoveredWalletProof)
 
-	getTeeAttestation(t, wStorage, mainActionInfoChan, actionResponseChan, teeID,
+	getTeeAttestation(t, mainActionInfoChan, actionResponseChan, teeID,
 		providerPrivKeys, finalEpochID)
 
 	ftdcProve(t, mainActionInfoChan, actionResponseChan, teeID, providerPrivKeys, adminPrivKeys, finalEpochID)
@@ -589,7 +589,6 @@ func recoverWallet(
 
 func getTeeAttestation(
 	t *testing.T,
-	wStorage *wallets.Storage,
 	actionInfoChan chan *types.Action,
 	actionResponseChan chan *types.ActionResponse,
 	teeID common.Address,

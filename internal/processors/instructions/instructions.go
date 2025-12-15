@@ -18,7 +18,13 @@ import (
 	"github.com/flare-foundation/tee-node/pkg/utils"
 )
 
-type ProcessorFunction func(submissionTag types.SubmissionTag, dataFixed *instruction.DataFixed, variableMessages []hexutil.Bytes, signers []common.Address, signingPolicy *cpolicy.SigningPolicy) ([]byte, []byte, error)
+type ProcessorFunction func(submissionTag types.SubmissionTag, dataFixed *instruction.DataFixed, variableMessages []hexutil.Bytes, signers []common.Address, signingPolicy *cpolicy.SigningPolicy) (data []byte, additionalResultStatus []byte, err error)
+
+type Processor struct {
+	f        ProcessorFunction
+	iSAndD   node.IdentifierSignerAndDecrypter
+	pStorage *policy.Storage
+}
 
 // NewProcessor builds a Processor that wraps the provided instruction handler
 // with common preprocessing and validation logic.
@@ -28,12 +34,6 @@ func NewProcessor(f ProcessorFunction, iSAndD node.IdentifierSignerAndDecrypter,
 		iSAndD:   iSAndD,
 		pStorage: pStorage,
 	}
-}
-
-type Processor struct {
-	f        ProcessorFunction
-	iSAndD   node.IdentifierSignerAndDecrypter
-	pStorage *policy.Storage
 }
 
 // Process validates an instruction action and routes it through the configured

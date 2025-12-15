@@ -21,6 +21,12 @@ linters:
     - unconvert
     - whitespace
 
+    - thelper
+    - modernize
+    - unparam
+    - predeclared
+    - prealloc
+
   settings:
     exhaustive:
       default-signifies-exhaustive: true
