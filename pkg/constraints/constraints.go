@@ -61,9 +61,9 @@ func CheckSize(data *instruction.DataFixed) error {
 
 	switch {
 	case len(data.OriginalMessage) > c.originalMessage:
-		return errors.New("original message to big")
+		return errors.New("original message too big")
 	case len(data.AdditionalFixedMessage) > c.additionalFixedMessage:
-		return errors.New("additional fixed message message to big")
+		return errors.New("additional fixed message message too big")
 	}
 
 	return nil
@@ -79,7 +79,7 @@ func CheckSizeVariableMessages(opCommand common.Hash, variableMessages []hexutil
 
 	for j := range variableMessages {
 		if len(variableMessages[j]) > c.additionalVariableMessage {
-			return errors.New("additional variable message message to big")
+			return errors.New("additional variable message message too big")
 		}
 	}
 

@@ -15,3 +15,5 @@ FlareTEE.docx
 .env
 
 coverage*
+
+.idea/

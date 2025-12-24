@@ -52,7 +52,7 @@ func StartServerPMW(configPort int) {
 	router.NewPMWRouter(teeNode, ws, ps, cs.ProxyURL).Run(teeNode)
 }
 
-// StartTestServerExtension runs the extension-enabled TEE node and supporting
+// StartServerExtension runs the extension-enabled TEE node and supporting
 // HTTP servers for testing purposes.
 //
 // configPort is a node's port for receiving configuration requests (like setting proxy URL).

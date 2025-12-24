@@ -28,23 +28,15 @@ func TestBackupAndRecover(t *testing.T) {
 	assert.NoError(t, err)
 
 	// Generate admin and provider public keys
-	adminKey1, err := crypto.GenerateKey()
-	assert.NoError(t, err)
-	adminKey2, err := crypto.GenerateKey()
-	assert.NoError(t, err)
-	adminKey3, err := crypto.GenerateKey()
-	assert.NoError(t, err)
-	providerKey1, err := crypto.GenerateKey()
-	assert.NoError(t, err)
-	providerKey2, err := crypto.GenerateKey()
-	assert.NoError(t, err)
+	adminKeys, providerKeys := generateTestKeys(t, 3, 2)
 
-	providerPubKeys := []*ecdsa.PublicKey{&providerKey1.PublicKey, &providerKey2.PublicKey}
+	adminPubKeys := privateKeysToPublicKeys(t, adminKeys)
+	providerPubKeys := privateKeysToPublicKeys(t, providerKeys)
+
 	weights := []uint16{7, 20}
 	normalizationParam := 27
 	dataProvidersBackupThreshold := uint64(22)
 
-	adminPubKeys := []*ecdsa.PublicKey{&adminKey1.PublicKey, &adminKey2.PublicKey, &adminKey3.PublicKey}
 	adminsThreshold := uint64(2)
 
 	givenWallet := &wallets.Wallet{
@@ -68,34 +60,33 @@ func TestBackupAndRecover(t *testing.T) {
 
 	rewardEpochID := uint32(100)
 
-	// Backup the wallet
-	walletBackup, err := backup.BackupWallet(givenWallet, providerPubKeys, weights, rewardEpochID, testNode.TeeID(), uint16(normalizationParam), dataProvidersBackupThreshold)
-	assert.NoError(t, err)
-	assert.NotNil(t, walletBackup)
-	err = walletBackup.Check()
-	assert.NoError(t, err)
+	t.Run("Unsupported signing algorithm should fail", func(t *testing.T) {
+		unsupportedAlgoWallet := *givenWallet
+		unsupportedAlgoWallet.SigningAlgo = utils.ToHash("BLS-12-381")
+		_, err = backup.BackupWallet(&unsupportedAlgoWallet, providerPubKeys, weights, rewardEpochID, testNode.TeeID(), uint16(normalizationParam), dataProvidersBackupThreshold)
+		assert.Error(t, err)
+	})
 
-	// Decrypt admin and provider shares
-	adminShare1, err := pbackup.DecryptSplit(walletBackup.AdminEncryptedParts.Splits[0], adminKey1)
-	assert.NoError(t, err)
-	adminShare2, err := pbackup.DecryptSplit(walletBackup.AdminEncryptedParts.Splits[1], adminKey2)
-	assert.NoError(t, err)
-	providerShare1, err := pbackup.DecryptSplit(walletBackup.ProviderEncryptedParts.Splits[0], providerKey1)
-	assert.NoError(t, err)
-	providerShare2, err := pbackup.DecryptSplit(walletBackup.ProviderEncryptedParts.Splits[1], providerKey2)
-	assert.NoError(t, err)
+	t.Run("Backup and recover wallet should succeed", func(t *testing.T) {
+		// Backup the wallet
+		walletBackup, err := backup.BackupWallet(givenWallet, providerPubKeys, weights, rewardEpochID, testNode.TeeID(), uint16(normalizationParam), dataProvidersBackupThreshold)
+		assert.NoError(t, err)
+		assert.NotNil(t, walletBackup)
+		err = walletBackup.Check()
+		assert.NoError(t, err)
 
-	adminKeyShares := []*pbackup.KeySplit{adminShare1, adminShare2}
-	providerKeyShares := []*pbackup.KeySplit{providerShare1, providerShare2}
+		// Decrypt admin and provider shares
+		adminKeyShares, providerKeyShares := decryptAllShares(t, walletBackup.AdminEncryptedParts, walletBackup.ProviderEncryptedParts, adminKeys, providerKeys)
 
-	// Recover the wallet
-	recoveredWallet, err := backup.RecoverWallet(
-		append(adminKeyShares, providerKeyShares...),
-		&walletBackup.WalletBackupMetaData,
-	)
-	assert.NoError(t, err)
-	givenWallet.Restored = true
-	assert.Equal(t, givenWallet, recoveredWallet)
+		// Recover the wallet
+		recoveredWallet, err := backup.RecoverWallet(
+			append(adminKeyShares, providerKeyShares...),
+			&walletBackup.WalletBackupMetaData,
+		)
+		assert.NoError(t, err)
+		givenWallet.Restored = true
+		assert.Equal(t, givenWallet, recoveredWallet)
+	})
 }
 
 func TestSplitAndEncrypt(t *testing.T) {
@@ -104,12 +95,8 @@ func TestSplitAndEncrypt(t *testing.T) {
 	assert.NoError(t, err)
 
 	// Generate public keys for encryption
-	pubKey1, err := crypto.GenerateKey()
-	assert.NoError(t, err)
-	pubKey2, err := crypto.GenerateKey()
-	assert.NoError(t, err)
-
-	encryptionPubKeys := []*ecdsa.PublicKey{&pubKey1.PublicKey, &pubKey2.PublicKey}
+	keys, _ := generateTestKeys(t, 2, 0)
+	encryptionPubKeys := privateKeysToPublicKeys(t, keys)
 
 	// Split and encrypt the key
 	encryptedShares, err := backup.SplitAndEncrypt(privateKey, encryptionPubKeys, 2, utils.ConstantSlice(uint16(1), 2), wallets.WalletBackupID{}, privateKey, false)
@@ -125,23 +112,14 @@ func TestRecoverWithMissingShares(t *testing.T) {
 	assert.NoError(t, err)
 
 	// Generate admin and provider public keys
-	adminKey1, err := crypto.GenerateKey()
-	assert.NoError(t, err)
-	adminKey2, err := crypto.GenerateKey()
-	assert.NoError(t, err)
-	adminKey3, err := crypto.GenerateKey()
-	assert.NoError(t, err)
-	providerKey1, err := crypto.GenerateKey()
-	assert.NoError(t, err)
-	providerKey2, err := crypto.GenerateKey()
-	assert.NoError(t, err)
+	adminKeys, providerKeys := generateTestKeys(t, 3, 2)
+	adminPubKeys := privateKeysToPublicKeys(t, adminKeys)
+	providerPubKeys := privateKeysToPublicKeys(t, providerKeys)
 
-	providerPubKeys := []*ecdsa.PublicKey{&providerKey1.PublicKey, &providerKey2.PublicKey}
 	weights := []uint16{7, 20}
 	normalizationParam := 27
 	dataProvidersBackupThreshold := uint64(22)
 
-	adminPubKeys := []*ecdsa.PublicKey{&adminKey1.PublicKey, &adminKey2.PublicKey, &adminKey3.PublicKey}
 	adminsThreshold := uint64(2)
 
 	givenWallet := &wallets.Wallet{
@@ -173,17 +151,7 @@ func TestRecoverWithMissingShares(t *testing.T) {
 	assert.NoError(t, err)
 
 	// Decrypt admin and provider shares
-	adminShare1, err := pbackup.DecryptSplit(walletBackup.AdminEncryptedParts.Splits[0], adminKey1)
-	assert.NoError(t, err)
-	adminShare2, err := pbackup.DecryptSplit(walletBackup.AdminEncryptedParts.Splits[1], adminKey2)
-	assert.NoError(t, err)
-	providerShare1, err := pbackup.DecryptSplit(walletBackup.ProviderEncryptedParts.Splits[0], providerKey1)
-	assert.NoError(t, err)
-	providerShare2, err := pbackup.DecryptSplit(walletBackup.ProviderEncryptedParts.Splits[1], providerKey2)
-	assert.NoError(t, err)
-
-	adminKeyShares := []*pbackup.KeySplit{adminShare1, adminShare2}
-	providerKeyShares := []*pbackup.KeySplit{providerShare1, providerShare2}
+	adminKeyShares, providerKeyShares := decryptAllShares(t, walletBackup.AdminEncryptedParts, walletBackup.ProviderEncryptedParts, adminKeys, providerKeys)
 
 	t.Run("Recovery with missing provider share should fail", func(t *testing.T) {
 		recoveredWallet, err := backup.RecoverWallet(
@@ -195,7 +163,6 @@ func TestRecoverWithMissingShares(t *testing.T) {
 	})
 
 	t.Run("Recovery with missing admin share should fail", func(t *testing.T) {
-		adminKeyShares = []*pbackup.KeySplit{adminShare1}
 		recoveredWallet, err := backup.RecoverWallet(
 			append(adminKeyShares[:1], providerKeyShares...),
 			&walletBackup.WalletBackupMetaData,
@@ -223,14 +190,14 @@ func TestRecoverWithMissingShares(t *testing.T) {
 	})
 
 	t.Run("Recovery with mismatched PartialBackupID should fail", func(t *testing.T) {
-		invalidAdminShare := *adminShare1
+		invalidAdminShare := *adminKeyShares[0]
 		invalidAdminShare.PublicKey[0] ^= 0xFF
 
 		mixedShares := []*pbackup.KeySplit{
 			&invalidAdminShare,
-			adminShare2,
-			providerShare1,
-			providerShare2,
+			adminKeyShares[1],
+			providerKeyShares[0],
+			providerKeyShares[1],
 		}
 
 		recoveredWallet, err := backup.RecoverWallet(
@@ -242,9 +209,9 @@ func TestRecoverWithMissingShares(t *testing.T) {
 	})
 
 	t.Run("Recovery with wrong admin's OwnerPublicKey should fail", func(t *testing.T) {
-		invalidAdminShare := *adminShare1
+		invalidAdminShare := *adminKeyShares[0]
 
-		invalidPk := adminShare1.OwnerPublicKey
+		invalidPk := adminKeyShares[0].OwnerPublicKey
 		for i := range invalidPk.X {
 			invalidPk.X[i] ^= 0xFF
 		}
@@ -253,9 +220,9 @@ func TestRecoverWithMissingShares(t *testing.T) {
 
 		mixedShares := []*pbackup.KeySplit{
 			&invalidAdminShare,
-			adminShare2,
-			providerShare1,
-			providerShare2,
+			adminKeyShares[1],
+			providerKeyShares[0],
+			providerKeyShares[1],
 		}
 
 		recoveredWallet, err := backup.RecoverWallet(
@@ -301,4 +268,49 @@ func TestRecoverWithMissingShares(t *testing.T) {
 		assert.Error(t, err)
 		require.Nil(t, recoveredWallet)
 	})
+}
+
+func generateTestKeys(t *testing.T, numAdmins int, numProviders int) ([]*ecdsa.PrivateKey, []*ecdsa.PrivateKey) {
+	t.Helper()
+	adminKeys := make([]*ecdsa.PrivateKey, numAdmins)
+	providerKeys := make([]*ecdsa.PrivateKey, numProviders)
+	var err error
+	for i := range numAdmins {
+		adminKeys[i], err = crypto.GenerateKey()
+		assert.NoError(t, err)
+	}
+
+	for i := range numProviders {
+		providerKeys[i], err = crypto.GenerateKey()
+		assert.NoError(t, err)
+	}
+
+	return adminKeys, providerKeys
+}
+
+func privateKeysToPublicKeys(t *testing.T, privateKeys []*ecdsa.PrivateKey) []*ecdsa.PublicKey {
+	t.Helper()
+	publicKeys := make([]*ecdsa.PublicKey, len(privateKeys))
+	for i := range privateKeys {
+		publicKeys[i] = &privateKeys[i].PublicKey
+	}
+	return publicKeys
+}
+
+func decryptAllShares(t *testing.T, adminEncryptedParts, providerEncryptedParts *pbackup.EncryptedShares, adminKeys, providerKeys []*ecdsa.PrivateKey) ([]*pbackup.KeySplit, []*pbackup.KeySplit) {
+	t.Helper()
+	adminKeyShares := make([]*pbackup.KeySplit, len(adminKeys))
+	providerKeyShares := make([]*pbackup.KeySplit, len(providerKeys))
+	for i, k := range adminKeys {
+		share, err := pbackup.DecryptSplit(adminEncryptedParts.Splits[i], k)
+		assert.NoError(t, err)
+		adminKeyShares[i] = share
+	}
+
+	for i, k := range providerKeys {
+		share, err := pbackup.DecryptSplit(providerEncryptedParts.Splits[i], k)
+		assert.NoError(t, err)
+		providerKeyShares[i] = share
+	}
+	return adminKeyShares, providerKeyShares
 }

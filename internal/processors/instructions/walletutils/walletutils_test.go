@@ -571,7 +571,27 @@ type keyDataProviderRestoreTestSetup struct {
 	providerPubKeys []*ecdsa.PublicKey
 }
 
-// setupKeyDataProviderRestoreTest creates a standard test environment for key data provider restore tests
+func setupAdminsAndProviders(
+	t *testing.T,
+	numAdmins int,
+	pStorage *policy.Storage,
+	numVoters int,
+	randSeed int64,
+	epochID uint32,
+) (*commonpolicy.SigningPolicy, []*ecdsa.PrivateKey, []*ecdsa.PrivateKey) {
+	t.Helper()
+
+	initialPolicy, _, voterPrivKeys := testutils.GenerateAndSetInitialPolicy(t, pStorage, numVoters, randSeed, epochID)
+	adminPrivKeys := make([]*ecdsa.PrivateKey, numAdmins)
+	var err error
+	for i := range adminPrivKeys {
+		adminPrivKeys[i], err = crypto.GenerateKey()
+		require.NoError(t, err)
+	}
+
+	return initialPolicy, adminPrivKeys, voterPrivKeys
+}
+
 func setupKeyDataProviderRestoreTest(t *testing.T) *keyDataProviderRestoreTestSetup {
 	t.Helper()
 
@@ -583,16 +603,25 @@ func setupKeyDataProviderRestoreTest(t *testing.T) *keyDataProviderRestoreTestSe
 		epochID   = uint32(11)
 	)
 
-	initialPolicy, _, voterPrivKeys := testutils.GenerateAndSetInitialPolicy(t, pStorage, numVoters, randSeed, epochID)
-
-	// Create 3 admins with threshold of 3
 	numAdmins := 3
-	adminPrivKeys := make([]*ecdsa.PrivateKey, numAdmins)
-	var err error
-	for i := range numAdmins {
-		adminPrivKeys[i], err = crypto.GenerateKey()
-		require.NoError(t, err)
-	}
+	initialPolicy, adminPrivKeys, voterPrivKeys := setupAdminsAndProviders(t, numAdmins, pStorage, numVoters, randSeed, epochID)
+
+	return setupKeyDataProviderRestoreTestWithAdminsAndProviders(t, numAdmins, adminPrivKeys, voterPrivKeys, testNode, pStorage, wStorage, epochID, initialPolicy)
+}
+
+// setupKeyDataProviderRestoreTest creates a standard test environment for key data provider restore tests
+func setupKeyDataProviderRestoreTestWithAdminsAndProviders(
+	t *testing.T,
+	numAdmins int,
+	adminPrivKeys []*ecdsa.PrivateKey,
+	voterPrivKeys []*ecdsa.PrivateKey,
+	testNode *node.Node,
+	pStorage *policy.Storage,
+	wStorage *wallets.Storage,
+	epochID uint32,
+	initialPolicy *commonpolicy.SigningPolicy,
+) *keyDataProviderRestoreTestSetup {
+	t.Helper()
 
 	walletID := common.HexToHash("0xbeadfeed")
 	var keyID uint64 = 3
@@ -665,17 +694,36 @@ func (s *keyDataProviderRestoreTestSetup) buildVariableMessages(
 	require.LessOrEqual(t, numProviders, len(s.voterPrivKeys), "numProviders exceeds available voters")
 	require.LessOrEqual(t, numAdmins, len(s.adminPrivKeys), "numAdmins exceeds available admins")
 
+	isAdminAndProvider := make([]bool, len(s.adminPrivKeys)+len(s.voterPrivKeys))
+	return s.buildVariableMessagesWithAdmins(t, numProviders, numAdmins, isAdminAndProvider)
+}
+
+// buildVariableMessages creates encrypted key split messages from provider and admin shares
+func (s *keyDataProviderRestoreTestSetup) buildVariableMessagesWithAdmins(
+	t *testing.T,
+	numProviders int,
+	numAdmins int,
+	isAdminAndProvider []bool,
+) ([]hexutil.Bytes, []common.Address) {
+	t.Helper()
+
+	require.LessOrEqual(t, numProviders, len(s.voterPrivKeys), "numProviders exceeds available voters")
+	require.LessOrEqual(t, numAdmins, len(s.adminPrivKeys), "numAdmins exceeds available admins")
+
 	variableMessages := make([]hexutil.Bytes, 0)
 	signers := make([]common.Address, 0)
 
 	// Add provider shares
 	for i := range numProviders {
-		// provider decrypts share using their private key
+		if isAdminAndProvider[i] {
+			continue
+		}
 		share, err := pkgbackup.DecryptSplit(s.walletBackup.ProviderEncryptedParts.Splits[i], s.voterPrivKeys[i])
 		require.NoError(t, err)
-		shareBytes, err := json.Marshal(share)
+
+		var shareBytes []byte
+		shareBytes, err = json.Marshal(share)
 		require.NoError(t, err)
-		// we then encrypt it again with the tee's public key
 		cipher, err := ecies.Encrypt(rand.Reader, s.eciesPub, shareBytes, nil, nil)
 		require.NoError(t, err)
 		variableMessages = append(variableMessages, cipher)
@@ -684,6 +732,9 @@ func (s *keyDataProviderRestoreTestSetup) buildVariableMessages(
 
 	// Add admin shares
 	for i := range numAdmins {
+		if isAdminAndProvider[i] {
+			continue
+		}
 		adminShare, err := pkgbackup.DecryptSplit(s.walletBackup.AdminEncryptedParts.Splits[i], s.adminPrivKeys[i])
 		require.NoError(t, err)
 		adminShareBytes, err := json.Marshal(adminShare)
@@ -692,6 +743,25 @@ func (s *keyDataProviderRestoreTestSetup) buildVariableMessages(
 		require.NoError(t, err)
 		variableMessages = append(variableMessages, cipher)
 		signers = append(signers, crypto.PubkeyToAddress(s.adminPrivKeys[i].PublicKey))
+	}
+
+	for i := range isAdminAndProvider {
+		if !isAdminAndProvider[i] {
+			continue
+		}
+
+		adminShare, err := pkgbackup.DecryptSplit(s.walletBackup.AdminEncryptedParts.Splits[i], s.adminPrivKeys[i])
+		require.NoError(t, err)
+		providerShare, err := pkgbackup.DecryptSplit(s.walletBackup.ProviderEncryptedParts.Splits[i], s.voterPrivKeys[i])
+		require.NoError(t, err)
+
+		bothShares, err := json.Marshal([2]*pkgbackup.KeySplit{adminShare, providerShare})
+		require.NoError(t, err)
+		cipher, err := ecies.Encrypt(rand.Reader, s.eciesPub, bothShares, nil, nil)
+		require.NoError(t, err)
+		variableMessages = append(variableMessages, cipher)
+		signers = append(signers, crypto.PubkeyToAddress(s.adminPrivKeys[i].PublicKey))
+		signers = append(signers, crypto.PubkeyToAddress(s.voterPrivKeys[i].PublicKey))
 	}
 
 	return variableMessages, signers
@@ -706,8 +776,8 @@ func (s *keyDataProviderRestoreTestSetup) buildDefaultRestoreRequest(nonce *big.
 			TeeId:         backupID.TeeID,
 			WalletId:      backupID.WalletID,
 			KeyId:         backupID.KeyID,
-			KeyType:       [32]byte(backupID.KeyType),
-			SigningAlgo:   [32]byte(backupID.SigningAlgo),
+			KeyType:       backupID.KeyType,
+			SigningAlgo:   backupID.SigningAlgo,
 			PublicKey:     backupID.PublicKey,
 			RewardEpochId: backupID.RewardEpochID,
 			RandomNonce:   backupID.RandomNonce,
@@ -745,7 +815,7 @@ func (s *keyDataProviderRestoreTestSetup) buildRestoreInstruction(
 		OPType:                 op.Wallet.Hash(),
 		OPCommand:              op.KeyDataProviderRestore.Hash(),
 		OriginalMessage:        encodedRestoreReq,
-		AdditionalFixedMessage: hexutil.Bytes(metadataBytes),
+		AdditionalFixedMessage: metadataBytes,
 		Cosigners:              adminAddresses,
 		CosignersThreshold:     s.walletBackup.AdminsThreshold,
 	}
@@ -1173,4 +1243,59 @@ func TestKeyDataProviderRestoreUnsupportedSigningAlgorithm(t *testing.T) {
 	_, _, err := setup.processor.KeyDataProviderRestore(types.Threshold, restoreInstruction, variableMessages, signers, nil)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "signing algorithm not supported")
+}
+
+func TestKeyDataProviderRestoreWithProviderAsAdmin(t *testing.T) {
+	testNode, pStorage, wStorage := testutils.Setup(t)
+
+	const (
+		numVoters = 6
+		randSeed  = int64(4242)
+		epochID   = uint32(11)
+	)
+
+	numAdmins := 3
+	initialPolicy, adminPrivKeys, voterPrivKeys := setupAdminsAndProviders(t, numAdmins, pStorage, numVoters, randSeed, epochID)
+
+	// Make the first provider an admin
+	adminPrivKeys[0] = voterPrivKeys[0]
+
+	setup := setupKeyDataProviderRestoreTestWithAdminsAndProviders(t, numAdmins, adminPrivKeys, voterPrivKeys, testNode, pStorage, wStorage, epochID, initialPolicy)
+
+	// Use all providers (6) and all admins (3)
+	isAdminAndProvider := make([]bool, len(setup.voterPrivKeys))
+	isAdminAndProvider[0] = true
+	variableMessages, signers := setup.buildVariableMessagesWithAdmins(t, len(setup.voterPrivKeys), len(setup.adminPrivKeys), isAdminAndProvider)
+
+	restoreInstruction := setup.buildRestoreInstruction(t, setup.buildDefaultRestoreRequest(big.NewInt(int64(setup.nonce))))
+
+	resp, status, err := setup.processor.KeyDataProviderRestore(types.Threshold, restoreInstruction, variableMessages, signers, nil)
+	require.NoError(t, err)
+	require.NotNil(t, resp)
+	require.NotNil(t, status)
+
+	proof, err := wallets.ExtractKeyExistence(resp, setup.teeID)
+	require.NoError(t, err)
+	require.Equal(t, [32]byte(setup.walletID), proof.WalletId)
+	require.Equal(t, setup.keyID, proof.KeyId)
+	require.True(t, proof.Restored)
+	require.Equal(t, big.NewInt(int64(setup.nonce)).Uint64(), proof.Nonce.Uint64())
+
+	var restoreStatus wallets.KeyDataProviderRestoreResultStatus
+	require.NoError(t, json.Unmarshal(status, &restoreStatus))
+	require.Empty(t, restoreStatus.ErrorLogs)
+	require.Empty(t, restoreStatus.ErrorPositions)
+
+	idPair := wallets.KeyIDPair{WalletID: setup.walletID, KeyID: setup.keyID}
+	restoredWallet, err := setup.wStorage.Get(idPair)
+	require.NoError(t, err)
+	require.True(t, restoredWallet.Restored)
+	nonce, err := setup.wStorage.Nonce(idPair)
+	require.NoError(t, err)
+	require.Equal(t, setup.nonce, nonce)
+
+	resp, endStatus, err := setup.processor.KeyDataProviderRestore(types.End, restoreInstruction, variableMessages, signers, nil)
+	require.NoError(t, err)
+	require.Nil(t, resp)
+	require.Equal(t, status, endStatus)
 }
