@@ -710,8 +710,8 @@ func (s *keyDataProviderRestoreTestSetup) buildVariableMessagesWithAdmins(
 	require.LessOrEqual(t, numProviders, len(s.voterPrivKeys), "numProviders exceeds available voters")
 	require.LessOrEqual(t, numAdmins, len(s.adminPrivKeys), "numAdmins exceeds available admins")
 
-	variableMessages := make([]hexutil.Bytes, 0)
-	signers := make([]common.Address, 0)
+	variableMessages := make([]hexutil.Bytes, 0, numAdmins+numProviders)
+	signers := make([]common.Address, 0, numAdmins+numProviders)
 
 	// Add provider shares
 	for i := range numProviders {

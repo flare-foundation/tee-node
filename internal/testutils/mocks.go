@@ -50,7 +50,7 @@ func CreateMockWallet(
 	require.NoError(t, err)
 
 	require.Less(t, 0, len(adminPrivKeys))
-	adminPubKeys := make([]wallet.PublicKey, 0)
+	adminPubKeys := make([]wallet.PublicKey, 0, len(adminPrivKeys))
 	for _, adminPrivKey := range adminPrivKeys {
 		aPubKey := types.PubKeyToStruct(&adminPrivKey.PublicKey)
 		adminPubKeys = append(adminPubKeys, wallet.PublicKey{
@@ -59,7 +59,7 @@ func CreateMockWallet(
 		})
 	}
 
-	cosignerPubKeys := make([]common.Address, 0)
+	cosignerPubKeys := make([]common.Address, 0, len(cosignerPrivKeys))
 	for _, cosignerPrivKey := range cosignerPrivKeys {
 		cosignerAddress := crypto.PubkeyToAddress(cosignerPrivKey.PublicKey)
 		cosignerPubKeys = append(cosignerPubKeys, cosignerAddress)

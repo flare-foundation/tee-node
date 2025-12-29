@@ -68,6 +68,8 @@ github.com/ferranbt/fastssz v0.1.4 h1:OCDB+dYDEQDvAgtAGnTSidK1Pe2tW3nFV40XyMkTeD
 github.com/ferranbt/fastssz v0.1.4/go.mod h1:Ea3+oeoRGGLGm5shYAeDgu6PGUlcvQhE2fILyD9+tGg=
 github.com/flare-foundation/go-flare-common v1.2.1-0.20251128132025-cddd560d9723 h1:vNzYZDfn9PLjApaLBdlSf9+8pJBjCBIt+62puSxv2+U=
 github.com/flare-foundation/go-flare-common v1.2.1-0.20251128132025-cddd560d9723/go.mod h1:3ldofjLED+R2qg/qOKnQBSu5HeKVQv0Y8MptzgW3U3Y=
+github.com/flare-foundation/go-flare-common v1.2.1-0.20251216163414-aec32d81603d h1:oLlylwtvTvoH0lp39wEbvSNNhT7NZnIlyvG/C2sx+wU=
+github.com/flare-foundation/go-flare-common v1.2.1-0.20251216163414-aec32d81603d/go.mod h1:/y+dTgCQT5YuP5Nvh013nxYciivyCcAv9YxKjR2AbQI=
 github.com/fsnotify/fsnotify v1.9.0 h1:2Ml+OJNzbYCTzsxtv8vKSFD9PbJjmhYF14k/jKC7S9k=
 github.com/fsnotify/fsnotify v1.9.0/go.mod h1:8jBTzvmWwFyi3Pb8djgCCO5IBqzKJ/Jwo8TRcHyHii0=
 github.com/gballet/go-libpcsclite v0.0.0-20190607065134-2772fd86a8ff h1:tY80oXqGNY4FhTFhk+o9oFHGINQ/+vhlm8HFzi6znCI=

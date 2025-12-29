@@ -8,7 +8,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/flare-foundation/go-flare-common/pkg/convert"
-	googlecloud "github.com/flare-foundation/go-flare-common/pkg/tee/attestation/google_cloud"
+	"github.com/flare-foundation/go-flare-common/pkg/tee/attestation/googlecloud"
 	"github.com/golang-jwt/jwt/v5"
 )
 
