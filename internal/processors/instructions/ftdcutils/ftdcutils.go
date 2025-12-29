@@ -35,8 +35,8 @@ func checkResponseSignatures(
 		return nil, nil, err
 	}
 
-	dpSigs := make([]encoding.IndexedSignature, 0)
-	cosSigs := make([]hexutil.Bytes, 0)
+	dpSigs := make([]encoding.IndexedSignature, 0, len(sigs))
+	cosSigs := make([]hexutil.Bytes, 0, min(len(sigs), len(cosigners)))
 	for i, signature := range sigs {
 		err := utils.VerifySignature(msgHash[:], signature, signers[i])
 		if err != nil {

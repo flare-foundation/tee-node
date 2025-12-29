@@ -494,8 +494,8 @@ func recoverWallet(
 	teeEciesPubKey, err := utils.ECDSAPubKeyToECIES(teePubKey)
 	require.NoError(t, err)
 
-	additionalVariableMessages := make([][]byte, 0)
-	privKeys := make([]*ecdsa.PrivateKey, 0)
+	additionalVariableMessages := make([][]byte, 0, len(providersPrivKeys)+len(adminsPrivKeys))
+	privKeys := make([]*ecdsa.PrivateKey, 0, len(providersPrivKeys)+len(adminsPrivKeys))
 	for i, privKey := range providersPrivKeys {
 		keySplit, err := backup.DecryptSplit(walletBackup.ProviderEncryptedParts.Splits[i], privKey)
 		require.NoError(t, err)
@@ -708,8 +708,8 @@ func ftdcProve(
 	ftdcMsgHash, _, _, err := ftdc.HashMessage(originalMessage, additionalFixedMessageEncoded, cosignerAddresses, cosignersThreshold, timestamp)
 	require.NoError(t, err)
 
-	variableMessages := make([][]byte, 0)
-	privKeys := make([]*ecdsa.PrivateKey, 0)
+	variableMessages := make([][]byte, 0, len(providerPrivKeys)+len(cosignerPrivKeys))
+	privKeys := make([]*ecdsa.PrivateKey, 0, len(providerPrivKeys)+len(cosignerPrivKeys))
 	for _, privKey := range providerPrivKeys {
 		variableMessage, err := utils.Sign(ftdcMsgHash[:], privKey)
 		require.NoError(t, err)
