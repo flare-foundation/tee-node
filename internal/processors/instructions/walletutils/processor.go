@@ -194,11 +194,11 @@ func (p *Processor) KeyDataProviderRestore(
 			return nil, nil, errors.New("wallet with given wallet-key id already exists")
 		}
 
-		p.wStorage.UpdateNonce(id, nonce)
 		err = p.wStorage.Store(recoveredWallet)
 		if err != nil {
 			return nil, nil, err
 		}
+		p.wStorage.UpdateNonce(id, nonce)
 
 		storedWallet, err := p.wStorage.Get(id)
 		if err != nil {
