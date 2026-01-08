@@ -49,7 +49,8 @@ func New(proxyURL *settings.ProxyURLMutex) Router {
 // direct instructions.
 func (r Router) Run(signer node.Signer) {
 	go r.ServeQueue(processorutils.Main, signer)
-	r.ServeQueue(processorutils.Direct, signer)
+	go r.ServeQueue(processorutils.Direct, signer)
+	r.ServeQueue(processorutils.Backup, signer)
 }
 
 // ServeQueue starts an endless loop that fetches actions from proxy's queue,

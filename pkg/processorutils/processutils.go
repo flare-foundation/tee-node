@@ -18,6 +18,7 @@ type QueueID string
 const (
 	Main   QueueID = "main"
 	Direct QueueID = "direct"
+	Backup QueueID = "backup"
 )
 
 type validRequestType interface {
