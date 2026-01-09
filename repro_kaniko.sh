@@ -43,6 +43,9 @@ docker run --rm \
 
 HASH2=$(sha256sum tee-node-kaniko2.tar | awk '{print $1}')
 
+echo "Hash 1: $HASH1"
+echo "Hash 2: $HASH2"
+
 if [ "$HASH1" == "$HASH2" ]; then
     echo "✓ SUCCESS: Tar hashes are identical, image is reproducible"
     exit 0
