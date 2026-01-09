@@ -17,3 +17,4 @@ FlareTEE.docx
 coverage*
 
 .idea/
+*.tar
