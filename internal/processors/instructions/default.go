@@ -52,8 +52,6 @@ func (p DefaultProcessor) Process(a *types.Action) types.ActionResult {
 			}
 			return processorutils.Invalid(a, fmt.Errorf("extension error: %v", err))
 		}
-		result.Status = 2
-		result.Data = []byte("successfully posted to extension")
 		return *result
 	case types.End:
 		result := types.ActionResult{

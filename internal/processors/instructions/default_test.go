@@ -40,7 +40,7 @@ func TestDefaultInstructionProcessor(t *testing.T) {
 	firstResult := proc.Process(action)
 
 	require.Equal(t, action.Data.ID, firstResult.ID)
-	require.Equal(t, "successfully posted to extension", string(firstResult.Data))
+	require.Len(t, firstResult.Data, 0)
 	require.Equal(t, uint8(2), firstResult.Status)
 	require.Equal(t, "action in processing", firstResult.Log)
 	require.Equal(t, action.Data.SubmissionTag, firstResult.SubmissionTag)
