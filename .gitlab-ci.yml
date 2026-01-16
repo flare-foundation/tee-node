@@ -1,8 +1,14 @@
+default:
+  tags:
+    - flarenetwork
+
+
 variables:
   GOLANG_VERSION: "1.25.1"
   GOLINT_VERSION: "v2.7.0"
   COVERAGE_FILE: "coverage.out"
   COBERTURA_FILE: "coverage.xml"
+  RUNNER_BASE_TAG: "flarenetwork"
 
 .gocache:
   variables:
@@ -13,6 +19,15 @@ variables:
     paths:
       - ${GOPATH}/pkg/mod/
       - ${GOPATH}/bin
+
+stages:
+  - build
+  - test
+  - release-images
+
+.rules:default:
+  rules:
+    - if: $CI_COMMIT_TAG
 
 build:
   stage: build
@@ -52,83 +67,9 @@ test:
         path: ${COBERTURA_FILE}
   coverage: '/total:\s+\(statements\)\s+(\d+\.\d+)%/'
 
-stages:
-  - build
-  - test
-  - release-images
-  - deploy
-
-.rules:release:
-  rules:
-    - if: $CI_COMMIT_TAG
-
-#### RELEASE IMAGE #############################################################
-release-images:auth:
-  stage: release-images
-  extends:
-    - .rules:release
-  image: registry.gitlab.com/flarenetwork/infra-public/pipeliner/pipeliner-stbl:v1.1.0
-  id_tokens:
-    OIDC_JOB_TOKEN:
-      aud: https://gitlab.com
-  variables:
-    GCP_PROJECT: "flare-network-shared"
-    GCP_PROJECT_NUMBER: "940168819002"
-  before_script:
-    - >-
-      WORKLOAD_IDENTITY_POOL=$([ "$CI_COMMIT_REF_PROTECTED" == "true" ] &&
-      echo "cr-oidc-gitlab-protected-pool" ||
-      echo "cr-oidc-gitlab-pool")
-    - >-
-      WORKLOAD_IDENTITY_POOL_PROVIDER=$([ "$CI_COMMIT_REF_PROTECTED" == "true" ] &&
-      echo "oidc-gitlab-protected" ||
-      echo "oidc-gitlab-pool-provider")
-    - >-
-      SERVICE_ACCOUNT_EMAIL=$([ "$CI_COMMIT_REF_PROTECTED" == "true" ] &&
-      echo "cr-prtctd-oidc-cntnr-img-bldr@flare-network-shared.iam.gserviceaccount.com" ||
-      echo "cr-oidc-cntnr-img-bldr@flare-network-shared.iam.gserviceaccount.com")
-    - . pipeliner gcloud-setup
-  script:
-    - echo "GOOGLE_OAUTH_ACCESS_TOKEN=$GOOGLE_OAUTH_ACCESS_TOKEN" > auth.env
-  artifacts:
-    reports:
-      dotenv:
-        - auth.env
-
-.release-images:
-  stage: release-images
-  extends:
-    - .rules:release
-  needs:
-    - job: release-images:auth
-      artifacts: true
-  image:
-    name: registry.gitlab.com/flarenetwork/infra-public/pipeliner/kaniko-executor-stbl:v1.23.2-debug
-    entrypoint: [""]
-  before_script:
-    - mkdir -p /kaniko/.docker
-    - auth_encoded=$(echo -n "oauth2accesstoken:$GOOGLE_OAUTH_ACCESS_TOKEN" | base64 | tr -d "\n")
-    - echo "{\"auths\":{\"europe-west1-docker.pkg.dev\":{\"auth\":\"$auth_encoded\",\"email\":\"not@val.id\"}}}" > /kaniko/.docker/config.json
-  script:
-    - >-
-      image_tag=$CI_COMMIT_TAG
-    - echo "Will tag images with \`$image_tag\`."
-    - >-
-      args="--context ${CI_PROJECT_DIR}/.
-        --dockerfile ${CI_PROJECT_DIR}/${DOCKERFILE}
-        --cache=false
-        --registry-mirror mirror.gcr.io
-        --build-arg SOURCE_DATE_EPOCH=0
-        --reproducible
-        --destination europe-west1-docker.pkg.dev/flare-network-staging/containers/${IMAGE}:$image_tag"
-    - >-
-      if [[ $CI_COMMIT_REF_PROTECTED == "true" ]]; then
-        args="$args --destination europe-west1-docker.pkg.dev/flare-network-production/containers/${IMAGE}:$image_tag"
-      fi
-    - /kaniko/executor $args
-
-release-tee-node:
-  extends: .release-images
-  variables:
-    DOCKERFILE: "Dockerfile"
-    IMAGE: "tee-node"
+include:
+  # CONTAINER IMAGE RELEASE COMPONENT
+  - component: gitlab.com/flarenetwork/ci-components-private/release-image@1
+    inputs:
+      image_name: "tee-node"
+      helm_chart_name: "tee-node"
