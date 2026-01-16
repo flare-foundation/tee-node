@@ -70,11 +70,8 @@ test:
 
 include:
   # CONTAINER IMAGE RELEASE COMPONENT
-  - component: gitlab.com/flarenetwork/ci-components-private/release-image@1
+  - component: gitlab.com/flarenetwork/ci-components-private/release-image@main
     inputs:
       image_name: "tee-node"
       helm_chart_name: "tee-node"
       image_tag_source: "commit_tag"
-      build_args_enabled: true
-      before_script_additional: 'export SOURCE_DATE_EPOCH=$(date -d "$CI_COMMIT_TIMESTAMP" +%s)'
-      build_args: "SOURCE_DATE_EPOCH=${SOURCE_DATE_EPOCH}"
