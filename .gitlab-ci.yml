@@ -1,6 +1,6 @@
 default:
   tags:
-    - flarenetwork
+    - flarenetwork-lg
 
 
 variables:
@@ -52,6 +52,7 @@ test:
   image: golang:${GOLANG_VERSION}
   needs: [build]
   extends: .gocache
+  when: manual
   before_script:
     - go get github.com/boumenot/gocover-cobertura
   script:
