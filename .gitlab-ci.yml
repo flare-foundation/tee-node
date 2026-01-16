@@ -74,3 +74,4 @@ include:
     inputs:
       image_name: "tee-node"
       helm_chart_name: "tee-node"
+      image_tag_source: "commit_tag"
