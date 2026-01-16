@@ -76,4 +76,5 @@ include:
       helm_chart_name: "tee-node"
       image_tag_source: "commit_tag"
       build_args_enabled: true
-      build_args: "SOURCE_DATE_EPOCH=$(git log -1 --format=%ct)"
+      before_script_additional: 'export SOURCE_DATE_EPOCH=$(date -d "$CI_COMMIT_TIMESTAMP" +%s)'
+      build_args: "SOURCE_DATE_EPOCH=${SOURCE_DATE_EPOCH}"
