@@ -1,0 +1,11 @@
+docs/
+*.md
+*.sh
+*.yml
+*_test.go
+.git
+.gitignore
+.vscode
+.env.template
+CODEOWNERS
+extension.Dockerfile

@@ -5,7 +5,10 @@ ARG SOURCE_DATE_EPOCH
 ENV SOURCE_DATE_EPOCH=$SOURCE_DATE_EPOCH
 
 # Install git and certificates (needed for private repos and some dependencies)
-RUN apk add --no-cache git ca-certificates tzdata
+RUN apk add --no-cache \
+    git=2.52.0-r0 \
+    ca-certificates=20251003-r0 \
+    tzdata=2025c-r0
 
 # Set working directory
 WORKDIR /app
@@ -16,8 +19,14 @@ COPY go.mod go.sum ./
 # Download dependencies
 RUN go mod download
 
+# Verify hashes
+RUN go mod verify
+
 # Copy the source code
-COPY . .
+COPY assets/ assets/
+COPY cmd/ cmd/
+COPY internal/ internal/
+COPY pkg/ pkg/
 
 # Build the application with reproducible flags
 RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-buildid=" -o /app/server cmd/main.go
