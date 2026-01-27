@@ -1,0 +1,70 @@
+# Dockerfile for Kaniko with gcloud authentication
+# Build: docker build -f gcloud-kaniko-Dockerfile -t kaniko-gcloud .
+# Usage: Mount ~/.config/gcloud for authentication
+
+FROM gcr.io/google.com/cloudsdktool/google-cloud-cli:slim AS gcloud-sdk
+
+FROM gcr.io/kaniko-project/executor:v1.23.2-debug
+
+# Copy gcloud CLI from the SDK image
+COPY --from=gcloud-sdk /usr/lib/google-cloud-sdk /usr/lib/google-cloud-sdk
+COPY --from=gcloud-sdk /usr/bin/python3* /usr/bin/
+COPY --from=gcloud-sdk /usr/lib/python3* /usr/lib/
+COPY --from=gcloud-sdk /lib/x86_64-linux-gnu/libexpat* /lib/x86_64-linux-gnu/
+COPY --from=gcloud-sdk /lib/x86_64-linux-gnu/libz* /lib/x86_64-linux-gnu/
+COPY --from=gcloud-sdk /lib/x86_64-linux-gnu/libpthread* /lib/x86_64-linux-gnu/
+COPY --from=gcloud-sdk /lib/x86_64-linux-gnu/libdl* /lib/x86_64-linux-gnu/
+COPY --from=gcloud-sdk /lib/x86_64-linux-gnu/libutil* /lib/x86_64-linux-gnu/
+COPY --from=gcloud-sdk /lib/x86_64-linux-gnu/libm* /lib/x86_64-linux-gnu/
+COPY --from=gcloud-sdk /lib/x86_64-linux-gnu/libc.* /lib/x86_64-linux-gnu/
+COPY --from=gcloud-sdk /lib64/ld-linux-x86-64.so.2 /lib64/
+
+ENV PATH="/usr/lib/google-cloud-sdk/bin:${PATH}"
+
+# Entrypoint script that configures docker credentials from gcloud
+COPY --chmod=755 <<'EOF' /kaniko/gcloud-docker-auth.sh
+#!/busybox/sh
+set -e
+
+# Get the registry from the destination argument
+REGISTRY=""
+for arg in "$@"; do
+  case "$arg" in
+    --destination=*)
+      DEST="${arg#--destination=}"
+      # Extract registry (everything before first /)
+      REGISTRY="${DEST%%/*}"
+      ;;
+  esac
+done
+
+if [ -n "$REGISTRY" ]; then
+  echo "Configuring docker credentials for: $REGISTRY"
+
+  # Create docker config directory
+  mkdir -p /kaniko/.docker
+
+  # Get access token from gcloud and create docker config
+  TOKEN=$(/usr/lib/google-cloud-sdk/bin/gcloud auth print-access-token 2>/dev/null || echo "")
+
+  if [ -n "$TOKEN" ]; then
+    cat > /kaniko/.docker/config.json <<DOCKER_EOF
+{
+  "auths": {
+    "$REGISTRY": {
+      "auth": "$(echo -n "oauth2accesstoken:$TOKEN" | base64 | tr -d '\n')"
+    }
+  }
+}
+DOCKER_EOF
+    echo "Docker credentials configured successfully"
+  else
+    echo "Warning: Could not get gcloud access token, using mounted credentials if available"
+  fi
+fi
+
+# Run kaniko executor
+exec /kaniko/executor "$@"
+EOF
+
+ENTRYPOINT ["/kaniko/gcloud-docker-auth.sh"]

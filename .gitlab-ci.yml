@@ -2,7 +2,6 @@ default:
   tags:
     - flarenetwork-lg
 
-
 variables:
   GOLANG_VERSION: "1.25.1"
   GOLINT_VERSION: "v2.7.0"
@@ -70,7 +69,7 @@ test:
 
 include:
   # CONTAINER IMAGE RELEASE COMPONENT
-  - component: gitlab.com/flarenetwork/ci-components-private/release-image@main
+  - component: gitlab.com/flarenetwork/ci-components-private/release-image@2
     inputs:
       image_name: "tee-node"
       helm_chart_name: "tee-node"
