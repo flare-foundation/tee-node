@@ -18,3 +18,4 @@ coverage*
 
 .idea/
 *.tar
+*.log

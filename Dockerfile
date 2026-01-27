@@ -42,12 +42,12 @@ FROM docker.io/alpine:latest@sha256:865b95f46d98cf867a156fe4a135ad3fe50d2056aa3f
 ARG SOURCE_DATE_EPOCH
 ENV SOURCE_DATE_EPOCH=$SOURCE_DATE_EPOCH
 
-# Import certificates from builder
-COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
+# Import certificates from builder (normalize ownership and permissions for reproducibility)
+COPY --from=builder --chown=0:0 --chmod=0644 /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
 
 # Copy binary from builder
-COPY --from=builder /app/server /app/server
-COPY --from=builder /app/assets/google_confidential_space_root.crt /app/assets/google_confidential_space_root.crt
+COPY --from=builder --chown=0:0 --chmod=0755 /app/server /app/server
+COPY --from=builder --chown=0:0 --chmod=0644 /app/assets/google_confidential_space_root.crt /app/assets/google_confidential_space_root.crt
 
 # Set file modification times to SOURCE_DATE_EPOCH for reproducibility
 RUN find /app /etc/ssl/certs -exec touch -d "@${SOURCE_DATE_EPOCH}" {} + 2>/dev/null || true
