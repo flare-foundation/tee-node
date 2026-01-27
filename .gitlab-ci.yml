@@ -72,5 +72,4 @@ include:
   - component: gitlab.com/flarenetwork/ci-components-private/release-image@2
     inputs:
       image_name: "tee-node"
-      helm_chart_name: "tee-node"
       image_tag_source: "commit_tag"
