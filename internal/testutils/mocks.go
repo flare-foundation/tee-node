@@ -289,7 +289,7 @@ func sign(r *instruction.Data, privKey *ecdsa.PrivateKey) ([]byte, error) {
 	return signature, nil
 }
 
-func MockExtenderServerResult(t *testing.T, extenderPort int, actionResponseChan chan *types.ActionResult) {
+func MockSignServerResult(t *testing.T, signPort int, actionResponseChan chan *types.ActionResult) {
 	t.Helper()
 
 	router := http.NewServeMux()
@@ -307,5 +307,5 @@ func MockExtenderServerResult(t *testing.T, extenderPort int, actionResponseChan
 		require.NoError(t, err)
 	})
 
-	log.Fatal(http.ListenAndServe(fmt.Sprintf(":%d", extenderPort), router))
+	log.Fatal(http.ListenAndServe(fmt.Sprintf(":%d", signPort), router))
 }

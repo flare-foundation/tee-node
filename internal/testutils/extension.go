@@ -16,15 +16,15 @@ import (
 )
 
 type DummyExtensionServer struct {
-	server       *http.Server
-	port         int
-	extenderPort int
-	version      string
+	server   *http.Server
+	port     int
+	signPort int
+	version  string
 }
 
-// NewDummyExtensionServer spins up a mock extension server that exercises the
+// NewDummyExtensionServer spins up a mock signing server that exercises the
 // TEE-node interface for local development.
-func NewDummyExtensionServer(port, extenderPort int) *DummyExtensionServer {
+func NewDummyExtensionServer(port, signPort int) *DummyExtensionServer {
 	addr := fmt.Sprintf(":%d", port)
 
 	server := &http.Server{
@@ -32,10 +32,10 @@ func NewDummyExtensionServer(port, extenderPort int) *DummyExtensionServer {
 	}
 
 	e := DummyExtensionServer{
-		server:       server,
-		port:         port,
-		extenderPort: extenderPort,
-		version:      "0.0.0-test",
+		server:   server,
+		port:     port,
+		signPort: signPort,
+		version:  "0.0.0-test",
 	}
 
 	e.registerRoutes()
@@ -161,7 +161,7 @@ func (d *DummyExtensionServer) processAction(action *types.Action) error {
 // mockPostActionResult sleeps and posts a mock action result to localhost:teePort/result.
 func (d *DummyExtensionServer) mockPostActionResult(action *types.Action) {
 	time.Sleep(50 * time.Millisecond)
-	url := fmt.Sprintf("http://localhost:%d/result", d.extenderPort)
+	url := fmt.Sprintf("http://localhost:%d/result", d.signPort)
 
 	result := d.mockActionResult(action)
 

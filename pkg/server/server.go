@@ -54,11 +54,7 @@ func StartServerPMW(configPort int) {
 
 // StartServerExtension runs the extension-enabled TEE node and supporting
 // HTTP servers for testing purposes.
-//
-// configPort is a node's port for receiving configuration requests (like setting proxy URL).
-// extenderPort is a node's port for receiving action results from extensions.
-// extensionPort is an extension's port that receives actions from its node.
-func StartServerExtension(configPort, extenderPort, extensionPort int) {
+func StartServerExtension(configPort, signPort, extensionPort int) {
 	// Initialize.
 	teeNode, ws, ps, cs, err := initialize(configPort)
 	if err != nil {
@@ -66,9 +62,9 @@ func StartServerExtension(configPort, extenderPort, extensionPort int) {
 		return
 	}
 
-	// Start an extender server.
+	// Start a signing server.
 	go func() {
-		err := server.NewExtenderServer(extenderPort, teeNode, ws, cs.ProxyURL).Serve()
+		err := server.NewSignServer(signPort, teeNode, ws, cs.ProxyURL).Serve()
 		if err != nil {
 			logger.Errorf("extension server error: %v", err)
 		}
@@ -80,11 +76,7 @@ func StartServerExtension(configPort, extenderPort, extensionPort int) {
 
 // StartTestServerExtension runs the extension-enabled TEE node and supporting
 // HTTP servers for testing purposes.
-//
-// configPort is a node's port for receiving configuration requests (like setting proxy URL).
-// extenderPort is a node's port for receiving action results from extensions.
-// extensionPort is an extension's port that receives actions from its node.
-func StartTestServerExtension(t *testing.T, configPort, extenderPort, extensionPort int) (common.Address, *wallets.Storage) {
+func StartTestServerExtension(t *testing.T, configPort, signPort, extensionPort int) (common.Address, *wallets.Storage) {
 	t.Helper()
 
 	// Initialize.
@@ -93,9 +85,9 @@ func StartTestServerExtension(t *testing.T, configPort, extenderPort, extensionP
 		t.Errorf("node initialization failed: %v", err)
 	}
 
-	// Start an extender server.
+	// Start a signing server.
 	go func() {
-		err := server.NewExtenderServer(extenderPort, teeNode, ws, cs.ProxyURL).Serve()
+		err := server.NewSignServer(signPort, teeNode, ws, cs.ProxyURL).Serve()
 		if err != nil {
 			t.Errorf("extension server error: %v", err)
 		}
@@ -109,8 +101,8 @@ func StartTestServerExtension(t *testing.T, configPort, extenderPort, extensionP
 
 // StartExampleExtension launches the dummy extension server on the configured
 // ports.
-func StartExampleExtension(extenderPort, extensionPort int) {
-	server := testutils.NewDummyExtensionServer(extensionPort, extenderPort)
+func StartExampleExtension(signPort, extensionPort int) {
+	server := testutils.NewDummyExtensionServer(extensionPort, signPort)
 
 	server.Serve() //nolint:errcheck,gosec
 }

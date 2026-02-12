@@ -16,6 +16,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/crypto/ecies"
+	"github.com/flare-foundation/go-flare-common/pkg/logger"
 	"github.com/flare-foundation/tee-node/internal/router"
 	"github.com/flare-foundation/tee-node/internal/router/queue"
 	"github.com/flare-foundation/tee-node/internal/settings"
@@ -33,16 +34,16 @@ const (
 	walletID      = "walletID"
 )
 
-type ExtenderServer struct {
+type SignServer struct {
 	server   *http.Server
 	wStorage *wallets.Storage
 	node     *node.Node
 	proxyURL *settings.ProxyURLMutex
 }
 
-// NewExtenderServer constructs an HTTP server that exposes wallet and TEE
+// NewSignServer constructs an HTTP server that exposes wallet and TEE
 // functionality to extension clients on the provided port.
-func NewExtenderServer(port int, node *node.Node, wStorage *wallets.Storage, proxyURL *settings.ProxyURLMutex) *ExtenderServer {
+func NewSignServer(port int, node *node.Node, wStorage *wallets.Storage, proxyURL *settings.ProxyURLMutex) *SignServer {
 	addr := fmt.Sprintf(":%d", port)
 
 	server := &http.Server{
@@ -54,7 +55,7 @@ func NewExtenderServer(port int, node *node.Node, wStorage *wallets.Storage, pro
 		// MaxHeaderBytes:               0,
 	}
 
-	e := ExtenderServer{
+	e := SignServer{
 		server:   server,
 		wStorage: wStorage,
 		node:     node,
@@ -67,16 +68,17 @@ func NewExtenderServer(port int, node *node.Node, wStorage *wallets.Storage, pro
 }
 
 // Serve starts the server.
-func (s *ExtenderServer) Serve() error {
+func (s *SignServer) Serve() error {
+	logger.Infof("Node's extension server listening at %v.", s.server.Addr)
 	return s.server.ListenAndServe()
 }
 
 // Close gracefully closes the server.
-func (s *ExtenderServer) Close(ctx context.Context) error {
+func (s *SignServer) Close(ctx context.Context) error {
 	return s.server.Shutdown(ctx)
 }
 
-func (s *ExtenderServer) registerRoutes() {
+func (s *SignServer) registerRoutes() {
 	mux := http.NewServeMux()
 	s.server.Handler = addContentType(mux, "application/json")
 
@@ -90,7 +92,7 @@ func (s *ExtenderServer) registerRoutes() {
 }
 
 // getKeyInfoHandler handles GET /key-info/{walletID}/{keyID}.
-func (s *ExtenderServer) getKeyInfoHandler(w http.ResponseWriter, r *http.Request) {
+func (s *SignServer) getKeyInfoHandler(w http.ResponseWriter, r *http.Request) {
 	wID, err := hashParam(r, walletID)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
@@ -135,7 +137,7 @@ func (s *ExtenderServer) getKeyInfoHandler(w http.ResponseWriter, r *http.Reques
 }
 
 // signWithKeyHandler handles POST /sign/{walletID}/{keyID}.
-func (s *ExtenderServer) signWithKeyHandler(w http.ResponseWriter, r *http.Request) {
+func (s *SignServer) signWithKeyHandler(w http.ResponseWriter, r *http.Request) {
 	wID, err := hashParam(r, walletID)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
@@ -190,7 +192,7 @@ func (s *ExtenderServer) signWithKeyHandler(w http.ResponseWriter, r *http.Reque
 }
 
 // signWithTeeHandler handles POST /sign.
-func (s *ExtenderServer) signWithTeeHandler(w http.ResponseWriter, r *http.Request) {
+func (s *SignServer) signWithTeeHandler(w http.ResponseWriter, r *http.Request) {
 	// Parse request body
 	var signRequest types.SignRequest
 
@@ -226,7 +228,7 @@ func (s *ExtenderServer) signWithTeeHandler(w http.ResponseWriter, r *http.Reque
 }
 
 // postResultHandler handles POST /result.
-func (s *ExtenderServer) postResultHandler(w http.ResponseWriter, r *http.Request) {
+func (s *SignServer) postResultHandler(w http.ResponseWriter, r *http.Request) {
 	// Parse request body
 	var result types.ActionResult
 
@@ -270,7 +272,7 @@ func (s *ExtenderServer) postResultHandler(w http.ResponseWriter, r *http.Reques
 }
 
 // decryptWithKeyHandler handles POST /decrypt/{walletD}/{keyID}.
-func (s *ExtenderServer) decryptWithKeyHandler(w http.ResponseWriter, r *http.Request) {
+func (s *SignServer) decryptWithKeyHandler(w http.ResponseWriter, r *http.Request) {
 	wID, err := hashParam(r, walletID)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
@@ -328,7 +330,7 @@ func (s *ExtenderServer) decryptWithKeyHandler(w http.ResponseWriter, r *http.Re
 }
 
 // decryptWithTeeHandler handles POST /decrypt.
-func (s *ExtenderServer) decryptWithTeeHandler(w http.ResponseWriter, r *http.Request) {
+func (s *SignServer) decryptWithTeeHandler(w http.ResponseWriter, r *http.Request) {
 	// Parse request body
 	var decryptRequest types.DecryptRequest
 

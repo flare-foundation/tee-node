@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/flare-foundation/go-flare-common/pkg/logger"
 	"github.com/flare-foundation/tee-node/pkg/types"
 )
 
@@ -72,6 +73,7 @@ func NewConfigServer(port int, configurer Configurer) *ConfigServer {
 
 // Serve starts the proxy configuration server and blocks until it stops.
 func (pc *ConfigServer) Serve() error {
+	logger.Infof("Config server listening at %v.", pc.server.Addr)
 	return pc.server.ListenAndServe()
 }
 

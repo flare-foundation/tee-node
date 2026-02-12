@@ -19,15 +19,15 @@ func TestDefaultInstructionProcessor(t *testing.T) {
 	_, signers, privKeys := testutils.GenerateAndSetInitialPolicy(t, pStorage, numVoters, randSeed, epochID)
 	variableMessages := make([][]byte, len(privKeys))
 
-	extenderPort := 8612
+	signPort := 8612
 	extensionPort := 8613
 
-	extensionServer := testutils.NewDummyExtensionServer(extensionPort, extenderPort)
-	go extensionServer.Serve()    //nolint:errcheck
-	defer extensionServer.Close() //nolint:errcheck
+	signServer := testutils.NewDummyExtensionServer(extensionPort, signPort)
+	go signServer.Serve()    //nolint:errcheck
+	defer signServer.Close() //nolint:errcheck
 
 	actionResponseChan := make(chan *types.ActionResult, 1)
-	go testutils.MockExtenderServerResult(t, extenderPort, actionResponseChan)
+	go testutils.MockSignServerResult(t, signPort, actionResponseChan)
 	time.Sleep(500 * time.Millisecond)
 
 	proc := NewDefaultProcessor(extensionPort, pStorage, testNode)

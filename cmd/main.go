@@ -22,7 +22,7 @@ func main() {
 	ps := policy.InitializeStorage()
 	logger.Info("tee node initialized")
 
-	pc := settings.NewConfigServer(settings.ConfigureServerPort, teeNode)
+	pc := settings.NewConfigServer(settings.ConfigPort, teeNode)
 	go func() {
 		err := pc.Serve()
 		if err != nil {
