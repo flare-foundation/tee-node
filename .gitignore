@@ -17,3 +17,6 @@ FlareTEE.docx
 coverage*
 
 .idea/
+
+result/
+nix/

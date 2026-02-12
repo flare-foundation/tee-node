@@ -26,7 +26,7 @@ func main() {
 	ws := wallets.InitializeStorage()
 	ps := policy.InitializeStorage()
 
-	pc := settings.NewConfigServer(settings.ConfigureServerPort, teeNode)
+	pc := settings.NewConfigServer(settings.ConfigPort, teeNode)
 	go func() {
 		err := pc.Serve()
 		if err != nil {
@@ -34,7 +34,7 @@ func main() {
 		}
 	}()
 
-	extServer := server.NewExtenderServer(settings.ExtensionServerPort, teeNode, ws, pc.ProxyURL)
+	extServer := server.NewSignServer(settings.SignPort, teeNode, ws, pc.ProxyURL)
 	go func() {
 		err := extServer.Serve()
 		if err != nil {

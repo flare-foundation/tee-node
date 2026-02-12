@@ -27,7 +27,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func setupTestServer(t *testing.T, proxyPort int, port int) *ExtenderServer {
+func setupTestServer(t *testing.T, proxyPort int, port int) *SignServer {
 	t.Helper()
 
 	testNode, err := node.Initialize(node.ZeroState{})
@@ -40,7 +40,7 @@ func setupTestServer(t *testing.T, proxyPort int, port int) *ExtenderServer {
 	}
 
 	// Create test server
-	server := NewExtenderServer(port, testNode, wStorage, &proxyURL)
+	server := NewSignServer(port, testNode, wStorage, &proxyURL)
 
 	return server
 }
