@@ -159,7 +159,7 @@ func TestBackupID(t *testing.T) {
 		RandomNonce:   common.HexToHash("0x1000000000000000000000000000000000000000000000000000000000000001"),
 	}
 
-	require.True(t, bI0.Equal(&bI1))
+	require.Nil(t, bI0.Equal(&bI1))
 
 	t.Run("not equal", func(t *testing.T) {
 		bI2 := WalletBackupID{
@@ -174,43 +174,43 @@ func TestBackupID(t *testing.T) {
 		}
 
 		bI2.TeeID = bI0.TeeID
-		require.False(t, bI0.Equal(&bI2))
+		require.NotNil(t, bI0.Equal(&bI2))
 		bI2.TeeID = zeroBI.TeeID
 
 		bI2.WalletID = bI0.WalletID
-		require.False(t, bI0.Equal(&bI2))
+		require.NotNil(t, bI0.Equal(&bI2))
 		bI2.WalletID = zeroBI.WalletID
 
 		bI2.KeyID = bI0.KeyID
-		require.False(t, bI0.Equal(&bI2))
+		require.NotNil(t, bI0.Equal(&bI2))
 		bI2.KeyID = zeroBI.KeyID
 
 		bI2.PublicKey = bI0.PublicKey
-		require.False(t, bI0.Equal(&bI2))
+		require.NotNil(t, bI0.Equal(&bI2))
 		bI2.PublicKey = zeroBI.PublicKey
 
 		bI2.KeyType = bI0.KeyType
-		require.False(t, bI0.Equal(&bI2))
+		require.NotNil(t, bI0.Equal(&bI2))
 		bI2.KeyType = zeroBI.KeyType
 
 		bI2.SigningAlgo = bI0.SigningAlgo
-		require.False(t, bI0.Equal(&bI2))
+		require.NotNil(t, bI0.Equal(&bI2))
 		bI2.SigningAlgo = zeroBI.SigningAlgo
 
 		bI2.RewardEpochID = bI0.RewardEpochID
-		require.False(t, bI0.Equal(&bI2))
+		require.NotNil(t, bI0.Equal(&bI2))
 		bI2.RewardEpochID = zeroBI.RewardEpochID
 
 		bI2.RandomNonce = bI0.RandomNonce
-		require.False(t, bI0.Equal(&bI2))
+		require.NotNil(t, bI0.Equal(&bI2))
 		bI2.RandomNonce = zeroBI.RandomNonce
 	})
 
 	t.Run("encoding + hash", func(t *testing.T) {
-		h0 := zeroBI.Hash()
+		h0, err := zeroBI.Hash()
 		require.NoError(t, err)
 
-		h1 := bI0.Hash()
+		h1, err := bI0.Hash()
 		require.NoError(t, err)
 
 		require.NotEqual(t, h0, h1)

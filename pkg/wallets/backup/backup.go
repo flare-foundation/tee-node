@@ -70,7 +70,7 @@ type PartialWalletBackupID struct {
 }
 
 func (pwid *PartialWalletBackupID) Equal(w *PartialWalletBackupID) bool {
-	return pwid.WalletBackupID.Equal(&w.WalletBackupID) &&
+	return pwid.WalletBackupID.Equal(&w.WalletBackupID) == nil &&
 		slices.Compare(pwid.PartialPubKey, w.PartialPubKey) == 0 &&
 		pwid.IsAdmin == w.IsAdmin
 }

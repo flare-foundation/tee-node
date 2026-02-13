@@ -236,6 +236,35 @@ func TestKeyGenerateDuplicateWallet(t *testing.T) {
 	require.Contains(t, err.Error(), "already exists")
 }
 
+func TestKeyGenerateAfterDeleteSameWalletFails(t *testing.T) {
+	setup := setupKeyGenerateTest(t)
+
+	generateMsg := setup.defaultKeyGenerateMessage()
+	generateInstruction := setup.buildKeyGenerateInstruction(t, generateMsg)
+
+	_, _, err := setup.processor.KeyGenerate(types.Threshold, generateInstruction, nil, nil, nil)
+	require.NoError(t, err)
+
+	deleteMsg := cwallet.ITeeWalletKeyManagerKeyDelete{
+		TeeId:    setup.teeID,
+		WalletId: setup.walletID,
+		KeyId:    setup.keyID,
+		Nonce:    big.NewInt(1),
+	}
+	deleteInstructionBuilder := &keyDeleteTestSetup{
+		teeID:   setup.teeID,
+		epochID: setup.epochID,
+	}
+	deleteInstruction := deleteInstructionBuilder.buildKeyDeleteInstruction(t, deleteMsg)
+
+	_, _, err = setup.processor.KeyDelete(types.Threshold, deleteInstruction, nil, nil, nil)
+	require.NoError(t, err)
+
+	_, _, err = setup.processor.KeyGenerate(types.Threshold, generateInstruction, nil, nil, nil)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "permanent record")
+}
+
 func TestKeyGenerateThresholdExceedsAdmins(t *testing.T) {
 	setup := setupKeyGenerateTest(t)
 
@@ -504,24 +533,14 @@ func TestKeyDeleteInvalidNonce(t *testing.T) {
 func TestKeyDeleteNonceTooSmall(t *testing.T) {
 	setup := setupKeyDeleteTest(t)
 
-	// First, successfully delete with nonce 1
-	msg := setup.defaultKeyDeleteMessage(1)
-	deleteInstruction := setup.buildKeyDeleteInstruction(t, msg)
-
-	_, _, err := setup.processor.KeyDelete(types.Threshold, deleteInstruction, nil, nil, nil)
-	require.NoError(t, err)
-
 	// Verify nonce was updated to 1
 	idPair := wallets.KeyIDPair{WalletID: setup.walletID, KeyID: setup.keyID}
 	nonce, err := setup.wStorage.Nonce(idPair)
 	require.NoError(t, err)
-	require.Equal(t, uint64(1), nonce)
+	require.Equal(t, uint64(0), nonce)
 
-	// Now recreate the wallet for another delete attempt
-	testutils.CreateMockWallet(t, setup.testNode, setup.pStorage, setup.wStorage, setup.walletID, setup.keyID, setup.epochID, []*ecdsa.PrivateKey{setup.adminPrivKey}, nil)
-
-	// Try to delete again with nonce 1 (same as current) - should fail
-	msg2 := setup.defaultKeyDeleteMessage(1)
+	// Try to delete again with nonce 0 (same as current) - should fail
+	msg2 := setup.defaultKeyDeleteMessage(0)
 	deleteInstruction2 := setup.buildKeyDeleteInstruction(t, msg2)
 
 	_, _, err = setup.processor.KeyDelete(types.Threshold, deleteInstruction2, nil, nil, nil)
@@ -1192,7 +1211,7 @@ func TestKeyDataProviderRestoreInvalidBackupIdTeeID(t *testing.T) {
 
 	_, _, err := setup.processor.KeyDataProviderRestore(types.Threshold, restoreInstruction, variableMessages, signers, nil)
 	require.Error(t, err)
-	require.Equal(t, err.Error(), "wallet backup id in the metadata does not match the given id")
+	require.Equal(t, err.Error(), "wallet ids do not match")
 }
 
 func TestKeyDataProviderRestoreInvalidTeeID(t *testing.T) {

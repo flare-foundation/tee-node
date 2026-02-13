@@ -56,7 +56,13 @@ func (p *Processor) KeyGenerate(
 	p.wStorage.Lock()
 	defer p.wStorage.Unlock()
 
+	keyIDPair := wallets.KeyIDPair{WalletID: req.WalletId, KeyID: req.KeyId}
+
 	if submissionTag == types.Threshold {
+		if p.wStorage.WalletExistsPermanent(keyIDPair) {
+			return nil, nil, errors.New("a permanent record of the wallet already exists")
+		}
+
 		key, err := wallets.GenerateNewKey(req)
 		if err != nil {
 			return nil, nil, err
@@ -67,7 +73,7 @@ func (p *Processor) KeyGenerate(
 			return nil, nil, err
 		}
 	}
-	storedWallet, err := p.wStorage.Get(wallets.KeyIDPair{WalletID: req.WalletId, KeyID: req.KeyId})
+	storedWallet, err := p.wStorage.Get(keyIDPair)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -193,6 +199,12 @@ func (p *Processor) KeyDataProviderRestore(
 		if p.wStorage.WalletExists(id) {
 			return nil, nil, errors.New("wallet with given wallet-key id already exists")
 		}
+		if p.wStorage.WalletExistsPermanent(id) {
+			err = p.wStorage.CheckNonce(id, nonce)
+			if err != nil {
+				return nil, nil, err
+			}
+		}
 
 		err = p.wStorage.Store(recoveredWallet)
 		if err != nil {
@@ -231,10 +243,10 @@ func (p *Processor) KeyDataProviderRestore(
 
 	case types.End:
 		exists := p.wStorage.WalletExists(id)
-		checkNonce, err := p.wStorage.Nonce(id)
 		if !exists {
 			return nil, nil, errors.New("wallet does not exists")
 		}
+		checkNonce, err := p.wStorage.Nonce(id)
 		if err != nil {
 			return nil, nil, err
 		}

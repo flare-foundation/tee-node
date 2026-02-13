@@ -130,13 +130,24 @@ type WalletBackupID struct {
 }
 
 // Equal checks if two wallet backup identifiers are equal.
-// Will silently fail if either PublicKey is (absurdly) too large. The length should be checked beforehand.
-func (wid *WalletBackupID) Equal(w *WalletBackupID) bool {
-	return slices.Equal(wid.encodeABI(), w.encodeABI())
+func (wid *WalletBackupID) Equal(w *WalletBackupID) error {
+	widEncoded, err := wid.encodeABI()
+	if err != nil {
+		return err
+	}
+	wEncoded, err := w.encodeABI()
+	if err != nil {
+		return err
+	}
+	if !slices.Equal(widEncoded, wEncoded) {
+		return errors.New("wallet ids do not match")
+	}
+
+	return nil
 }
 
 // encodeABI prepares the wallet backup identifier for encoding.
-func (wid *WalletBackupID) encodeABI() []byte {
+func (wid *WalletBackupID) encodeABI() ([]byte, error) {
 	sStruct := wallet.ITeeWalletBackupManagerBackupId{
 		TeeId:         wid.TeeID,
 		WalletId:      wid.WalletID,
@@ -148,18 +159,19 @@ func (wid *WalletBackupID) encodeABI() []byte {
 		RandomNonce:   wid.RandomNonce,
 	}
 
-	enc, _ := structs.Encode(wallet.BackupIdStructArg, sStruct)
-	return enc
+	return structs.Encode(wallet.BackupIdStructArg, sStruct)
 }
 
 // Hash returns the keccak hash of the wallet backup identifier.
-// Will silently fail if the PublicKey is (absurdly) too large. The length should be checked beforehand.
-func (wid *WalletBackupID) Hash() common.Hash {
-	backupIDBytes := wid.encodeABI()
+func (wid *WalletBackupID) Hash() (common.Hash, error) {
+	backupIDBytes, err := wid.encodeABI()
+	if err != nil {
+		return common.Hash{}, err
+	}
 
 	hash := crypto.Keccak256Hash(backupIDBytes)
 
-	return hash
+	return hash, nil
 }
 
 type SignedKeyExistenceProof struct {

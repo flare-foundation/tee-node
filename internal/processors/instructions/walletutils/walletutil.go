@@ -63,8 +63,8 @@ func (p *Processor) keyRestoreDataCheck(
 	if err != nil {
 		return nil, 0, nil, err
 	}
-	if !backupMetadata.WalletBackupID.Equal(&backupID) { //nolint:staticcheck // to avoid confusion we do not call backupMetadata.Equal
-		return nil, 0, nil, errors.New("wallet backup id in the metadata does not match the given id")
+	if err = backupMetadata.WalletBackupID.Equal(&backupID); err != nil { //nolint:staticcheck // to avoid confusion we do not call backupMetadata.Equal
+		return nil, 0, nil, err
 	}
 
 	adminAddresses, err := utils.PubKeysToAddresses(backupMetadata.AdminsPublicKeys)
@@ -231,7 +231,7 @@ func processKeySplitPlaintext(plaintext []byte, walletBackupID wallets.WalletBac
 	}
 
 	for _, keySplit := range keySplits {
-		if !keySplit.WalletBackupID.Equal(&walletBackupID) {
+		if keySplit.WalletBackupID.Equal(&walletBackupID) != nil {
 			return nil, errors.New("wallet backup id in the share does not match the id in the key split")
 		}
 

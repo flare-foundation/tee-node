@@ -38,7 +38,10 @@ func BackupWallet(wallet *wallets.Wallet, providerPubKeys []*ecdsa.PublicKey, si
 	for i, pubKey := range wallet.AdminPublicKeys {
 		adminPubKeys[i] = types.PubKeyToStruct(pubKey)
 	}
-	normalizedWeights := weightsNormalization(signingPolicyWeights, normalizationParam)
+	normalizedWeights, err := weightsNormalization(signingPolicyWeights, normalizationParam)
+	if err != nil {
+		return nil, err
+	}
 	randomNonce, err := random.Hash()
 	if err != nil {
 		return nil, err
@@ -99,9 +102,12 @@ func BackupWallet(wallet *wallets.Wallet, providerPubKeys []*ecdsa.PublicKey, si
 	return walletBackup, nil
 }
 
-func weightsNormalization(weights []uint16, total uint16) []uint16 {
+func weightsNormalization(weights []uint16, total uint16) ([]uint16, error) {
 	sum := uint16(0)
 	for _, weight := range weights {
+		if sum >= -weight {
+			return nil, errors.New("overflow of weights")
+		}
 		sum += weight
 	}
 
@@ -114,7 +120,7 @@ func weightsNormalization(weights []uint16, total uint16) []uint16 {
 		normalizedWeights[i] = normalizedWeight
 	}
 
-	return normalizedWeights
+	return normalizedWeights, nil
 }
 
 // SplitAndEncrypt shards the provided private key, encrypts each share for its
@@ -281,8 +287,8 @@ func CheckKeyShares(splits []*backup.KeySplit, backupMetaData *backup.WalletBack
 		}
 	}
 
-	if !partialBackupID.WalletBackupID.Equal(&backupMetaData.WalletBackupID) {
-		return errors.New("backup metadata's id does not match expected id")
+	if err := partialBackupID.WalletBackupID.Equal(&backupMetaData.WalletBackupID); err != nil {
+		return err
 	}
 
 	return nil
@@ -312,7 +318,7 @@ func JoinKeyShares(splits []*backup.KeySplit, threshold uint64) (*ecdsa.PrivateK
 	privateKey := crypto.ToECDSAUnsafe(privateKeyBigInt.Bytes())
 	expectedPartialPublicKey := splits[0].PartialPubKey // at this point splits is checked to not be empty
 	if !slices.Equal(types.PubKeyToBytes(&privateKey.PublicKey), expectedPartialPublicKey) {
-		return nil, err
+		return nil, errors.New("private key reconstruction error: partial result does not match expected public key")
 	}
 
 	return privateKey, nil

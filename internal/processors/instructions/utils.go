@@ -56,7 +56,7 @@ func voteHash(instructionDataFixed *instruction.DataFixed, signatures, variableM
 }
 
 func checkPolicyValidity(policyID, activePolicyID uint32) error {
-	if (activePolicyID - policyID) > 1 {
+	if activePolicyID-1 > policyID {
 		return errors.New("signing policy too old")
 	}
 
