@@ -1,0 +1,63 @@
+# Build stage
+FROM docker.io/golang:1.25.1-trixie@sha256:ff83f3762390c2cccb53618ccc18af23e556aff9b1db4428637e9f63287c8171 AS builder
+
+ARG SOURCE_DATE_EPOCH
+ENV SOURCE_DATE_EPOCH=$SOURCE_DATE_EPOCH
+
+WORKDIR /app
+
+COPY --chmod=755 --chown=0:0 ./snap_sources_list.sh .
+RUN bash snap_sources_list.sh
+
+# Install git and certificates (needed for private repos and some dependencies)
+RUN apt-get update \
+ && apt-get -y install --no-install-recommends \
+      git=1:2.* \
+      ca-certificates \
+ && rm -rf /var/lib/apt/lists/*
+
+# Copy go mod and sum files
+COPY --chmod=644 --chown=0:0 go.mod go.sum ./
+
+# Download dependencies
+RUN go mod download
+
+# Verify hashes
+RUN go mod verify
+
+# Copy the source code
+COPY --chmod=644 --chown=0:0 assets/ assets/
+COPY --chmod=644 --chown=0:0 cmd/ cmd/
+COPY --chmod=644 --chown=0:0 internal/ internal/
+COPY --chmod=644 --chown=0:0 pkg/ pkg/
+
+# Build the application with reproducible flags
+RUN CGO_ENABLED=0 GOOS=linux GOFLAGS="-buildvcs=false" go build -trimpath -ldflags="-buildid=" -o /app/server cmd/main.go
+
+# Set file modification times to SOURCE_DATE_EPOCH for reproducibility
+RUN find /app -exec touch -d "@${SOURCE_DATE_EPOCH}" {} +
+
+# ------------------------------------------------------------------------
+
+# Final stage
+FROM gcr.io/distroless/static-debian13:nonroot@sha256:f9f84bd968430d7d35e8e6d55c40efb0b980829ec42920a49e60e65eac0d83fc
+
+ARG SOURCE_DATE_EPOCH
+ENV SOURCE_DATE_EPOCH=$SOURCE_DATE_EPOCH
+
+# Copy binary from builder
+COPY --chmod=755 --chown=65532:65532 --from=builder /app/server /app/server
+COPY --chmod=644 --chown=65532:65532 --from=builder /app/assets/google_confidential_space_root.crt /app/assets/google_confidential_space_root.crt
+
+# Set environment variables
+ENV TZ=UTC
+
+LABEL "tee.launch_policy.allow_env_override"="LOG_LEVEL,PROXY_URL,INITIAL_OWNER,EXTENSION_ID"
+
+# Expose port (adjust as needed)
+EXPOSE 5500
+
+# Run the application
+WORKDIR /app
+ENV MODE=0
+CMD ["./server"]
