@@ -77,7 +77,7 @@ func setupFTDCProveTest(t *testing.T) *ftdcProveTestSetup {
 }
 
 func (s *ftdcProveTestSetup) setupInstructionProcessor() instructions.Processor {
-	return instructions.NewProcessor(s.processor.Prove, s.testNode, s.pStorage)
+	return instructions.NewProcessor(s.processor.Prove, s.testNode, s.pStorage, true)
 }
 
 // buildFTDCRequest creates an FTDC attestation request with the given parameters

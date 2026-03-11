@@ -23,6 +23,11 @@ type Configurer interface {
 	SetExtensionID(common.Hash) error
 }
 
+type IdentifierAndSigner interface {
+	Identifier
+	Signer
+}
+
 type IdentifierSignerAndDecrypter interface {
 	Identifier
 	Signer

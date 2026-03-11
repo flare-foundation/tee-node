@@ -136,14 +136,16 @@ func TestXRPLSigning(t *testing.T) {
 		SenderAddress:    "rHb9CJAWyB4rj91VRWn96DkukG4bwdtyTh",
 		RecipientAddress: "rrrrrrrrrrrrrrrrrrrrrhoLvTp",
 		Amount:           big.NewInt(1000000000),
-		Fee:              big.NewInt(1000),
+		MaxFee:           big.NewInt(1000),
+		FeeSchedule:      []byte{0x27, 0x10, 0x00, 0x00}, // 100% of MaxFee, 0s delay
 		PaymentReference: [32]byte{},
 		Nonce:            uint64(0),
 		SubNonce:         uint64(0),
 		BatchEndTs:       uint64(0),
 	}
 
-	tx := xrpl.PaymentTxFromInstruction(originalMessage)
+	tx, err := xrpl.PaymentTxFromInstruction(originalMessage, 0)
+	require.NoError(t, err)
 
 	pk := ToECDSAUnsafe(wal.PrivateKey)
 
@@ -155,7 +157,8 @@ func TestXRPLSigning(t *testing.T) {
 
 	accID := secp256k1.PrvToID(pk)
 
-	msg := utils.Prepare(encoded, true, accID)
+	msg, err := utils.Prepare(encoded, true, accID)
+	require.NoError(t, err)
 
 	sig, err := wal.Sign(msg)
 	require.NoError(t, err)

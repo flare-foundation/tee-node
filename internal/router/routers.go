@@ -33,19 +33,19 @@ func NewPMWRouter(teeNode *pnode.Node, wStorage *wallets.Storage, pStorage *poli
 
 	wp := walletutils.NewProcessor(teeNode, pStorage, wStorage)
 
-	r.RegisterInstructionProcessor(op.Wallet, op.KeyGenerate, instructions.NewProcessor(wp.KeyGenerate, teeNode, pStorage))
-	r.RegisterInstructionProcessor(op.Wallet, op.KeyDelete, instructions.NewProcessor(wp.KeyDelete, teeNode, pStorage))
-	r.RegisterInstructionProcessor(op.Wallet, op.KeyDataProviderRestore, instructions.NewProcessor(wp.KeyDataProviderRestore, teeNode, pStorage))
+	r.RegisterInstructionProcessor(op.Wallet, op.KeyGenerate, instructions.NewProcessor(wp.KeyGenerate, teeNode, pStorage, true))
+	r.RegisterInstructionProcessor(op.Wallet, op.KeyDelete, instructions.NewProcessor(wp.KeyDelete, teeNode, pStorage, true))
+	r.RegisterInstructionProcessor(op.Wallet, op.KeyDataProviderRestore, instructions.NewProcessor(wp.KeyDataProviderRestore, teeNode, pStorage, true))
 
 	rp := regutils.NewProcessor(teeNode, pStorage)
-	r.RegisterInstructionProcessor(op.Reg, op.TEEAttestation, instructions.NewProcessor(rp.TEEAttestation, teeNode, pStorage))
+	r.RegisterInstructionProcessor(op.Reg, op.TEEAttestation, instructions.NewProcessor(rp.TEEAttestation, teeNode, pStorage, true))
 
 	ftp := ftdcutils.NewProcessor(teeNode)
-	r.RegisterInstructionProcessor(op.FTDC, op.Prove, instructions.NewProcessor(ftp.Prove, teeNode, pStorage))
+	r.RegisterInstructionProcessor(op.FTDC, op.Prove, instructions.NewProcessor(ftp.Prove, teeNode, pStorage, true))
 
-	sp := signutils.NewProcessor(teeNode, wStorage)
-	r.RegisterInstructionProcessor(op.XRP, op.Pay, instructions.NewProcessor(sp.SignXRPLPayment, teeNode, pStorage))
-	r.RegisterInstructionProcessor(op.XRP, op.Reissue, instructions.NewProcessor(sp.SignXRPLPayment, teeNode, pStorage))
+	sp := signutils.NewProcessor(teeNode, wStorage, proxyURL)
+	r.RegisterInstructionProcessor(op.XRP, op.Pay, instructions.NewProcessor(sp.SignXRPLPayment, teeNode, pStorage, false))
+	r.RegisterInstructionProcessor(op.XRP, op.Reissue, instructions.NewProcessor(sp.SignXRPLPayment, teeNode, pStorage, false))
 
 	return r
 }
@@ -65,12 +65,12 @@ func NewForwardRouter(teeNode *pnode.Node, wStorage *wallets.Storage, pStorage *
 	r.RegisterDirectProcessor(op.Policy, op.UpdatePolicy, pp.UpdatePolicy)
 
 	wp := walletutils.NewProcessor(teeNode, pStorage, wStorage)
-	r.RegisterInstructionProcessor(op.Wallet, op.KeyGenerate, instructions.NewProcessor(wp.KeyGenerate, teeNode, pStorage))
-	r.RegisterInstructionProcessor(op.Wallet, op.KeyDelete, instructions.NewProcessor(wp.KeyDelete, teeNode, pStorage))
-	r.RegisterInstructionProcessor(op.Wallet, op.KeyDataProviderRestore, instructions.NewProcessor(wp.KeyDataProviderRestore, teeNode, pStorage))
+	r.RegisterInstructionProcessor(op.Wallet, op.KeyGenerate, instructions.NewProcessor(wp.KeyGenerate, teeNode, pStorage, true))
+	r.RegisterInstructionProcessor(op.Wallet, op.KeyDelete, instructions.NewProcessor(wp.KeyDelete, teeNode, pStorage, true))
+	r.RegisterInstructionProcessor(op.Wallet, op.KeyDataProviderRestore, instructions.NewProcessor(wp.KeyDataProviderRestore, teeNode, pStorage, true))
 
 	rp := regutils.NewProcessor(teeNode, pStorage)
-	r.RegisterInstructionProcessor(op.Reg, op.TEEAttestation, instructions.NewProcessor(rp.TEEAttestation, teeNode, pStorage))
+	r.RegisterInstructionProcessor(op.Reg, op.TEEAttestation, instructions.NewProcessor(rp.TEEAttestation, teeNode, pStorage, true))
 
 	defInst := instructions.NewDefaultProcessor(extensionPort, pStorage, teeNode)
 	r.RegisterDefaultInstruction(defInst)

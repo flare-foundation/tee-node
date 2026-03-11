@@ -301,7 +301,8 @@ func signTransaction(
 		SenderAddress:    "ravbaTwRkNqecy9Zdw8zwrw4uK5awjqhFd",
 		RecipientAddress: "rrrrrrrrrrrrrrrrrNAMEtxvNvQ",
 		Amount:           big.NewInt(1000000000),
-		Fee:              big.NewInt(10),
+		MaxFee:           big.NewInt(10),
+		FeeSchedule:      []byte{0x27, 0x10, 0x00, 0x01}, // 100% of MaxFee, 1s delay
 		PaymentReference: [32]byte{},
 		Nonce:            0,
 		SubNonce:         0,
@@ -316,8 +317,21 @@ func signTransaction(
 	)
 	actionInfoChan <- action
 
-	actionResponse := <-actionResponseChan
-	require.Equal(t, uint8(1), actionResponse.Result.Status)
+	// The XRP sign processor posts two responses for Threshold: the goroutine's
+	// signed result (status=1) and the router's acknowledgment (status=2).
+	// Collect both and verify the goroutine's signed response.
+	var actionResponse *types.ActionResponse
+	for range 2 {
+		select {
+		case r := <-actionResponseChan:
+			if r.Result.Status == 1 {
+				actionResponse = r
+			}
+		case <-time.After(5 * time.Second):
+			t.Fatal("timeout waiting for XRP Threshold response")
+		}
+	}
+	require.NotNil(t, actionResponse)
 	err = utils.VerifySignature(crypto.Keccak256(actionResponse.Result.Data), actionResponse.Signature, teeID)
 	require.NoError(t, err)
 

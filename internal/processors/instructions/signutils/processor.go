@@ -3,41 +3,44 @@ package signutils
 import (
 	"encoding/json"
 	"errors"
-	"math/big"
+	"time"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/flare-foundation/go-flare-common/pkg/logger"
 	"github.com/flare-foundation/go-flare-common/pkg/policy"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/instruction"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/xrpl"
-	"github.com/flare-foundation/go-flare-common/pkg/xrpl/signing"
-	"github.com/flare-foundation/go-flare-common/pkg/xrpl/signing/secp256k1"
-	"github.com/flare-foundation/go-flare-common/pkg/xrpl/signing/signer"
+	"github.com/flare-foundation/tee-node/internal/router/queue"
+	"github.com/flare-foundation/tee-node/internal/settings"
 	"github.com/flare-foundation/tee-node/pkg/node"
-	"github.com/flare-foundation/tee-node/pkg/processorutils"
 	"github.com/flare-foundation/tee-node/pkg/types"
 	"github.com/flare-foundation/tee-node/pkg/wallets"
 )
 
 type Processor struct {
 	*wallets.Storage
-	node.Identifier
+	node.IdentifierAndSigner
+	proxyURL *settings.ProxyURLMutex
 }
 
 // NewProcessor creates a signing instruction processor backed by the provided
-// wallet storage and TEE identifier.
-func NewProcessor(identifier node.Identifier, wStorage *wallets.Storage) Processor {
+// wallet storage and TEE node.
+func NewProcessor(iAndS node.IdentifierAndSigner, wStorage *wallets.Storage, proxyURL *settings.ProxyURLMutex) Processor {
 	return Processor{
-		Storage:    wStorage,
-		Identifier: identifier,
+		Storage:             wStorage,
+		IdentifierAndSigner: iAndS,
+		proxyURL:            proxyURL,
 	}
 }
 
-// SignXRPLPayment signs the XRP Ledger payment described in the instruction and
-// returns the JSON-encoded transaction containing the accumulated signatures.
+// SignXRPLPayment signs the XRP Ledger payment described in the instruction for
+// each fee schedule entry upfront, then spawns a goroutine that posts the
+// cumulative signed transaction set to the proxy after each entry's scheduled
+// delay elapses.
 func (p *Processor) SignXRPLPayment(
-	_ types.SubmissionTag,
+	submissionTag types.SubmissionTag,
 	dataFixed *instruction.DataFixed,
 	_ []hexutil.Bytes,
 	_ []common.Address,
@@ -48,80 +51,102 @@ func (p *Processor) SignXRPLPayment(
 		return nil, nil, err
 	}
 
-	var tx map[string]any
-
-	if inst.Amount.Cmp(big.NewInt(0)) == 0 && inst.RecipientAddress == inst.SenderAddress {
-		tx = xrpl.Nullify(inst)
-	} else {
-		tx = xrpl.PaymentTxFromInstruction(inst)
-		err = xrpl.CheckNativePayment(tx)
-		if err != nil {
-			return nil, nil, err
-		}
+	entries, err := xrpl.ParseFeeEntries(inst.FeeSchedule)
+	if err != nil {
+		return nil, nil, err
+	}
+	if len(entries) == 0 {
+		return nil, nil, errors.New("fee schedule is empty")
 	}
 
-	keyIDs := make([]uint64, 0, 10)
 	teeID := p.TeeID()
-	for j := range inst.TeeIdKeyIdPairs {
-		if inst.TeeIdKeyIdPairs[j].TeeId.Cmp(teeID) == 0 {
-			keyIDs = append(keyIDs, inst.TeeIdKeyIdPairs[j].KeyId)
+	keyIDs := make([]uint64, 0, len(inst.TeeIdKeyIdPairs))
+	for _, pair := range inst.TeeIdKeyIdPairs {
+		if pair.TeeId == teeID {
+			keyIDs = append(keyIDs, pair.KeyId)
 		}
 	}
-
 	if len(keyIDs) == 0 {
 		return nil, nil, errors.New("no keys for signing")
 	}
 
 	p.RLock()
-	defer p.RUnlock()
-
-	signerItems := make([]*signer.Signer, 0, len(keyIDs))
-	for j := range keyIDs {
-		idPair := wallets.KeyIDPair{WalletID: inst.WalletId, KeyID: keyIDs[j]}
-
-		key, err := p.Get(idPair)
-		if err != nil {
-			return nil, nil, err
-		}
-
-		if key.KeyType != wallets.XRPType {
-			return nil, nil, errors.New("key type does not allow the action")
-		}
-
-		if key.SigningAlgo != wallets.XRPAlgo {
-			return nil, nil, errors.New("key's signing algorithm does not allow the action")
-		}
-
-		err = processorutils.CheckMatchingCosigners(dataFixed.Cosigners, key.Cosigners, dataFixed.CosignersThreshold, key.CosignersThreshold)
-		if err != nil {
-			return nil, nil, err
-		}
-
-		sk, err := crypto.ToECDSA(key.PrivateKey)
-		if err != nil {
-			return nil, nil, err
-		}
-
-		sigItem, err := secp256k1.SignTxMultisig(tx, sk)
-		if err != nil {
-			return nil, nil, err
-		}
-
-		signerItems = append(signerItems, sigItem)
-	}
-
-	var check []*signer.Signer
-	signerItems, check = signer.Sort(signerItems)
-	if len(check) != 0 {
-		return nil, nil, errors.New("invalid signer item") // This can not happen.
-	}
-
-	tx = signing.JoinMultisigJSON(tx, signerItems)
-
-	jsonTx, err := json.Marshal(tx)
+	privateKeys, err := loadPrivateKeys(p.Storage, inst.WalletId, keyIDs, dataFixed)
+	p.RUnlock()
 	if err != nil {
 		return nil, nil, err
 	}
 
-	return jsonTx, nil, nil
+	signedTxs := make(types.XRPSignResponse, len(entries))
+	for i := range entries {
+		signedTxs[i], err = buildSignedTx(inst, privateKeys, i)
+		if err != nil {
+			return nil, nil, err
+		}
+	}
+
+	switch submissionTag {
+	case types.Threshold:
+		if p.proxyURL == nil {
+			return nil, nil, errors.New("proxy URL not configured")
+		}
+		p.proxyURL.RLock()
+		proxyURL := p.proxyURL.URL
+		p.proxyURL.RUnlock()
+		if proxyURL == "" {
+			return nil, nil, errors.New("proxy URL not set")
+		}
+
+		go func() {
+			startTime := time.Now()
+			for i, entry := range entries {
+				time.Sleep(time.Until(startTime.Add(entry.Delay)))
+
+				responseData, err := json.Marshal(signedTxs[:i+1])
+				if err != nil { // this should never happen since the data is well-formed, but we handle it just in case
+					logger.Errorf("sign schedule: try %d error marshaling response: %v", i, err)
+					return
+				}
+
+				var status uint8
+				if i < len(entries)-1 {
+					status = 3 + uint8(i) // status 3 for the first response, 4 for the second, etc.
+				} else {
+					status = 1 // final response after all entries
+				}
+				result := types.ActionResult{
+					ID:            dataFixed.InstructionID,
+					SubmissionTag: submissionTag,
+					Status:        status,
+					Version:       settings.EncodingVersion,
+					OPType:        dataFixed.OPType,
+					OPCommand:     dataFixed.OPCommand,
+					Data:          responseData,
+				}
+
+				msgHash := crypto.Keccak256(result.Data)
+				sig, err := p.Sign(msgHash)
+				if err != nil { // this should never happen since we already signed the same data during pre-processing, but we handle it just in case
+					logger.Errorf("sign schedule: try %d signing result error: %v", i, err)
+					return
+				}
+
+				response := &types.ActionResponse{
+					Result:    result,
+					Signature: sig,
+				}
+
+				if err := queue.PostActionResponse(proxyURL+"/result", response); err != nil {
+					logger.Errorf("sign schedule: try %d error posting result: %v", i, err)
+					return
+				}
+			}
+		}()
+
+	case types.End:
+	default:
+		return nil, nil, errors.New("unexpected submission tag")
+	}
+
+	return []byte{}, nil, nil
 }

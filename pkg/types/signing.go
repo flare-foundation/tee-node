@@ -20,3 +20,5 @@ func ParsePaymentInstruction(data *instruction.DataFixed) (payment.ITeePaymentsP
 
 	return instruction, nil
 }
+
+type XRPSignResponse []map[string]any

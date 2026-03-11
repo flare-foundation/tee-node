@@ -115,6 +115,8 @@ func BuildMockPaymentOriginalMessage(
 	teeID common.Address,
 	keyID uint64,
 	amount int64,
+	maxFee int64,
+	feeSchedule []byte,
 	sender, receiver string,
 ) []byte {
 	t.Helper()
@@ -128,7 +130,8 @@ func BuildMockPaymentOriginalMessage(
 		SenderAddress:    sender,
 		RecipientAddress: receiver,
 		Amount:           big.NewInt(amount),
-		Fee:              big.NewInt(1000),
+		MaxFee:           big.NewInt(maxFee),
+		FeeSchedule:      feeSchedule,
 		PaymentReference: [32]byte{},
 		Nonce:            uint64(0),
 		SubNonce:         uint64(0),

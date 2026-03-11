@@ -21,18 +21,20 @@ import (
 type ProcessorFunction func(submissionTag types.SubmissionTag, dataFixed *instruction.DataFixed, variableMessages []hexutil.Bytes, signers []common.Address, signingPolicy *cpolicy.SigningPolicy) (data []byte, additionalResultStatus []byte, err error)
 
 type Processor struct {
-	f        ProcessorFunction
-	iSAndD   node.IdentifierSignerAndDecrypter
-	pStorage *policy.Storage
+	f               ProcessorFunction
+	iSAndD          node.IdentifierSignerAndDecrypter
+	pStorage        *policy.Storage
+	immediateResult bool
 }
 
 // NewProcessor builds a Processor that wraps the provided instruction handler
 // with common preprocessing and validation logic.
-func NewProcessor(f ProcessorFunction, iSAndD node.IdentifierSignerAndDecrypter, pStorage *policy.Storage) Processor {
+func NewProcessor(f ProcessorFunction, iSAndD node.IdentifierSignerAndDecrypter, pStorage *policy.Storage, immediateResult bool) Processor {
 	return Processor{
-		f:        f,
-		iSAndD:   iSAndD,
-		pStorage: pStorage,
+		f:               f,
+		iSAndD:          iSAndD,
+		pStorage:        pStorage,
+		immediateResult: immediateResult,
 	}
 }
 
@@ -49,22 +51,30 @@ func (p Processor) Process(a *types.Action) types.ActionResult {
 		return processorutils.Invalid(a, err)
 	}
 
-	pMessage, status, err := p.f(a.Data.SubmissionTag, data, a.AdditionalVariableMessages, signers, signingPolicy)
+	pMessage, additionalStatus, err := p.f(a.Data.SubmissionTag, data, a.AdditionalVariableMessages, signers, signingPolicy)
 	if err != nil {
 		return processorutils.Invalid(a, err)
 	}
 
 	var message []byte
+	var status uint8
 
 	switch a.Data.SubmissionTag {
 	case types.Threshold:
 		message = pMessage
+		if p.immediateResult {
+			status = 1
+		} else {
+			status = 2
+		}
+
 	case types.End:
-		msg, err := rewardingData(data, a.Signatures, a.AdditionalVariableMessages, signers, a.Timestamps, status, p.iSAndD)
+		msg, err := rewardingData(data, a.Signatures, a.AdditionalVariableMessages, signers, a.Timestamps, additionalStatus, p.iSAndD)
 		if err != nil {
 			return processorutils.Invalid(a, err)
 		}
 		message = msg
+		status = 1
 
 	default:
 		return processorutils.Invalid(a, errors.New("invalid submissionTag"))
@@ -73,11 +83,11 @@ func (p Processor) Process(a *types.Action) types.ActionResult {
 	result := types.ActionResult{
 		ID:            a.Data.ID,
 		SubmissionTag: a.Data.SubmissionTag,
-		Status:        1,
+		Status:        status,
 		Version:       settings.EncodingVersion,
 	}
 
-	result.AdditionalResultStatus = status
+	result.AdditionalResultStatus = additionalStatus
 	result.OPCommand = data.OPCommand
 	result.OPType = data.OPType
 	result.Data = message
