@@ -1,17 +1,17 @@
-package ftdc_test
+package fdc_test
 
 import (
 	"testing"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/structs/connector"
-	"github.com/flare-foundation/tee-node/pkg/ftdc"
+	"github.com/flare-foundation/tee-node/pkg/fdc"
 	"github.com/stretchr/testify/require"
 )
 
-func TestAbiEncodeDecodeFTDCProveResponse(t *testing.T) {
+func TestAbiEncodeDecodeFDCProveResponse(t *testing.T) {
 	// Create a test response header
-	originalResponseHeader := connector.IFtdcHubFtdcResponseHeader{
+	originalResponseHeader := connector.IFdc2HubFdc2ResponseHeader{
 		AttestationType:    [32]byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32},
 		SourceId:           [32]byte{33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64},
 		ThresholdBIPS:      7500, // 75%
@@ -21,12 +21,12 @@ func TestAbiEncodeDecodeFTDCProveResponse(t *testing.T) {
 	}
 
 	// Encode the response header first
-	encoded, err := ftdc.EncodeResponseHeader(originalResponseHeader)
+	encoded, err := fdc.EncodeResponseHeader(originalResponseHeader)
 	require.NoError(t, err)
 	require.NotNil(t, encoded)
 
 	// Decode the encoded data
-	decodedResponseHeader, err := ftdc.DecodeResponse(encoded)
+	decodedResponseHeader, err := fdc.DecodeResponse(encoded)
 	require.NoError(t, err)
 
 	// Verify all fields match the original
@@ -38,10 +38,10 @@ func TestAbiEncodeDecodeFTDCProveResponse(t *testing.T) {
 	require.Equal(t, originalResponseHeader.Timestamp, decodedResponseHeader.Timestamp)
 }
 
-func TestAbiEncodeDecodeFTDCProveRequest(t *testing.T) {
+func TestAbiEncodeDecodeFDCProveRequest(t *testing.T) {
 	// Create a test attestation request
-	originalAttestationRequest := connector.IFtdcHubFtdcAttestationRequest{
-		Header: connector.IFtdcHubFtdcRequestHeader{
+	originalAttestationRequest := connector.IFdc2HubFdc2AttestationRequest{
+		Header: connector.IFdc2HubFdc2RequestHeader{
 			AttestationType: [32]byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32},
 			SourceId:        [32]byte{33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64},
 			ThresholdBIPS:   7500, // 75%
@@ -50,12 +50,12 @@ func TestAbiEncodeDecodeFTDCProveRequest(t *testing.T) {
 	}
 
 	// Encode the attestation request
-	encoded, err := ftdc.EncodeRequest(originalAttestationRequest)
+	encoded, err := fdc.EncodeRequest(originalAttestationRequest)
 	require.NoError(t, err)
 	require.NotNil(t, encoded)
 
 	// Decode the encoded data
-	decodedAttestationRequest, err := ftdc.DecodeRequest(encoded)
+	decodedAttestationRequest, err := fdc.DecodeRequest(encoded)
 	require.NoError(t, err)
 
 	// Verify all fields match the original
@@ -80,8 +80,8 @@ func TestHashMessage(t *testing.T) {
 	responseBody := []byte{0xca, 0xfe, 0xba, 0xbe}
 
 	// Input request
-	req := connector.IFtdcHubFtdcAttestationRequest{
-		Header: connector.IFtdcHubFtdcRequestHeader{
+	req := connector.IFdc2HubFdc2AttestationRequest{
+		Header: connector.IFdc2HubFdc2RequestHeader{
 			AttestationType: attestationType,
 			SourceId:        sourceID,
 			ThresholdBIPS:   thresholdBIPS,
@@ -89,7 +89,7 @@ func TestHashMessage(t *testing.T) {
 		RequestBody: requestBody,
 	}
 
-	hash, msgHashPrepended, encHeader, err := ftdc.HashMessage(req, responseBody, cosigners, cosignersThreshold, timestamp)
+	hash, msgHashPrepended, encHeader, err := fdc.HashMessage(req, responseBody, cosigners, cosignersThreshold, timestamp)
 	require.NoError(t, err)
 	require.NotEmpty(t, hash)
 	require.NotEmpty(t, msgHashPrepended)
@@ -102,22 +102,22 @@ func TestHashMessage(t *testing.T) {
 	// Changing any input should result in a different hash
 	req2 := req
 	req2.RequestBody = []byte{0xaa, 0xbb, 0xcc}
-	hash2, _, _, err := ftdc.HashMessage(req2, responseBody, cosigners, cosignersThreshold, timestamp)
+	hash2, _, _, err := fdc.HashMessage(req2, responseBody, cosigners, cosignersThreshold, timestamp)
 	require.NoError(t, err)
 	require.NotEqual(t, hash, hash2, "Changing the request body should produce a different hash")
 
 	// Test with empty cosigners
-	hash3, _, _, err := ftdc.HashMessage(req, responseBody, []common.Address{}, cosignersThreshold, timestamp)
+	hash3, _, _, err := fdc.HashMessage(req, responseBody, []common.Address{}, cosignersThreshold, timestamp)
 	require.NoError(t, err)
 	require.NotEqual(t, hash, hash3, "Changing the cosigners should produce a different hash")
 
 	// Changing timestamp should change the hash
-	hash4, _, _, err := ftdc.HashMessage(req, responseBody, cosigners, cosignersThreshold, timestamp+1)
+	hash4, _, _, err := fdc.HashMessage(req, responseBody, cosigners, cosignersThreshold, timestamp+1)
 	require.NoError(t, err)
 	require.NotEqual(t, hash, hash4, "Changing the timestamp should produce a different hash")
 
 	// Changing responseBody should change the hash
-	hash5, _, _, err := ftdc.HashMessage(req, []byte{0x99, 0x98, 0x97}, cosigners, cosignersThreshold, timestamp)
+	hash5, _, _, err := fdc.HashMessage(req, []byte{0x99, 0x98, 0x97}, cosigners, cosignersThreshold, timestamp)
 	require.NoError(t, err)
 	require.NotEqual(t, hash, hash5, "Changing the responseBody should produce a different hash")
 }

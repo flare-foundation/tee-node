@@ -1,4 +1,4 @@
-package ftdc
+package fdc
 
 import (
 	"bytes"
@@ -10,7 +10,7 @@ import (
 	"github.com/flare-foundation/go-flare-common/pkg/tee/structs/connector"
 )
 
-// ProveResponse represents the response structure for FTDC PROVE opCommand.
+// ProveResponse represents the response structure for F_FDC2 PROVE opCommand.
 type ProveResponse struct {
 	ResponseHeader         hexutil.Bytes
 	RequestBody            hexutil.Bytes
@@ -20,45 +20,45 @@ type ProveResponse struct {
 	DataProviderSignatures hexutil.Bytes
 }
 
-// EncodeRequest encodes an FTDC attestation request to bytes.
-func EncodeRequest(req connector.IFtdcHubFtdcAttestationRequest) (hexutil.Bytes, error) {
+// EncodeRequest encodes an FDC2 attestation request to bytes.
+func EncodeRequest(req connector.IFdc2HubFdc2AttestationRequest) (hexutil.Bytes, error) {
 	return structs.Encode(connector.AttestationRequestArg, &req)
 }
 
-// DecodeRequest decodes bytes into an FTDC attestation request.
-func DecodeRequest(data []byte) (connector.IFtdcHubFtdcAttestationRequest, error) {
-	var req connector.IFtdcHubFtdcAttestationRequest
+// DecodeRequest decodes bytes into an FDC2 attestation request.
+func DecodeRequest(data []byte) (connector.IFdc2HubFdc2AttestationRequest, error) {
+	var req connector.IFdc2HubFdc2AttestationRequest
 	err := structs.DecodeTo(connector.AttestationRequestArg, data, &req)
 	if err != nil {
-		return connector.IFtdcHubFtdcAttestationRequest{}, err
+		return connector.IFdc2HubFdc2AttestationRequest{}, err
 	}
 	return req, nil
 }
 
-// EncodeResponseHeader encodes an FTDC response header to bytes.
-func EncodeResponseHeader(header connector.IFtdcHubFtdcResponseHeader) (hexutil.Bytes, error) {
+// EncodeResponseHeader encodes an FDC2 response header to bytes.
+func EncodeResponseHeader(header connector.IFdc2HubFdc2ResponseHeader) (hexutil.Bytes, error) {
 	return structs.Encode(connector.ResponseHeaderArg, &header)
 }
 
-// DecodeResponse decodes bytes into an FTDC response header.
-func DecodeResponse(data []byte) (connector.IFtdcHubFtdcResponseHeader, error) {
-	var header connector.IFtdcHubFtdcResponseHeader
+// DecodeResponse decodes bytes into an FDC2 response header.
+func DecodeResponse(data []byte) (connector.IFdc2HubFdc2ResponseHeader, error) {
+	var header connector.IFdc2HubFdc2ResponseHeader
 	err := structs.DecodeTo(connector.ResponseHeaderArg, data, &header)
 	if err != nil {
-		return connector.IFtdcHubFtdcResponseHeader{}, err
+		return connector.IFdc2HubFdc2ResponseHeader{}, err
 	}
 	return header, nil
 }
 
-// HashMessage creates a hash of the FTDC message components.
+// HashMessage creates a hash of the FDC message components.
 func HashMessage(
-	req connector.IFtdcHubFtdcAttestationRequest,
+	req connector.IFdc2HubFdc2AttestationRequest,
 	responseBody []byte,
 	cosigners []common.Address,
 	cosignersThreshold uint64,
 	timestamp uint64,
 ) (common.Hash, hexutil.Bytes, hexutil.Bytes, error) {
-	header := connector.IFtdcHubFtdcResponseHeader{
+	header := connector.IFdc2HubFdc2ResponseHeader{
 		AttestationType:    req.Header.AttestationType,
 		SourceId:           req.Header.SourceId,
 		ThresholdBIPS:      req.Header.ThresholdBIPS,

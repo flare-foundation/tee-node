@@ -6,7 +6,7 @@ import (
 	"github.com/flare-foundation/tee-node/internal/processors/direct/getutils"
 	"github.com/flare-foundation/tee-node/internal/processors/direct/policyutils"
 	"github.com/flare-foundation/tee-node/internal/processors/instructions"
-	"github.com/flare-foundation/tee-node/internal/processors/instructions/ftdcutils"
+	"github.com/flare-foundation/tee-node/internal/processors/instructions/fdcutils"
 	"github.com/flare-foundation/tee-node/internal/processors/instructions/regutils"
 	"github.com/flare-foundation/tee-node/internal/processors/instructions/signutils"
 	"github.com/flare-foundation/tee-node/internal/processors/instructions/vrfutils"
@@ -41,8 +41,8 @@ func NewPMWRouter(teeNode *pnode.Node, wStorage *wallets.Storage, pStorage *poli
 	rp := regutils.NewProcessor(teeNode, pStorage)
 	r.RegisterInstructionProcessor(op.Reg, op.TEEAttestation, instructions.NewProcessor(rp.TEEAttestation, teeNode, pStorage, true))
 
-	ftp := ftdcutils.NewProcessor(teeNode)
-	r.RegisterInstructionProcessor(op.FTDC, op.Prove, instructions.NewProcessor(ftp.Prove, teeNode, pStorage, true))
+	ftp := fdcutils.NewProcessor(teeNode)
+	r.RegisterInstructionProcessor(op.FDC2, op.Prove, instructions.NewProcessor(ftp.Prove, teeNode, pStorage, true))
 
 	sp := signutils.NewProcessor(teeNode, wStorage, proxyURL)
 	r.RegisterInstructionProcessor(op.XRP, op.Pay, instructions.NewProcessor(sp.SignXRPLPayment, teeNode, pStorage, false))

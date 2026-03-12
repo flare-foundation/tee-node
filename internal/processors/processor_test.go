@@ -28,7 +28,7 @@ import (
 	"github.com/flare-foundation/tee-node/internal/router"
 	"github.com/flare-foundation/tee-node/internal/settings"
 	"github.com/flare-foundation/tee-node/internal/testutils"
-	"github.com/flare-foundation/tee-node/pkg/ftdc"
+	"github.com/flare-foundation/tee-node/pkg/fdc"
 	"github.com/flare-foundation/tee-node/pkg/types"
 	"github.com/flare-foundation/tee-node/pkg/wallets/backup"
 	"github.com/flare-foundation/tee-node/pkg/wallets/vrf"
@@ -39,7 +39,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// todo: add cosigners to commonwallet, check xrp signature, verify signer sequence data (vote hash), verify encoded data provider signatures in FTDC
+// todo: add cosigners to commonwallet, check xrp signature, verify signer sequence data (vote hash), verify encoded data provider signatures in FDC2
 func TestProcessorsEndToEnd(t *testing.T) {
 	testNode, pStorage, wStorage := testutils.Setup(t)
 
@@ -123,7 +123,7 @@ func TestProcessorsEndToEnd(t *testing.T) {
 	getTeeAttestation(t, mainActionInfoChan, actionResponseChan, teeID,
 		providerPrivKeys, finalEpochID)
 
-	ftdcProve(t, mainActionInfoChan, actionResponseChan, teeID, providerPrivKeys, adminPrivKeys, finalEpochID)
+	fdcProve(t, mainActionInfoChan, actionResponseChan, teeID, providerPrivKeys, adminPrivKeys, finalEpochID)
 
 	// todo: update policy
 }
@@ -746,7 +746,7 @@ func getTeeAttestation(
 	require.NoError(t, err)
 }
 
-func ftdcProve(
+func fdcProve(
 	t *testing.T,
 	actionInfoChan chan *types.Action,
 	actionResponseChan chan *types.ActionResponse,
@@ -767,8 +767,8 @@ func ftdcProve(
 		}
 	}
 	cosignersThreshold := uint64(len(cosignerAddresses) / 2)
-	originalMessage := connector.IFtdcHubFtdcAttestationRequest{
-		Header: connector.IFtdcHubFtdcRequestHeader{
+	originalMessage := connector.IFdc2HubFdc2AttestationRequest{
+		Header: connector.IFdc2HubFdc2RequestHeader{
 			AttestationType: [32]byte{},
 			SourceId:        common.Hash{},
 			ThresholdBIPS:   6000,
@@ -776,7 +776,7 @@ func ftdcProve(
 		RequestBody: make([]byte, 10),
 	}
 
-	originalMessageEncoded, err := ftdc.EncodeRequest(originalMessage)
+	originalMessageEncoded, err := fdc.EncodeRequest(originalMessage)
 	require.NoError(t, err)
 
 	challenge, err := random.Hash()
@@ -797,13 +797,13 @@ func ftdcProve(
 	require.NoError(t, err)
 
 	timestamp := uint64(time.Now().Unix())
-	ftdcMsgHash, _, _, err := ftdc.HashMessage(originalMessage, additionalFixedMessageEncoded, cosignerAddresses, cosignersThreshold, timestamp)
+	fdcMsgHash, _, _, err := fdc.HashMessage(originalMessage, additionalFixedMessageEncoded, cosignerAddresses, cosignersThreshold, timestamp)
 	require.NoError(t, err)
 
 	variableMessages := make([][]byte, 0, len(providerPrivKeys)+len(cosignerPrivKeys))
 	privKeys := make([]*ecdsa.PrivateKey, 0, len(providerPrivKeys)+len(cosignerPrivKeys))
 	for _, privKey := range providerPrivKeys {
-		variableMessage, err := utils.Sign(ftdcMsgHash[:], privKey)
+		variableMessage, err := utils.Sign(fdcMsgHash[:], privKey)
 		require.NoError(t, err)
 
 		variableMessages = append(variableMessages, variableMessage)
@@ -813,7 +813,7 @@ func ftdcProve(
 		if _, check := cosignerAndProvider[crypto.PubkeyToAddress(privKey.PublicKey)]; check {
 			continue
 		}
-		variableMessage, err := utils.Sign(ftdcMsgHash[:], privKey)
+		variableMessage, err := utils.Sign(fdcMsgHash[:], privKey)
 		require.NoError(t, err)
 
 		variableMessages = append(variableMessages, variableMessage)
@@ -821,7 +821,7 @@ func ftdcProve(
 	}
 
 	action := testutils.BuildMockInstructionAction(
-		t, op.FTDC, op.Prove, originalMessageEncoded, privKeys, teeID, rewardEpochID,
+		t, op.FDC2, op.Prove, originalMessageEncoded, privKeys, teeID, rewardEpochID,
 		additionalFixedMessageEncoded, variableMessages, cosignerAddresses, cosignersThreshold,
 		types.Threshold, timestamp,
 	)
@@ -832,23 +832,23 @@ func ftdcProve(
 	err = utils.VerifySignature(crypto.Keccak256(actionResponse.Result.Data), actionResponse.Signature, teeID)
 	require.NoError(t, err)
 
-	var ftdcResponse ftdc.ProveResponse
-	err = json.Unmarshal(actionResponse.Result.Data, &ftdcResponse)
+	var fdcResponse fdc.ProveResponse
+	err = json.Unmarshal(actionResponse.Result.Data, &fdcResponse)
 	require.NoError(t, err)
 
-	err = utils.VerifySignature(ftdcMsgHash.Bytes(), ftdcResponse.TEESignature, teeID)
+	err = utils.VerifySignature(fdcMsgHash.Bytes(), fdcResponse.TEESignature, teeID)
 	require.NoError(t, err)
 
-	require.Equal(t, len(ftdcResponse.CosignerSignatures), len(cosignerPrivKeys))
-	for _, signature := range ftdcResponse.CosignerSignatures {
-		_, err = utils.CheckSignature(ftdcMsgHash.Bytes(), signature, cosignerAddresses)
+	require.Equal(t, len(fdcResponse.CosignerSignatures), len(cosignerPrivKeys))
+	for _, signature := range fdcResponse.CosignerSignatures {
+		_, err = utils.CheckSignature(fdcMsgHash.Bytes(), signature, cosignerAddresses)
 		require.NoError(t, err)
 	}
-	require.Equal(t, ftdcResponse.ResponseBody, additionalFixedMessageEncoded)
+	require.Equal(t, fdcResponse.ResponseBody, additionalFixedMessageEncoded)
 
 	// generate action sent when voting closed
 	action = testutils.BuildMockInstructionAction(
-		t, op.FTDC, op.Prove, originalMessageEncoded, privKeys, teeID, rewardEpochID,
+		t, op.FDC2, op.Prove, originalMessageEncoded, privKeys, teeID, rewardEpochID,
 		additionalFixedMessageEncoded, variableMessages, cosignerAddresses, cosignersThreshold,
 		types.End, timestamp,
 	)

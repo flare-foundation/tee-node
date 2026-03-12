@@ -9,13 +9,13 @@ import (
 	"github.com/flare-foundation/go-flare-common/pkg/tee/instruction"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/op"
 
-	"github.com/flare-foundation/tee-node/pkg/ftdc"
+	"github.com/flare-foundation/tee-node/pkg/fdc"
 	"github.com/flare-foundation/tee-node/pkg/policy"
 )
 
 const maxBIPS = 10000
 
-const ftdcMinimumThresholdBIPS = 4000
+const fdcMinimumThresholdBIPS = 4000
 
 // CheckThresholds checks that data provider threshold and cosigner threshold are reached.
 func CheckThresholds(data *instruction.DataFixed, signers []common.Address, sPolicy *cpolicy.SigningPolicy) error {
@@ -73,8 +73,8 @@ func dataProvidersThreshold(data *instruction.DataFixed, totalWeight uint16) (ui
 	case pair{op.Wallet, op.KeyDataProviderRestore}:
 		threshold = 0 // condition (weight >= threshold) always true
 
-	case pair{op.FTDC, op.Prove}:
-		request, err := ftdc.DecodeRequest(data.OriginalMessage)
+	case pair{op.FDC2, op.Prove}:
+		request, err := fdc.DecodeRequest(data.OriginalMessage)
 		if err != nil {
 			return 0, err
 		}
@@ -85,7 +85,7 @@ func dataProvidersThreshold(data *instruction.DataFixed, totalWeight uint16) (ui
 			break
 		}
 
-		if rh.ThresholdBIPS < ftdcMinimumThresholdBIPS {
+		if rh.ThresholdBIPS < fdcMinimumThresholdBIPS {
 			return 0, errors.New("data providers threshold too low")
 		}
 		if rh.ThresholdBIPS < maxBIPS/2 && data.CosignersThreshold*2 <= uint64(len(data.Cosigners)) {

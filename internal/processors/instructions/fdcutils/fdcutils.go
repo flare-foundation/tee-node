@@ -1,4 +1,4 @@
-package ftdcutils
+package fdcutils
 
 import (
 	"bytes"
