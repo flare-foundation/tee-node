@@ -29,7 +29,7 @@ func TestRoutID(t *testing.T) {
 		opc op.Command
 	}{
 		{
-			opt: op.FTDC,
+			opt: op.FDC2,
 			opc: op.Prove,
 		},
 		{

@@ -1,4 +1,4 @@
-package ftdcutils
+package fdcutils
 
 import (
 	"crypto/ecdsa"
@@ -16,7 +16,7 @@ import (
 	"github.com/flare-foundation/go-flare-common/pkg/tee/structs/connector"
 	"github.com/flare-foundation/tee-node/internal/processors/instructions"
 	"github.com/flare-foundation/tee-node/internal/testutils"
-	"github.com/flare-foundation/tee-node/pkg/ftdc"
+	"github.com/flare-foundation/tee-node/pkg/fdc"
 	"github.com/flare-foundation/tee-node/pkg/node"
 	"github.com/flare-foundation/tee-node/pkg/policy"
 
@@ -26,10 +26,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// * ========================== FTDC PROVE TEST SETUP ========================== *
+// * ========================== FDC2 PROVE TEST SETUP ========================== *
 
-// ftdcProveTestSetup holds common test setup data for FTDC Prove tests
-type ftdcProveTestSetup struct {
+// fdcProveTestSetup holds common test setup data for F_FDC2 Prove tests
+type fdcProveTestSetup struct {
 	testNode            *node.Node
 	pStorage            *policy.Storage
 	teeID               common.Address
@@ -45,8 +45,8 @@ type ftdcProveTestSetup struct {
 	defaultResponseBody []byte
 }
 
-// setupFTDCProveTest creates a standard test environment for FTDC Prove tests
-func setupFTDCProveTest(t *testing.T) *ftdcProveTestSetup {
+// setupFDCProveTest creates a standard test environment for F_FDC2 Prove tests
+func setupFDCProveTest(t *testing.T) *fdcProveTestSetup {
 	t.Helper()
 
 	testNode, pStorage, _ := testutils.Setup(t)
@@ -59,7 +59,7 @@ func setupFTDCProveTest(t *testing.T) *ftdcProveTestSetup {
 	cosignerPrivKeys := privKeys[:numCosigners]
 	cosigners := signers[:numCosigners]
 
-	return &ftdcProveTestSetup{
+	return &fdcProveTestSetup{
 		testNode:            testNode,
 		pStorage:            pStorage,
 		teeID:               testNode.TeeID(),
@@ -76,14 +76,14 @@ func setupFTDCProveTest(t *testing.T) *ftdcProveTestSetup {
 	}
 }
 
-func (s *ftdcProveTestSetup) setupInstructionProcessor() instructions.Processor {
+func (s *fdcProveTestSetup) setupInstructionProcessor() instructions.Processor {
 	return instructions.NewProcessor(s.processor.Prove, s.testNode, s.pStorage, true)
 }
 
-// buildFTDCRequest creates an FTDC attestation request with the given parameters
-func (s *ftdcProveTestSetup) buildFTDCRequest(attestationType, sourceID [32]byte, thresholdBIPS uint16, requestBody []byte) connector.IFtdcHubFtdcAttestationRequest {
-	return connector.IFtdcHubFtdcAttestationRequest{
-		Header: connector.IFtdcHubFtdcRequestHeader{
+// buildFDCRequest creates an FDC attestation request with the given parameters
+func (s *fdcProveTestSetup) buildFDCRequest(attestationType, sourceID [32]byte, thresholdBIPS uint16, requestBody []byte) connector.IFdc2HubFdc2AttestationRequest {
+	return connector.IFdc2HubFdc2AttestationRequest{
+		Header: connector.IFdc2HubFdc2RequestHeader{
 			AttestationType: attestationType,
 			SourceId:        sourceID,
 			ThresholdBIPS:   thresholdBIPS,
@@ -92,9 +92,9 @@ func (s *ftdcProveTestSetup) buildFTDCRequest(attestationType, sourceID [32]byte
 	}
 }
 
-// defaultFTDCRequest creates a valid FTDC request with default parameters
-func (s *ftdcProveTestSetup) defaultFTDCRequest() connector.IFtdcHubFtdcAttestationRequest {
-	return s.buildFTDCRequest(
+// defaultFDCRequest creates a valid FTD request with default parameters
+func (s *fdcProveTestSetup) defaultFDCRequest() connector.IFdc2HubFdc2AttestationRequest {
+	return s.buildFDCRequest(
 		utils.ToHash("PMWMultisigAccountConfigured"),
 		utils.ToHash("XRP"),
 		0, // (will use default)
@@ -102,11 +102,11 @@ func (s *ftdcProveTestSetup) defaultFTDCRequest() connector.IFtdcHubFtdcAttestat
 	)
 }
 
-// buildInstruction creates an instruction.DataFixed for FTDC Prove with the given parameters
-func (s *ftdcProveTestSetup) buildInstruction(t *testing.T, request connector.IFtdcHubFtdcAttestationRequest, responseBody []byte, cosigners []common.Address, cosignersThreshold uint64, timestamp uint64) *instruction.DataFixed {
+// buildInstruction creates an instruction.DataFixed for F_FDC2 Prove with the given parameters
+func (s *fdcProveTestSetup) buildInstruction(t *testing.T, request connector.IFdc2HubFdc2AttestationRequest, responseBody []byte, cosigners []common.Address, cosignersThreshold uint64, timestamp uint64) *instruction.DataFixed {
 	t.Helper()
 
-	originalMessageEncoded, err := ftdc.EncodeRequest(request)
+	originalMessageEncoded, err := fdc.EncodeRequest(request)
 	require.NoError(t, err)
 
 	instructionID, err := random.Hash()
@@ -116,7 +116,7 @@ func (s *ftdcProveTestSetup) buildInstruction(t *testing.T, request connector.IF
 		InstructionID:          instructionID,
 		TeeID:                  s.teeID,
 		RewardEpochID:          s.epochID,
-		OPType:                 op.FTDC.Hash(),
+		OPType:                 op.FDC2.Hash(),
 		OPCommand:              op.Prove.Hash(),
 		OriginalMessage:        originalMessageEncoded,
 		AdditionalFixedMessage: responseBody,
@@ -126,16 +126,16 @@ func (s *ftdcProveTestSetup) buildInstruction(t *testing.T, request connector.IF
 	}
 }
 
-// buildDefaultInstruction creates a default FTDC Prove instruction
-func (s *ftdcProveTestSetup) buildDefaultInstruction(t *testing.T) *instruction.DataFixed {
+// buildDefaultInstruction creates a default F_FDC2 Prove instruction
+func (s *fdcProveTestSetup) buildDefaultInstruction(t *testing.T) *instruction.DataFixed {
 	t.Helper()
 
-	request := s.defaultFTDCRequest()
+	request := s.defaultFDCRequest()
 	return s.buildInstruction(t, request, s.defaultResponseBody, s.cosigners[:2], 1, s.defaultTimestamp)
 }
 
 // signMessage signs a message hash with the given private keys and returns signatures and signers
-func (s *ftdcProveTestSetup) signMessage(t *testing.T, msgHash common.Hash, privKeys []*ecdsa.PrivateKey) ([]hexutil.Bytes, []common.Address) {
+func (s *fdcProveTestSetup) signMessage(t *testing.T, msgHash common.Hash, privKeys []*ecdsa.PrivateKey) ([]hexutil.Bytes, []common.Address) {
 	t.Helper()
 
 	signatures := make([]hexutil.Bytes, 0, len(privKeys))
@@ -151,11 +151,11 @@ func (s *ftdcProveTestSetup) signMessage(t *testing.T, msgHash common.Hash, priv
 	return signatures, signers
 }
 
-// signFTDCMessage creates the FTDC message hash and signs it with the given private keys
-func (s *ftdcProveTestSetup) signFTDCMessage(t *testing.T, request connector.IFtdcHubFtdcAttestationRequest, responseBody []byte, cosigners []common.Address, cosignersThreshold uint64, timestamp uint64, privKeys []*ecdsa.PrivateKey) ([]hexutil.Bytes, []common.Address) {
+// signFDCMessage creates the FDC message hash and signs it with the given private keys
+func (s *fdcProveTestSetup) signFDCMessage(t *testing.T, request connector.IFdc2HubFdc2AttestationRequest, responseBody []byte, cosigners []common.Address, cosignersThreshold uint64, timestamp uint64, privKeys []*ecdsa.PrivateKey) ([]hexutil.Bytes, []common.Address) {
 	t.Helper()
 
-	msgHash, _, _, err := ftdc.HashMessage(request, responseBody, cosigners, cosignersThreshold, timestamp)
+	msgHash, _, _, err := fdc.HashMessage(request, responseBody, cosigners, cosignersThreshold, timestamp)
 	require.NoError(t, err)
 
 	return s.signMessage(t, msgHash, privKeys)
@@ -163,10 +163,10 @@ func (s *ftdcProveTestSetup) signFTDCMessage(t *testing.T, request connector.IFt
 
 // buildActionWithPolicySigners creates an Action whose signatures are valid for
 // the generic instruction preprocessing (sign hash from instruction.Data).
-func (s *ftdcProveTestSetup) buildActionWithPolicySigners(
+func (s *fdcProveTestSetup) buildActionWithPolicySigners(
 	t *testing.T,
 	instr *instruction.DataFixed,
-	request connector.IFtdcHubFtdcAttestationRequest,
+	request connector.IFdc2HubFdc2AttestationRequest,
 	responseBody []byte,
 	cosigners []common.Address,
 	cosignersThreshold uint64,
@@ -178,24 +178,27 @@ func (s *ftdcProveTestSetup) buildActionWithPolicySigners(
 	sigs := make([]hexutil.Bytes, 0, len(privKeys))
 	vars := make([]hexutil.Bytes, 0, len(privKeys))
 
-	// Compute FTDC hash once
-	ftdcHash, _, _, err := ftdc.HashMessage(request, responseBody, cosigners, cosignersThreshold, instr.Timestamp)
+	// Compute FDC hash once
+	fdcHash, _, _, err := fdc.HashMessage(request, responseBody, cosigners, cosignersThreshold, instr.Timestamp)
 	require.NoError(t, err)
 
 	for _, pk := range privKeys {
-		// FTDC signature by provider
-		ftdcSig, err := utils.Sign(ftdcHash[:], pk)
+		// FDC signature by provider
+		fdcSig, err := utils.Sign(fdcHash[:], pk)
 		require.NoError(t, err)
 
-		// Provider signature over instruction hash including variable message (the FTDC sig)
-		data := instruction.Data{DataFixed: *instr, AdditionalVariableMessage: ftdcSig}
+		// Provider signature over instruction hash including variable message (the FDC sig)
+		data := instruction.Data{
+			DataFixed:                 *instr,
+			AdditionalVariableMessage: fdcSig,
+		}
 		h, err := data.HashForSigning()
 		require.NoError(t, err)
 		provSig, err := utils.Sign(h[:], pk)
 		require.NoError(t, err)
 
 		sigs = append(sigs, provSig)
-		vars = append(vars, ftdcSig)
+		vars = append(vars, fdcSig)
 	}
 
 	// Encode instruction.DataFixed to JSON as expected by processorutils.Parse
@@ -214,7 +217,7 @@ func (s *ftdcProveTestSetup) buildActionWithPolicySigners(
 }
 
 // executeAndDecodeProve runs the Prove operation and decodes the response
-func (s *ftdcProveTestSetup) executeAndDecodeProve(t *testing.T, instruction *instruction.DataFixed, signatures []hexutil.Bytes, signers []common.Address) (*ftdc.ProveResponse, error) {
+func (s *fdcProveTestSetup) executeAndDecodeProve(t *testing.T, instruction *instruction.DataFixed, signatures []hexutil.Bytes, signers []common.Address) (*fdc.ProveResponse, error) {
 	t.Helper()
 
 	res, _, err := s.processor.Prove(types.Threshold, instruction, signatures, signers, s.policy)
@@ -222,19 +225,19 @@ func (s *ftdcProveTestSetup) executeAndDecodeProve(t *testing.T, instruction *in
 		return nil, err
 	}
 
-	var proveResponse ftdc.ProveResponse
+	var proveResponse fdc.ProveResponse
 	err = json.Unmarshal(res, &proveResponse)
 	require.NoError(t, err)
 
 	return &proveResponse, nil
 }
 
-func TestFTDCProveBasicFlow(t *testing.T) {
-	setup := setupFTDCProveTest(t)
+func TestFDCProveBasicFlow(t *testing.T) {
+	setup := setupFDCProveTest(t)
 	proc := setup.setupInstructionProcessor()
 
 	// Use DP threshold >= 50% to satisfy the one-above-50 rule with cosigners (1/2)
-	request := setup.buildFTDCRequest(utils.ToHash("PMWMultisigAccountConfigured"), utils.ToHash("XRP"), 6000, setup.defaultRequestBody)
+	request := setup.buildFDCRequest(utils.ToHash("PMWMultisigAccountConfigured"), utils.ToHash("XRP"), 6000, setup.defaultRequestBody)
 	instruction := setup.buildInstruction(t, request, setup.defaultResponseBody, setup.cosigners[:2], 1, setup.defaultTimestamp)
 
 	// Build action and process via instruction processor
@@ -243,12 +246,12 @@ func TestFTDCProveBasicFlow(t *testing.T) {
 	require.Equal(t, uint8(1), res.Status)
 
 	// Decode result data into ProveResponse for assertions
-	var proveResponse ftdc.ProveResponse
+	var proveResponse fdc.ProveResponse
 	err := json.Unmarshal(res.Data, &proveResponse)
 	require.NoError(t, err)
 
 	// Verify response header
-	responseHeader, err := ftdc.DecodeResponse(proveResponse.ResponseHeader)
+	responseHeader, err := fdc.DecodeResponse(proveResponse.ResponseHeader)
 	require.NoError(t, err)
 
 	require.Equal(t, request.Header.AttestationType, responseHeader.AttestationType)
@@ -268,14 +271,14 @@ func TestFTDCProveBasicFlow(t *testing.T) {
 	require.NotEmpty(t, proveResponse.CosignerSignatures)
 }
 
-func TestFTDCProveNoCosigners(t *testing.T) {
-	setup := setupFTDCProveTest(t)
+func TestFDCProveNoCosigners(t *testing.T) {
+	setup := setupFDCProveTest(t)
 
-	request := setup.defaultFTDCRequest()
+	request := setup.defaultFDCRequest()
 	instruction := setup.buildInstruction(t, request, setup.defaultResponseBody, []common.Address{}, 0, setup.defaultTimestamp)
 
 	// Sign with all data providers
-	signatures, signers := setup.signFTDCMessage(t, request, setup.defaultResponseBody, []common.Address{}, 0, setup.defaultTimestamp, setup.privKeys)
+	signatures, signers := setup.signFDCMessage(t, request, setup.defaultResponseBody, []common.Address{}, 0, setup.defaultTimestamp, setup.privKeys)
 
 	proveResponse, err := setup.executeAndDecodeProve(t, instruction, signatures, signers)
 	require.NoError(t, err)
@@ -285,34 +288,34 @@ func TestFTDCProveNoCosigners(t *testing.T) {
 	require.Empty(t, proveResponse.CosignerSignatures)
 }
 
-func TestFTDCProveInvalidRequestEncoding(t *testing.T) {
-	setup := setupFTDCProveTest(t)
+func TestFDCProveInvalidRequestEncoding(t *testing.T) {
+	setup := setupFDCProveTest(t)
 
 	instruction := setup.buildDefaultInstruction(t)
 
 	instruction.OriginalMessage = []byte{0x01, 0x02, 0x03}
 	_, err := setup.executeAndDecodeProve(t, instruction, []hexutil.Bytes{}, []common.Address{})
 	require.Error(t, err)
-	require.Contains(t, err.Error(), "failed to decode FTDC prove request")
+	require.Contains(t, err.Error(), "failed to decode FDC prove request")
 
 	instruction.OriginalMessage = []byte{}
 	_, err = setup.executeAndDecodeProve(t, instruction, []hexutil.Bytes{}, []common.Address{})
 	require.Error(t, err)
-	require.Contains(t, err.Error(), "failed to decode FTDC prove request")
+	require.Contains(t, err.Error(), "failed to decode FDC prove request")
 
 	instruction.OriginalMessage = nil
 	_, err = setup.executeAndDecodeProve(t, instruction, []hexutil.Bytes{}, []common.Address{})
 	require.Error(t, err)
-	require.Contains(t, err.Error(), "failed to decode FTDC prove request")
+	require.Contains(t, err.Error(), "failed to decode FDC prove request")
 }
 
-func TestFTDCProveSignatureCountMismatch(t *testing.T) {
-	setup := setupFTDCProveTest(t)
+func TestFDCProveSignatureCountMismatch(t *testing.T) {
+	setup := setupFDCProveTest(t)
 
-	request := setup.defaultFTDCRequest()
+	request := setup.defaultFDCRequest()
 	instruction := setup.buildDefaultInstruction(t)
 
-	signatures, signers := setup.signFTDCMessage(t, request, setup.defaultResponseBody, setup.cosigners[:2], 1, setup.defaultTimestamp, setup.privKeys[:10])
+	signatures, signers := setup.signFDCMessage(t, request, setup.defaultResponseBody, setup.cosigners[:2], 1, setup.defaultTimestamp, setup.privKeys[:10])
 
 	// Add extra signer without signature
 	signers = append(signers, setup.signers[50])
@@ -322,13 +325,13 @@ func TestFTDCProveSignatureCountMismatch(t *testing.T) {
 	require.Contains(t, err.Error(), "signature count does not match signer count")
 }
 
-func TestFTDCProveInvalidSignature(t *testing.T) {
-	setup := setupFTDCProveTest(t)
+func TestFDCProveInvalidSignature(t *testing.T) {
+	setup := setupFDCProveTest(t)
 
-	request := setup.defaultFTDCRequest()
+	request := setup.defaultFDCRequest()
 	instruction := setup.buildDefaultInstruction(t)
 
-	signatures, signers := setup.signFTDCMessage(t, request, setup.defaultResponseBody, setup.cosigners[:2], 1, setup.defaultTimestamp, setup.privKeys[:10])
+	signatures, signers := setup.signFDCMessage(t, request, setup.defaultResponseBody, setup.cosigners[:2], 1, setup.defaultTimestamp, setup.privKeys[:10])
 
 	// Corrupt one signature
 	signatures[2] = hexutil.Bytes{0x01, 0x02, 0x03}
@@ -338,12 +341,12 @@ func TestFTDCProveInvalidSignature(t *testing.T) {
 	require.Contains(t, err.Error(), "invalid signature")
 }
 
-func TestFTDCProveThresholdsThroughProcessorProcess(t *testing.T) {
-	setup := setupFTDCProveTest(t)
+func TestFDCProveThresholdsThroughProcessorProcess(t *testing.T) {
+	setup := setupFDCProveTest(t)
 	proc := setup.setupInstructionProcessor()
 
 	// Case 1: Below minimum DP threshold (3999) should fail
-	request := setup.buildFTDCRequest(utils.ToHash("TestAttestation"), utils.ToHash("XRP"), 3999, setup.defaultRequestBody)
+	request := setup.buildFDCRequest(utils.ToHash("TestAttestation"), utils.ToHash("XRP"), 3999, setup.defaultRequestBody)
 	instr := setup.buildInstruction(t, request, setup.defaultResponseBody, []common.Address{}, 0, setup.defaultTimestamp)
 	action := setup.buildActionWithPolicySigners(t, instr, request, setup.defaultResponseBody, []common.Address{}, 0, setup.privKeys)
 	res := proc.Process(action)
@@ -351,7 +354,7 @@ func TestFTDCProveThresholdsThroughProcessorProcess(t *testing.T) {
 	require.Contains(t, res.Log, "data providers threshold too low")
 
 	// Case 5: One-above-50 rule fail: DP=4000 (<50%), cosigner threshold = 2/4 (==50%)
-	request = setup.buildFTDCRequest(utils.ToHash("TestAttestation"), utils.ToHash("XRP"), 4000, setup.defaultRequestBody)
+	request = setup.buildFDCRequest(utils.ToHash("TestAttestation"), utils.ToHash("XRP"), 4000, setup.defaultRequestBody)
 	cos := setup.cosigners[:4]
 	instr = setup.buildInstruction(t, request, setup.defaultResponseBody, cos, 2, setup.defaultTimestamp)
 	action = setup.buildActionWithPolicySigners(t, instr, request, setup.defaultResponseBody, cos, 2, setup.privKeys)
@@ -360,21 +363,21 @@ func TestFTDCProveThresholdsThroughProcessorProcess(t *testing.T) {
 	require.Contains(t, res.Log, "one threshold should be above 50%")
 
 	// Case 3: Zero BIPS (default 50%) should pass
-	request = setup.buildFTDCRequest(utils.ToHash("TestAttestation"), utils.ToHash("XRP"), 0, setup.defaultRequestBody)
+	request = setup.buildFDCRequest(utils.ToHash("TestAttestation"), utils.ToHash("XRP"), 0, setup.defaultRequestBody)
 	instr = setup.buildInstruction(t, request, setup.defaultResponseBody, []common.Address{}, 0, setup.defaultTimestamp)
 	action = setup.buildActionWithPolicySigners(t, instr, request, setup.defaultResponseBody, []common.Address{}, 0, setup.privKeys)
 	res = proc.Process(action)
 	require.Equal(t, uint8(1), res.Status)
 
 	// Case 4: Max DP threshold (9999) should pass with all providers
-	request = setup.buildFTDCRequest(utils.ToHash("TestAttestation"), utils.ToHash("XRP"), 9999, setup.defaultRequestBody)
+	request = setup.buildFDCRequest(utils.ToHash("TestAttestation"), utils.ToHash("XRP"), 9999, setup.defaultRequestBody)
 	instr = setup.buildInstruction(t, request, setup.defaultResponseBody, []common.Address{}, 0, setup.defaultTimestamp)
 	action = setup.buildActionWithPolicySigners(t, instr, request, setup.defaultResponseBody, []common.Address{}, 0, setup.privKeys)
 	res = proc.Process(action)
 	require.Equal(t, uint8(1), res.Status)
 
 	// Case 6: One-above-50 rule pass: DP=4000 (<50%), cosigner threshold = 3/5 (>50%)
-	request = setup.buildFTDCRequest(utils.ToHash("TestAttestation"), utils.ToHash("XRP"), 4000, setup.defaultRequestBody)
+	request = setup.buildFDCRequest(utils.ToHash("TestAttestation"), utils.ToHash("XRP"), 4000, setup.defaultRequestBody)
 	cos = setup.cosigners[:5]
 	instr = setup.buildInstruction(t, request, setup.defaultResponseBody, cos, 3, setup.defaultTimestamp)
 	action = setup.buildActionWithPolicySigners(t, instr, request, setup.defaultResponseBody, cos, 3, setup.privKeys)
@@ -382,12 +385,12 @@ func TestFTDCProveThresholdsThroughProcessorProcess(t *testing.T) {
 	require.Equal(t, uint8(1), res.Status)
 }
 
-func TestFTDCProveSignatureEdgeCases(t *testing.T) {
-	setup := setupFTDCProveTest(t)
+func TestFDCProveSignatureEdgeCases(t *testing.T) {
+	setup := setupFDCProveTest(t)
 	proc := setup.setupInstructionProcessor()
 
 	// Base request: default 50% DP threshold (BIPS=0), no cosigners
-	request := setup.buildFTDCRequest(utils.ToHash("TestAttestation"), utils.ToHash("XRP"), 0, setup.defaultRequestBody)
+	request := setup.buildFDCRequest(utils.ToHash("TestAttestation"), utils.ToHash("XRP"), 0, setup.defaultRequestBody)
 	instr := setup.buildInstruction(t, request, setup.defaultResponseBody, []common.Address{}, 0, setup.defaultTimestamp)
 
 	// 1) Not enough provider signatures (10% < 50%)
@@ -413,11 +416,11 @@ func TestFTDCProveSignatureEdgeCases(t *testing.T) {
 }
 
 // Ensure data provider signatures are sorted by voter index in checkResponseSignatures
-func TestFTDCProveDataProviderSignaturesAreSorted(t *testing.T) {
-	setup := setupFTDCProveTest(t)
+func TestFDCProveDataProviderSignaturesAreSorted(t *testing.T) {
+	setup := setupFDCProveTest(t)
 
-	request := setup.buildFTDCRequest(utils.ToHash("TestAttestation"), utils.ToHash("XRP"), 5000, setup.defaultRequestBody)
-	msgHash, _, _, err := ftdc.HashMessage(request, setup.defaultResponseBody, setup.cosigners[:3], 2, setup.defaultTimestamp)
+	request := setup.buildFDCRequest(utils.ToHash("TestAttestation"), utils.ToHash("XRP"), 5000, setup.defaultRequestBody)
+	msgHash, _, _, err := fdc.HashMessage(request, setup.defaultResponseBody, setup.cosigners[:3], 2, setup.defaultTimestamp)
 	require.NoError(t, err)
 
 	order := []int{10, 2, 25, 7, 0, 18, 3}
@@ -439,8 +442,8 @@ func TestFTDCProveDataProviderSignaturesAreSorted(t *testing.T) {
 }
 
 // Verifies we accept signatures for current and previous epoch policies, and reject older
-func TestFTDCProvePolicyWindowLastTwoEpochs(t *testing.T) {
-	setup := setupFTDCProveTest(t)
+func TestFDCProvePolicyWindowLastTwoEpochs(t *testing.T) {
+	setup := setupFDCProveTest(t)
 	proc := setup.setupInstructionProcessor()
 
 	// Create policies for epoch+1 and epoch+2 (advance active policy twice)
@@ -456,7 +459,7 @@ func TestFTDCProvePolicyWindowLastTwoEpochs(t *testing.T) {
 	require.NoError(t, err)
 
 	// Base request
-	request := setup.buildFTDCRequest(utils.ToHash("TestAttestation"), utils.ToHash("XRP"), 0, setup.defaultRequestBody)
+	request := setup.buildFDCRequest(utils.ToHash("TestAttestation"), utils.ToHash("XRP"), 0, setup.defaultRequestBody)
 
 	run := func(epoch uint32, expectOK bool) {
 		instr := setup.buildInstruction(t, request, setup.defaultResponseBody, []common.Address{}, 0, setup.defaultTimestamp)

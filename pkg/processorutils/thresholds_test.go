@@ -13,7 +13,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/flare-foundation/tee-node/pkg/ftdc"
+	"github.com/flare-foundation/tee-node/pkg/fdc"
 )
 
 func TestComputeThreshold(t *testing.T) {
@@ -45,7 +45,7 @@ func TestDataProvidersThreshold(t *testing.T) {
 		assert.Equal(t, uint16(0), threshold)
 	})
 
-	t.Run("op different from Wallet/KeyDataProviderRestore/FTDC/Prove should have threshold = computeThreshold(totalWeight, maxBIPS/2)", func(t *testing.T) {
+	t.Run("op different from Wallet/KeyDataProviderRestore/F_FDC2/Prove should have threshold = computeThreshold(totalWeight, maxBIPS/2)", func(t *testing.T) {
 		data := &instruction.DataFixed{
 			OPType:    op.XRP.Hash(),
 			OPCommand: op.Pay.Hash(),
@@ -56,9 +56,9 @@ func TestDataProvidersThreshold(t *testing.T) {
 		assert.Equal(t, computeThreshold(totalWeight, maxBIPS/2), threshold)
 	})
 
-	t.Run("FTDC request with invalid message should fail", func(t *testing.T) {
+	t.Run("FDC request with invalid message should fail", func(t *testing.T) {
 		data := &instruction.DataFixed{
-			OPType:          op.FTDC.Hash(),
+			OPType:          op.FDC2.Hash(),
 			OPCommand:       op.Prove.Hash(),
 			OriginalMessage: []byte("invalid"),
 		}
@@ -68,37 +68,37 @@ func TestDataProvidersThreshold(t *testing.T) {
 		assert.Equal(t, uint16(0), threshold)
 	})
 
-	t.Run("FTDC message with zero threshold should fall back to computeThreshold(totalWeight, maxBIPS/2)", func(t *testing.T) {
-		data := buildFTDCData(t, 0, nil, 0)
+	t.Run("FDC message with zero threshold should fall back to computeThreshold(totalWeight, maxBIPS/2)", func(t *testing.T) {
+		data := buildFDCData(t, 0, nil, 0)
 
 		threshold, err := dataProvidersThreshold(data, totalWeight)
 		assert.NoError(t, err)
 		assert.Equal(t, computeThreshold(totalWeight, maxBIPS/2), threshold)
 	})
 
-	t.Run("FTDC request with threshold too low should fail", func(t *testing.T) {
-		data := buildFTDCData(t, ftdcMinimumThresholdBIPS-1, nil, 0)
+	t.Run("FDC request with threshold too low should fail", func(t *testing.T) {
+		data := buildFDCData(t, fdcMinimumThresholdBIPS-1, nil, 0)
 
 		_, err := dataProvidersThreshold(data, totalWeight)
 		assert.EqualError(t, err, "data providers threshold too low")
 	})
 
-	t.Run("FTDC request with cosigner threshold below 50% should fail", func(t *testing.T) {
-		data := buildFTDCData(t, maxBIPS/2-1, cosigners, 2)
+	t.Run("FDC request with cosigner threshold below 50% should fail", func(t *testing.T) {
+		data := buildFDCData(t, maxBIPS/2-1, cosigners, 2)
 
 		_, err := dataProvidersThreshold(data, totalWeight)
 		assert.EqualError(t, err, "one threshold should be above 50%")
 	})
 
-	t.Run("FTDC request with threshold too high should fail", func(t *testing.T) {
-		data := buildFTDCData(t, maxBIPS, nil, 0)
+	t.Run("FDC request with threshold too high should fail", func(t *testing.T) {
+		data := buildFDCData(t, maxBIPS, nil, 0)
 
 		_, err := dataProvidersThreshold(data, totalWeight)
 		assert.EqualError(t, err, "data providers threshold too high")
 	})
 
-	t.Run("FTDC valid threshold uses provided bips", func(t *testing.T) {
-		data := buildFTDCData(t, maxBIPS*0.6, cosigners[:2], 1)
+	t.Run("FDC valid threshold uses provided bips", func(t *testing.T) {
+		data := buildFDCData(t, maxBIPS*0.6, cosigners[:2], 1)
 
 		threshold, err := dataProvidersThreshold(data, totalWeight)
 		assert.NoError(t, err)
@@ -160,11 +160,11 @@ func TestCheckThresholds(t *testing.T) {
 		assert.EqualError(t, err, "signed by an entity that is neither data provider nor cosigner")
 	})
 
-	t.Run("propagates ftdc threshold validation", func(t *testing.T) {
-		ftdcData := buildFTDCData(t, 4500, cosigners, 1)
+	t.Run("propagates fdc threshold validation", func(t *testing.T) {
+		fdcData := buildFDCData(t, 4500, cosigners, 1)
 		signers := []common.Address{voters[0], cosigners[0]}
 
-		err := CheckThresholds(ftdcData, signers, policy)
+		err := CheckThresholds(fdcData, signers, policy)
 		assert.EqualError(t, err, "one threshold should be above 50%")
 	})
 
@@ -188,11 +188,11 @@ func newPolicy(weights []uint16) (*cpolicy.SigningPolicy, []common.Address) {
 	}, addresses
 }
 
-func buildFTDCData(t *testing.T, threshold uint16, cosigners []common.Address, cosignersThreshold uint64) *instruction.DataFixed {
+func buildFDCData(t *testing.T, threshold uint16, cosigners []common.Address, cosignersThreshold uint64) *instruction.DataFixed {
 	t.Helper()
 
-	req := connector.IFtdcHubFtdcAttestationRequest{
-		Header: connector.IFtdcHubFtdcRequestHeader{
+	req := connector.IFdc2HubFdc2AttestationRequest{
+		Header: connector.IFdc2HubFdc2RequestHeader{
 			AttestationType: [32]byte{},
 			SourceId:        [32]byte{},
 			ThresholdBIPS:   threshold,
@@ -200,11 +200,11 @@ func buildFTDCData(t *testing.T, threshold uint16, cosigners []common.Address, c
 		RequestBody: []byte("body"),
 	}
 
-	originalMessage, err := ftdc.EncodeRequest(req)
+	originalMessage, err := fdc.EncodeRequest(req)
 	require.NoError(t, err)
 
 	return &instruction.DataFixed{
-		OPType:             op.FTDC.Hash(),
+		OPType:             op.FDC2.Hash(),
 		OPCommand:          op.Prove.Hash(),
 		Cosigners:          cosigners,
 		CosignersThreshold: cosignersThreshold,

@@ -1,4 +1,4 @@
-package ftdcutils
+package fdcutils
 
 import (
 	"encoding/json"
@@ -8,7 +8,7 @@ import (
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/flare-foundation/go-flare-common/pkg/policy"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/instruction"
-	"github.com/flare-foundation/tee-node/pkg/ftdc"
+	"github.com/flare-foundation/tee-node/pkg/fdc"
 	"github.com/flare-foundation/tee-node/pkg/node"
 	"github.com/flare-foundation/tee-node/pkg/types"
 )
@@ -17,12 +17,12 @@ type Processor struct {
 	node.Signer
 }
 
-// NewProcessor creates an FTDC proof processor backed by the provided signer.
+// NewProcessor creates an FDC proof processor backed by the provided signer.
 func NewProcessor(sig node.Signer) Processor {
 	return Processor{Signer: sig}
 }
 
-// Prove verifies the FTDC request, aggregates the data provider and cosigner
+// Prove verifies the FDC request, aggregates the data provider and cosigner
 // signatures, and returns the encoded proof payload signed by the TEE.
 func (p *Processor) Prove(
 	_ types.SubmissionTag,
@@ -31,12 +31,12 @@ func (p *Processor) Prove(
 	signers []common.Address,
 	signingPolicy *policy.SigningPolicy,
 ) ([]byte, []byte, error) {
-	req, err := ftdc.DecodeRequest(dataFixed.OriginalMessage)
+	req, err := fdc.DecodeRequest(dataFixed.OriginalMessage)
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to decode FTDC prove request: %w", err)
+		return nil, nil, fmt.Errorf("failed to decode FDC prove request: %w", err)
 	}
 
-	hashToBeSigned, msgPrepended, encResHeader, err := ftdc.HashMessage(req, dataFixed.AdditionalFixedMessage, dataFixed.Cosigners, dataFixed.CosignersThreshold, dataFixed.Timestamp)
+	hashToBeSigned, msgPrepended, encResHeader, err := fdc.HashMessage(req, dataFixed.AdditionalFixedMessage, dataFixed.Cosigners, dataFixed.CosignersThreshold, dataFixed.Timestamp)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -58,7 +58,7 @@ func (p *Processor) Prove(
 		return nil, nil, err
 	}
 
-	result := ftdc.ProveResponse{
+	result := fdc.ProveResponse{
 		ResponseHeader:         encResHeader,
 		RequestBody:            req.RequestBody,
 		ResponseBody:           dataFixed.AdditionalFixedMessage,
