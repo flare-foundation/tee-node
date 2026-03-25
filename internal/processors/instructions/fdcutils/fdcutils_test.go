@@ -155,7 +155,7 @@ func (s *fdcProveTestSetup) signMessage(t *testing.T, msgHash common.Hash, privK
 func (s *fdcProveTestSetup) signFDCMessage(t *testing.T, request connector.IFdc2HubFdc2AttestationRequest, responseBody []byte, cosigners []common.Address, cosignersThreshold uint64, timestamp uint64, privKeys []*ecdsa.PrivateKey) ([]hexutil.Bytes, []common.Address) {
 	t.Helper()
 
-	msgHash, _, _, err := fdc.HashMessage(request, responseBody, cosigners, cosignersThreshold, timestamp)
+	msgHash, _, _, _, err := fdc.HashMessage(request, responseBody, cosigners, cosignersThreshold, timestamp)
 	require.NoError(t, err)
 
 	return s.signMessage(t, msgHash, privKeys)
@@ -179,7 +179,7 @@ func (s *fdcProveTestSetup) buildActionWithPolicySigners(
 	vars := make([]hexutil.Bytes, 0, len(privKeys))
 
 	// Compute FDC hash once
-	fdcHash, _, _, err := fdc.HashMessage(request, responseBody, cosigners, cosignersThreshold, instr.Timestamp)
+	fdcHash, _, _, _, err := fdc.HashMessage(request, responseBody, cosigners, cosignersThreshold, instr.Timestamp)
 	require.NoError(t, err)
 
 	for _, pk := range privKeys {
@@ -420,7 +420,7 @@ func TestFDCProveDataProviderSignaturesAreSorted(t *testing.T) {
 	setup := setupFDCProveTest(t)
 
 	request := setup.buildFDCRequest(utils.ToHash("TestAttestation"), utils.ToHash("XRP"), 5000, setup.defaultRequestBody)
-	msgHash, _, _, err := fdc.HashMessage(request, setup.defaultResponseBody, setup.cosigners[:3], 2, setup.defaultTimestamp)
+	msgHash, _, _, _, err := fdc.HashMessage(request, setup.defaultResponseBody, setup.cosigners[:3], 2, setup.defaultTimestamp)
 	require.NoError(t, err)
 
 	order := []int{10, 2, 25, 7, 0, 18, 3}

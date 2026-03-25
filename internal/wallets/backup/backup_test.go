@@ -36,10 +36,10 @@ func TestBackupAndRecover(t *testing.T) {
 	weights := []uint16{7, 20}
 	normalizationParam := 27
 	dataProvidersBackupThreshold := uint64(22)
-
 	adminsThreshold := uint64(2)
+	rewardEpochID := uint32(100)
 
-	givenWallet := &wallets.Wallet{
+	baseWallet := &wallets.Wallet{
 		WalletID:    idPair.WalletID,
 		KeyID:       idPair.KeyID,
 		PrivateKey:  common.BigToHash(sk.D).Bytes(),
@@ -58,35 +58,56 @@ func TestBackupAndRecover(t *testing.T) {
 		Settings:        hexutil.Bytes{},
 	}
 
-	rewardEpochID := uint32(100)
-
 	t.Run("Unsupported signing algorithm should fail", func(t *testing.T) {
-		unsupportedAlgoWallet := *givenWallet
+		unsupportedAlgoWallet := *baseWallet
 		unsupportedAlgoWallet.SigningAlgo = utils.ToHash("BLS-12-381")
 		_, err = backup.BackupWallet(&unsupportedAlgoWallet, providerPubKeys, weights, rewardEpochID, testNode.TeeID(), uint16(normalizationParam), dataProvidersBackupThreshold)
 		assert.Error(t, err)
 	})
 
-	t.Run("Backup and recover wallet should succeed", func(t *testing.T) {
-		// Backup the wallet
-		walletBackup, err := backup.BackupWallet(givenWallet, providerPubKeys, weights, rewardEpochID, testNode.TeeID(), uint16(normalizationParam), dataProvidersBackupThreshold)
-		assert.NoError(t, err)
-		assert.NotNil(t, walletBackup)
-		err = walletBackup.Check()
-		assert.NoError(t, err)
+	algoTests := []struct {
+		name        string
+		keyType     common.Hash
+		signingAlgo common.Hash
+	}{
+		{"XRP", wallets.XRPType, wallets.XRPSignAlgo},
+		{"EVM", wallets.EVMType, wallets.EVMSignAlgo},
+		{"VRF", wallets.EVMType, wallets.VRFAlgo},
+	}
 
-		// Decrypt admin and provider shares
-		adminKeyShares, providerKeyShares := decryptAllShares(t, walletBackup.AdminEncryptedParts, walletBackup.ProviderEncryptedParts, adminKeys, providerKeys)
+	for _, tc := range algoTests {
+		t.Run("Backup and recover wallet should succeed ("+tc.name+")", func(t *testing.T) {
+			givenWallet := *baseWallet
+			givenWallet.KeyType = tc.keyType
+			givenWallet.SigningAlgo = tc.signingAlgo
 
-		// Recover the wallet
-		recoveredWallet, err := backup.RecoverWallet(
-			append(adminKeyShares, providerKeyShares...),
-			&walletBackup.WalletBackupMetaData,
-		)
-		assert.NoError(t, err)
-		givenWallet.Restored = true
-		assert.Equal(t, givenWallet, recoveredWallet)
-	})
+			// Backup the wallet
+			walletBackup, err := backup.BackupWallet(&givenWallet, providerPubKeys, weights, rewardEpochID, testNode.TeeID(), uint16(normalizationParam), dataProvidersBackupThreshold)
+			assert.NoError(t, err)
+			assert.NotNil(t, walletBackup)
+
+			// Add TEE signature (normally done by the TEE processor)
+			backupHash, err := walletBackup.HashForSigning()
+			assert.NoError(t, err)
+			walletBackup.TEESignature, err = testNode.Sign(backupHash[:])
+			assert.NoError(t, err)
+
+			err = walletBackup.Check()
+			assert.NoError(t, err)
+
+			// Decrypt admin and provider shares
+			adminKeyShares, providerKeyShares := decryptAllShares(t, walletBackup.AdminEncryptedParts, walletBackup.ProviderEncryptedParts, adminKeys, providerKeys)
+
+			// Recover the wallet
+			recoveredWallet, err := backup.RecoverWallet(
+				append(adminKeyShares, providerKeyShares...),
+				&walletBackup.WalletBackupMetaData,
+			)
+			assert.NoError(t, err)
+			givenWallet.Restored = true
+			assert.Equal(t, &givenWallet, recoveredWallet)
+		})
+	}
 }
 
 func TestSplitAndEncrypt(t *testing.T) {
@@ -98,8 +119,10 @@ func TestSplitAndEncrypt(t *testing.T) {
 	keys, _ := generateTestKeys(t, 2, 0)
 	encryptionPubKeys := privateKeysToPublicKeys(t, keys)
 
+	signer := &wallets.Wallet{PrivateKey: common.BigToHash(privateKey.D).Bytes(), SigningAlgo: wallets.EVMSignAlgo}
+
 	// Split and encrypt the key
-	encryptedShares, err := backup.SplitAndEncrypt(privateKey, encryptionPubKeys, 2, utils.ConstantSlice(uint16(1), 2), wallets.WalletBackupID{}, privateKey, false)
+	encryptedShares, err := backup.SplitAndEncrypt(privateKey, encryptionPubKeys, 2, utils.ConstantSlice(uint16(1), 2), wallets.WalletBackupID{}, signer, false)
 	assert.NoError(t, err)
 	assert.NotNil(t, encryptedShares)
 }
@@ -147,6 +170,13 @@ func TestRecoverWithMissingShares(t *testing.T) {
 	walletBackup, err := backup.BackupWallet(givenWallet, providerPubKeys, weights, rewardEpochID, testNode.TeeID(), uint16(normalizationParam), dataProvidersBackupThreshold)
 	assert.NoError(t, err)
 	assert.NotNil(t, walletBackup)
+
+	// Add TEE signature (normally done by the TEE processor)
+	backupHash, err := walletBackup.HashForSigning()
+	assert.NoError(t, err)
+	walletBackup.TEESignature, err = testNode.Sign(backupHash[:])
+	assert.NoError(t, err)
+
 	err = walletBackup.Check()
 	assert.NoError(t, err)
 

@@ -89,7 +89,7 @@ func TestHashMessage(t *testing.T) {
 		RequestBody: requestBody,
 	}
 
-	hash, msgHashPrepended, encHeader, err := fdc.HashMessage(req, responseBody, cosigners, cosignersThreshold, timestamp)
+	hash, _, msgHashPrepended, encHeader, err := fdc.HashMessage(req, responseBody, cosigners, cosignersThreshold, timestamp)
 	require.NoError(t, err)
 	require.NotEmpty(t, hash)
 	require.NotEmpty(t, msgHashPrepended)
@@ -102,22 +102,22 @@ func TestHashMessage(t *testing.T) {
 	// Changing any input should result in a different hash
 	req2 := req
 	req2.RequestBody = []byte{0xaa, 0xbb, 0xcc}
-	hash2, _, _, err := fdc.HashMessage(req2, responseBody, cosigners, cosignersThreshold, timestamp)
+	hash2, _, _, _, err := fdc.HashMessage(req2, responseBody, cosigners, cosignersThreshold, timestamp)
 	require.NoError(t, err)
 	require.NotEqual(t, hash, hash2, "Changing the request body should produce a different hash")
 
 	// Test with empty cosigners
-	hash3, _, _, err := fdc.HashMessage(req, responseBody, []common.Address{}, cosignersThreshold, timestamp)
+	hash3, _, _, _, err := fdc.HashMessage(req, responseBody, []common.Address{}, cosignersThreshold, timestamp)
 	require.NoError(t, err)
 	require.NotEqual(t, hash, hash3, "Changing the cosigners should produce a different hash")
 
 	// Changing timestamp should change the hash
-	hash4, _, _, err := fdc.HashMessage(req, responseBody, cosigners, cosignersThreshold, timestamp+1)
+	hash4, _, _, _, err := fdc.HashMessage(req, responseBody, cosigners, cosignersThreshold, timestamp+1)
 	require.NoError(t, err)
 	require.NotEqual(t, hash, hash4, "Changing the timestamp should produce a different hash")
 
 	// Changing responseBody should change the hash
-	hash5, _, _, err := fdc.HashMessage(req, []byte{0x99, 0x98, 0x97}, cosigners, cosignersThreshold, timestamp)
+	hash5, _, _, _, err := fdc.HashMessage(req, []byte{0x99, 0x98, 0x97}, cosigners, cosignersThreshold, timestamp)
 	require.NoError(t, err)
 	require.NotEqual(t, hash, hash5, "Changing the responseBody should produce a different hash")
 }

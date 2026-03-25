@@ -36,7 +36,7 @@ func (p *Processor) Prove(
 		return nil, nil, fmt.Errorf("failed to decode FDC prove request: %w", err)
 	}
 
-	hashToBeSigned, msgPrepended, encResHeader, err := fdc.HashMessage(req, dataFixed.AdditionalFixedMessage, dataFixed.Cosigners, dataFixed.CosignersThreshold, dataFixed.Timestamp)
+	hashToBeSigned, msgHash, msgPrepended, encResHeader, err := fdc.HashMessage(req, dataFixed.AdditionalFixedMessage, dataFixed.Cosigners, dataFixed.CosignersThreshold, dataFixed.Timestamp)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -53,7 +53,7 @@ func (p *Processor) Prove(
 		return nil, nil, err
 	}
 
-	teeSignature, err := p.Sign(hashToBeSigned[:])
+	teeSignature, err := p.Sign(msgHash.Bytes())
 	if err != nil {
 		return nil, nil, err
 	}

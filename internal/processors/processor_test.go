@@ -100,25 +100,35 @@ func TestProcessorsEndToEnd(t *testing.T) {
 		providerPrivKeys, adminWalletPublicKeys, finalEpochID, wStorage, wallets.XRPType, wallets.XRPSignAlgo)
 	require.False(t, walletProof.Restored)
 
-	var vrfKeyID = uint64(2)
-	randWalletProof := generateWallet(t, mainActionInfoChan, actionResponseChan, teeID, walletID, vrfKeyID,
+	var vrfWalletID = common.HexToHash("0x123456")
+	var vrfKeyID = uint64(1)
+	randWalletProof := generateWallet(t, mainActionInfoChan, actionResponseChan, teeID, vrfWalletID, vrfKeyID,
 		providerPrivKeys, adminWalletPublicKeys, finalEpochID, wStorage, wallets.EVMType, wallets.VRFAlgo)
-	proveVRFRandomness(t, mainActionInfoChan, actionResponseChan, teeID, walletID, vrfKeyID, randWalletProof.PublicKey, providerPrivKeys, finalEpochID)
+	proveVRFRandomness(t, mainActionInfoChan, actionResponseChan, teeID, vrfWalletID, vrfKeyID, randWalletProof.PublicKey, providerPrivKeys, finalEpochID)
 
 	signTransaction(t, mainActionInfoChan, actionResponseChan, teeID, walletID, keyID, providerPrivKeys, finalEpochID)
 
 	walletBackup := getBackup(t, readActionInfoChan, actionResponseChan, teeID, walletID, keyID)
+	vrfWalletBackup := getBackup(t, readActionInfoChan, actionResponseChan, teeID, vrfWalletID, vrfKeyID)
 
 	nonce := big.NewInt(1)
 	deleteWallet(t, mainActionInfoChan, actionResponseChan, teeID, walletID, keyID, providerPrivKeys, finalEpochID, nonce, wStorage)
+	nonce.Add(nonce, common.Big1)
+	deleteWallet(t, mainActionInfoChan, actionResponseChan, teeID, vrfWalletID, vrfKeyID, providerPrivKeys, finalEpochID, nonce, wStorage)
 	nonce.Add(nonce, common.Big1)
 
 	recoveredWalletProof := recoverWallet(t, mainActionInfoChan, actionResponseChan, teeID, teePubKey, walletID, keyID,
 		providerPrivKeys, adminPrivKeys, finalEpochID, nonce, walletBackup, wStorage)
 	walletProof.Restored = true
-
 	walletProof.Nonce = nonce
 	require.Equal(t, walletProof, recoveredWalletProof)
+
+	nonce.Add(nonce, common.Big1)
+	recoveredVRFWalletProof := recoverWallet(t, mainActionInfoChan, actionResponseChan, teeID, teePubKey, vrfWalletID, vrfKeyID,
+		providerPrivKeys, adminPrivKeys, finalEpochID, nonce, vrfWalletBackup, wStorage)
+	randWalletProof.Restored = true
+	randWalletProof.Nonce = nonce
+	require.Equal(t, randWalletProof, recoveredVRFWalletProof)
 
 	getTeeAttestation(t, mainActionInfoChan, actionResponseChan, teeID,
 		providerPrivKeys, finalEpochID)
@@ -517,14 +527,7 @@ func getBackup(
 	err = json.Unmarshal(backupResponse.WalletBackup, &backup)
 	require.NoError(t, err)
 
-	backupHash, err := backup.HashForSigning()
-	require.NoError(t, err)
-	err = utils.VerifySignature(backupHash[:], backup.TEESignature, teeID)
-	require.NoError(t, err)
-
-	backupPubKey, err := types.ParsePubKeyBytes(backup.PublicKey)
-	require.NoError(t, err)
-	err = utils.VerifySignature(backupHash[:], backup.Signature, crypto.PubkeyToAddress(*backupPubKey))
+	err = backup.Check()
 	require.NoError(t, err)
 
 	return &backup
@@ -557,8 +560,8 @@ func recoverWallet(
 			TeeId:         teeID,
 			WalletId:      walletID,
 			KeyId:         keyID,
-			KeyType:       wallets.XRPType,
-			SigningAlgo:   wallets.XRPSignAlgo,
+			KeyType:       walletBackup.KeyType,
+			SigningAlgo:   walletBackup.SigningAlgo,
 			PublicKey:     walletBackup.PublicKey,
 			RewardEpochId: rewardEpochID,
 			RandomNonce:   walletBackup.RandomNonce,
@@ -797,7 +800,7 @@ func fdcProve(
 	require.NoError(t, err)
 
 	timestamp := uint64(time.Now().Unix())
-	fdcMsgHash, _, _, err := fdc.HashMessage(originalMessage, additionalFixedMessageEncoded, cosignerAddresses, cosignersThreshold, timestamp)
+	fdcMsgHash, msgHash, _, _, err := fdc.HashMessage(originalMessage, additionalFixedMessageEncoded, cosignerAddresses, cosignersThreshold, timestamp)
 	require.NoError(t, err)
 
 	variableMessages := make([][]byte, 0, len(providerPrivKeys)+len(cosignerPrivKeys))
@@ -836,7 +839,7 @@ func fdcProve(
 	err = json.Unmarshal(actionResponse.Result.Data, &fdcResponse)
 	require.NoError(t, err)
 
-	err = utils.VerifySignature(fdcMsgHash.Bytes(), fdcResponse.TEESignature, teeID)
+	err = utils.VerifySignature(msgHash.Bytes(), fdcResponse.TEESignature, teeID)
 	require.NoError(t, err)
 
 	require.Equal(t, len(fdcResponse.CosignerSignatures), len(cosignerPrivKeys))
@@ -898,6 +901,14 @@ func MockProxy(t *testing.T, proxyPort int, mainChan, readChan chan *types.Actio
 		}
 
 		response, err := json.Marshal(action)
+		require.NoError(t, err)
+
+		_, err = w.Write(response)
+		require.NoError(t, err)
+	})
+
+	router.HandleFunc("POST /queue/backup", func(w http.ResponseWriter, r *http.Request) {
+		response, err := json.Marshal(types.Action{})
 		require.NoError(t, err)
 
 		_, err = w.Write(response)

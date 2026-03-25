@@ -146,8 +146,24 @@ func (w *Wallet) Sign(msg []byte) ([]byte, error) {
 	case EVMSignAlgo:
 		prv := ToECDSAUnsafe(w.PrivateKey)
 		return signKeccak256Secp256k1ECDSA(prv, msg)
+	case VRFAlgo:
+		prv := ToECDSAUnsafe(w.PrivateKey)
+		return signVRF(prv, msg)
 	default:
 		return nil, errors.New("unsupported signing algorithm")
+	}
+}
+
+func VerifySignature(msg, signature, publicKey []byte, signingAlgo common.Hash) error {
+	switch signingAlgo {
+	case XRPSignAlgo:
+		return verifySHA512HalfSecp256k1ECDSA(msg, signature, publicKey)
+	case EVMSignAlgo:
+		return verifyKeccak256Secp256k1ECDSA(msg, signature, publicKey)
+	case VRFAlgo:
+		return verifyVRF(msg, signature, publicKey)
+	default:
+		return errors.New("unsupported signing algorithm")
 	}
 }
 

@@ -4,6 +4,7 @@ import (
 	"crypto/ecdsa"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"math/big"
 	"slices"
 
@@ -87,13 +88,12 @@ func (ksd *KeySplitData) HashForSigning() (common.Hash, error) {
 }
 
 // Sign signs the key split data with the provided private key.
-func (ksd *KeySplitData) Sign(privKey *ecdsa.PrivateKey) ([]byte, error) {
+func (ksd *KeySplitData) Sign(signer wallets.Signer) ([]byte, error) {
 	hash, err := ksd.HashForSigning()
 	if err != nil {
 		return nil, err
 	}
-
-	signature, err := utils.Sign(hash[:], privKey)
+	signature, err := signer.Sign(PadForSigning(hash))
 	if err != nil {
 		return nil, err
 	}
@@ -108,15 +108,7 @@ func (ks *KeySplit) VerifySignature() error {
 		return err
 	}
 
-	pubKeyParsed, err := types.ParsePubKeyBytes(ks.PublicKey)
-	if err != nil {
-		return err
-	}
-	mainKeyAddress := crypto.PubkeyToAddress(*pubKeyParsed)
-
-	err = utils.VerifySignature(hash[:], ks.Signature, mainKeyAddress)
-
-	return err
+	return wallets.VerifySignature(PadForSigning(hash), ks.Signature, ks.PublicKey, ks.SigningAlgo)
 }
 
 // HashForSigning produces the hash over the wallet backup content.
@@ -169,6 +161,19 @@ func (wb *WalletBackup) Check() error {
 		}
 	}
 
+	hash, err := wb.HashForSigning()
+	if err != nil {
+		return err
+	}
+
+	if err = wallets.VerifySignature(PadForSigning(hash), wb.Signature, wb.PublicKey, wb.SigningAlgo); err != nil {
+		return fmt.Errorf("wallet signature invalid: %w", err)
+	}
+
+	if err = utils.VerifySignature(hash[:], wb.TEESignature, wb.TeeID); err != nil {
+		return fmt.Errorf("TEE signature invalid: %w", err)
+	}
+
 	return nil
 }
 
@@ -215,4 +220,8 @@ func DecryptSplit(encryptedShare []byte, privKeyECDSA *ecdsa.PrivateKey) (*KeySp
 	}
 
 	return &keySplit, nil
+}
+
+func PadForSigning(hash common.Hash) []byte {
+	return fmt.Appendf(nil, "\x19Flare PMW backup:\n%d%s", len(hash), hash)
 }

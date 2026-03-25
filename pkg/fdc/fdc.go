@@ -57,7 +57,7 @@ func HashMessage(
 	cosigners []common.Address,
 	cosignersThreshold uint64,
 	timestamp uint64,
-) (common.Hash, hexutil.Bytes, hexutil.Bytes, error) {
+) (common.Hash, common.Hash, hexutil.Bytes, hexutil.Bytes, error) {
 	header := connector.IFdc2HubFdc2ResponseHeader{
 		AttestationType:    req.Header.AttestationType,
 		SourceId:           req.Header.SourceId,
@@ -69,7 +69,7 @@ func HashMessage(
 
 	encHeader, err := EncodeResponseHeader(header)
 	if err != nil {
-		return common.Hash{}, nil, nil, err
+		return common.Hash{}, common.Hash{}, nil, nil, err
 	}
 
 	headerHash := crypto.Keccak256(encHeader)
@@ -86,5 +86,5 @@ func HashMessage(
 
 	hashToBeSigned := crypto.Keccak256Hash(msgHashPrepended)
 
-	return hashToBeSigned, msgHashPrepended, encHeader, nil
+	return hashToBeSigned, msgHash, msgHashPrepended, encHeader, nil
 }
