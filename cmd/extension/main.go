@@ -12,10 +12,6 @@ import (
 )
 
 func main() {
-	if settings.Mode == 1 {
-		settings.TestCodeHash = settings.TestCodeHash1 // set different test code hash. Applicable only in mode 1.
-	}
-
 	logger.Set(logger.Config{Console: true, Level: settings.LogLevel})
 
 	teeNode, err := node.Initialize(node.ZeroState{})

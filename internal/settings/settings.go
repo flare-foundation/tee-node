@@ -43,8 +43,6 @@ const (
 	MaxActionSize      = 1024 * 1024 // 1 MB
 )
 
-const GoogleCertLoc = "assets/google_confidential_space_root.crt"
-
 const (
 	SetProxyURLEndpoint = "/proxy"
 	ProxyURLEnvVar      = "PROXY_URL"
@@ -69,7 +67,6 @@ var (
 
 	TestPlatform, _ = convert.StringToCommonHash("TEST_PLATFORM")
 	TestCodeHash    = common.HexToHash("194844cf417dde867073e5ab7199fa4d21fd82b5dbe2bdea8b3d7fc18d10fdc2")
-	TestCodeHash1   = common.HexToHash("a9919519b88a4659e8811433094e14a2a2c2939493a328e9db8e4d3bb71eb85e")
 
 	DefaultExtensionID = common.MaxHash
 )
