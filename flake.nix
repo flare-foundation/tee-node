@@ -1,5 +1,5 @@
 {
-  description = "TEE node binary with extension (ie. signing) server enabled. Useful for building images with TEE node + extension.";
+  description = "TEE node binary with or without extension (ie. signing) server enabled.";
 
   inputs = {
     nixpkgs.url = "github:nixos/nixpkgs/nixpkgs-unstable";
@@ -38,7 +38,7 @@
             src = ./.;
             subPackages = [ "cmd/" ];
             inherit goModules;
-            vendorHash = "sha256-GUqlv/ZKDb7UifZgTQc/RxxpyCUUFoEZLetAtffekqQ=";
+            vendorHash = "sha256-n7FbFSW54e1zarc7arrAR6QUvsZAqwgiYdQkz7OgVbE=";
             doCheck = false;
           };
           with-extension = pkgs.buildGoModule {
@@ -47,8 +47,30 @@
             src = ./.;
             subPackages = [ "cmd/extension" ];
             inherit goModules;
-            vendorHash = "sha256-GUqlv/ZKDb7UifZgTQc/RxxpyCUUFoEZLetAtffekqQ=";
+            vendorHash = "sha256-n7FbFSW54e1zarc7arrAR6QUvsZAqwgiYdQkz7OgVbE=";
             doCheck = false;
+          };
+          docker = pkgs.dockerTools.buildLayeredImage {
+            name = "tee-node";
+            tag = "latest";
+            contents = [
+              self.packages.${system}.default
+              pkgs.cacert
+            ];
+            config = {
+              Env = [
+                "TZ=UTC"
+                "MODE=0"
+                "SSL_CERT_FILE=${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt"
+              ];
+              Labels = {
+                "tee.launch_policy.allow_env_override" = "LOG_LEVEL,PROXY_URL,INITIAL_OWNER,EXTENSION_ID";
+              };
+              ExposedPorts = {
+                "5500/tcp" = { };
+              };
+              Cmd = [ "${self.packages.${system}.default}/bin/cmd" ];
+            };
           };
         };
       }
