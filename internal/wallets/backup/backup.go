@@ -105,10 +105,18 @@ func BackupWallet(wallet *wallets.Wallet, providerPubKeys []*ecdsa.PublicKey, si
 func weightsNormalization(weights []uint16, total uint16) ([]uint16, error) {
 	sum := uint16(0)
 	for _, weight := range weights {
+		if weight == 0 {
+			continue
+		}
 		if sum >= -weight {
 			return nil, errors.New("overflow of weights")
 		}
 		sum += weight
+	}
+
+	if sum == 0 {
+		// this should not happen
+		return nil, errors.New("total weight is zero")
 	}
 
 	normalizedWeights := make([]uint16, len(weights))

@@ -23,7 +23,7 @@ func FetchAction(url string) (*types.Action, error) {
 	}
 
 	defer res.Body.Close() //nolint:errcheck
-	body, err := io.ReadAll(res.Body)
+	body, err := io.ReadAll(io.LimitReader(res.Body, settings.MaxFetchResponseSize))
 	if err != nil {
 		return nil, err
 	}
@@ -55,12 +55,8 @@ func PostActionResponse(url string, response *types.ActionResponse) error {
 	}
 
 	defer res.Body.Close() //nolint:errcheck
-	body, err := io.ReadAll(res.Body)
-	if err != nil {
-		return err
-	}
 	if res.StatusCode != http.StatusOK {
-		return fmt.Errorf("unexpected status code: %d, response: %s", res.StatusCode, string(body))
+		return fmt.Errorf("unexpected status code: %d", res.StatusCode)
 	}
 
 	return nil

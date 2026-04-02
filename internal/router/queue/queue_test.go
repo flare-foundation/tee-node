@@ -236,7 +236,6 @@ func TestPostActionResponse_NonOKStatus(t *testing.T) {
 	err := queue.PostActionResponse(setup.url, mockResponse)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "unexpected status code: 400")
-	require.Contains(t, err.Error(), "Bad Request")
 }
 
 // TestPostActionResponse_Timeout tests HTTP timeout behavior

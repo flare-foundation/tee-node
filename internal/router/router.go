@@ -58,45 +58,61 @@ func (r Router) Run(signer node.Signer) {
 func (r *Router) ServeQueue(id processorutils.QueueID, signer node.Signer) {
 	logger.Infof("%s queue: processing started", id)
 	for {
-		var action *types.Action
-		var result types.ActionResult
-		var response *types.ActionResponse
-		var err error
-
-		r.proxyURL.RLock()
-		proxyURL := r.proxyURL.URL
-		r.proxyURL.RUnlock()
-		if proxyURL == "" {
-			goto sleep
+		sleep := r.serveQueueIteration(id, signer)
+		if sleep {
+			time.Sleep(settings.QueuedActionsSleepTime)
 		}
-
-		action, err = queue.FetchAction(fmt.Sprintf("%s/queue/%s", proxyURL, id))
-		if err != nil {
-			logger.Errorf("%s queue: error getting action: %v", id, err)
-			goto sleep
-		}
-		if action == nil || action.Data.ID == [32]byte{} {
-			goto sleep
-		}
-		logger.Infof("%s queue: fetched an action: id %v, type %v, submission tag %v", id, action.Data.ID, action.Data.Type, action.Data.SubmissionTag)
-
-		result = r.process(action, id)
-		logger.Infof("%s queue: result obtained: status %v, log %v", id, result.Status, result.Log)
-
-		response, err = SignResult(&result, signer)
-		if err != nil {
-			logger.Errorf("%s queue: error signing: %v", id, err)
-		}
-
-		err = queue.PostActionResponse(proxyURL+"/result", response)
-		if err != nil {
-			logger.Errorf("%s queue: error posting result: %v", id, err)
-		}
-		continue
-
-	sleep:
-		time.Sleep(settings.QueuedActionsSleepTime)
 	}
+}
+
+// serveQueueIteration executes a single iteration of the queue processing loop.
+// It is separated from ServeQueue to enable panic recovery via defer.
+func (r *Router) serveQueueIteration(id processorutils.QueueID, signer node.Signer) bool {
+	defer func() {
+		if rec := recover(); rec != nil {
+			logger.Errorf("%s queue: recovered from panic: %v", id, rec)
+		}
+	}()
+
+	var action *types.Action
+	var result types.ActionResult
+	var response *types.ActionResponse
+	var err error
+
+	r.proxyURL.RLock()
+	proxyURL := r.proxyURL.URL
+	r.proxyURL.RUnlock()
+	if proxyURL == "" {
+		return true
+	}
+
+	action, err = queue.FetchAction(fmt.Sprintf("%s/queue/%s", proxyURL, id))
+	if err != nil {
+		logger.Errorf("%s queue: error getting action: %v", id, err)
+		return true
+	}
+	if action == nil || action.Data.ID == [32]byte{} {
+		return true
+	}
+	logger.Infof("%s queue: fetched an action: id %v, type %v, submission tag %v", id, action.Data.ID, action.Data.Type, action.Data.SubmissionTag)
+
+	result = r.process(action, id)
+	if result.Status == 0 {
+		logger.Errorf("%s queue: processing action %v error: %v", id, action.Data.ID, result.Log)
+	} else {
+		logger.Infof("%s queue: result of action %v obtained, status %v, log %v", id, action.Data.ID, result.Status, result.Log)
+	}
+	response, err = SignResult(&result, signer)
+	if err != nil {
+		logger.Errorf("%s queue: error signing: %v", id, err)
+	}
+
+	err = queue.PostActionResponse(proxyURL+"/result", response)
+	if err != nil {
+		logger.Errorf("%s queue: error posting result: %v", id, err)
+	}
+
+	return false
 }
 
 // RegisterProcessor registers processor for the pair of opType and opCommand.

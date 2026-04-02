@@ -83,6 +83,14 @@ func CheckAndAdapt(a *types.Action) error {
 		return errors.New("unaligned providers' data")
 	}
 
+	var totalVariableSize int
+	for _, msg := range a.AdditionalVariableMessages {
+		totalVariableSize += len(msg)
+	}
+	if totalVariableSize > settings.MaxVariableMessageSize {
+		return fmt.Errorf("total variable messages size %d exceeds limit of %d bytes", totalVariableSize, settings.MaxVariableMessageSize)
+	}
+
 	return nil
 }
 

@@ -39,8 +39,10 @@ var QueuedActionsSleepTime = 100 * time.Millisecond
 const ProxyTimeout = 2 * time.Second
 
 const (
-	MaxInstructionSize = 100 * 1024  // 100 KB
-	MaxActionSize      = 1024 * 1024 // 1 MB
+	MaxInstructionSize     = 100 * 1024       // 100 KB
+	MaxActionSize          = 10 * 1024 * 1024 // 10 MB
+	MaxFetchResponseSize   = 10 * 1024 * 1024 // 10 MB - limits the total size of a fetched action response
+	MaxVariableMessageSize = 1024 * 1024      // 1 MB - limits the total size of all aggregated variable messages
 )
 
 const (
