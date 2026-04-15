@@ -222,6 +222,7 @@ func DecryptSplit(encryptedShare []byte, privKeyECDSA *ecdsa.PrivateKey) (*KeySp
 	return &keySplit, nil
 }
 
+// PadForSigning wraps a hash with the Flare PMW backup signing prefix.
 func PadForSigning(hash common.Hash) []byte {
 	return fmt.Appendf(nil, "\x19Flare PMW backup:\n%d%s", len(hash), hash)
 }

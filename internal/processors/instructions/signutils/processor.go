@@ -3,6 +3,8 @@ package signutils
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
+	"sync/atomic"
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -22,7 +24,8 @@ import (
 type Processor struct {
 	*wallets.Storage
 	node.IdentifierAndSigner
-	proxyURL *settings.ProxyURLMutex
+	proxyURL       *settings.ProxyURLMutex
+	activeRoutines atomic.Int64
 }
 
 // NewProcessor creates a signing instruction processor backed by the provided
@@ -57,6 +60,14 @@ func (p *Processor) SignXRPLPayment(
 	}
 	if len(entries) == 0 {
 		return nil, nil, errors.New("fee schedule is empty")
+	}
+	if len(entries) > settings.MaxFeeEntries {
+		return nil, nil, fmt.Errorf("fee schedule has %d entries, maximum is %d", len(entries), settings.MaxFeeEntries)
+	}
+	for i, entry := range entries {
+		if entry.Delay > settings.MaxFeeScheduleTime {
+			return nil, nil, fmt.Errorf("fee entry %d delay %v exceeds maximum %v", i, entry.Delay, settings.MaxFeeScheduleTime)
+		}
 	}
 
 	teeID := p.TeeID()
@@ -97,7 +108,13 @@ func (p *Processor) SignXRPLPayment(
 			return nil, nil, errors.New("proxy URL not set")
 		}
 
+		if p.activeRoutines.Load() >= int64(settings.MaxSignGoroutines) {
+			return nil, nil, errors.New("maximum number of concurrent sign goroutines reached")
+		}
+		p.activeRoutines.Add(1)
+
 		go func() {
+			defer p.activeRoutines.Add(-1)
 			startTime := time.Now()
 			for i, entry := range entries {
 				time.Sleep(time.Until(startTime.Add(entry.Delay)))

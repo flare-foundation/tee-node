@@ -10,40 +10,36 @@
   <a href="CHANGELOG.md">Changelog</a>
 </div>
 
-# Flare TEE server node
+# Flare TEE Server Node
 
-Flare TEE server node is a secure server implementation running inside a Trusted Execution Environment (TEE).
-It provides protocol managed wallets as well as a base for extensions.
+A secure server running inside a Trusted Execution Environment (TEE) on GCP Confidential Space. It provides protocol managed wallets and serves as a base for extensions.
 
-The TEE node is designed to run behind a proxy service. Only the proxy should have direct network access to the TEE node — external clients communicate exclusively through the proxy.
+The TEE node runs behind a proxy service — external clients communicate exclusively through the proxy.
 
 [![API Reference](https://pkg.go.dev/badge/github.com/flare-foundation/tee-node)](https://pkg.go.dev/github.com/flare-foundation/tee-node?tab=doc)
 
-### Requirements
+## Documentation
+
+See [docs/](docs/README.md) for the full documentation, including architecture, configuration, security model, and extension integration.
+
+## Reproducible Builds
+
+Docker images are built reproducibly so that the image digest can be independently verified for TEE attestation. See [REPRODUCIBILITY.md](REPRODUCIBILITY.md) for build and verification instructions.
+
+## Requirements
 
 - Go 1.25.1 or higher
-- Google Cloud Platform account (for attestation verification) (GCP Confidential Space)
+- Docker with BuildKit support
+- GCP account (for production deployment)
 
-### Deployment
+## Quick Start
 
-For running in GCP Confidential Space, a Docker image must be built using a reproducible build process and deployed to the confidential VM. Reproducible builds ensure that the image digest can be independently verified, which is essential for TEE attestation.
-
-### Reproducible Docker image build
-
-The project uses [Nix](https://nixos.org/) to produce deterministic Docker images. All build inputs — Go toolchain, dependencies, and configuration — are pinned via `flake.nix`, `flake.lock`, and `gomod2nix.toml`, ensuring that the same source always produces a byte-identical image.
-
-**Building with Nix via Docker:**
-
-```
-docker run --rm -v $(pwd):/src -w /src nixos/nix bash -c \
-  "git config --global --add safe.directory /src && nix build .#docker --extra-experimental-features 'nix-command flakes' && cp result /src/tee-node-image.tar.gz"
-docker load < tee-node-image.tar.gz
+```sh
+go run cmd/main.go
 ```
 
-### Run tests
+## Tests
 
-Run all tests with
-
-```
+```sh
 go test ./...
 ```

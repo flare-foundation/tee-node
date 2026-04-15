@@ -154,6 +154,7 @@ func (w *Wallet) Sign(msg []byte) ([]byte, error) {
 	}
 }
 
+// VerifySignature checks that the signature over msg is valid for the given public key and signing algorithm.
 func VerifySignature(msg, signature, publicKey []byte, signingAlgo common.Hash) error {
 	switch signingAlgo {
 	case XRPSignAlgo:

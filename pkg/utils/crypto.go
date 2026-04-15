@@ -99,6 +99,7 @@ func PubKeysToAddresses(pubKeys []types.PublicKey) ([]common.Address, error) {
 	return addresses, nil
 }
 
+// ECDSAPubKeyToECIES converts a secp256k1 ECDSA public key to an ECIES public key.
 func ECDSAPubKeyToECIES(pubKey *ecdsa.PublicKey) (*ecies.PublicKey, error) {
 	if pubKey.Curve != secp256k1.S256() && pubKey.Curve != crypto.S256() {
 		return nil, errors.New("curve not S256")
@@ -107,6 +108,7 @@ func ECDSAPubKeyToECIES(pubKey *ecdsa.PublicKey) (*ecies.PublicKey, error) {
 	return &ecies.PublicKey{X: pubKey.X, Y: pubKey.Y, Curve: ecies.DefaultCurve, Params: ecies.ECIES_AES128_SHA256}, nil
 }
 
+// ECDSAPrivKeyToECIES converts a secp256k1 ECDSA private key to an ECIES private key.
 func ECDSAPrivKeyToECIES(privKey *ecdsa.PrivateKey) (*ecies.PrivateKey, error) {
 	pubKey, err := ECDSAPubKeyToECIES(&privKey.PublicKey)
 	if err != nil {

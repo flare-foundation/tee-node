@@ -71,7 +71,10 @@ func dataProvidersThreshold(data *instruction.DataFixed, totalWeight uint16) (ui
 	p := pair{op.HashToOPType(data.OPType), op.HashToOPCommand(data.OPCommand)}
 	switch p {
 	case pair{op.Wallet, op.KeyDataProviderRestore}:
-		threshold = 0 // condition (weight >= threshold) always true
+		// No voting weight threshold for restore — provider participation is
+		// enforced cryptographically via Shamir secret sharing (ProvidersThreshold)
+		// during key reconstruction, not through voting weight.
+		threshold = 0
 
 	case pair{op.FDC2, op.Prove}:
 		request, err := fdc.DecodeRequest(data.OriginalMessage)

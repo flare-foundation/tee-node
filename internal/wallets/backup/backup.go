@@ -276,6 +276,11 @@ func RecoverWallet(
 		SettingsVersion: common.Hash{},
 		Settings:        hexutil.Bytes{},
 
+		// StatusCode and PausingNonce are reset to zero on restore. This is
+		// currently acceptable because neither field is used yet. Once they carry
+		// security-relevant semantics (e.g. pausing restrictions), the backup
+		// metadata must preserve and restore them, or Store() must re-apply them
+		// from permanent storage.
 		Status: &wallets.WalletStatus{Nonce: 0, StatusCode: 0},
 	}, nil
 }
