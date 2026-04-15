@@ -177,7 +177,7 @@ func TestInitializePolicyEmptyPolicyBytes(t *testing.T) {
 
 	_, err := setup.executeInitializePolicy(t, req)
 	require.Error(t, err)
-	require.Contains(t, err.Error(), "message to short for decoding signing policy")
+	require.Contains(t, err.Error(), "message too short for decoding signing policy")
 }
 
 func TestInitializePolicyMismatchedPublicKeysCount(t *testing.T) {
@@ -320,7 +320,7 @@ func TestUpdatePolicyInvalidPolicyBytes(t *testing.T) {
 
 	_, err := setup.executeUpdatePolicy(t, req)
 	require.Error(t, err)
-	require.Contains(t, err.Error(), "message to short for decoding signing policy")
+	require.Contains(t, err.Error(), "message too short for decoding signing policy")
 }
 
 func TestUpdatePolicyEmptyPolicyBytes(t *testing.T) {
@@ -336,7 +336,7 @@ func TestUpdatePolicyEmptyPolicyBytes(t *testing.T) {
 
 	_, err := setup.executeUpdatePolicy(t, req)
 	require.Error(t, err)
-	require.Contains(t, err.Error(), "message to short for decoding signing policy")
+	require.Contains(t, err.Error(), "message too short for decoding signing policy")
 }
 
 func TestUpdatePolicyWrongEpochID(t *testing.T) {

@@ -207,6 +207,7 @@ type KeyDataProviderRestoreResultStatus struct {
 	ErrorLogs      []string
 }
 
+// NewKeyDataProviderRestoreResultStatus returns an empty restore result status tracker.
 func NewKeyDataProviderRestoreResultStatus() *KeyDataProviderRestoreResultStatus {
 	return &KeyDataProviderRestoreResultStatus{
 		ErrorPositions: make([]int, 0),
@@ -214,11 +215,13 @@ func NewKeyDataProviderRestoreResultStatus() *KeyDataProviderRestoreResultStatus
 	}
 }
 
+// AddError records a decryption or validation error at the given signer index.
 func (s *KeyDataProviderRestoreResultStatus) AddError(i int, err error) {
 	s.ErrorPositions = append(s.ErrorPositions, i)
 	s.ErrorLogs = append(s.ErrorLogs, err.Error())
 }
 
+// Empty reports whether no errors were recorded.
 func (s *KeyDataProviderRestoreResultStatus) Empty() bool {
 	return len(s.ErrorPositions) == 0
 }

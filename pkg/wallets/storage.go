@@ -2,7 +2,10 @@ package wallets
 
 import (
 	"errors"
+	"fmt"
 	"sync"
+
+	"github.com/flare-foundation/tee-node/internal/settings"
 )
 
 type Storage struct {
@@ -33,9 +36,16 @@ func (s *Storage) Store(wallet *Wallet) error {
 		return errors.New("wallet with given walletID and keyID already exists")
 	}
 
+	if len(s.wallets) >= settings.MaxWallets {
+		return fmt.Errorf("maximum number of wallets (%d) reached", settings.MaxWallets)
+	}
+
 	if walletStatus, ok := s.permanent[idPair]; ok {
 		walletCopied.Status = walletStatus
 	} else {
+		if len(s.permanent) >= settings.MaxPermanentWalletsStatus {
+			return fmt.Errorf("maximum number of permanent wallet records (%d) reached", settings.MaxPermanentWalletsStatus)
+		}
 		s.permanent[idPair] = walletCopied.Status
 	}
 

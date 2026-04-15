@@ -27,9 +27,11 @@ type Point struct {
 	Y *big.Int
 }
 
+// IsOnCurve reports whether the point lies on the secp256k1 curve.
 func (p *Point) IsOnCurve() bool {
 	return s256Curve.IsOnCurve(p.X, p.Y)
 }
+
 func validateScalar(k *big.Int) error {
 	if k == nil {
 		return errors.New("scalar is nil")
@@ -44,6 +46,7 @@ func validateScalar(k *big.Int) error {
 	return nil
 }
 
+// ValidatePoint checks that the point is non-nil and lies on the secp256k1 curve.
 func (p *Point) ValidatePoint() error {
 	if p == nil {
 		return errors.New("point is nil")
@@ -334,7 +337,8 @@ func VerifyRandomness(proof *Proof, pk *ecdsa.PublicKey, nonce []byte) error {
 	return nil
 }
 
-// RandomnessFromProof extracts the verifiable randomness output from a valid proof.
+// RandomnessFromProof extracts the verifiable randomness output from a valid proof
+// by hashing the gamma point coordinates.
 func (proof *Proof) RandomnessFromProof() (common.Hash, error) {
 	if err := proof.Gamma.ValidatePoint(); err != nil {
 		return common.Hash{}, err
@@ -346,7 +350,7 @@ func (proof *Proof) RandomnessFromProof() (common.Hash, error) {
 	return common.BytesToHash(sum), nil
 }
 
-// HashToG1 hashes an arbitrary message to a point in an elliptic group.
+// HashToZn hashes an arbitrary message to a scalar in Z_N (the secp256k1 group order).
 func HashToZn(msg []byte) *big.Int {
 	buf := crypto.Keccak256(msg)
 	c := new(big.Int).SetBytes(buf)

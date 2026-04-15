@@ -43,6 +43,12 @@ const (
 	MaxActionSize          = 10 * 1024 * 1024 // 10 MB
 	MaxFetchResponseSize   = 10 * 1024 * 1024 // 10 MB - limits the total size of a fetched action response
 	MaxVariableMessageSize = 1024 * 1024      // 1 MB - limits the total size of all aggregated variable messages
+
+	MaxWallets                = 200_000          // Maximum number of wallets that can be stored in memory. This is a safety limit to prevent OOM errors.
+	MaxPermanentWalletsStatus = 1_000_000        // Maximum number of wallets that can be stored in permanent storage. This is a safety limit to prevent OOM errors.
+	MaxSignGoroutines         = 3000             // Maximum number of concurrent XRP sign schedule goroutines. Prevents OOM from accumulated sleeping goroutines.
+	MaxFeeEntries             = 50               // Maximum number of fee schedule entries per XRP sign instruction.
+	MaxFeeScheduleTime        = 10 * time.Minute // Maximum delay allowed in a fee schedule entry.
 )
 
 const (

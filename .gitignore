@@ -17,8 +17,3 @@ FlareTEE.docx
 coverage*
 
 .idea/
-
-result/
-nix/
-result
-tee-node-image.tar.gz
