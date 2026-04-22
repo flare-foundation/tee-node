@@ -8,4 +8,3 @@
 !cmd/
 !internal/
 !pkg/
-!repro-sources-list.sh

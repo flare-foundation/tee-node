@@ -8,9 +8,17 @@ they are built.
 
 - `SOURCE_DATE_EPOCH` is set to the commit timestamp and passed as a build arg
   to clamp all timestamps
-- Go binary is built with `-trimpath -ldflags="-buildid= -s -w"` to strip
-  non-deterministic metadata
-- Base image digests are pinned in the Dockerfile
+- Go binary is built with `-trimpath -ldflags="-buildid= -s -w"` and
+  `-buildvcs=false` to strip non-deterministic metadata; `CGO_ENABLED=0`
+  produces a static binary so link-time libc variance cannot leak in
+- Base image digest is pinned in the Dockerfile
+- Debian package versions are pinned via apt's native snapshot support
+  (Debian 13+): `Snapshot: true` in the sources file plus
+  `apt-get install --snapshot <SOURCE_DATE_EPOCH>` redirects every fetch to
+  [snapshot.debian.org](https://snapshot.debian.org) at the exact instant of
+  the commit, so the same `SOURCE_DATE_EPOCH` always yields the same package
+  bytes. Adapted from
+  [reproducible-containers/repro-sources-list.sh](https://github.com/reproducible-containers/repro-sources-list.sh/blob/master/alternative/Dockerfile.debian-13)
 - CI uses BuildKit's [`rewrite-timestamp=true`](https://github.com/moby/buildkit/pull/4057)
   exporter option to normalize layer timestamps
 
