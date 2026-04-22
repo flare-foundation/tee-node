@@ -38,7 +38,7 @@ func constraints(opCommand common.Hash) (sizeConstraint, error) {
 	oc := op.HashToOPCommand(opCommand)
 
 	switch oc {
-	case op.InitializePolicy, op.UpdatePolicy, op.KeyInfo, op.TEEInfo, op.TEEBackup:
+	case op.InitializePolicy, op.UpdatePolicy, op.KeyInfo, op.KeyProof, op.TEEInfo, op.TEEBackup:
 		return sizeConstraint{}, errors.New("non instruction opCommand")
 	case op.KeyDataProviderRestore, op.KeyDataProviderRestoreTest:
 		return restore, nil

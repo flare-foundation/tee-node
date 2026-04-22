@@ -9,7 +9,6 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/flare-foundation/go-flare-common/pkg/logger"
 	"github.com/flare-foundation/go-flare-common/pkg/policy"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/instruction"
@@ -141,8 +140,7 @@ func (p *Processor) SignXRPLPayment(
 					Data:          responseData,
 				}
 
-				msgHash := crypto.Keccak256(result.Data)
-				sig, err := p.Sign(msgHash)
+				sig, err := p.Sign(result.Hash())
 				if err != nil { // this should never happen since we already signed the same data during pre-processing, but we handle it just in case
 					logger.Errorf("sign schedule: try %d signing result error: %v", i, err)
 					return

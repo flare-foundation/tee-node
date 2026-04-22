@@ -69,16 +69,49 @@ func (p *Processor) TEEInfo(i *types.DirectInstruction) ([]byte, error) {
 	return resultEncoded, nil
 }
 
-// KeysInfo lists the stored wallets as signed existence proofs.
+// KeysInfo lists the (walletID, keyID, nonce) triples of all stored wallets.
 func (p *Processor) KeysInfo(_ *types.DirectInstruction) ([]byte, error) {
-	teeID := p.Info().TeeID
-
 	p.wStorage.RLock()
 	storedWallets := p.wStorage.GetWallets()
 	p.wStorage.RUnlock()
 
-	signedProofs := make([]wallets.SignedKeyExistenceProof, len(storedWallets))
+	infos := make([]types.KeyInfo, len(storedWallets))
 	for i, storedWallet := range storedWallets {
+		infos[i] = types.KeyInfo{
+			WalletID: storedWallet.WalletID,
+			KeyID:    storedWallet.KeyID,
+			Nonce:    storedWallet.Status.Nonce,
+		}
+	}
+
+	res, err := json.Marshal(infos)
+	if err != nil {
+		return nil, err
+	}
+
+	return res, nil
+}
+
+// KeysProof returns signed key existence proofs for the requested (walletID, keyID) pairs.
+// Proofs are returned in the same order as the requested pairs.
+func (p *Processor) KeysProof(i *types.DirectInstruction) ([]byte, error) {
+	var requested []wallets.KeyIDPair
+	if err := json.Unmarshal(i.Message, &requested); err != nil {
+		return nil, err
+	}
+
+	teeID := p.Info().TeeID
+
+	p.wStorage.RLock()
+	defer p.wStorage.RUnlock()
+
+	signedProofs := make([]wallets.SignedKeyExistenceProof, len(requested))
+	for i, idPair := range requested {
+		storedWallet, err := p.wStorage.Get(idPair)
+		if err != nil {
+			return nil, err
+		}
+
 		ep := storedWallet.KeyExistenceProof(teeID)
 		epEncoded, err := structs.Encode(wallet.KeyExistenceStructArg, ep)
 		if err != nil {

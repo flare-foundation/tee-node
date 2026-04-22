@@ -3,6 +3,7 @@ package types
 import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/crypto"
 )
 
 type ActionType string
@@ -55,6 +56,20 @@ type ActionResult struct {
 
 	Version string        `json:"version"`
 	Data    hexutil.Bytes `json:"data"`
+}
+
+// Hash returns keccak256(keccak256(data) || id || keccak256(submissionTag) || status).
+func (ar *ActionResult) Hash() []byte {
+	dataHash := crypto.Keccak256(ar.Data)
+	tagHash := crypto.Keccak256([]byte(ar.SubmissionTag))
+
+	packed := make([]byte, 0, 32+32+32+1)
+	packed = append(packed, dataHash...)
+	packed = append(packed, ar.ID[:]...)
+	packed = append(packed, tagHash...)
+	packed = append(packed, ar.Status)
+
+	return crypto.Keccak256(packed)
 }
 
 type ActionInfo struct {
