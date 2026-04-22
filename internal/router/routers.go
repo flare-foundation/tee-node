@@ -25,6 +25,7 @@ func NewPMWRouter(teeNode *pnode.Node, wStorage *wallets.Storage, pStorage *poli
 
 	gp := getutils.NewProcessor(teeNode, pStorage, wStorage)
 	r.RegisterDirectProcessor(op.Get, op.KeyInfo, gp.KeysInfo)
+	r.RegisterDirectProcessor(op.Get, op.KeyProof, gp.KeysProof)
 	r.RegisterDirectProcessor(op.Get, op.TEEInfo, gp.TEEInfo)
 	r.RegisterDirectProcessor(op.Get, op.TEEBackup, gp.TEEBackup)
 
@@ -61,6 +62,7 @@ func NewForwardRouter(teeNode *pnode.Node, wStorage *wallets.Storage, pStorage *
 
 	gp := getutils.NewProcessor(teeNode, pStorage, wStorage)
 	r.RegisterDirectProcessor(op.Get, op.KeyInfo, gp.KeysInfo)
+	r.RegisterDirectProcessor(op.Get, op.KeyProof, gp.KeysProof)
 	r.RegisterDirectProcessor(op.Get, op.TEEInfo, gp.TEEInfo)
 	r.RegisterDirectProcessor(op.Get, op.TEEBackup, gp.TEEBackup)
 

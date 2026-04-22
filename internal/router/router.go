@@ -68,16 +68,15 @@ func (r *Router) ServeQueue(id processorutils.QueueID, signer node.Signer) {
 // serveQueueIteration executes a single iteration of the queue processing loop.
 // It is separated from ServeQueue to enable panic recovery via defer.
 func (r *Router) serveQueueIteration(id processorutils.QueueID, signer node.Signer) bool {
+	var action *types.Action
+
 	defer func() {
 		if rec := recover(); rec != nil {
 			logger.Errorf("%s queue: recovered from panic: %v", id, rec)
+			result := r.errorResult(action, fmt.Sprintf("internal error: panic: %v", rec))
+			r.signAndPost(id, &result, signer)
 		}
 	}()
-
-	var action *types.Action
-	var result types.ActionResult
-	var response *types.ActionResponse
-	var err error
 
 	r.proxyURL.RLock()
 	proxyURL := r.proxyURL.URL
@@ -86,9 +85,12 @@ func (r *Router) serveQueueIteration(id processorutils.QueueID, signer node.Sign
 		return true
 	}
 
+	var err error
 	action, err = queue.FetchAction(fmt.Sprintf("%s/queue/%s", proxyURL, id))
 	if err != nil {
 		logger.Errorf("%s queue: error getting action: %v", id, err)
+		result := r.errorResult(action, fmt.Sprintf("error fetching action: %v", err))
+		r.signAndPost(id, &result, signer)
 		return true
 	}
 	if action == nil || action.Data.ID == [32]byte{} {
@@ -96,23 +98,55 @@ func (r *Router) serveQueueIteration(id processorutils.QueueID, signer node.Sign
 	}
 	logger.Infof("%s queue: fetched an action: id %v, type %v, submission tag %v", id, action.Data.ID, action.Data.Type, action.Data.SubmissionTag)
 
-	result = r.process(action, id)
+	result := r.process(action, id)
 	if result.Status == 0 {
 		logger.Errorf("%s queue: processing action %v error: %v", id, action.Data.ID, result.Log)
 	} else {
 		logger.Infof("%s queue: result of action %v obtained, status %v, log %v", id, action.Data.ID, result.Status, result.Log)
 	}
-	response, err = SignResult(&result, signer)
+	r.signAndPost(id, &result, signer)
+
+	return false
+}
+
+// errorResult constructs a Status-0 ActionResult. If action is non-nil, its ID
+// and SubmissionTag are included; otherwise the fields are left zero-valued.
+func (r *Router) errorResult(action *types.Action, log string) types.ActionResult {
+	result := types.ActionResult{
+		Status:  0,
+		Version: settings.EncodingVersion,
+		Log:     log,
+	}
+	if action != nil {
+		result.ID = action.Data.ID
+		result.SubmissionTag = action.Data.SubmissionTag
+	}
+	return result
+}
+
+// signAndPost signs the result and posts it to the proxy.
+// On failure it retries with a minimal unsigned error result.
+func (r *Router) signAndPost(id processorutils.QueueID, result *types.ActionResult, signer node.Signer) {
+	response, err := SignResult(result, signer)
 	if err != nil {
 		logger.Errorf("%s queue: error signing: %v", id, err)
 	}
 
+	r.proxyURL.RLock()
+	proxyURL := r.proxyURL.URL
+	r.proxyURL.RUnlock()
+
 	err = queue.PostActionResponse(proxyURL+"/result", response)
 	if err != nil {
 		logger.Errorf("%s queue: error posting result: %v", id, err)
-	}
 
-	return false
+		// Retry with a minimal unsigned error-only result.
+		fallback := r.errorResult(nil, fmt.Sprintf("error posting result: %v", err))
+		fallbackResp := &types.ActionResponse{Result: fallback}
+		if retryErr := queue.PostActionResponse(proxyURL+"/result", fallbackResp); retryErr != nil {
+			logger.Errorf("%s queue: error posting fallback result: %v", id, retryErr)
+		}
+	}
 }
 
 // RegisterProcessor registers processor for the pair of opType and opCommand.

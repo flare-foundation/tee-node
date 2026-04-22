@@ -3,7 +3,6 @@ package router
 import (
 	"errors"
 
-	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/flare-foundation/tee-node/pkg/node"
 	"github.com/flare-foundation/tee-node/pkg/types"
 )
@@ -14,8 +13,7 @@ func SignResult(ar *types.ActionResult, signer node.Signer) (*types.ActionRespon
 		Result: *ar,
 	}
 
-	msgHash := crypto.Keccak256(ar.Data)
-	sig, err := signer.Sign(msgHash)
+	sig, err := signer.Sign(ar.Hash())
 	if err != nil {
 		res.Result.Log = "could not sign response"
 		return res, errors.New("could not sign")

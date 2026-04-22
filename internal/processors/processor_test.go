@@ -220,7 +220,7 @@ func getTeeInfo(
 
 	teeID := crypto.PubkeyToAddress(*teePubKey)
 
-	err = utils.VerifySignature(crypto.Keccak256(actionResponse.Result.Data), actionResponse.Signature, teeID)
+	err = utils.VerifySignature(actionResponse.Result.Hash(), actionResponse.Signature, teeID)
 	require.NoError(t, err)
 
 	return teeID, teePubKey
@@ -267,7 +267,7 @@ func generateWallet(
 	response := <-actionResponseChan
 	t.Log(response.Result.Log)
 	require.Equal(t, uint8(1), response.Result.Status)
-	err = utils.VerifySignature(crypto.Keccak256(response.Result.Data), response.Signature, teeID)
+	err = utils.VerifySignature(response.Result.Hash(), response.Signature, teeID)
 	require.NoError(t, err)
 
 	walletExistenceProof, err := wallets.ExtractKeyExistence(response.Result.Data, teeID)
@@ -290,7 +290,7 @@ func generateWallet(
 	t.Log(response.Result.Log)
 	require.Equal(t, uint8(1), response.Result.Status)
 
-	err = utils.VerifySignature(crypto.Keccak256(response.Result.Data), response.Signature, teeID)
+	err = utils.VerifySignature(response.Result.Hash(), response.Signature, teeID)
 	require.NoError(t, err)
 
 	var signerSequence types.RewardingData
@@ -338,7 +338,7 @@ func proveVRFRandomness(
 
 	actionResponse := <-actionResponseChan
 	require.Equal(t, uint8(1), actionResponse.Result.Status, actionResponse.Result.Log)
-	err = utils.VerifySignature(crypto.Keccak256(actionResponse.Result.Data), actionResponse.Signature, teeID)
+	err = utils.VerifySignature(actionResponse.Result.Hash(), actionResponse.Signature, teeID)
 	require.NoError(t, err)
 
 	var proveResp types.ProveRandomnessResponse
@@ -361,7 +361,7 @@ func proveVRFRandomness(
 
 	actionResponse = <-actionResponseChan
 	require.Equal(t, uint8(1), actionResponse.Result.Status, actionResponse.Result.Log)
-	err = utils.VerifySignature(crypto.Keccak256(actionResponse.Result.Data), actionResponse.Signature, teeID)
+	err = utils.VerifySignature(actionResponse.Result.Hash(), actionResponse.Signature, teeID)
 	require.NoError(t, err)
 
 	var signerSequence types.RewardingData
@@ -420,7 +420,7 @@ func signTransaction(
 		}
 	}
 	require.NotNil(t, actionResponse)
-	err = utils.VerifySignature(crypto.Keccak256(actionResponse.Result.Data), actionResponse.Signature, teeID)
+	err = utils.VerifySignature(actionResponse.Result.Hash(), actionResponse.Signature, teeID)
 	require.NoError(t, err)
 
 	// generate action sent when voting closed
@@ -431,7 +431,7 @@ func signTransaction(
 
 	actionResponse = <-actionResponseChan
 	require.Equal(t, uint8(1), actionResponse.Result.Status)
-	err = utils.VerifySignature(crypto.Keccak256(actionResponse.Result.Data), actionResponse.Signature, teeID)
+	err = utils.VerifySignature(actionResponse.Result.Hash(), actionResponse.Signature, teeID)
 	require.NoError(t, err)
 
 	var signerSequence types.RewardingData
@@ -484,7 +484,7 @@ func deleteWallet(
 
 	actionResponse = <-actionResponseChan
 	require.Equal(t, uint8(1), actionResponse.Result.Status)
-	err = utils.VerifySignature(crypto.Keccak256(actionResponse.Result.Data), actionResponse.Signature, teeID)
+	err = utils.VerifySignature(actionResponse.Result.Hash(), actionResponse.Signature, teeID)
 	require.NoError(t, err)
 
 	var signerSequence types.RewardingData
@@ -516,7 +516,7 @@ func getBackup(
 
 	actionResponse := <-actionResponseChan
 	require.Equal(t, uint8(1), actionResponse.Result.Status)
-	err := utils.VerifySignature(crypto.Keccak256(actionResponse.Result.Data), actionResponse.Signature, teeID)
+	err := utils.VerifySignature(actionResponse.Result.Hash(), actionResponse.Signature, teeID)
 	require.NoError(t, err)
 
 	var backupResponse wallets.TEEBackupResponse
@@ -647,7 +647,7 @@ func recoverWallet(
 
 	response := <-actionResponseChan
 	require.Equal(t, uint8(1), response.Result.Status)
-	err = utils.VerifySignature(crypto.Keccak256(response.Result.Data), response.Signature, teeID)
+	err = utils.VerifySignature(response.Result.Hash(), response.Signature, teeID)
 	require.NoError(t, err)
 
 	walletExistenceProof, err := wallets.ExtractKeyExistence(response.Result.Data, teeID)
@@ -669,7 +669,7 @@ func recoverWallet(
 
 	response = <-actionResponseChan
 	require.Equal(t, uint8(1), response.Result.Status)
-	err = utils.VerifySignature(crypto.Keccak256(response.Result.Data), response.Signature, teeID)
+	err = utils.VerifySignature(response.Result.Hash(), response.Signature, teeID)
 	require.NoError(t, err)
 
 	var signerSequence types.RewardingData
@@ -717,7 +717,7 @@ func getTeeAttestation(
 
 	actionResponse := <-actionResponseChan
 	require.Equal(t, uint8(1), actionResponse.Result.Status)
-	err = utils.VerifySignature(crypto.Keccak256(actionResponse.Result.Data), actionResponse.Signature, teeID)
+	err = utils.VerifySignature(actionResponse.Result.Hash(), actionResponse.Signature, teeID)
 	require.NoError(t, err)
 
 	var teeInfoResponse types.TeeInfoResponse
@@ -738,7 +738,7 @@ func getTeeAttestation(
 
 	actionResponse = <-actionResponseChan
 	require.Equal(t, uint8(1), actionResponse.Result.Status)
-	err = utils.VerifySignature(crypto.Keccak256(actionResponse.Result.Data), actionResponse.Signature, teeID)
+	err = utils.VerifySignature(actionResponse.Result.Hash(), actionResponse.Signature, teeID)
 	require.NoError(t, err)
 
 	var signerSequence types.RewardingData
@@ -832,7 +832,7 @@ func fdcProve(
 
 	actionResponse := <-actionResponseChan
 	require.Equal(t, uint8(1), actionResponse.Result.Status)
-	err = utils.VerifySignature(crypto.Keccak256(actionResponse.Result.Data), actionResponse.Signature, teeID)
+	err = utils.VerifySignature(actionResponse.Result.Hash(), actionResponse.Signature, teeID)
 	require.NoError(t, err)
 
 	var fdcResponse fdc.ProveResponse
@@ -859,7 +859,7 @@ func fdcProve(
 
 	actionResponse = <-actionResponseChan
 	require.Equal(t, uint8(1), actionResponse.Result.Status)
-	err = utils.VerifySignature(crypto.Keccak256(actionResponse.Result.Data), actionResponse.Signature, teeID)
+	err = utils.VerifySignature(actionResponse.Result.Hash(), actionResponse.Signature, teeID)
 	require.NoError(t, err)
 
 	var signerSequence types.RewardingData
