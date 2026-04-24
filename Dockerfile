@@ -22,8 +22,8 @@ RUN \
   echo 'Binary::apt::APT::Keep-Downloaded-Packages "true";' >/etc/apt/apt.conf.d/keep-cache && \
   : "Fetching the snapshot and installing ca-certificates in one command" && \
   apt-get install --update --snapshot "${snapshot}" -o Acquire::Check-Valid-Until=false -o Acquire::https::Verify-Peer=false -y ca-certificates && \
-  : "Installing ca-certificates" && \
-  apt-get install --snapshot "${snapshot}" -y ca-certificates && \
+  : "Installing the cgo toolchain (gcc + libc6-dev) pinned to the same snapshot, now with tls verification" && \
+  apt-get install --snapshot "${snapshot}" -y gcc libc6-dev && \
   : "Clean up for improving reproducibility (optional)" && \
   rm -rf /var/log/* /var/cache/ldconfig/aux-cache
 
@@ -37,9 +37,14 @@ COPY --chmod=644 --chown=0:0 . .
 # -buildid= clears go's non-deterministic build id
 # -s -w drop symbol and dwarf tables, which contain build-time data
 # -buildvcs=false omits embedded vcs metadata
-# CGO_ENABLED=0 produces a static binary, avoiding link-time libc variance
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 GOFLAGS="-buildvcs=false" \
-    go build -trimpath -ldflags="-buildid= -s -w" -o /app/server cmd/main.go
+# CGO_ENABLED=1 links the native C libsecp256k1 vendored in go-ethereum, which is substantially faster than the pure-go fallback
+# -linkmode=external -extldflags=-static drives the external linker (ld) with -static so the result is a single static binary that still runs under FROM scratch
+# the cgo toolchain (gcc, libc6-dev) is pinned via the apt snapshot above, and -trimpath + -s -w together strip the cgo-side path leaks that go's -trimpath does not fully cover (golang/go#24976, #67011)
+# tags=netgo,osusergo force the pure-go net and os/user resolvers; the cgo equivalents rely on glibc nss at runtime, which does not work in a statically linked binary
+RUN CGO_ENABLED=1 GOOS=linux GOARCH=amd64 GOFLAGS="-buildvcs=false" \
+    go build -tags=netgo,osusergo -trimpath \
+      -ldflags="-buildid= -s -w -linkmode=external -extldflags=-static" \
+      -o /app/server cmd/main.go
 
 # NOTE:(@janezicmatej) buildkit's rewrite-timestamp only clamps mtimes down to SOURCE_DATE_EPOCH (moby/buildkit#3180)
 # files older than SOURCE_DATE_EPOCH are left at their original non-deterministic mtime
