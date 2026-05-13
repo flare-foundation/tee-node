@@ -4,14 +4,14 @@ import (
 	"testing"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/flare-foundation/go-flare-common/pkg/tee/structs/connector"
+	"github.com/flare-foundation/go-flare-common/pkg/tee/structs/fdc2"
 	"github.com/flare-foundation/tee-node/pkg/fdc"
 	"github.com/stretchr/testify/require"
 )
 
 func TestAbiEncodeDecodeFDCProveResponse(t *testing.T) {
 	// Create a test response header
-	originalResponseHeader := connector.IFdc2HubFdc2ResponseHeader{
+	originalResponseHeader := fdc2.IFdc2HubFdc2ResponseHeader{
 		AttestationType:    [32]byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32},
 		SourceId:           [32]byte{33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64},
 		ThresholdBIPS:      7500, // 75%
@@ -40,8 +40,8 @@ func TestAbiEncodeDecodeFDCProveResponse(t *testing.T) {
 
 func TestAbiEncodeDecodeFDCProveRequest(t *testing.T) {
 	// Create a test attestation request
-	originalAttestationRequest := connector.IFdc2HubFdc2AttestationRequest{
-		Header: connector.IFdc2HubFdc2RequestHeader{
+	originalAttestationRequest := fdc2.IFdc2HubFdc2AttestationRequest{
+		Header: fdc2.IFdc2HubFdc2RequestHeader{
 			AttestationType: [32]byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32},
 			SourceId:        [32]byte{33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64},
 			ThresholdBIPS:   7500, // 75%
@@ -80,8 +80,8 @@ func TestHashMessage(t *testing.T) {
 	responseBody := []byte{0xca, 0xfe, 0xba, 0xbe}
 
 	// Input request
-	req := connector.IFdc2HubFdc2AttestationRequest{
-		Header: connector.IFdc2HubFdc2RequestHeader{
+	req := fdc2.IFdc2HubFdc2AttestationRequest{
+		Header: fdc2.IFdc2HubFdc2RequestHeader{
 			AttestationType: attestationType,
 			SourceId:        sourceID,
 			ThresholdBIPS:   thresholdBIPS,

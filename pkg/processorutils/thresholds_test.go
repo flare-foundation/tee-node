@@ -8,7 +8,7 @@ import (
 	cpolicy "github.com/flare-foundation/go-flare-common/pkg/policy"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/instruction"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/op"
-	"github.com/flare-foundation/go-flare-common/pkg/tee/structs/connector"
+	"github.com/flare-foundation/go-flare-common/pkg/tee/structs/fdc2"
 	"github.com/flare-foundation/go-flare-common/pkg/voters"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -191,8 +191,8 @@ func newPolicy(weights []uint16) (*cpolicy.SigningPolicy, []common.Address) {
 func buildFDCData(t *testing.T, threshold uint16, cosigners []common.Address, cosignersThreshold uint64) *instruction.DataFixed {
 	t.Helper()
 
-	req := connector.IFdc2HubFdc2AttestationRequest{
-		Header: connector.IFdc2HubFdc2RequestHeader{
+	req := fdc2.IFdc2HubFdc2AttestationRequest{
+		Header: fdc2.IFdc2HubFdc2RequestHeader{
 			AttestationType: [32]byte{},
 			SourceId:        [32]byte{},
 			ThresholdBIPS:   threshold,

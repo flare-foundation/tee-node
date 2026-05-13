@@ -22,7 +22,7 @@ import (
 	"github.com/flare-foundation/go-flare-common/pkg/random"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/instruction"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/op"
-	"github.com/flare-foundation/go-flare-common/pkg/tee/structs/payment"
+	"github.com/flare-foundation/go-flare-common/pkg/tee/structs/payments"
 	"github.com/flare-foundation/go-flare-common/pkg/xrpl/signing"
 	"github.com/flare-foundation/go-flare-common/pkg/xrpl/signing/secp256k1"
 	"github.com/flare-foundation/go-flare-common/pkg/xrpl/signing/signer"
@@ -129,14 +129,14 @@ func (s *signXRPLTestSetup) createWallet(t *testing.T, keyID uint64, keyType, al
 
 // buildPaymentInstruction creates an instruction.DataFixed using provided tee/key pairs and cosigner data.
 // If feeSchedule is nil, a single-entry 100%-of-MaxFee schedule with no delay is used.
-func (s *signXRPLTestSetup) buildPaymentInstruction(t *testing.T, teeKeyPairs []payment.TeeIdKeyIdPair, cosigners []common.Address, cosignerThreshold uint64, feeSchedule []byte) *instruction.DataFixed {
+func (s *signXRPLTestSetup) buildPaymentInstruction(t *testing.T, teeKeyPairs []payments.TeeIdKeyIdPair, cosigners []common.Address, cosignerThreshold uint64, feeSchedule []byte) *instruction.DataFixed {
 	t.Helper()
 
 	if feeSchedule == nil {
 		feeSchedule = []byte{0x27, 0x10, 0x00, 0x00} // 100% of MaxFee, 0s delay
 	}
 
-	msg := payment.ITeePaymentsPaymentInstructionMessage{
+	msg := payments.ITeePaymentsPaymentInstructionMessage{
 		WalletId:         s.walletID,
 		TeeIdKeyIdPairs:  teeKeyPairs,
 		SenderAddress:    "rHb9CJAWyB4rj91VRWn96DkukG4bwdtyTh",
@@ -150,7 +150,7 @@ func (s *signXRPLTestSetup) buildPaymentInstruction(t *testing.T, teeKeyPairs []
 		BatchEndTs:       uint64(0),
 	}
 
-	enc, err := abi.Arguments{payment.MessageArguments[op.Pay]}.Pack(msg)
+	enc, err := abi.Arguments{payments.MessageArguments[op.Pay]}.Pack(msg)
 	require.NoError(t, err)
 
 	instructionID, err := random.Hash()
@@ -260,7 +260,7 @@ func TestSignXRPLBasicSuccess(t *testing.T) {
 
 	proxyMux, responses := startMockResultServer(t)
 	proc := signutils.NewProcessor(setup.testNode, setup.wStorage, proxyMux)
-	instr := setup.buildPaymentInstruction(t, []payment.TeeIdKeyIdPair{{TeeId: setup.teeID, KeyId: 1}}, nil, 0, nil)
+	instr := setup.buildPaymentInstruction(t, []payments.TeeIdKeyIdPair{{TeeId: setup.teeID, KeyId: 1}}, nil, 0, nil)
 
 	result, status, err := proc.SignXRPLPayment(types.Threshold, instr, nil, nil, nil)
 	require.NoError(t, err)
@@ -287,7 +287,7 @@ func TestSignXRPLMultiKeyMultisig(t *testing.T) {
 
 	proxyMux, responses := startMockResultServer(t)
 	proc := signutils.NewProcessor(setup.testNode, setup.wStorage, proxyMux)
-	pairs := []payment.TeeIdKeyIdPair{{TeeId: setup.teeID, KeyId: 1}, {TeeId: setup.teeID, KeyId: 2}}
+	pairs := []payments.TeeIdKeyIdPair{{TeeId: setup.teeID, KeyId: 1}, {TeeId: setup.teeID, KeyId: 2}}
 	instr := setup.buildPaymentInstruction(t, pairs, nil, 0, nil)
 
 	_, _, err := proc.SignXRPLPayment(types.Threshold, instr, nil, nil, nil)
@@ -315,13 +315,13 @@ func TestSignXRPLCosignerValidationThreshold(t *testing.T) {
 	wal := setup.createWallet(t, 1, wallets.XRPType, wallets.XRPSignAlgo, []common.Address{crypto.PubkeyToAddress(cos1Priv.PublicKey), crypto.PubkeyToAddress(cos2Priv.PublicKey), crypto.PubkeyToAddress(cos3Priv.PublicKey)}, 2)
 
 	// Instruction with only 1 cosigner -> should fail
-	instr := setup.buildPaymentInstruction(t, []payment.TeeIdKeyIdPair{{TeeId: setup.teeID, KeyId: 1}}, wal.Cosigners[:1], 1, nil)
+	instr := setup.buildPaymentInstruction(t, []payments.TeeIdKeyIdPair{{TeeId: setup.teeID, KeyId: 1}}, wal.Cosigners[:1], 1, nil)
 	_, _, err := setup.processor.SignXRPLPayment(types.Threshold, instr, nil, nil, nil)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "the number of provided cosigners does not match the number of saved cosigners")
 
 	// Instruction with 3 cosigners, but threshold is 1 -> should fail
-	instr = setup.buildPaymentInstruction(t, []payment.TeeIdKeyIdPair{{TeeId: setup.teeID, KeyId: 1}}, wal.Cosigners, 1, nil)
+	instr = setup.buildPaymentInstruction(t, []payments.TeeIdKeyIdPair{{TeeId: setup.teeID, KeyId: 1}}, wal.Cosigners, 1, nil)
 	_, _, err = setup.processor.SignXRPLPayment(types.Threshold, instr, nil, nil, nil)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "the threshold of provided cosigners does not match the threshold of saved cosigners")
@@ -329,7 +329,7 @@ func TestSignXRPLCosignerValidationThreshold(t *testing.T) {
 	// Instruction with 3 cosigners and threshold 2 -> should pass
 	proxyMux, responses := startMockResultServer(t)
 	proc := signutils.NewProcessor(setup.testNode, setup.wStorage, proxyMux)
-	instrOK := setup.buildPaymentInstruction(t, []payment.TeeIdKeyIdPair{{TeeId: setup.teeID, KeyId: 1}}, wal.Cosigners, 2, nil)
+	instrOK := setup.buildPaymentInstruction(t, []payments.TeeIdKeyIdPair{{TeeId: setup.teeID, KeyId: 1}}, wal.Cosigners, 2, nil)
 	_, _, err = proc.SignXRPLPayment(types.Threshold, instrOK, nil, nil, nil)
 	require.NoError(t, err)
 
@@ -349,7 +349,7 @@ func TestSignXRPLCosignerValidationThreshold(t *testing.T) {
 func TestSignXRPLInvalidInstructionParsing(t *testing.T) {
 	setup := setupSignXRPLTest(t)
 
-	instr := setup.buildPaymentInstruction(t, []payment.TeeIdKeyIdPair{{TeeId: setup.teeID, KeyId: 1}}, nil, 0, nil)
+	instr := setup.buildPaymentInstruction(t, []payments.TeeIdKeyIdPair{{TeeId: setup.teeID, KeyId: 1}}, nil, 0, nil)
 	instr.OriginalMessage = []byte{0x01, 0x02}
 
 	_, _, err := setup.processor.SignXRPLPayment(types.Threshold, instr, nil, nil, nil)
@@ -363,7 +363,7 @@ func TestSignXRPLInvalidKeyTypeAlgoRejection(t *testing.T) {
 
 	// EVM type with XRP algo -> should fail on key type
 	setup.createWallet(t, 1, wallets.EVMType, wallets.XRPSignAlgo, []common.Address{}, 0)
-	instr := setup.buildPaymentInstruction(t, []payment.TeeIdKeyIdPair{{TeeId: setup.teeID, KeyId: 1}}, nil, 0, nil)
+	instr := setup.buildPaymentInstruction(t, []payments.TeeIdKeyIdPair{{TeeId: setup.teeID, KeyId: 1}}, nil, 0, nil)
 	_, _, err := setup.processor.SignXRPLPayment(types.Threshold, instr, nil, nil, nil)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "key type")
@@ -371,7 +371,7 @@ func TestSignXRPLInvalidKeyTypeAlgoRejection(t *testing.T) {
 	// XRP type with EVM algo -> should fail on signing algo
 	setup = setupSignXRPLTest(t)
 	setup.createWallet(t, 2, wallets.XRPType, wallets.EVMSignAlgo, []common.Address{}, 0)
-	instr2 := setup.buildPaymentInstruction(t, []payment.TeeIdKeyIdPair{{TeeId: setup.teeID, KeyId: 2}}, nil, 0, nil)
+	instr2 := setup.buildPaymentInstruction(t, []payments.TeeIdKeyIdPair{{TeeId: setup.teeID, KeyId: 2}}, nil, 0, nil)
 	_, _, err = setup.processor.SignXRPLPayment(types.Threshold, instr2, nil, nil, nil)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "algorithm")
@@ -381,7 +381,7 @@ func TestSignXRPLInvalidKeyTypeAlgoRejection(t *testing.T) {
 func TestSignXRPLWalletNotFound(t *testing.T) {
 	setup := setupSignXRPLTest(t)
 
-	instr := setup.buildPaymentInstruction(t, []payment.TeeIdKeyIdPair{{TeeId: setup.teeID, KeyId: 999}}, nil, 0, nil)
+	instr := setup.buildPaymentInstruction(t, []payments.TeeIdKeyIdPair{{TeeId: setup.teeID, KeyId: 999}}, nil, 0, nil)
 	_, _, err := setup.processor.SignXRPLPayment(types.Threshold, instr, nil, nil, nil)
 	require.Error(t, err)
 	require.Equal(t, wallets.ErrWalletNonExistent, err)
@@ -393,7 +393,7 @@ func TestSignXRPLTeeIDMismatchNoKeysForSigning(t *testing.T) {
 
 	setup.createWallet(t, 1, wallets.XRPType, wallets.XRPSignAlgo, []common.Address{}, 0)
 	otherTEE := common.HexToAddress("0x1234567890123456789012345678901234567890")
-	instr := setup.buildPaymentInstruction(t, []payment.TeeIdKeyIdPair{{TeeId: otherTEE, KeyId: 1}}, nil, 0, nil)
+	instr := setup.buildPaymentInstruction(t, []payments.TeeIdKeyIdPair{{TeeId: otherTEE, KeyId: 1}}, nil, 0, nil)
 
 	_, _, err := setup.processor.SignXRPLPayment(types.Threshold, instr, nil, nil, nil)
 	require.Error(t, err)
@@ -405,7 +405,7 @@ func TestSignXRPLInvalidXRPParameters(t *testing.T) {
 	setup := setupSignXRPLTest(t)
 	setup.createWallet(t, 1, wallets.XRPType, wallets.XRPSignAlgo, []common.Address{}, 0)
 
-	instr := setup.buildPaymentInstruction(t, []payment.TeeIdKeyIdPair{{TeeId: setup.teeID, KeyId: 1}}, nil, 0, nil)
+	instr := setup.buildPaymentInstruction(t, []payments.TeeIdKeyIdPair{{TeeId: setup.teeID, KeyId: 1}}, nil, 0, nil)
 
 	instr.OriginalMessage = testutils.BuildMockPaymentOriginalMessage(
 		t, setup.walletID, setup.teeID, 1, 0, 10, []byte{0x27, 0x10, 0x00, 0x00},
@@ -439,7 +439,7 @@ func TestSignXRPLMultiEntryScheduleWithDelay(t *testing.T) {
 	//   Entry 1: 100% of MaxFee (10000 BIPS = 0x2710), 1s delay → posted after 1s
 	feeSchedule := []byte{0x13, 0x88, 0x00, 0x00, 0x27, 0x10, 0x00, 0x01}
 
-	instr := setup.buildPaymentInstruction(t, []payment.TeeIdKeyIdPair{{TeeId: setup.teeID, KeyId: 1}}, nil, 0, feeSchedule)
+	instr := setup.buildPaymentInstruction(t, []payments.TeeIdKeyIdPair{{TeeId: setup.teeID, KeyId: 1}}, nil, 0, feeSchedule)
 
 	start := time.Now()
 	result, status, err := proc.SignXRPLPayment(types.Threshold, instr, nil, nil, nil)
@@ -500,7 +500,7 @@ func TestSignXRPLInvalidPrivateKey(t *testing.T) {
 	err := setup.wStorage.Store(wal)
 	require.NoError(t, err)
 
-	instr := setup.buildPaymentInstruction(t, []payment.TeeIdKeyIdPair{{TeeId: setup.teeID, KeyId: 1}}, nil, 0, nil)
+	instr := setup.buildPaymentInstruction(t, []payments.TeeIdKeyIdPair{{TeeId: setup.teeID, KeyId: 1}}, nil, 0, nil)
 
 	_, _, err = setup.processor.SignXRPLPayment(types.Threshold, instr, nil, nil, nil)
 	require.Error(t, err)

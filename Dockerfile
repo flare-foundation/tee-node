@@ -42,34 +42,38 @@ COPY --chmod=644 --chown=0:0 . .
 # the cgo toolchain (gcc, libc6-dev) is pinned via the apt snapshot above, and -trimpath + -s -w together strip the cgo-side path leaks that go's -trimpath does not fully cover (golang/go#24976, #67011)
 # tags=netgo,osusergo force the pure-go net and os/user resolvers; the cgo equivalents rely on glibc nss at runtime, which does not work in a statically linked binary
 RUN CGO_ENABLED=1 GOOS=linux GOARCH=amd64 GOFLAGS="-buildvcs=false" \
-    go build -tags=netgo,osusergo -trimpath \
-      -ldflags="-buildid= -s -w -linkmode=external -extldflags=-static" \
-      -o /app/server cmd/main.go
+  go build -tags=netgo,osusergo -trimpath \
+  -ldflags="-buildid= -s -w -linkmode=external -extldflags=-static" \
+  -o /app/server cmd/main.go
 
 # NOTE:(@janezicmatej) buildkit's rewrite-timestamp only clamps mtimes down to SOURCE_DATE_EPOCH (moby/buildkit#3180)
 # files older than SOURCE_DATE_EPOCH are left at their original non-deterministic mtime
 # touch every path to SOURCE_DATE_EPOCH explicitly so timestamps are normalized in both directions
 RUN find /app -exec touch -h -d @${SOURCE_DATE_EPOCH} {} +
 
-# empty base image so nothing outside these explicit copies ends up in the final layers
-FROM scratch
+# minimal base pinned by digest so every build starts from the same bytes
+# distroless/static ships the resolution stubs (nsswitch.conf, passwd, group, resolv.conf, hosts)
+# and the ca-certificates bundle that a static go binary needs at runtime, with no shell or package manager
+FROM gcr.io/distroless/static-debian12@sha256:20bc6c0bc4d625a22a8fde3e55f6515709b32055ef8fb9cfbddaa06d1760f838
 
 WORKDIR /app
 
-# everything shipped in the final image: the server binary plus its two runtime deps
-# ca-certificates.crt is the tls trust store for outbound https (e.g. rpc, oauth, registries)
+# the only things the final image needs on top of the base: the server binary and the cs attestation root
+# the tls trust store (/etc/ssl/certs/ca-certificates.crt) already ships in distroless/static, pinned via the base digest
 # google_confidential_space_root.crt is the root used to verify confidential space attestation tokens
 # re-apply chmod/chown on each COPY so metadata is pinned here and does not depend on whatever the builder stage left behind
-COPY --chmod=644 --chown=65532:65532 --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
-COPY --chmod=755 --chown=65532:65532 --from=builder /app/server /app/server
-COPY --chmod=644 --chown=65532:65532 --from=builder /app/assets/google_confidential_space_root.crt /app/assets/google_confidential_space_root.crt
+COPY --chmod=755 --chown=0:0 --from=builder /app/server /app/server
+COPY --chmod=644 --chown=0:0 --from=builder /app/assets/google_confidential_space_root.crt /app/assets/google_confidential_space_root.crt
 
 # production mode
 ENV MODE=0
 
-# run as non-root to limit blast radius if the process is compromised
-# 65532 is the widely-adopted "nonroot" uid/gid (originated in google's distroless); reusing it keeps file ownership consistent with other nonroot-convention images
-USER 65532:65532
+# run as root: the confidential space launcher exposes its attestation-token IPC at
+# /run/container_launcher/teeserver.sock owned by root with no group/other access, and the
+# workload cannot chmod a socket the launcher created on the host side; the container is not
+# the trust boundary in confidential space anyway, the attested vm is, so dropping privileges
+# inside the container does not change what the launch policy attests to
+USER 0:0
 
 # confidential space launch policy label: allow the operator to override these env vars at workload launch
 # without this, the confidential space VM rejects overrides at attestation time and the values baked here are final

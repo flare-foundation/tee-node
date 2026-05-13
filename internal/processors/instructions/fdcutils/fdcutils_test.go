@@ -13,7 +13,7 @@ import (
 	"github.com/flare-foundation/go-flare-common/pkg/random"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/instruction"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/op"
-	"github.com/flare-foundation/go-flare-common/pkg/tee/structs/connector"
+	"github.com/flare-foundation/go-flare-common/pkg/tee/structs/fdc2"
 	"github.com/flare-foundation/tee-node/internal/processors/instructions"
 	"github.com/flare-foundation/tee-node/internal/testutils"
 	"github.com/flare-foundation/tee-node/pkg/fdc"
@@ -81,9 +81,9 @@ func (s *fdcProveTestSetup) setupInstructionProcessor() instructions.Processor {
 }
 
 // buildFDCRequest creates an FDC attestation request with the given parameters
-func (s *fdcProveTestSetup) buildFDCRequest(attestationType, sourceID [32]byte, thresholdBIPS uint16, requestBody []byte) connector.IFdc2HubFdc2AttestationRequest {
-	return connector.IFdc2HubFdc2AttestationRequest{
-		Header: connector.IFdc2HubFdc2RequestHeader{
+func (s *fdcProveTestSetup) buildFDCRequest(attestationType, sourceID [32]byte, thresholdBIPS uint16, requestBody []byte) fdc2.IFdc2HubFdc2AttestationRequest {
+	return fdc2.IFdc2HubFdc2AttestationRequest{
+		Header: fdc2.IFdc2HubFdc2RequestHeader{
 			AttestationType: attestationType,
 			SourceId:        sourceID,
 			ThresholdBIPS:   thresholdBIPS,
@@ -93,7 +93,7 @@ func (s *fdcProveTestSetup) buildFDCRequest(attestationType, sourceID [32]byte, 
 }
 
 // defaultFDCRequest creates a valid FTD request with default parameters
-func (s *fdcProveTestSetup) defaultFDCRequest() connector.IFdc2HubFdc2AttestationRequest {
+func (s *fdcProveTestSetup) defaultFDCRequest() fdc2.IFdc2HubFdc2AttestationRequest {
 	return s.buildFDCRequest(
 		utils.ToHash("PMWMultisigAccountConfigured"),
 		utils.ToHash("XRP"),
@@ -103,7 +103,7 @@ func (s *fdcProveTestSetup) defaultFDCRequest() connector.IFdc2HubFdc2Attestatio
 }
 
 // buildInstruction creates an instruction.DataFixed for F_FDC2 Prove with the given parameters
-func (s *fdcProveTestSetup) buildInstruction(t *testing.T, request connector.IFdc2HubFdc2AttestationRequest, responseBody []byte, cosigners []common.Address, cosignersThreshold uint64, timestamp uint64) *instruction.DataFixed {
+func (s *fdcProveTestSetup) buildInstruction(t *testing.T, request fdc2.IFdc2HubFdc2AttestationRequest, responseBody []byte, cosigners []common.Address, cosignersThreshold uint64, timestamp uint64) *instruction.DataFixed {
 	t.Helper()
 
 	originalMessageEncoded, err := fdc.EncodeRequest(request)
@@ -152,7 +152,7 @@ func (s *fdcProveTestSetup) signMessage(t *testing.T, msgHash common.Hash, privK
 }
 
 // signFDCMessage creates the FDC message hash and signs it with the given private keys
-func (s *fdcProveTestSetup) signFDCMessage(t *testing.T, request connector.IFdc2HubFdc2AttestationRequest, responseBody []byte, cosigners []common.Address, cosignersThreshold uint64, timestamp uint64, privKeys []*ecdsa.PrivateKey) ([]hexutil.Bytes, []common.Address) {
+func (s *fdcProveTestSetup) signFDCMessage(t *testing.T, request fdc2.IFdc2HubFdc2AttestationRequest, responseBody []byte, cosigners []common.Address, cosignersThreshold uint64, timestamp uint64, privKeys []*ecdsa.PrivateKey) ([]hexutil.Bytes, []common.Address) {
 	t.Helper()
 
 	msgHash, _, _, _, err := fdc.HashMessage(request, responseBody, cosigners, cosignersThreshold, timestamp)
@@ -166,7 +166,7 @@ func (s *fdcProveTestSetup) signFDCMessage(t *testing.T, request connector.IFdc2
 func (s *fdcProveTestSetup) buildActionWithPolicySigners(
 	t *testing.T,
 	instr *instruction.DataFixed,
-	request connector.IFdc2HubFdc2AttestationRequest,
+	request fdc2.IFdc2HubFdc2AttestationRequest,
 	responseBody []byte,
 	cosigners []common.Address,
 	cosignersThreshold uint64,

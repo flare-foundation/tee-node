@@ -101,13 +101,13 @@ func TestRouterInstructionActionRoutingThreshold(t *testing.T) {
 	}
 
 	// Create a proper KeyGenerate message
-	originalMessage := cwallet.ITeeWalletKeyManagerKeyGenerate{
+	originalMessage := cwallet.IWalletKeyManagerKeyGenerate{
 		TeeId:       teeID,
 		WalletId:    walletID,
 		KeyId:       keyID,
 		KeyType:     wallets.XRPType,
 		SigningAlgo: wallets.XRPSignAlgo,
-		ConfigConstants: cwallet.ITeeWalletKeyManagerKeyConfigConstants{
+		ConfigConstants: cwallet.IWalletKeyManagerKeyConfigConstants{
 			AdminsPublicKeys:   adminPubKeys,
 			AdminsThreshold:    1,
 			Cosigners:          make([]common.Address, 0),
