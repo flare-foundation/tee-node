@@ -147,7 +147,7 @@ func TestKeysProof(t *testing.T) {
 
 		mockWalletID1 := common.HexToHash("0xabcdef")
 		mockKeyID1 := uint64(1)
-		walletProofs := make(map[common.Hash]wallet.ITeeWalletKeyManagerKeyExistence)
+		walletProofs := make(map[common.Hash]wallet.IWalletKeyManagerKeyExistence)
 		walletProofs[mockWalletID1] = testutils.CreateMockWallet(t, testNode, pStorage, wStorage, mockWalletID1, mockKeyID1, epochID, []*ecdsa.PrivateKey{privKeys[0]}, nil)
 
 		mockWalletID2 := common.HexToHash("0xabcdefab")
@@ -176,7 +176,7 @@ func TestKeysProof(t *testing.T) {
 			err = utils.VerifySignature(crypto.Keccak256(proof.KeyExistence), proof.Signature, testNode.TeeID())
 			require.NoError(t, err)
 
-			walletExistenceProof, err := structs.Decode[wallet.ITeeWalletKeyManagerKeyExistence](wallet.KeyExistenceStructArg, proof.KeyExistence)
+			walletExistenceProof, err := structs.Decode[wallet.IWalletKeyManagerKeyExistence](wallet.KeyExistenceStructArg, proof.KeyExistence)
 			require.NoError(t, err)
 
 			require.Equal(t, requested[i].WalletID, common.Hash(walletExistenceProof.WalletId))

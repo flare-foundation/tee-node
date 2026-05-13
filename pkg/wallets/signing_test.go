@@ -10,7 +10,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/rlp"
-	"github.com/flare-foundation/go-flare-common/pkg/tee/structs/payment"
+	"github.com/flare-foundation/go-flare-common/pkg/tee/structs/payments"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/xrpl"
 	"github.com/flare-foundation/go-flare-common/pkg/xrpl/encoding"
 	"github.com/flare-foundation/go-flare-common/pkg/xrpl/hash"
@@ -127,9 +127,9 @@ func encodeToSign(tx *types.DynamicFeeTx, chainID *big.Int) ([]byte, error) {
 func TestXRPLSigning(t *testing.T) {
 	wal := setupTestWallet(t, XRPSignAlgo)
 
-	originalMessage := payment.ITeePaymentsPaymentInstructionMessage{
+	originalMessage := payments.ITeePaymentsPaymentInstructionMessage{
 		WalletId: wal.WalletID,
-		TeeIdKeyIdPairs: []payment.TeeIdKeyIdPair{{
+		TeeIdKeyIdPairs: []payments.TeeIdKeyIdPair{{
 			TeeId: common.BytesToAddress([]byte("random")),
 			KeyId: wal.KeyID,
 		}},

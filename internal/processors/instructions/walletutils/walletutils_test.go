@@ -106,7 +106,7 @@ func setupKeyGenerateTest(t *testing.T) *keyGenerateTestSetup {
 }
 
 // buildKeyGenerateInstruction creates a key generation instruction with the given parameters
-func (s *keyGenerateTestSetup) buildKeyGenerateInstruction(t *testing.T, msg cwallet.ITeeWalletKeyManagerKeyGenerate) *instruction.DataFixed {
+func (s *keyGenerateTestSetup) buildKeyGenerateInstruction(t *testing.T, msg cwallet.IWalletKeyManagerKeyGenerate) *instruction.DataFixed {
 	t.Helper()
 
 	originalMessageEncoded, err := abi.Arguments{cwallet.MessageArguments[op.KeyGenerate]}.Pack(msg)
@@ -127,14 +127,14 @@ func (s *keyGenerateTestSetup) buildKeyGenerateInstruction(t *testing.T, msg cwa
 }
 
 // defaultKeyGenerateMessage creates a valid key generation message with default parameters
-func (s *keyGenerateTestSetup) defaultKeyGenerateMessage() cwallet.ITeeWalletKeyManagerKeyGenerate {
-	return cwallet.ITeeWalletKeyManagerKeyGenerate{
+func (s *keyGenerateTestSetup) defaultKeyGenerateMessage() cwallet.IWalletKeyManagerKeyGenerate {
+	return cwallet.IWalletKeyManagerKeyGenerate{
 		TeeId:       s.teeID,
 		WalletId:    s.walletID,
 		KeyId:       s.keyID,
 		KeyType:     wallets.XRPType,
 		SigningAlgo: wallets.XRPSignAlgo,
-		ConfigConstants: cwallet.ITeeWalletKeyManagerKeyConfigConstants{
+		ConfigConstants: cwallet.IWalletKeyManagerKeyConfigConstants{
 			AdminsPublicKeys:   s.adminWalletPublicKeys,
 			AdminsThreshold:    uint64(len(s.adminWalletPublicKeys)),
 			Cosigners:          s.cosigners,
@@ -245,7 +245,7 @@ func TestKeyGenerateAfterDeleteSameWalletFails(t *testing.T) {
 	_, _, err := setup.processor.KeyGenerate(types.Threshold, generateInstruction, nil, nil, nil)
 	require.NoError(t, err)
 
-	deleteMsg := cwallet.ITeeWalletKeyManagerKeyDelete{
+	deleteMsg := cwallet.IWalletKeyManagerKeyDelete{
 		TeeId:    setup.teeID,
 		WalletId: setup.walletID,
 		KeyId:    setup.keyID,
@@ -378,7 +378,7 @@ func setupKeyDeleteTest(t *testing.T) *keyDeleteTestSetup {
 }
 
 // buildKeyDeleteInstruction creates a key deletion instruction with the given parameters
-func (s *keyDeleteTestSetup) buildKeyDeleteInstruction(t *testing.T, msg cwallet.ITeeWalletKeyManagerKeyDelete) *instruction.DataFixed {
+func (s *keyDeleteTestSetup) buildKeyDeleteInstruction(t *testing.T, msg cwallet.IWalletKeyManagerKeyDelete) *instruction.DataFixed {
 	t.Helper()
 
 	encodedDeleteReq, err := abi.Arguments{cwallet.MessageArguments[op.KeyDelete]}.Pack(msg)
@@ -398,8 +398,8 @@ func (s *keyDeleteTestSetup) buildKeyDeleteInstruction(t *testing.T, msg cwallet
 }
 
 // defaultKeyDeleteMessage creates a valid key deletion message with default parameters
-func (s *keyDeleteTestSetup) defaultKeyDeleteMessage(nonce uint64) cwallet.ITeeWalletKeyManagerKeyDelete {
-	return cwallet.ITeeWalletKeyManagerKeyDelete{
+func (s *keyDeleteTestSetup) defaultKeyDeleteMessage(nonce uint64) cwallet.IWalletKeyManagerKeyDelete {
+	return cwallet.IWalletKeyManagerKeyDelete{
 		TeeId:    s.teeID,
 		WalletId: s.walletID,
 		KeyId:    s.keyID,
@@ -787,11 +787,11 @@ func (s *keyDataProviderRestoreTestSetup) buildVariableMessagesWithAdmins(
 }
 
 // buildDefaultRestoreRequest creates a standard restore request with default values
-func (s *keyDataProviderRestoreTestSetup) buildDefaultRestoreRequest(nonce *big.Int) cwallet.ITeeWalletBackupManagerKeyDataProviderRestore {
+func (s *keyDataProviderRestoreTestSetup) buildDefaultRestoreRequest(nonce *big.Int) cwallet.IWalletBackupManagerKeyDataProviderRestore {
 	backupID := s.walletBackup.WalletBackupID
-	return cwallet.ITeeWalletBackupManagerKeyDataProviderRestore{
+	return cwallet.IWalletBackupManagerKeyDataProviderRestore{
 		TeePublicKey: cwallet.PublicKey{X: s.testNode.Info().PublicKey.X, Y: s.testNode.Info().PublicKey.Y},
-		BackupId: cwallet.ITeeWalletBackupManagerBackupId{
+		BackupId: cwallet.IWalletBackupManagerBackupId{
 			TeeId:         backupID.TeeID,
 			WalletId:      backupID.WalletID,
 			KeyId:         backupID.KeyID,
@@ -808,7 +808,7 @@ func (s *keyDataProviderRestoreTestSetup) buildDefaultRestoreRequest(nonce *big.
 
 func (s *keyDataProviderRestoreTestSetup) buildRestoreInstruction(
 	t *testing.T,
-	restoreReq cwallet.ITeeWalletBackupManagerKeyDataProviderRestore,
+	restoreReq cwallet.IWalletBackupManagerKeyDataProviderRestore,
 ) *instruction.DataFixed {
 	t.Helper()
 
@@ -1070,9 +1070,9 @@ func TestKeyDataProviderRestorePublicKeyMismatch(t *testing.T) {
 
 	// Manually build instruction with corrupted metadata
 	backupID := setup.walletBackup.WalletBackupID
-	restoreReq := cwallet.ITeeWalletBackupManagerKeyDataProviderRestore{
+	restoreReq := cwallet.IWalletBackupManagerKeyDataProviderRestore{
 		TeePublicKey: cwallet.PublicKey{X: setup.testNode.Info().PublicKey.X, Y: setup.testNode.Info().PublicKey.Y},
-		BackupId: cwallet.ITeeWalletBackupManagerBackupId{
+		BackupId: cwallet.IWalletBackupManagerBackupId{
 			TeeId:         backupID.TeeID,
 			WalletId:      backupID.WalletID,
 			KeyId:         backupID.KeyID,
@@ -1225,9 +1225,9 @@ func TestKeyDataProviderRestoreInvalidTeeID(t *testing.T) {
 
 	// Create restore request with invalid TEE ID
 	backupID := setup.walletBackup.WalletBackupID
-	restoreReq := cwallet.ITeeWalletBackupManagerKeyDataProviderRestore{
+	restoreReq := cwallet.IWalletBackupManagerKeyDataProviderRestore{
 		TeePublicKey: cwallet.PublicKey{X: [32]byte(gx), Y: [32]byte(gy)},
-		BackupId: cwallet.ITeeWalletBackupManagerBackupId{
+		BackupId: cwallet.IWalletBackupManagerBackupId{
 			TeeId:         backupID.TeeID,
 			WalletId:      backupID.WalletID,
 			KeyId:         backupID.KeyID,

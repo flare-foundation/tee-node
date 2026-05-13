@@ -60,7 +60,7 @@ func setupProveRandomnessTest(t *testing.T) *proveRandomnessSetup {
 func buildRequestInstruction(t *testing.T, walletID common.Hash, keyID uint64, nonce []byte) *instruction.DataFixed {
 	t.Helper()
 
-	enc, err := abi.Arguments{vrfstruct.MessageArguments[op.VRF]}.Pack(vrfstruct.ITeeVrfVrfInstructionMessage{
+	enc, err := abi.Arguments{vrfstruct.MessageArguments[op.VRF]}.Pack(vrfstruct.IVrfVrfInstructionMessage{
 		WalletId: [32]byte(walletID),
 		KeyId:    keyID,
 		Nonce:    nonce,

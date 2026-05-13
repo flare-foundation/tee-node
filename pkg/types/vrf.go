@@ -12,13 +12,13 @@ import (
 
 // ParseVRFInstruction decodes the VRF instruction payload into the shared
 // go-flare-common struct representation.
-func ParseVRFInstruction(data *instruction.DataFixed) (vrfstruct.ITeeVrfVrfInstructionMessage, error) {
+func ParseVRFInstruction(data *instruction.DataFixed) (vrfstruct.IVrfVrfInstructionMessage, error) {
 	arg := vrfstruct.MessageArguments[op.VRF]
 
-	var inst vrfstruct.ITeeVrfVrfInstructionMessage
+	var inst vrfstruct.IVrfVrfInstructionMessage
 	err := structs.DecodeTo(arg, data.OriginalMessage, &inst)
 	if err != nil {
-		return vrfstruct.ITeeVrfVrfInstructionMessage{}, err
+		return vrfstruct.IVrfVrfInstructionMessage{}, err
 	}
 
 	return inst, nil

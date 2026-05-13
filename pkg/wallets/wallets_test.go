@@ -37,14 +37,14 @@ func generateAdminKeyPair(t *testing.T) (*ecdsa.PrivateKey, []wallet.PublicKey) 
 	return adminPrivateKey, adminPubKeys
 }
 
-func createKeyGenerateRequest(teeID common.Address, walletID common.Hash, keyID uint64, keyType, signingAlgo common.Hash, adminPubKeys []wallet.PublicKey, cosigners []common.Address) wallet.ITeeWalletKeyManagerKeyGenerate {
-	return wallet.ITeeWalletKeyManagerKeyGenerate{
+func createKeyGenerateRequest(teeID common.Address, walletID common.Hash, keyID uint64, keyType, signingAlgo common.Hash, adminPubKeys []wallet.PublicKey, cosigners []common.Address) wallet.IWalletKeyManagerKeyGenerate {
+	return wallet.IWalletKeyManagerKeyGenerate{
 		TeeId:       teeID,
 		KeyId:       keyID,
 		WalletId:    walletID,
 		KeyType:     keyType,
 		SigningAlgo: signingAlgo,
-		ConfigConstants: wallet.ITeeWalletKeyManagerKeyConfigConstants{
+		ConfigConstants: wallet.IWalletKeyManagerKeyConfigConstants{
 			AdminsPublicKeys:   adminPubKeys,
 			AdminsThreshold:    1,
 			Cosigners:          cosigners,
@@ -53,7 +53,7 @@ func createKeyGenerateRequest(teeID common.Address, walletID common.Hash, keyID 
 	}
 }
 
-func createTestWallet(t *testing.T, kg wallet.ITeeWalletKeyManagerKeyGenerate) *Wallet {
+func createTestWallet(t *testing.T, kg wallet.IWalletKeyManagerKeyGenerate) *Wallet {
 	t.Helper()
 
 	w, err := GenerateNewKey(kg)
@@ -458,7 +458,7 @@ func TestExtractKeyExistence(t *testing.T) {
 
 func TestParseKeyDelete(t *testing.T) {
 	nonce := big.NewInt(123)
-	kgDelete := wallet.ITeeWalletKeyManagerKeyDelete{
+	kgDelete := wallet.IWalletKeyManagerKeyDelete{
 		TeeId:    common.HexToAddress("0xdeadbeef"),
 		WalletId: common.HexToHash("0x01"),
 		KeyId:    1,
@@ -489,9 +489,9 @@ func TestParseKeyDelete(t *testing.T) {
 func TestParseKeyDataProviderRestore(t *testing.T) {
 	t.Run("successfully parse valid KeyDataProviderRestore", func(t *testing.T) {
 		nonce := big.NewInt(4242)
-		restoreReq := wallet.ITeeWalletBackupManagerKeyDataProviderRestore{
+		restoreReq := wallet.IWalletBackupManagerKeyDataProviderRestore{
 			TeePublicKey: wallet.PublicKey{},
-			BackupId: wallet.ITeeWalletBackupManagerBackupId{
+			BackupId: wallet.IWalletBackupManagerBackupId{
 				TeeId:         common.HexToAddress("0xdeadbeef"),
 				WalletId:      common.HexToHash("0x01"),
 				KeyId:         1,

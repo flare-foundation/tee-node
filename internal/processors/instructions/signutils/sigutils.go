@@ -7,7 +7,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/instruction"
-	"github.com/flare-foundation/go-flare-common/pkg/tee/structs/payment"
+	"github.com/flare-foundation/go-flare-common/pkg/tee/structs/payments"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/xrpl"
 	"github.com/flare-foundation/go-flare-common/pkg/xrpl/signing"
 	"github.com/flare-foundation/go-flare-common/pkg/xrpl/signing/secp256k1"
@@ -48,7 +48,7 @@ func loadPrivateKeys(storage *wallets.Storage, walletID [32]byte, keyIDs []uint6
 
 // buildSignedTx constructs and signs a multisig XRPL transaction for the given
 // fee schedule try index.
-func buildSignedTx(inst payment.ITeePaymentsPaymentInstructionMessage, privateKeys []*ecdsa.PrivateKey, try int) (map[string]any, error) {
+func buildSignedTx(inst payments.ITeePaymentsPaymentInstructionMessage, privateKeys []*ecdsa.PrivateKey, try int) (map[string]any, error) {
 	tx, err := xrpl.PaymentTxFromInstruction(inst, try)
 	if err != nil {
 		return nil, err

@@ -6,7 +6,7 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/op"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/structs"
-	"github.com/flare-foundation/go-flare-common/pkg/tee/structs/machineregistry"
+	"github.com/flare-foundation/go-flare-common/pkg/tee/structs/machine"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/structs/tee"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/structs/verification"
 )
@@ -86,7 +86,7 @@ type MachineData struct {
 
 func (md *MachineData) Hash() (common.Hash, error) {
 	encoded := md.prepareForEncoding()
-	enc, err := structs.Encode(machineregistry.TeeMachineDataStructArg, encoded)
+	enc, err := structs.Encode(machine.TeeMachineDataStructArg, encoded)
 	if err != nil {
 		return common.Hash{}, err
 	}
@@ -95,13 +95,13 @@ func (md *MachineData) Hash() (common.Hash, error) {
 	return hash, nil
 }
 
-func (md *MachineData) prepareForEncoding() machineregistry.ITeeMachineRegistryTeeMachineData {
-	return machineregistry.ITeeMachineRegistryTeeMachineData{
+func (md *MachineData) prepareForEncoding() machine.IMachineManagerTeeMachineData {
+	return machine.IMachineManagerTeeMachineData{
 		ExtensionId:  md.ExtensionID.Big(),
 		InitialOwner: md.InitialOwner,
 		CodeHash:     md.CodeHash,
 		Platform:     md.Platform,
-		PublicKey: machineregistry.PublicKey{
+		PublicKey: machine.PublicKey{
 			X: md.PublicKey.X,
 			Y: md.PublicKey.Y,
 		},
@@ -115,20 +115,20 @@ type SignedTeeInfoResponse struct {
 
 // EncodeTeeAttestationRequest serializes the attestation request using the
 // generated struct ABI.
-func EncodeTeeAttestationRequest(req *verification.ITeeVerificationTeeAttestation) (hexutil.Bytes, error) {
+func EncodeTeeAttestationRequest(req *verification.IVerificationTeeAttestation) (hexutil.Bytes, error) {
 	arg := verification.MessageArguments[op.TEEAttestation]
 	return structs.Encode(arg, &req)
 }
 
 // DecodeTeeAttestationRequest decodes the attestation request bytes into the
 // strongly typed struct.
-func DecodeTeeAttestationRequest(attReq []byte) (verification.ITeeVerificationTeeAttestation, error) {
+func DecodeTeeAttestationRequest(attReq []byte) (verification.IVerificationTeeAttestation, error) {
 	arg := verification.MessageArguments[op.TEEAttestation]
 
-	var unpacked verification.ITeeVerificationTeeAttestation
+	var unpacked verification.IVerificationTeeAttestation
 	err := structs.DecodeTo(arg, attReq, &unpacked)
 	if err != nil {
-		return verification.ITeeVerificationTeeAttestation{}, err
+		return verification.IVerificationTeeAttestation{}, err
 	}
 
 	return unpacked, nil

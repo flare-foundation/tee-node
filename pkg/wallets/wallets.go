@@ -24,20 +24,20 @@ var XRPType = utils.ToHash("XRP")
 var EVMType = utils.ToHash("EVM")
 
 // ParseKeyGenerate decodes the key generation instruction payload.
-func ParseKeyGenerate(instructionData *instruction.DataFixed) (wallet.ITeeWalletKeyManagerKeyGenerate, error) {
+func ParseKeyGenerate(instructionData *instruction.DataFixed) (wallet.IWalletKeyManagerKeyGenerate, error) {
 	arg := wallet.MessageArguments[op.KeyGenerate]
 
-	var unpacked wallet.ITeeWalletKeyManagerKeyGenerate
+	var unpacked wallet.IWalletKeyManagerKeyGenerate
 	err := structs.DecodeTo(arg, instructionData.OriginalMessage, &unpacked)
 	if err != nil {
-		return wallet.ITeeWalletKeyManagerKeyGenerate{}, err
+		return wallet.IWalletKeyManagerKeyGenerate{}, err
 	}
 
 	return unpacked, nil
 }
 
 // CheckKeyGenerate performs basic validation on the key generation request.
-func CheckKeyGenerate(newWalletRequest wallet.ITeeWalletKeyManagerKeyGenerate, teeID common.Address) error {
+func CheckKeyGenerate(newWalletRequest wallet.IWalletKeyManagerKeyGenerate, teeID common.Address) error {
 	if newWalletRequest.TeeId != teeID {
 		return errors.New("requested teeID does not match required")
 	}
@@ -69,33 +69,33 @@ func CheckKeyGenerate(newWalletRequest wallet.ITeeWalletKeyManagerKeyGenerate, t
 }
 
 // ParseKeyDelete decodes the key deletion instruction payload.
-func ParseKeyDelete(instructionData *instruction.DataFixed) (wallet.ITeeWalletKeyManagerKeyDelete, error) {
+func ParseKeyDelete(instructionData *instruction.DataFixed) (wallet.IWalletKeyManagerKeyDelete, error) {
 	arg := wallet.MessageArguments[op.KeyDelete]
-	var unpacked wallet.ITeeWalletKeyManagerKeyDelete
+	var unpacked wallet.IWalletKeyManagerKeyDelete
 	err := structs.DecodeTo(arg, instructionData.OriginalMessage, &unpacked)
 	if err != nil {
-		return wallet.ITeeWalletKeyManagerKeyDelete{}, err
+		return wallet.IWalletKeyManagerKeyDelete{}, err
 	}
 	err = nonceCheck(unpacked.Nonce)
 	if err != nil {
-		return wallet.ITeeWalletKeyManagerKeyDelete{}, err
+		return wallet.IWalletKeyManagerKeyDelete{}, err
 	}
 
 	return unpacked, nil
 }
 
 // ParseKeyDataProviderRestore decodes the key data provider restore payload.
-func ParseKeyDataProviderRestore(instructionData *instruction.DataFixed) (wallet.ITeeWalletBackupManagerKeyDataProviderRestore, error) {
+func ParseKeyDataProviderRestore(instructionData *instruction.DataFixed) (wallet.IWalletBackupManagerKeyDataProviderRestore, error) {
 	arg := wallet.MessageArguments[op.KeyDataProviderRestore]
-	var unpacked wallet.ITeeWalletBackupManagerKeyDataProviderRestore
+	var unpacked wallet.IWalletBackupManagerKeyDataProviderRestore
 	err := structs.DecodeTo(arg, instructionData.OriginalMessage, &unpacked)
 	if err != nil {
-		return wallet.ITeeWalletBackupManagerKeyDataProviderRestore{}, err
+		return wallet.IWalletBackupManagerKeyDataProviderRestore{}, err
 	}
 
 	err = nonceCheck(unpacked.Nonce)
 	if err != nil {
-		return wallet.ITeeWalletBackupManagerKeyDataProviderRestore{}, err
+		return wallet.IWalletBackupManagerKeyDataProviderRestore{}, err
 	}
 
 	return unpacked, nil
@@ -153,7 +153,7 @@ func (wid *WalletBackupID) Equal(w *WalletBackupID) error {
 
 // encodeABI prepares the wallet backup identifier for encoding.
 func (wid *WalletBackupID) encodeABI() ([]byte, error) {
-	sStruct := wallet.ITeeWalletBackupManagerBackupId{
+	sStruct := wallet.IWalletBackupManagerBackupId{
 		TeeId:         wid.TeeID,
 		WalletId:      wid.WalletID,
 		KeyId:         wid.KeyID,
@@ -185,7 +185,7 @@ type SignedKeyExistenceProof struct {
 }
 
 // ExtractKeyExistence parses a signed existence proof from bytes.
-func ExtractKeyExistence(b []byte, teeID common.Address) (*wallet.ITeeWalletKeyManagerKeyExistence, error) {
+func ExtractKeyExistence(b []byte, teeID common.Address) (*wallet.IWalletKeyManagerKeyExistence, error) {
 	var wskep SignedKeyExistenceProof
 	err := json.Unmarshal(b, &wskep)
 	if err != nil {
@@ -198,7 +198,7 @@ func ExtractKeyExistence(b []byte, teeID common.Address) (*wallet.ITeeWalletKeyM
 		return nil, err
 	}
 
-	keyExistence, err := structs.Decode[wallet.ITeeWalletKeyManagerKeyExistence](wallet.KeyExistenceStructArg, wskep.KeyExistence)
+	keyExistence, err := structs.Decode[wallet.IWalletKeyManagerKeyExistence](wallet.KeyExistenceStructArg, wskep.KeyExistence)
 	if err != nil {
 		return nil, err
 	}

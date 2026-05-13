@@ -9,7 +9,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient/simulated"
-	"github.com/flare-foundation/go-flare-common/pkg/contracts/teevrfverifier"
+	"github.com/flare-foundation/go-flare-common/pkg/contracts/tee/vrfverifier"
 	"github.com/flare-foundation/tee-node/pkg/wallets/vrf"
 	"github.com/stretchr/testify/require"
 )
@@ -37,7 +37,7 @@ func TestContractVerifyRandomness(t *testing.T) {
 	require.NoError(t, err)
 	auth.GasLimit = 3_000_000
 
-	_, _, verifier, err := teevrfverifier.DeployTeeVRFVerifier(auth, client)
+	_, _, verifier, err := vrfverifier.DeployVRFVerifier(auth, client)
 	require.NoError(t, err)
 	backend.Commit() // mine the deployment transaction
 
@@ -135,14 +135,14 @@ func TestContractVerifyRandomness(t *testing.T) {
 // toContractProof converts a Go VRF proof into the struct expected by the
 // VRFVerifier Solidity contract. Witness points are read directly from the
 // proof since VerifiableRandomness now populates them.
-func toContractProof(proof *vrf.Proof) teevrfverifier.VrfVerifierProof {
-	return teevrfverifier.VrfVerifierProof{
-		Gamma:  teevrfverifier.VrfVerifierPoint{X: proof.Gamma.X, Y: proof.Gamma.Y},
+func toContractProof(proof *vrf.Proof) vrfverifier.IVrfVerifierProof {
+	return vrfverifier.IVrfVerifierProof{
+		Gamma:  vrfverifier.IVrfVerifierPoint{X: proof.Gamma.X, Y: proof.Gamma.Y},
 		C:      proof.C,
 		S:      proof.S,
-		U:      teevrfverifier.VrfVerifierPoint{X: proof.U.X, Y: proof.U.Y},
-		CGamma: teevrfverifier.VrfVerifierPoint{X: proof.CGamma.X, Y: proof.CGamma.Y},
-		V:      teevrfverifier.VrfVerifierPoint{X: proof.V.X, Y: proof.V.Y},
+		U:      vrfverifier.IVrfVerifierPoint{X: proof.U.X, Y: proof.U.Y},
+		CGamma: vrfverifier.IVrfVerifierPoint{X: proof.CGamma.X, Y: proof.CGamma.Y},
+		V:      vrfverifier.IVrfVerifierPoint{X: proof.V.X, Y: proof.V.Y},
 		ZInv:   proof.ZInv,
 	}
 }

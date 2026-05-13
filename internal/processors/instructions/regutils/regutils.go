@@ -27,7 +27,7 @@ func ValidateTeeAttestationRequest(attReq []byte, expectedTeeID common.Address) 
 
 // checkTeeAttestation ensures the decoded attestation request belongs to the
 // expected TEE and that it carries a non-empty challenge.
-func checkTeeAttestation(request verification.ITeeVerificationTeeAttestation, teeID common.Address) ([32]byte, error) {
+func checkTeeAttestation(request verification.IVerificationTeeAttestation, teeID common.Address) ([32]byte, error) {
 	if request.TeeMachine.TeeId != teeID {
 		return [32]byte{}, errors.New("TeeIds do not match")
 	}

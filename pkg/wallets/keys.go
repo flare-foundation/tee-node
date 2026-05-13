@@ -43,7 +43,7 @@ type WalletStatus struct {
 }
 
 // GenerateNewKey creates a wallet from the key generate instruction payload.
-func GenerateNewKey(kg wallet.ITeeWalletKeyManagerKeyGenerate) (*Wallet, error) {
+func GenerateNewKey(kg wallet.IWalletKeyManagerKeyGenerate) (*Wallet, error) {
 	sk, err := GenerateKey(kg.SigningAlgo)
 	if err != nil {
 		return nil, err
@@ -106,7 +106,7 @@ func (w *Wallet) Copy() *Wallet {
 }
 
 // KeyExistenceProof builds a key existence proof for the wallet.
-func (w *Wallet) KeyExistenceProof(teeID common.Address) *wallet.ITeeWalletKeyManagerKeyExistence {
+func (w *Wallet) KeyExistenceProof(teeID common.Address) *wallet.IWalletKeyManagerKeyExistence {
 	adminPubKeys := make([]wallet.PublicKey, len(w.AdminPublicKeys))
 	for i, pubKey := range w.AdminPublicKeys {
 		pkt := types.PubKeyToStruct(pubKey)
@@ -117,7 +117,7 @@ func (w *Wallet) KeyExistenceProof(teeID common.Address) *wallet.ITeeWalletKeyMa
 		}
 	}
 
-	return &wallet.ITeeWalletKeyManagerKeyExistence{
+	return &wallet.IWalletKeyManagerKeyExistence{
 		TeeId:       teeID,
 		WalletId:    w.WalletID,
 		KeyId:       w.KeyID,
@@ -126,7 +126,7 @@ func (w *Wallet) KeyExistenceProof(teeID common.Address) *wallet.ITeeWalletKeyMa
 		PublicKey:   w.pubKey(),
 		Nonce:       new(big.Int).SetUint64(w.Status.Nonce),
 		Restored:    w.Restored,
-		ConfigConstants: wallet.ITeeWalletKeyManagerKeyConfigConstants{
+		ConfigConstants: wallet.IWalletKeyManagerKeyConfigConstants{
 			AdminsPublicKeys:   adminPubKeys,
 			AdminsThreshold:    w.AdminsThreshold,
 			Cosigners:          w.Cosigners,

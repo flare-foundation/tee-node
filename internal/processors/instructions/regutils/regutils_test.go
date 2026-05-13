@@ -116,9 +116,9 @@ func TestProcessorTEEAttestationValidationError(t *testing.T) {
 	require.Error(t, err)
 }
 
-func buildTeeAttestationRequest(teeID common.Address, challenge [32]byte) verification.ITeeVerificationTeeAttestation {
-	return verification.ITeeVerificationTeeAttestation{
-		TeeMachine: verification.ITeeMachineRegistryTeeMachineWithAttestationData{
+func buildTeeAttestationRequest(teeID common.Address, challenge [32]byte) verification.IVerificationTeeAttestation {
+	return verification.IVerificationTeeAttestation{
+		TeeMachine: verification.IMachineManagerTeeMachineWithAttestationData{
 			TeeId:        teeID,
 			InitialTeeId: common.HexToAddress("0x00000000000000000000000000000000000000cc"),
 			Url:          "https://example.com/tee",

@@ -110,7 +110,7 @@ func TestGetKeyInfo(t *testing.T) {
 	require.Equal(t, "application/json", resp.Header.Get("Content-Type"))
 
 	// Parse response
-	var response wallet.ITeeWalletKeyManagerKeyExistence
+	var response wallet.IWalletKeyManagerKeyExistence
 
 	decoder := json.NewDecoder(resp.Body)
 	err = decoder.Decode(&response)

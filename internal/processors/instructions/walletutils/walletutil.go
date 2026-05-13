@@ -97,7 +97,7 @@ func (p *Processor) keyRestoreDataCheck(
 }
 
 // backupRequestToID constructs wallet backup ID from the restore request.
-func backupRequestToID(req *wallet.ITeeWalletBackupManagerKeyDataProviderRestore) (wallets.WalletBackupID, error) {
+func backupRequestToID(req *wallet.IWalletBackupManagerKeyDataProviderRestore) (wallets.WalletBackupID, error) {
 	if len(req.BackupId.PublicKey) != 64 {
 		return wallets.WalletBackupID{}, errors.New("unsupported public key format")
 	}

@@ -22,8 +22,8 @@ import (
 	"github.com/flare-foundation/go-flare-common/pkg/random"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/instruction"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/op"
-	"github.com/flare-foundation/go-flare-common/pkg/tee/structs/connector"
-	"github.com/flare-foundation/go-flare-common/pkg/tee/structs/payment"
+	"github.com/flare-foundation/go-flare-common/pkg/tee/structs/fdc2"
+	"github.com/flare-foundation/go-flare-common/pkg/tee/structs/payments"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/structs/verification"
 	vrfstruct "github.com/flare-foundation/go-flare-common/pkg/tee/structs/vrf"
 	"github.com/flare-foundation/go-flare-common/pkg/xrpl/signing"
@@ -302,20 +302,20 @@ func generateWallet(
 	wStorage *wallets.Storage,
 	keyType common.Hash,
 	signingAlgo common.Hash,
-) *wallet.ITeeWalletKeyManagerKeyExistence {
+) *wallet.IWalletKeyManagerKeyExistence {
 	t.Helper()
 
 	if cosigners == nil {
 		cosigners = make([]common.Address, 0)
 	}
 
-	originalMessage := wallet.ITeeWalletKeyManagerKeyGenerate{
+	originalMessage := wallet.IWalletKeyManagerKeyGenerate{
 		TeeId:       teeID,
 		WalletId:    walletID,
 		KeyId:       keyID,
 		KeyType:     keyType,
 		SigningAlgo: signingAlgo,
-		ConfigConstants: wallet.ITeeWalletKeyManagerKeyConfigConstants{
+		ConfigConstants: wallet.IWalletKeyManagerKeyConfigConstants{
 			AdminsPublicKeys:   adminWalletPublicKeys,
 			AdminsThreshold:    uint64(len(adminWalletPublicKeys)),
 			Cosigners:          cosigners,
@@ -390,7 +390,7 @@ func proveVRFRandomness(
 	_, err = rand.Read(nonce)
 	require.NoError(t, err)
 
-	originalMessage := vrfstruct.ITeeVrfVrfInstructionMessage{
+	originalMessage := vrfstruct.IVrfVrfInstructionMessage{
 		WalletId: walletID,
 		KeyId:    keyID,
 		Nonce:    nonce,
@@ -454,9 +454,9 @@ func signTransaction(
 ) {
 	t.Helper()
 
-	originalMessage := payment.ITeePaymentsPaymentInstructionMessage{
+	originalMessage := payments.ITeePaymentsPaymentInstructionMessage{
 		WalletId:         walletID,
-		TeeIdKeyIdPairs:  []payment.TeeIdKeyIdPair{{TeeId: teeID, KeyId: keyID}},
+		TeeIdKeyIdPairs:  []payments.TeeIdKeyIdPair{{TeeId: teeID, KeyId: keyID}},
 		SenderAddress:    "ravbaTwRkNqecy9Zdw8zwrw4uK5awjqhFd",
 		RecipientAddress: "rrrrrrrrrrrrrrrrrNAMEtxvNvQ",
 		Amount:           big.NewInt(1000000000),
@@ -468,7 +468,7 @@ func signTransaction(
 		BatchEndTs:       0,
 	}
 
-	originalMessageEncoded, err := abi.Arguments{payment.MessageArguments[op.Pay]}.Pack(originalMessage)
+	originalMessageEncoded, err := abi.Arguments{payments.MessageArguments[op.Pay]}.Pack(originalMessage)
 	require.NoError(t, err)
 
 	// The XRP processor enforces CheckMatchingCosigners, so the instruction's
@@ -642,7 +642,7 @@ func deleteWallet(
 ) {
 	t.Helper()
 
-	originalMessage := wallet.ITeeWalletKeyManagerKeyDelete{
+	originalMessage := wallet.IWalletKeyManagerKeyDelete{
 		TeeId:    teeID,
 		WalletId: walletID,
 		KeyId:    keyID,
@@ -733,16 +733,16 @@ func recoverWallet(
 	nonce *big.Int,
 	walletBackup *backup.WalletBackup,
 	wStorage *wallets.Storage,
-) *wallet.ITeeWalletKeyManagerKeyExistence {
+) *wallet.IWalletKeyManagerKeyExistence {
 	t.Helper()
 
 	teePubKeyParsed := types.PubKeyToStruct(teePubKey)
 
-	originalMessage := wallet.ITeeWalletBackupManagerKeyDataProviderRestore{
+	originalMessage := wallet.IWalletBackupManagerKeyDataProviderRestore{
 		TeePublicKey: wallet.PublicKey{X: teePubKeyParsed.X, Y: teePubKeyParsed.Y},
 		BackupUrl:    "blabla",
 		Nonce:        nonce,
-		BackupId: wallet.ITeeWalletBackupManagerBackupId{
+		BackupId: wallet.IWalletBackupManagerBackupId{
 			TeeId:         teeID,
 			WalletId:      walletID,
 			KeyId:         keyID,
@@ -881,9 +881,9 @@ func getTeeAttestation(
 	challenge, err := random.Hash()
 	require.NoError(t, err)
 
-	originalMessage := verification.ITeeVerificationTeeAttestation{
+	originalMessage := verification.IVerificationTeeAttestation{
 		Challenge: challenge,
-		TeeMachine: verification.ITeeMachineRegistryTeeMachineWithAttestationData{
+		TeeMachine: verification.IMachineManagerTeeMachineWithAttestationData{
 			TeeId:        teeID,
 			InitialTeeId: teeID,
 			Url:          "bla",
@@ -956,8 +956,8 @@ func fdcProve(
 		}
 	}
 	cosignersThreshold := uint64(len(cosignerAddresses) / 2)
-	originalMessage := connector.IFdc2HubFdc2AttestationRequest{
-		Header: connector.IFdc2HubFdc2RequestHeader{
+	originalMessage := fdc2.IFdc2HubFdc2AttestationRequest{
+		Header: fdc2.IFdc2HubFdc2RequestHeader{
 			AttestationType: [32]byte{},
 			SourceId:        common.Hash{},
 			ThresholdBIPS:   6000,
@@ -971,8 +971,8 @@ func fdcProve(
 	challenge, err := random.Hash()
 	require.NoError(t, err)
 
-	additionalFixedMessage := verification.ITeeVerificationTeeAttestation{
-		TeeMachine: verification.ITeeMachineRegistryTeeMachineWithAttestationData{
+	additionalFixedMessage := verification.IVerificationTeeAttestation{
+		TeeMachine: verification.IMachineManagerTeeMachineWithAttestationData{
 			TeeId:        teeID,
 			InitialTeeId: common.Address{},
 			Url:          "blabla",

@@ -26,7 +26,7 @@ import (
 	"github.com/flare-foundation/go-flare-common/pkg/random"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/instruction"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/op"
-	"github.com/flare-foundation/go-flare-common/pkg/tee/structs/payment"
+	"github.com/flare-foundation/go-flare-common/pkg/tee/structs/payments"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/structs/verification"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/structs/wallet"
 	"github.com/stretchr/testify/require"
@@ -43,7 +43,7 @@ func CreateMockWallet(
 	keyID uint64,
 	rewardEpochID uint32,
 	adminPrivKeys, cosignerPrivKeys []*ecdsa.PrivateKey,
-) wallet.ITeeWalletKeyManagerKeyExistence {
+) wallet.IWalletKeyManagerKeyExistence {
 	t.Helper()
 
 	instructionID, err := random.Hash()
@@ -65,13 +65,13 @@ func CreateMockWallet(
 		cosignerPubKeys = append(cosignerPubKeys, cosignerAddress)
 	}
 
-	request := wallet.ITeeWalletKeyManagerKeyGenerate{
+	request := wallet.IWalletKeyManagerKeyGenerate{
 		TeeId:       iSndD.TeeID(),
 		WalletId:    walletID,
 		KeyId:       keyID,
 		KeyType:     wallets.XRPType,
 		SigningAlgo: wallets.XRPSignAlgo,
-		ConfigConstants: wallet.ITeeWalletKeyManagerKeyConfigConstants{
+		ConfigConstants: wallet.IWalletKeyManagerKeyConfigConstants{
 			AdminsPublicKeys:   adminPubKeys,
 			AdminsThreshold:    uint64(len(adminPubKeys)),
 			Cosigners:          cosignerPubKeys,
@@ -121,9 +121,9 @@ func BuildMockPaymentOriginalMessage(
 ) []byte {
 	t.Helper()
 
-	originalMessage := payment.ITeePaymentsPaymentInstructionMessage{
+	originalMessage := payments.ITeePaymentsPaymentInstructionMessage{
 		WalletId: mockWallet,
-		TeeIdKeyIdPairs: []payment.TeeIdKeyIdPair{{
+		TeeIdKeyIdPairs: []payments.TeeIdKeyIdPair{{
 			TeeId: teeID,
 			KeyId: keyID,
 		}},
@@ -138,7 +138,7 @@ func BuildMockPaymentOriginalMessage(
 		BatchEndTs:       uint64(0),
 	}
 
-	originalMessageEncoded, err := abi.Arguments{payment.MessageArguments[op.Pay]}.Pack(originalMessage)
+	originalMessageEncoded, err := abi.Arguments{payments.MessageArguments[op.Pay]}.Pack(originalMessage)
 	require.NoError(t, err)
 
 	return originalMessageEncoded
@@ -247,7 +247,7 @@ func BuildMockDirectAction(t *testing.T, opType op.Type, opCommand op.Command, m
 	var message []byte
 	var err error
 	switch messageRaw := messageRaw.(type) {
-	case *verification.ITeeVerificationTeeAttestation:
+	case *verification.IVerificationTeeAttestation:
 		message, err = types.EncodeTeeAttestationRequest(messageRaw)
 	case nil:
 		message = []byte{}
