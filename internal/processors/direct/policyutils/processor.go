@@ -1,6 +1,7 @@
 package policyutils
 
 import (
+	"context"
 	"crypto/ecdsa"
 	"encoding/json"
 	"errors"
@@ -25,7 +26,7 @@ func NewProcessor(policyStorage *policy.Storage) Processor {
 
 // InitializePolicy sets the first signing policy along with its associated
 // public keys.
-func (p *Processor) InitializePolicy(i *types.DirectInstruction) ([]byte, error) {
+func (p *Processor) InitializePolicy(ctx context.Context, i *types.DirectInstruction) ([]byte, error) {
 	var err error
 	defer func() {
 		if err != nil {
@@ -57,6 +58,10 @@ func (p *Processor) InitializePolicy(i *types.DirectInstruction) ([]byte, error)
 		return nil, err
 	}
 
+	// timeout check before changing state
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	err = p.SetInitialPolicy(initialPolicy, pubKeysMap)
 	if err != nil {
 		return nil, err
@@ -67,7 +72,7 @@ func (p *Processor) InitializePolicy(i *types.DirectInstruction) ([]byte, error)
 
 // UpdatePolicy validates and applies the next signing policy from a
 // multisigned submission.
-func (p *Processor) UpdatePolicy(i *types.DirectInstruction) ([]byte, error) {
+func (p *Processor) UpdatePolicy(ctx context.Context, i *types.DirectInstruction) ([]byte, error) {
 	var req types.UpdatePolicyRequest
 	err := json.Unmarshal(i.Message, &req)
 	if err != nil {
@@ -86,6 +91,10 @@ func (p *Processor) UpdatePolicy(i *types.DirectInstruction) ([]byte, error) {
 		return nil, err
 	}
 
+	// timeout check before changing state
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	err = p.SetActiveSigningPolicy(newPolicy)
 	if err != nil {
 		return nil, err

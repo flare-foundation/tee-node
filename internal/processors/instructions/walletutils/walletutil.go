@@ -72,6 +72,10 @@ func (p *Processor) keyRestoreDataCheck(
 		return nil, 0, nil, err
 	}
 
+	if utils.HasDuplicateAddresses(adminAddresses) {
+		return nil, 0, nil, errors.New("backup metadata contains duplicate admin addresses")
+	}
+
 	err = processorutils.CheckMatchingCosigners(instructionData.Cosigners, adminAddresses, instructionData.CosignersThreshold, backupMetadata.AdminsThreshold)
 	if err != nil {
 		return nil, 0, nil, err

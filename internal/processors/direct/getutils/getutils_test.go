@@ -2,6 +2,7 @@ package getutils
 
 import (
 	"bytes"
+	"context"
 	"crypto/ecdsa"
 	"encoding/json"
 	"math/big"
@@ -40,7 +41,7 @@ func TestKeyInfo(t *testing.T) {
 
 	proc := NewProcessor(testNode, pStorage, wStorage)
 
-	walletsPackage, err := proc.KeysInfo(nil)
+	walletsPackage, err := proc.KeysInfo(context.Background(), nil)
 	require.NoError(t, err)
 
 	var infos []types.KeyInfo
@@ -70,7 +71,7 @@ func TestKeysInfoSize(t *testing.T) {
 
 	proc := NewProcessor(testNode, pStorage, wStorage)
 
-	res, err := proc.KeysInfo(nil)
+	res, err := proc.KeysInfo(context.Background(), nil)
 	require.NoError(t, err)
 
 	var infos []types.KeyInfo
@@ -128,7 +129,7 @@ func TestKeysProofSize100(t *testing.T) {
 	msg, err := json.Marshal(requested)
 	require.NoError(t, err)
 
-	res, err := proc.KeysProof(&types.DirectInstruction{Message: msg})
+	res, err := proc.KeysProof(context.Background(), &types.DirectInstruction{Message: msg})
 	require.NoError(t, err)
 
 	var proofs []pwallets.SignedKeyExistenceProof
@@ -163,7 +164,7 @@ func TestKeysProof(t *testing.T) {
 		msg, err := json.Marshal(requested)
 		require.NoError(t, err)
 
-		res, err := proc.KeysProof(&types.DirectInstruction{Message: msg})
+		res, err := proc.KeysProof(context.Background(), &types.DirectInstruction{Message: msg})
 		require.NoError(t, err)
 
 		var existenceProofs []pwallets.SignedKeyExistenceProof
@@ -191,7 +192,7 @@ func TestKeysProof(t *testing.T) {
 		msg, err := json.Marshal([]pwallets.KeyIDPair{})
 		require.NoError(t, err)
 
-		res, err := proc.KeysProof(&types.DirectInstruction{Message: msg})
+		res, err := proc.KeysProof(context.Background(), &types.DirectInstruction{Message: msg})
 		require.NoError(t, err)
 
 		var existenceProofs []pwallets.SignedKeyExistenceProof
@@ -203,7 +204,7 @@ func TestKeysProof(t *testing.T) {
 		testNode, pStorage, wStorage := testutils.Setup(t)
 		proc := NewProcessor(testNode, pStorage, wStorage)
 
-		_, err := proc.KeysProof(&types.DirectInstruction{Message: []byte("not-json")})
+		_, err := proc.KeysProof(context.Background(), &types.DirectInstruction{Message: []byte("not-json")})
 		require.Error(t, err)
 	})
 
@@ -214,7 +215,7 @@ func TestKeysProof(t *testing.T) {
 		msg, err := json.Marshal([]pwallets.KeyIDPair{{WalletID: common.HexToHash("0xdead"), KeyID: 0}})
 		require.NoError(t, err)
 
-		_, err = proc.KeysProof(&types.DirectInstruction{Message: msg})
+		_, err = proc.KeysProof(context.Background(), &types.DirectInstruction{Message: msg})
 		require.Error(t, err)
 	})
 }
@@ -231,7 +232,7 @@ func TestTEEInfo(t *testing.T) {
 		message, err := json.Marshal(req)
 		require.NoError(t, err)
 
-		result, err := proc.TEEInfo(&types.DirectInstruction{Message: message})
+		result, err := proc.TEEInfo(context.Background(), &types.DirectInstruction{Message: message})
 		require.NoError(t, err)
 		require.NotNil(t, result)
 
@@ -260,7 +261,7 @@ func TestTEEInfo(t *testing.T) {
 		proc := NewProcessor(nil, pStorage, wStorage)
 
 		i := &types.DirectInstruction{Message: []byte("invalid")}
-		res, err := proc.TEEInfo(i)
+		res, err := proc.TEEInfo(context.Background(), i)
 		require.Error(t, err)
 		require.Nil(t, res)
 	})
@@ -279,7 +280,7 @@ func TestTEEBackup(t *testing.T) {
 		idPair := pwallets.KeyIDPair{WalletID: walletID, KeyID: keyID}
 		msg, err := json.Marshal(idPair)
 		require.NoError(t, err)
-		res, err := proc.TEEBackup(&types.DirectInstruction{Message: msg})
+		res, err := proc.TEEBackup(context.Background(), &types.DirectInstruction{Message: msg})
 		require.NoError(t, err)
 		require.NotNil(t, res)
 
@@ -293,7 +294,7 @@ func TestTEEBackup(t *testing.T) {
 		_, pStorage, wStorage := testutils.Setup(t)
 		proc := NewProcessor(nil, pStorage, wStorage)
 		i := &types.DirectInstruction{Message: []byte("bad")}
-		_, err := proc.TEEBackup(i)
+		_, err := proc.TEEBackup(context.Background(), i)
 		require.Error(t, err)
 	})
 
@@ -304,7 +305,7 @@ func TestTEEBackup(t *testing.T) {
 		idPair := pwallets.KeyIDPair{WalletID: common.HexToHash("0xfffffff"), KeyID: 777}
 		msg, _ := json.Marshal(idPair)
 		i := &types.DirectInstruction{Message: msg}
-		_, err := proc.TEEBackup(i)
+		_, err := proc.TEEBackup(context.Background(), i)
 		require.Error(t, err)
 	})
 
@@ -324,7 +325,7 @@ func TestTEEBackup(t *testing.T) {
 		msg, _ := json.Marshal(idPair)
 		i := &types.DirectInstruction{Message: msg}
 
-		_, err = proc.TEEBackup(i)
+		_, err = proc.TEEBackup(context.Background(), i)
 		require.Error(t, err)
 	})
 
@@ -346,7 +347,7 @@ func TestTEEBackup(t *testing.T) {
 		idPair := pwallets.KeyIDPair{WalletID: walletID, KeyID: keyID}
 		msg, _ := json.Marshal(idPair)
 		i := &types.DirectInstruction{Message: msg}
-		_, err := proc.TEEBackup(i)
+		_, err := proc.TEEBackup(context.Background(), i)
 		require.Error(t, err)
 	})
 }

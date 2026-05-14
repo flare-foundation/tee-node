@@ -1,6 +1,7 @@
 package signutils_test
 
 import (
+	"context"
 	"crypto/ecdsa"
 	"encoding/json"
 	"math/big"
@@ -57,7 +58,7 @@ func TestSignPaymentTransaction(t *testing.T) {
 	proc := signutils.NewProcessor(testNode, wStorage, nil)
 
 	t.Run("sign XRP payment", func(t *testing.T) {
-		_, _, err = proc.SignXRPLPayment(types.End, &iDataFixed, nil, nil, nil) // using types.End to skip posting to proxy
+		_, _, err = proc.SignXRPLPayment(context.Background(), types.End, &iDataFixed, nil, nil, nil) // using types.End to skip posting to proxy
 		require.NoError(t, err, "response")
 	})
 
@@ -66,7 +67,7 @@ func TestSignPaymentTransaction(t *testing.T) {
 		t, mockWalletID, testNode.TeeID(), mockKeyID, 0, 1000, []byte{0xFF, 0xFF, 0x00, 0x00}, "rHb9CJAWyB4rj91VRWn96DkukG4bwdtyTh", "rHb9CJAWyB4rj91VRWn96DkukG4bwdtyTh",
 	)
 	t.Run("nullify XRP payment", func(t *testing.T) {
-		_, _, err = proc.SignXRPLPayment(types.End, &iDataFixed, nil, nil, nil) // using types.End to skip posting to proxy
+		_, _, err = proc.SignXRPLPayment(context.Background(), types.End, &iDataFixed, nil, nil, nil) // using types.End to skip posting to proxy
 		require.NoError(t, err, "response")
 	})
 }
@@ -262,7 +263,7 @@ func TestSignXRPLBasicSuccess(t *testing.T) {
 	proc := signutils.NewProcessor(setup.testNode, setup.wStorage, proxyMux)
 	instr := setup.buildPaymentInstruction(t, []payments.TeeIdKeyIdPair{{TeeId: setup.teeID, KeyId: 1}}, nil, 0, nil)
 
-	result, status, err := proc.SignXRPLPayment(types.Threshold, instr, nil, nil, nil)
+	result, status, err := proc.SignXRPLPayment(context.Background(), types.Threshold, instr, nil, nil, nil)
 	require.NoError(t, err)
 	require.Nil(t, status)
 	require.Equal(t, []byte{}, result)
@@ -290,7 +291,7 @@ func TestSignXRPLMultiKeyMultisig(t *testing.T) {
 	pairs := []payments.TeeIdKeyIdPair{{TeeId: setup.teeID, KeyId: 1}, {TeeId: setup.teeID, KeyId: 2}}
 	instr := setup.buildPaymentInstruction(t, pairs, nil, 0, nil)
 
-	_, _, err := proc.SignXRPLPayment(types.Threshold, instr, nil, nil, nil)
+	_, _, err := proc.SignXRPLPayment(context.Background(), types.Threshold, instr, nil, nil, nil)
 	require.NoError(t, err)
 
 	select {
@@ -316,13 +317,13 @@ func TestSignXRPLCosignerValidationThreshold(t *testing.T) {
 
 	// Instruction with only 1 cosigner -> should fail
 	instr := setup.buildPaymentInstruction(t, []payments.TeeIdKeyIdPair{{TeeId: setup.teeID, KeyId: 1}}, wal.Cosigners[:1], 1, nil)
-	_, _, err := setup.processor.SignXRPLPayment(types.Threshold, instr, nil, nil, nil)
+	_, _, err := setup.processor.SignXRPLPayment(context.Background(), types.Threshold, instr, nil, nil, nil)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "the number of provided cosigners does not match the number of saved cosigners")
 
 	// Instruction with 3 cosigners, but threshold is 1 -> should fail
 	instr = setup.buildPaymentInstruction(t, []payments.TeeIdKeyIdPair{{TeeId: setup.teeID, KeyId: 1}}, wal.Cosigners, 1, nil)
-	_, _, err = setup.processor.SignXRPLPayment(types.Threshold, instr, nil, nil, nil)
+	_, _, err = setup.processor.SignXRPLPayment(context.Background(), types.Threshold, instr, nil, nil, nil)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "the threshold of provided cosigners does not match the threshold of saved cosigners")
 
@@ -330,7 +331,7 @@ func TestSignXRPLCosignerValidationThreshold(t *testing.T) {
 	proxyMux, responses := startMockResultServer(t)
 	proc := signutils.NewProcessor(setup.testNode, setup.wStorage, proxyMux)
 	instrOK := setup.buildPaymentInstruction(t, []payments.TeeIdKeyIdPair{{TeeId: setup.teeID, KeyId: 1}}, wal.Cosigners, 2, nil)
-	_, _, err = proc.SignXRPLPayment(types.Threshold, instrOK, nil, nil, nil)
+	_, _, err = proc.SignXRPLPayment(context.Background(), types.Threshold, instrOK, nil, nil, nil)
 	require.NoError(t, err)
 
 	select {
@@ -352,7 +353,7 @@ func TestSignXRPLInvalidInstructionParsing(t *testing.T) {
 	instr := setup.buildPaymentInstruction(t, []payments.TeeIdKeyIdPair{{TeeId: setup.teeID, KeyId: 1}}, nil, 0, nil)
 	instr.OriginalMessage = []byte{0x01, 0x02}
 
-	_, _, err := setup.processor.SignXRPLPayment(types.Threshold, instr, nil, nil, nil)
+	_, _, err := setup.processor.SignXRPLPayment(context.Background(), types.Threshold, instr, nil, nil, nil)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "abi: cannot marshal in to go type")
 }
@@ -364,7 +365,7 @@ func TestSignXRPLInvalidKeyTypeAlgoRejection(t *testing.T) {
 	// EVM type with XRP algo -> should fail on key type
 	setup.createWallet(t, 1, wallets.EVMType, wallets.XRPSignAlgo, []common.Address{}, 0)
 	instr := setup.buildPaymentInstruction(t, []payments.TeeIdKeyIdPair{{TeeId: setup.teeID, KeyId: 1}}, nil, 0, nil)
-	_, _, err := setup.processor.SignXRPLPayment(types.Threshold, instr, nil, nil, nil)
+	_, _, err := setup.processor.SignXRPLPayment(context.Background(), types.Threshold, instr, nil, nil, nil)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "key type")
 
@@ -372,7 +373,7 @@ func TestSignXRPLInvalidKeyTypeAlgoRejection(t *testing.T) {
 	setup = setupSignXRPLTest(t)
 	setup.createWallet(t, 2, wallets.XRPType, wallets.EVMSignAlgo, []common.Address{}, 0)
 	instr2 := setup.buildPaymentInstruction(t, []payments.TeeIdKeyIdPair{{TeeId: setup.teeID, KeyId: 2}}, nil, 0, nil)
-	_, _, err = setup.processor.SignXRPLPayment(types.Threshold, instr2, nil, nil, nil)
+	_, _, err = setup.processor.SignXRPLPayment(context.Background(), types.Threshold, instr2, nil, nil, nil)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "algorithm")
 }
@@ -382,7 +383,7 @@ func TestSignXRPLWalletNotFound(t *testing.T) {
 	setup := setupSignXRPLTest(t)
 
 	instr := setup.buildPaymentInstruction(t, []payments.TeeIdKeyIdPair{{TeeId: setup.teeID, KeyId: 999}}, nil, 0, nil)
-	_, _, err := setup.processor.SignXRPLPayment(types.Threshold, instr, nil, nil, nil)
+	_, _, err := setup.processor.SignXRPLPayment(context.Background(), types.Threshold, instr, nil, nil, nil)
 	require.Error(t, err)
 	require.Equal(t, wallets.ErrWalletNonExistent, err)
 }
@@ -395,7 +396,7 @@ func TestSignXRPLTeeIDMismatchNoKeysForSigning(t *testing.T) {
 	otherTEE := common.HexToAddress("0x1234567890123456789012345678901234567890")
 	instr := setup.buildPaymentInstruction(t, []payments.TeeIdKeyIdPair{{TeeId: otherTEE, KeyId: 1}}, nil, 0, nil)
 
-	_, _, err := setup.processor.SignXRPLPayment(types.Threshold, instr, nil, nil, nil)
+	_, _, err := setup.processor.SignXRPLPayment(context.Background(), types.Threshold, instr, nil, nil, nil)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "no keys for signing")
 }
@@ -411,7 +412,7 @@ func TestSignXRPLInvalidXRPParameters(t *testing.T) {
 		t, setup.walletID, setup.teeID, 1, 0, 10, []byte{0x27, 0x10, 0x00, 0x00},
 		"rHb9CJAWyB4rj91VRWn96DkukG4bwdtyTh", "rrrrrrrrrrrrrrrrrrrrrhoLvTp",
 	)
-	_, _, err := setup.processor.SignXRPLPayment(types.Threshold, instr, nil, nil, nil)
+	_, _, err := setup.processor.SignXRPLPayment(context.Background(), types.Threshold, instr, nil, nil, nil)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "non positive integer for Amount")
 
@@ -419,7 +420,7 @@ func TestSignXRPLInvalidXRPParameters(t *testing.T) {
 		t, setup.walletID, setup.teeID, 1, 0, 0, []byte{0x27, 0x10, 0x00, 0x00},
 		"rHb9CJAWyB4rj91VRWn96DkukG4bwdtyTh", "rrrrrrrrrrrrrrrrrrrrrhoLvTp",
 	)
-	_, _, err = setup.processor.SignXRPLPayment(types.Threshold, instr, nil, nil, nil)
+	_, _, err = setup.processor.SignXRPLPayment(context.Background(), types.Threshold, instr, nil, nil, nil)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "zero Fee set")
 }
@@ -442,7 +443,7 @@ func TestSignXRPLMultiEntryScheduleWithDelay(t *testing.T) {
 	instr := setup.buildPaymentInstruction(t, []payments.TeeIdKeyIdPair{{TeeId: setup.teeID, KeyId: 1}}, nil, 0, feeSchedule)
 
 	start := time.Now()
-	result, status, err := proc.SignXRPLPayment(types.Threshold, instr, nil, nil, nil)
+	result, status, err := proc.SignXRPLPayment(context.Background(), types.Threshold, instr, nil, nil, nil)
 	require.NoError(t, err)
 	require.Nil(t, status)
 	require.Equal(t, []byte{}, result)
@@ -502,6 +503,6 @@ func TestSignXRPLInvalidPrivateKey(t *testing.T) {
 
 	instr := setup.buildPaymentInstruction(t, []payments.TeeIdKeyIdPair{{TeeId: setup.teeID, KeyId: 1}}, nil, 0, nil)
 
-	_, _, err = setup.processor.SignXRPLPayment(types.Threshold, instr, nil, nil, nil)
+	_, _, err = setup.processor.SignXRPLPayment(context.Background(), types.Threshold, instr, nil, nil, nil)
 	require.Error(t, err)
 }

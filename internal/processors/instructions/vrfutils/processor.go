@@ -1,6 +1,7 @@
 package vrfutils
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 
@@ -30,6 +31,7 @@ func NewProcessor(identifier node.Identifier, wStorage *wallets.Storage) Process
 
 // ProveRandomness returns a VRF proof for the given wallet/key pair and nonce.
 func (p *Processor) ProveRandomness(
+	_ context.Context,
 	_ types.SubmissionTag,
 	dataFixed *instruction.DataFixed,
 	_ []hexutil.Bytes,

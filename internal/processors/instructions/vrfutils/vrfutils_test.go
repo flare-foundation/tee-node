@@ -1,6 +1,7 @@
 package vrfutils
 
 import (
+	"context"
 	"crypto/rand"
 	"encoding/json"
 	"testing"
@@ -87,7 +88,7 @@ func TestProveRandomness(t *testing.T) {
 	nonce := randomNonce(t)
 	data := buildRequestInstruction(t, setup.walletID, setup.keyID, nonce)
 
-	resBytes, _, err := setup.processor.ProveRandomness(types.Threshold, data, nil, nil, nil)
+	resBytes, _, err := setup.processor.ProveRandomness(context.Background(), types.Threshold, data, nil, nil, nil)
 	require.NoError(t, err)
 
 	var resp types.ProveRandomnessResponse
@@ -114,7 +115,7 @@ func TestProveRandomnessWalletNotFound(t *testing.T) {
 	setup := setupProveRandomnessTest(t)
 	data := buildRequestInstruction(t, common.HexToHash("0x123"), setup.keyID, randomNonce(t))
 
-	_, _, err := setup.processor.ProveRandomness(types.Threshold, data, nil, nil, nil)
+	_, _, err := setup.processor.ProveRandomness(context.Background(), types.Threshold, data, nil, nil, nil)
 	require.Error(t, err)
 	require.Equal(t, wallets.ErrWalletNonExistent, err)
 }
@@ -125,7 +126,7 @@ func TestProveRandomnessInvalidRequestEncoding(t *testing.T) {
 		OriginalMessage: []byte{0x01, 0x02, 0x03},
 	}
 
-	_, _, err := setup.processor.ProveRandomness(types.Threshold, data, nil, nil, nil)
+	_, _, err := setup.processor.ProveRandomness(context.Background(), types.Threshold, data, nil, nil, nil)
 	require.Error(t, err)
 }
 
@@ -133,7 +134,7 @@ func TestProveRandomnessEmptyNonce(t *testing.T) {
 	setup := setupProveRandomnessTest(t)
 	data := buildRequestInstruction(t, setup.walletID, setup.keyID, []byte{})
 
-	_, _, err := setup.processor.ProveRandomness(types.Threshold, data, nil, nil, nil)
+	_, _, err := setup.processor.ProveRandomness(context.Background(), types.Threshold, data, nil, nil, nil)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "nonce is empty")
 }
@@ -158,7 +159,7 @@ func TestProveRandomnessUnsupportedSigningAlgo(t *testing.T) {
 	require.NoError(t, err)
 
 	data := buildRequestInstruction(t, customWalletID, customKeyID, randomNonce(t))
-	_, _, err = setup.processor.ProveRandomness(types.Threshold, data, nil, nil, nil)
+	_, _, err = setup.processor.ProveRandomness(context.Background(), types.Threshold, data, nil, nil, nil)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "does not support vrf")
 }

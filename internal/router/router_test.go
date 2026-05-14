@@ -1,6 +1,7 @@
 package router
 
 import (
+	"context"
 	"crypto/ecdsa"
 	"encoding/json"
 	"io"
@@ -63,7 +64,7 @@ func TestRouterDirectActionRouting(t *testing.T) {
 		Challenge: common.Hash{0x1},
 	})
 
-	result := r.process(action, processorutils.Main)
+	result := r.process(context.Background(), action, processorutils.Main)
 
 	// Verify results
 	require.Equal(t, uint8(1), result.Status)
@@ -125,7 +126,7 @@ func TestRouterInstructionActionRoutingThreshold(t *testing.T) {
 	)
 
 	// Process the action
-	result := r.process(action, processorutils.Main)
+	result := r.process(context.Background(), action, processorutils.Main)
 
 	// Verify results
 	require.Equal(t, uint8(1), result.Status)
@@ -141,7 +142,7 @@ func TestRouterUnregisteredExtension(t *testing.T) {
 	action := testutils.BuildMockDirectAction(t, op.Type("UnregisteredExt"), op.Command("UnregisteredCmd"), nil)
 
 	// Process the action - should fail
-	result := r.process(action, processorutils.Main)
+	result := r.process(context.Background(), action, processorutils.Main)
 
 	// Verify failure
 	require.Equal(t, uint8(0), result.Status)
@@ -156,7 +157,7 @@ func TestRouterExtensionStartingWithF_NotConfigured(t *testing.T) {
 	action := testutils.BuildMockDirectAction(t, op.Type("F_CustomExtension"), op.Command("CustomCommand"), nil)
 
 	// Process the action - should fail since no processor is registered
-	result := r.process(action, processorutils.Main)
+	result := r.process(context.Background(), action, processorutils.Main)
 
 	require.Equal(t, uint8(0), result.Status)
 	require.Contains(t, result.Log, "invalid OPType, OPCommand pair")
@@ -171,6 +172,17 @@ func TestRouterRun(t *testing.T) {
 
 	proxyURL := &settings.ProxyURLMutex{URL: "http://localhost:9999"}
 	r := NewPMWRouter(testNode, ws, ps, proxyURL)
+
+	// r.Run spawns ServeQueue goroutines that have no production-side cancellation
+	// hook, so they keep running past this test. Clearing the proxy URL on test
+	// exit makes each subsequent iteration short-circuit at the empty-URL check
+	// in serveQueueIteration and sleep silently instead of spamming
+	// "connection refused" logs into every later test in this package.
+	defer func() {
+		proxyURL.Lock()
+		proxyURL.URL = ""
+		proxyURL.Unlock()
+	}()
 
 	// Run in a goroutine since it blocks on Direct queue
 	go r.Run(testNode)
@@ -224,6 +236,15 @@ func TestServeQueueBasic(t *testing.T) {
 	proxyURL := &settings.ProxyURLMutex{URL: server.URL}
 	r.proxyURL = proxyURL
 
+	// Registered AFTER `defer server.Close()` so LIFO ordering runs this first:
+	// the goroutine sees the empty URL and short-circuits before the server is
+	// closed, avoiding "connection refused" log spam in subsequent tests.
+	defer func() {
+		proxyURL.Lock()
+		proxyURL.URL = ""
+		proxyURL.Unlock()
+	}()
+
 	// Run ServeQueue in a goroutine with a timeout
 	go func() {
 		r.ServeQueue(processorutils.Main, testNode)
@@ -272,6 +293,14 @@ func TestServeQueueEmptyProxyURL(t *testing.T) {
 	}))
 	defer server.Close()
 
+	// Registered AFTER `defer server.Close()` so LIFO ordering runs this first:
+	// goroutine sees empty URL and short-circuits before the server is closed.
+	defer func() {
+		proxyMutex.Lock()
+		proxyMutex.URL = ""
+		proxyMutex.Unlock()
+	}()
+
 	// Set a short sleep time for faster tests
 	originalSleepTime := settings.QueuedActionsSleepTime
 	settings.QueuedActionsSleepTime = 500 * time.Millisecond
@@ -314,7 +343,7 @@ func TestRegisterProcessorDuplicate(t *testing.T) {
 	r := NewPMWRouter(testNode, ws, ps, &settings.ProxyURLMutex{})
 
 	// Create a mock processor
-	mockProcessor := ProcessFunc(func(a *types.Action) types.ActionResult {
+	mockProcessor := ProcessFunc(func(_ context.Context, a *types.Action) types.ActionResult {
 		return types.ActionResult{Status: 1}
 	})
 
@@ -341,7 +370,7 @@ func TestRegisterDefaultDirectDuplicate(t *testing.T) {
 	r := NewPMWRouter(testNode, ws, ps, &settings.ProxyURLMutex{})
 
 	// Create a mock processor
-	mockProcessor := ProcessFunc(func(a *types.Action) types.ActionResult {
+	mockProcessor := ProcessFunc(func(_ context.Context, a *types.Action) types.ActionResult {
 		return types.ActionResult{Status: 1}
 	})
 
@@ -368,7 +397,7 @@ func TestRegisterDefaultInstructionDuplicate(t *testing.T) {
 	r := NewPMWRouter(testNode, ws, ps, &settings.ProxyURLMutex{})
 
 	// Create a mock processor
-	mockProcessor := ProcessFunc(func(a *types.Action) types.ActionResult {
+	mockProcessor := ProcessFunc(func(_ context.Context, a *types.Action) types.ActionResult {
 		return types.ActionResult{Status: 1}
 	})
 
@@ -395,7 +424,7 @@ func TestProcessDefaultInstruction(t *testing.T) {
 	r := NewPMWRouter(testNode, ws, ps, &settings.ProxyURLMutex{})
 
 	// Create a mock default instruction processor
-	mockProcessor := ProcessFunc(func(a *types.Action) types.ActionResult {
+	mockProcessor := ProcessFunc(func(_ context.Context, a *types.Action) types.ActionResult {
 		return types.ActionResult{
 			ID:     a.Data.ID,
 			Status: 1,
@@ -420,7 +449,7 @@ func TestProcessDefaultInstruction(t *testing.T) {
 	)
 
 	// Process the action
-	result := r.process(action, processorutils.Main)
+	result := r.process(context.Background(), action, processorutils.Main)
 
 	// Verify the result was processed by the default instruction processor
 	require.Equal(t, uint8(1), result.Status)
@@ -447,7 +476,7 @@ func TestProcessCheckAndAdaptError(t *testing.T) {
 	}
 
 	// Process the action
-	result := r.process(action, processorutils.Main)
+	result := r.process(context.Background(), action, processorutils.Main)
 
 	// Verify the result indicates an error
 	require.Equal(t, uint8(0), result.Status)
@@ -474,10 +503,117 @@ func TestProcessRoutIDError(t *testing.T) {
 	}
 
 	// Process the action
-	result := r.process(action, processorutils.Main)
+	result := r.process(context.Background(), action, processorutils.Main)
 
 	// Verify the result indicates an error
 	require.Equal(t, uint8(0), result.Status)
 	require.Equal(t, action.Data.ID, result.ID)
 	require.Contains(t, result.Log, "invalid character")
+}
+
+// shrinkActionTimeouts swaps the package-level action timeouts to small values
+// for the duration of a test and restores them on cleanup. Both settings are
+// declared as var precisely so tests can override them without changing
+// production behavior.
+func shrinkActionTimeouts(t *testing.T, processTimeout, drainTimeout time.Duration) {
+	t.Helper()
+	origProcess := settings.ActionProcessTimeout
+	origDrain := settings.ActionDrainTimeout
+	settings.ActionProcessTimeout = processTimeout
+	settings.ActionDrainTimeout = drainTimeout
+	t.Cleanup(func() {
+		settings.ActionProcessTimeout = origProcess
+		settings.ActionDrainTimeout = origDrain
+	})
+}
+
+// timeoutTestAction returns a minimal Action that the timeout tests can feed
+// straight to processWithTimeout; the routing layer is bypassed by registering
+// the test processor on op.FDC2/op.Prove so r.process picks it up.
+func timeoutTestAction() *types.Action {
+	return &types.Action{
+		Data: types.ActionData{
+			ID:   common.HexToHash("0xdeadbeef"),
+			Type: types.Direct,
+			Message: func() []byte {
+				di := types.DirectInstruction{OPType: op.FDC2.Hash(), OPCommand: op.Prove.Hash()}
+				b, _ := json.Marshal(di)
+				return b
+			}(),
+		},
+	}
+}
+
+// TestProcessWithTimeout_CooperativeProcessor verifies that when a processor
+// follows the production pattern — do work, then gate on ctx.Err() before
+// "committing" state — the worker returns the processor's own ctx-cancelled
+// error and unblocks well before the drain window expires. This mirrors the
+// guard at e.g. walletutils/processor.go KeyGenerate just before wStorage.Store.
+func TestProcessWithTimeout_CooperativeProcessor(t *testing.T) {
+	shrinkActionTimeouts(t, 100*time.Millisecond, 500*time.Millisecond)
+
+	testNode, ps, ws := testutils.Setup(t)
+	r := NewPMWRouter(testNode, ws, ps, &settings.ProxyURLMutex{})
+
+	cooperative := ProcessFunc(func(ctx context.Context, a *types.Action) types.ActionResult {
+		// Simulate work that runs past the action's deadline.
+		time.Sleep(2 * settings.ActionProcessTimeout)
+		// Production pattern: timeout check before changing state.
+		if err := ctx.Err(); err != nil {
+			return types.ActionResult{ID: a.Data.ID, Status: 0, Log: err.Error()}
+		}
+		return types.ActionResult{ID: a.Data.ID, Status: 1, Log: "committed (should-not-reach)"}
+	})
+	// Replace the FDC2/Prove route so r.process picks our cooperative processor.
+	delete(r.routs, types.OpID{OPType: op.FDC2.Hash(), OPCommand: op.Prove.Hash()})
+	r.RegisterProcessor(op.FDC2, op.Prove, cooperative)
+
+	start := time.Now()
+	result := r.processWithTimeout(timeoutTestAction(), processorutils.Main)
+	elapsed := time.Since(start)
+
+	require.Equal(t, uint8(0), result.Status)
+	require.Equal(t, context.DeadlineExceeded.Error(), result.Log,
+		"expected the processor's own ctx.Err() to surface, proving the guard fired before commit")
+	require.Less(t, elapsed, settings.ActionProcessTimeout+settings.ActionDrainTimeout,
+		"worker should have returned well before the drain window expired")
+	require.GreaterOrEqual(t, elapsed, settings.ActionProcessTimeout,
+		"worker should have waited at least for the action timeout to fire")
+}
+
+// TestProcessWithTimeout_NonCooperativeProcessor verifies that a processor
+// which ignores ctx gets abandoned after the drain window and the worker
+// returns the explicit "state may be inconsistent" error rather than wedging
+// the queue forever. The goroutine intentionally leaks past test end; we wait
+// briefly to let it finish so the test runner exits cleanly.
+func TestProcessWithTimeout_NonCooperativeProcessor(t *testing.T) {
+	shrinkActionTimeouts(t, 100*time.Millisecond, 200*time.Millisecond)
+
+	testNode, ps, ws := testutils.Setup(t)
+	r := NewPMWRouter(testNode, ws, ps, &settings.ProxyURLMutex{})
+
+	processorSleep := settings.ActionProcessTimeout + settings.ActionDrainTimeout + 500*time.Millisecond
+	done := make(chan struct{})
+	nonCooperative := ProcessFunc(func(_ context.Context, a *types.Action) types.ActionResult {
+		time.Sleep(processorSleep)
+		close(done)
+		return types.ActionResult{ID: a.Data.ID, Status: 1, Log: "should-never-surface"}
+	})
+	delete(r.routs, types.OpID{OPType: op.FDC2.Hash(), OPCommand: op.Prove.Hash()})
+	r.RegisterProcessor(op.FDC2, op.Prove, nonCooperative)
+
+	start := time.Now()
+	result := r.processWithTimeout(timeoutTestAction(), processorutils.Main)
+	elapsed := time.Since(start)
+
+	require.Equal(t, uint8(0), result.Status)
+	require.Contains(t, result.Log, "failed to drain")
+	require.Contains(t, result.Log, "TEE state may be inconsistent")
+	require.Less(t, elapsed, processorSleep,
+		"worker should have abandoned the goroutine instead of waiting for it to finish")
+	require.GreaterOrEqual(t, elapsed, settings.ActionProcessTimeout+settings.ActionDrainTimeout,
+		"worker should have waited at least through both windows")
+
+	// Let the abandoned goroutine finish so the test runner has nothing in flight.
+	<-done
 }

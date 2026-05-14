@@ -1,6 +1,7 @@
 package walletutils
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 
@@ -37,6 +38,7 @@ func NewProcessor(iSAndD node.IdentifierSignerAndDecrypter, policyStorage *polic
 // KeyGenerate handles wallet key creation instructions, persisting the new key
 // and returning a signed existence proof.
 func (p *Processor) KeyGenerate(
+	ctx context.Context,
 	submissionTag types.SubmissionTag,
 	dataFixed *instruction.DataFixed,
 	_ []hexutil.Bytes,
@@ -68,6 +70,10 @@ func (p *Processor) KeyGenerate(
 			return nil, nil, err
 		}
 
+		// timeout check before changing state
+		if err := ctx.Err(); err != nil {
+			return nil, nil, err
+		}
 		err = p.wStorage.Store(key)
 		if err != nil {
 			return nil, nil, err
@@ -106,6 +112,7 @@ func (p *Processor) KeyGenerate(
 // KeyDelete processes key removal instructions and enforces nonce-based replay
 // protection.
 func (p *Processor) KeyDelete(
+	ctx context.Context,
 	submissionTag types.SubmissionTag,
 	dataFixed *instruction.DataFixed,
 	_ []hexutil.Bytes,
@@ -142,6 +149,10 @@ func (p *Processor) KeyDelete(
 		if !exists {
 			additionalResultStatus = []byte("key not stored")
 		}
+		// timeout check before changing state
+		if err := ctx.Err(); err != nil {
+			return nil, nil, err
+		}
 		p.wStorage.Remove(id)
 		p.wStorage.UpdateNonce(id, req.Nonce.Uint64())
 
@@ -170,6 +181,7 @@ func (p *Processor) KeyDelete(
 // KeyDataProviderRestore reconstructs a wallet key from provider shares and
 // emits a signed existence proof when successful.
 func (p *Processor) KeyDataProviderRestore(
+	ctx context.Context,
 	submissionTag types.SubmissionTag,
 	dataFixed *instruction.DataFixed,
 	variableMessages []hexutil.Bytes,
@@ -188,6 +200,9 @@ func (p *Processor) KeyDataProviderRestore(
 	if err != nil {
 		return nil, nil, err
 	}
+	// An error beyond this check implies that ether the shares are not sufficient,
+	// or that the shares have been tampered while still having valid signatures and matching id,
+	// the latter implying that the key has been compromised
 
 	recoveredWallet, err := backup.RecoverWallet(keySplits, metadata)
 	if err != nil {
@@ -209,6 +224,10 @@ func (p *Processor) KeyDataProviderRestore(
 			}
 		}
 
+		// timeout check before changing state
+		if err := ctx.Err(); err != nil {
+			return nil, nil, err
+		}
 		err = p.wStorage.Store(recoveredWallet)
 		if err != nil {
 			return nil, nil, err
