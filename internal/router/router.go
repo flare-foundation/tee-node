@@ -19,14 +19,14 @@ import (
 )
 
 type Processor interface {
-	Process(*types.Action) types.ActionResult
+	Process(ctx context.Context, a *types.Action) types.ActionResult
 }
 
-type ProcessFunc func(*types.Action) types.ActionResult
+type ProcessFunc func(ctx context.Context, a *types.Action) types.ActionResult
 
 // Process calls the wrapped function to produce an action result.
-func (p ProcessFunc) Process(a *types.Action) types.ActionResult {
-	return p(a)
+func (p ProcessFunc) Process(ctx context.Context, a *types.Action) types.ActionResult {
+	return p(ctx, a)
 }
 
 // Router assigns an action to a designated processor based on its opType and opCommand.
@@ -60,15 +60,15 @@ func (r *Router) ServeQueue(id processorutils.QueueID, signer node.Signer) {
 	logger.Infof("%s queue: processing started", id)
 	for {
 		sleep := r.serveQueueIteration(id, signer)
-		if sleep {
-			time.Sleep(settings.QueuedActionsSleepTime)
+		if sleep > 0 {
+			time.Sleep(sleep)
 		}
 	}
 }
 
 // serveQueueIteration executes a single iteration of the queue processing loop.
 // It is separated from ServeQueue to enable panic recovery via defer.
-func (r *Router) serveQueueIteration(id processorutils.QueueID, signer node.Signer) bool {
+func (r *Router) serveQueueIteration(id processorutils.QueueID, signer node.Signer) time.Duration {
 	var action *types.Action
 
 	defer func() {
@@ -83,7 +83,7 @@ func (r *Router) serveQueueIteration(id processorutils.QueueID, signer node.Sign
 	proxyURL := r.proxyURL.URL
 	r.proxyURL.RUnlock()
 	if proxyURL == "" {
-		return true
+		return settings.QueuedActionsSleepTime
 	}
 
 	var err error
@@ -92,10 +92,10 @@ func (r *Router) serveQueueIteration(id processorutils.QueueID, signer node.Sign
 		logger.Errorf("%s queue: error getting action: %v", id, err)
 		result := r.errorResult(action, fmt.Sprintf("error fetching action: %v", err))
 		r.signAndPost(id, &result, signer)
-		return true
+		return settings.QueuedActionsSleepTime
 	}
 	if action == nil || action.Data.ID == [32]byte{} {
-		return true
+		return settings.QueuedActionsPauseTime
 	}
 	logger.Infof("%s queue: fetched an action: id %v, type %v, submission tag %v", id, action.Data.ID, action.Data.Type, action.Data.SubmissionTag)
 
@@ -107,7 +107,7 @@ func (r *Router) serveQueueIteration(id processorutils.QueueID, signer node.Sign
 	}
 	r.signAndPost(id, &result, signer)
 
-	return false
+	return time.Duration(0)
 }
 
 // errorResult constructs a Status-0 ActionResult. If action is non-nil, its ID
@@ -204,10 +204,12 @@ func (r *Router) RegisterDefaultInstruction(processor Processor) {
 	r.defaultInstruction = processor
 }
 
-// processWithTimeout runs r.process under a context-bounded deadline. If the
-// processor exceeds settings.ActionProcessTimeout the worker returns an error
-// result so the queue keeps moving; the in-flight processor goroutine is left
-// to finish on its own and its result (if any) is discarded.
+// processWithTimeout runs r.process under a context-bounded deadline. When the
+// deadline fires the processor's context is cancelled and the worker waits up
+// to settings.ActionDrainTimeout for the goroutine to return so the result
+// reflects actual state. If it doesn't drain in time the goroutine is
+// abandoned and an explicit state-unknown error is returned — preferred over
+// wedging the queue on a non-cooperative processor.
 func (r *Router) processWithTimeout(a *types.Action, queueID processorutils.QueueID) types.ActionResult {
 	ctx, cancel := context.WithTimeout(context.Background(), settings.ActionProcessTimeout)
 	defer cancel()
@@ -220,19 +222,32 @@ func (r *Router) processWithTimeout(a *types.Action, queueID processorutils.Queu
 				resultCh <- r.errorResult(a, fmt.Sprintf("internal error: panic: %v", rec))
 			}
 		}()
-		resultCh <- r.process(a, queueID)
+		resultCh <- r.process(ctx, a, queueID)
 	}()
 
 	select {
 	case result := <-resultCh:
 		return result
 	case <-ctx.Done():
-		logger.Errorf("%s queue: processing timeout of %v exceeded for action %v", queueID, settings.ActionProcessTimeout, a.Data.ID)
-		return r.errorResult(a, fmt.Sprintf("processing timeout of %v exceeded", settings.ActionProcessTimeout))
+		logger.Errorf("%s queue: processing timeout of %v exceeded for action %v; waiting up to %v for processor to drain", queueID, settings.ActionProcessTimeout, a.Data.ID, settings.ActionDrainTimeout)
+		drain := time.NewTimer(settings.ActionDrainTimeout)
+		defer drain.Stop()
+		select {
+		case result := <-resultCh:
+			return result
+		case <-drain.C:
+			// Processor failed to honor cancellation. Abandon the goroutine
+			// (it will leak until it finishes on its own) and return an error
+			// that explicitly flags the state as unknown so the proxy can
+			// surface it for manual reconciliation instead of treating it as
+			// a clean failure.
+			logger.Errorf("%s queue: processor failed to drain within %v after timeout; abandoning goroutine for action %v", queueID, settings.ActionDrainTimeout, a.Data.ID)
+			return r.errorResult(a, fmt.Sprintf("processing timeout of %v exceeded and processor failed to drain within %v; TEE state may be inconsistent and may require manual reconciliation", settings.ActionProcessTimeout, settings.ActionDrainTimeout))
+		}
 	}
 }
 
-func (r *Router) process(a *types.Action, queueID processorutils.QueueID) types.ActionResult {
+func (r *Router) process(ctx context.Context, a *types.Action, queueID processorutils.QueueID) types.ActionResult {
 	err := processorutils.CheckAndAdapt(a)
 	if err != nil {
 		return processorutils.Invalid(a, err)
@@ -246,19 +261,19 @@ func (r *Router) process(a *types.Action, queueID processorutils.QueueID) types.
 
 	p, exists := r.routs[id]
 	if exists {
-		return p.Process(a)
+		return p.Process(ctx, a)
 	}
 
 	switch a.Data.Type {
 	case types.Direct:
 		if r.defaultDirect != nil {
 			logger.Infof("%s queue: processing using default direct processor", queueID)
-			return r.defaultDirect.Process(a)
+			return r.defaultDirect.Process(ctx, a)
 		}
 	case types.Instruction:
 		if r.defaultInstruction != nil {
 			logger.Infof("%s queue: processing using default instruction processor", queueID)
-			return r.defaultInstruction.Process(a)
+			return r.defaultInstruction.Process(ctx, a)
 		}
 	}
 

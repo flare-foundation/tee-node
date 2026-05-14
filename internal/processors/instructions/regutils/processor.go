@@ -1,6 +1,7 @@
 package regutils
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 
@@ -33,6 +34,7 @@ func NewProcessor(infoAndSig node.InformerAndSigner, pStorage *policy.Storage) P
 // TEE info response when the threshold is reached and acknowledging other
 // submission stages.
 func (p *Processor) TEEAttestation(
+	_ context.Context,
 	submissionTag types.SubmissionTag,
 	dataFixed *instruction.DataFixed,
 	_ []hexutil.Bytes,

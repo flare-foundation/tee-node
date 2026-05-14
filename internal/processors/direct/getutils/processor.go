@@ -1,6 +1,7 @@
 package getutils
 
 import (
+	"context"
 	"encoding/json"
 
 	"github.com/ethereum/go-ethereum/crypto"
@@ -32,7 +33,7 @@ func NewProcessor(aAndS node.InformerAndSigner, policyStorage *policy.Storage, w
 }
 
 // TEEInfo returns the TEE info response associated with the given challenge.
-func (p *Processor) TEEInfo(i *types.DirectInstruction) ([]byte, error) {
+func (p *Processor) TEEInfo(_ context.Context, i *types.DirectInstruction) ([]byte, error) {
 	var req types.TeeInfoRequest
 	err := json.Unmarshal(i.Message, &req)
 	if err != nil {
@@ -70,7 +71,7 @@ func (p *Processor) TEEInfo(i *types.DirectInstruction) ([]byte, error) {
 }
 
 // KeysInfo lists the (walletID, keyID, nonce) triples of all stored wallets.
-func (p *Processor) KeysInfo(_ *types.DirectInstruction) ([]byte, error) {
+func (p *Processor) KeysInfo(_ context.Context, _ *types.DirectInstruction) ([]byte, error) {
 	p.wStorage.RLock()
 	storedWallets := p.wStorage.GetWallets()
 	p.wStorage.RUnlock()
@@ -94,7 +95,7 @@ func (p *Processor) KeysInfo(_ *types.DirectInstruction) ([]byte, error) {
 
 // KeysProof returns signed key existence proofs for the requested (walletID, keyID) pairs.
 // Proofs are returned in the same order as the requested pairs.
-func (p *Processor) KeysProof(i *types.DirectInstruction) ([]byte, error) {
+func (p *Processor) KeysProof(_ context.Context, i *types.DirectInstruction) ([]byte, error) {
 	var requested []wallets.KeyIDPair
 	if err := json.Unmarshal(i.Message, &requested); err != nil {
 		return nil, err
@@ -138,7 +139,7 @@ func (p *Processor) KeysProof(i *types.DirectInstruction) ([]byte, error) {
 }
 
 // TEEBackup produces a TEE-signed backup package for the requested wallet key.
-func (p *Processor) TEEBackup(i *types.DirectInstruction) ([]byte, error) {
+func (p *Processor) TEEBackup(_ context.Context, i *types.DirectInstruction) ([]byte, error) {
 	var idPair wallets.KeyIDPair
 	err := json.Unmarshal(i.Message, &idPair)
 	if err != nil {

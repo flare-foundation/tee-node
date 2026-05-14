@@ -3,6 +3,7 @@ package backup
 import (
 	"crypto/rand"
 	"errors"
+	"fmt"
 	"math/big"
 
 	"github.com/flare-foundation/tee-node/pkg/wallets/backup"
@@ -63,6 +64,12 @@ func evalPolynomial(polynomial []*big.Int, value *big.Int) *big.Int {
 // CombineShamirShares joins shares assuming that the threshold is at
 // exactly the length of the input.
 func CombineShamirShares(shamirShares []backup.ShamirShare) (*big.Int, error) {
+	for i, share := range shamirShares {
+		if share.X == nil || share.Y == nil {
+			return nil, fmt.Errorf("share %d has nil coordinate", i)
+		}
+	}
+
 	result := big.NewInt(0)
 
 	// Lagrange interpolation
@@ -75,7 +82,7 @@ func CombineShamirShares(shamirShares []backup.ShamirShare) (*big.Int, error) {
 			prod.Mul(prod, shareJ.X)
 			denom := new(big.Int).Sub(shareJ.X, share.X)
 			if denom.Cmp(Zero) == 0 {
-				return nil, errors.New("double share error")
+				return nil, errors.New("double share error") // this should never happen, duplication tests should catch this before we get here
 			}
 			denom.ModInverse(denom, P)
 			prod.Mul(prod, denom)

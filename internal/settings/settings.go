@@ -34,14 +34,30 @@ func init() {
 const EncodingVersion = "1.0.0"
 
 // Processor configuration
-var QueuedActionsSleepTime = 100 * time.Millisecond
+var QueuedActionsSleepTime = 2 * time.Second
+var QueuedActionsPauseTime = 100 * time.Millisecond
 
 const ProxyTimeout = 2 * time.Second
 
 // ActionProcessTimeout bounds the synchronous per-action processing time.
-// If exceeded, the queue worker abandons the in-flight processor goroutine
-// and returns an error result, keeping the queue responsive.
-const ActionProcessTimeout = 10 * time.Second
+// When exceeded the action's context is cancelled so cancellation-aware
+// processors short-circuit before committing state.
+//
+// Declared as var (not const) so tests can shrink it for fast cancellation
+// assertions; production code only reads it.
+var ActionProcessTimeout = 10 * time.Second
+
+// ActionDrainTimeout bounds how long the queue worker waits for an in-flight
+// processor to return after its context has been cancelled. Cooperative
+// processors unwind well within this window. If a processor doesn't return
+// in time the worker abandons it (the goroutine continues running but its
+// result is discarded) and returns a state-unknown error so the queue keeps
+// moving — accepting the leak as the lesser evil compared to wedging the
+// queue forever.
+//
+// Declared as var (not const) so tests can shrink it; production code only
+// reads it.
+var ActionDrainTimeout = 5 * time.Second
 
 const (
 	MaxInstructionSize     = 100 * 1024       // 100 KB

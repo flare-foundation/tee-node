@@ -1,6 +1,7 @@
 package fdcutils
 
 import (
+	"context"
 	"crypto/ecdsa"
 	"encoding/json"
 	"fmt"
@@ -220,7 +221,7 @@ func (s *fdcProveTestSetup) buildActionWithPolicySigners(
 func (s *fdcProveTestSetup) executeAndDecodeProve(t *testing.T, instruction *instruction.DataFixed, signatures []hexutil.Bytes, signers []common.Address) (*fdc.ProveResponse, error) {
 	t.Helper()
 
-	res, _, err := s.processor.Prove(types.Threshold, instruction, signatures, signers, s.policy)
+	res, _, err := s.processor.Prove(context.Background(), types.Threshold, instruction, signatures, signers, s.policy)
 	if err != nil {
 		return nil, err
 	}
@@ -242,7 +243,7 @@ func TestFDCProveBasicFlow(t *testing.T) {
 
 	// Build action and process via instruction processor
 	action := setup.buildActionWithPolicySigners(t, instruction, request, setup.defaultResponseBody, setup.cosigners[:2], 1, setup.privKeys)
-	res := proc.Process(action)
+	res := proc.Process(context.Background(), action)
 	require.Equal(t, uint8(1), res.Status)
 
 	// Decode result data into ProveResponse for assertions
@@ -349,7 +350,7 @@ func TestFDCProveThresholdsThroughProcessorProcess(t *testing.T) {
 	request := setup.buildFDCRequest(utils.ToHash("TestAttestation"), utils.ToHash("XRP"), 3999, setup.defaultRequestBody)
 	instr := setup.buildInstruction(t, request, setup.defaultResponseBody, []common.Address{}, 0, setup.defaultTimestamp)
 	action := setup.buildActionWithPolicySigners(t, instr, request, setup.defaultResponseBody, []common.Address{}, 0, setup.privKeys)
-	res := proc.Process(action)
+	res := proc.Process(context.Background(), action)
 	require.Equal(t, uint8(0), res.Status)
 	require.Contains(t, res.Log, "data providers threshold too low")
 
@@ -358,7 +359,7 @@ func TestFDCProveThresholdsThroughProcessorProcess(t *testing.T) {
 	cos := setup.cosigners[:4]
 	instr = setup.buildInstruction(t, request, setup.defaultResponseBody, cos, 2, setup.defaultTimestamp)
 	action = setup.buildActionWithPolicySigners(t, instr, request, setup.defaultResponseBody, cos, 2, setup.privKeys)
-	res = proc.Process(action)
+	res = proc.Process(context.Background(), action)
 	require.Equal(t, uint8(0), res.Status)
 	require.Contains(t, res.Log, "one threshold should be above 50%")
 
@@ -366,14 +367,14 @@ func TestFDCProveThresholdsThroughProcessorProcess(t *testing.T) {
 	request = setup.buildFDCRequest(utils.ToHash("TestAttestation"), utils.ToHash("XRP"), 0, setup.defaultRequestBody)
 	instr = setup.buildInstruction(t, request, setup.defaultResponseBody, []common.Address{}, 0, setup.defaultTimestamp)
 	action = setup.buildActionWithPolicySigners(t, instr, request, setup.defaultResponseBody, []common.Address{}, 0, setup.privKeys)
-	res = proc.Process(action)
+	res = proc.Process(context.Background(), action)
 	require.Equal(t, uint8(1), res.Status)
 
 	// Case 4: Max DP threshold (9999) should pass with all providers
 	request = setup.buildFDCRequest(utils.ToHash("TestAttestation"), utils.ToHash("XRP"), 9999, setup.defaultRequestBody)
 	instr = setup.buildInstruction(t, request, setup.defaultResponseBody, []common.Address{}, 0, setup.defaultTimestamp)
 	action = setup.buildActionWithPolicySigners(t, instr, request, setup.defaultResponseBody, []common.Address{}, 0, setup.privKeys)
-	res = proc.Process(action)
+	res = proc.Process(context.Background(), action)
 	require.Equal(t, uint8(1), res.Status)
 
 	// Case 6: One-above-50 rule pass: DP=4000 (<50%), cosigner threshold = 3/5 (>50%)
@@ -381,7 +382,7 @@ func TestFDCProveThresholdsThroughProcessorProcess(t *testing.T) {
 	cos = setup.cosigners[:5]
 	instr = setup.buildInstruction(t, request, setup.defaultResponseBody, cos, 3, setup.defaultTimestamp)
 	action = setup.buildActionWithPolicySigners(t, instr, request, setup.defaultResponseBody, cos, 3, setup.privKeys)
-	res = proc.Process(action)
+	res = proc.Process(context.Background(), action)
 	require.Equal(t, uint8(1), res.Status)
 }
 
@@ -396,21 +397,21 @@ func TestFDCProveSignatureEdgeCases(t *testing.T) {
 	// 1) Not enough provider signatures (10% < 50%)
 	pks1 := setup.privKeys[:10]
 	action := setup.buildActionWithPolicySigners(t, instr, request, setup.defaultResponseBody, []common.Address{}, 0, pks1)
-	res := proc.Process(action)
+	res := proc.Process(context.Background(), action)
 	require.Equal(t, uint8(0), res.Status)
 	require.Contains(t, res.Log, "data providers threshold not reached")
 
 	// 2) Empty signatures array
 	none := []*ecdsa.PrivateKey{}
 	action = setup.buildActionWithPolicySigners(t, instr, request, setup.defaultResponseBody, []common.Address{}, 0, none)
-	res = proc.Process(action)
+	res = proc.Process(context.Background(), action)
 	require.Equal(t, uint8(0), res.Status)
 	require.Contains(t, res.Log, "data providers threshold not reached")
 
 	// 3) Duplicate signer (double signing)
 	dup := []*ecdsa.PrivateKey{setup.privKeys[0], setup.privKeys[0], setup.privKeys[1], setup.privKeys[2], setup.privKeys[3], setup.privKeys[4], setup.privKeys[5], setup.privKeys[6], setup.privKeys[7], setup.privKeys[8], setup.privKeys[9], setup.privKeys[10], setup.privKeys[11], setup.privKeys[12], setup.privKeys[13], setup.privKeys[14], setup.privKeys[15], setup.privKeys[16], setup.privKeys[17], setup.privKeys[18], setup.privKeys[19], setup.privKeys[20], setup.privKeys[21], setup.privKeys[22], setup.privKeys[23], setup.privKeys[24], setup.privKeys[25], setup.privKeys[26], setup.privKeys[27], setup.privKeys[28], setup.privKeys[29], setup.privKeys[30], setup.privKeys[31], setup.privKeys[32], setup.privKeys[33], setup.privKeys[34], setup.privKeys[35], setup.privKeys[36], setup.privKeys[37], setup.privKeys[38], setup.privKeys[39], setup.privKeys[40], setup.privKeys[41], setup.privKeys[42], setup.privKeys[43], setup.privKeys[44], setup.privKeys[45], setup.privKeys[46], setup.privKeys[47], setup.privKeys[48]}
 	action = setup.buildActionWithPolicySigners(t, instr, request, setup.defaultResponseBody, []common.Address{}, 0, dup)
-	res = proc.Process(action)
+	res = proc.Process(context.Background(), action)
 	require.Equal(t, uint8(0), res.Status)
 	require.Contains(t, res.Log, "double signing")
 }
@@ -499,7 +500,7 @@ func TestFDCProvePolicyWindowLastTwoEpochs(t *testing.T) {
 		instr := setup.buildInstruction(t, request, setup.defaultResponseBody, []common.Address{}, 0, setup.defaultTimestamp)
 		instr.RewardEpochID = epoch
 		action := setup.buildActionWithPolicySigners(t, instr, request, setup.defaultResponseBody, []common.Address{}, 0, setup.privKeys)
-		res := proc.Process(action)
+		res := proc.Process(context.Background(), action)
 		if expectOK {
 			require.Equal(t, uint8(1), res.Status, fmt.Sprintf("expected success for epoch %d, log=%s", epoch, res.Log))
 		} else {

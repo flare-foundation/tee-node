@@ -1,6 +1,7 @@
 package regutils
 
 import (
+	"context"
 	"encoding/json"
 	"testing"
 
@@ -65,7 +66,7 @@ func TestValidateTeeAttestationRequestEmptyChallenge(t *testing.T) {
 func TestProcessorTEEAttestationThreshold(t *testing.T) {
 	proc, dataFixed, challenge := setupTEEAttestationProcessor(t)
 
-	responseBytes, signature, err := proc.TEEAttestation(types.Threshold, &dataFixed, nil, nil, nil)
+	responseBytes, signature, err := proc.TEEAttestation(context.Background(), types.Threshold, &dataFixed, nil, nil, nil)
 	require.NoError(t, err)
 	require.NotNil(t, responseBytes)
 	require.Nil(t, signature)
@@ -94,7 +95,7 @@ func TestProcessorTEEAttestationThreshold(t *testing.T) {
 func TestProcessorTEEAttestationEnd(t *testing.T) {
 	proc, dataFixed, _ := setupTEEAttestationProcessor(t)
 
-	responseBytes, signature, err := proc.TEEAttestation(types.End, &dataFixed, nil, nil, nil)
+	responseBytes, signature, err := proc.TEEAttestation(context.Background(), types.End, &dataFixed, nil, nil, nil)
 	require.NoError(t, err)
 	require.Nil(t, responseBytes)
 	require.Nil(t, signature)
@@ -103,7 +104,7 @@ func TestProcessorTEEAttestationEnd(t *testing.T) {
 func TestProcessorTEEAttestationUnexpectedTag(t *testing.T) {
 	proc, dataFixed, _ := setupTEEAttestationProcessor(t)
 
-	_, _, err := proc.TEEAttestation(types.SubmissionTag("unexpected"), &dataFixed, nil, nil, nil)
+	_, _, err := proc.TEEAttestation(context.Background(), types.SubmissionTag("unexpected"), &dataFixed, nil, nil, nil)
 	require.ErrorContains(t, err, "unexpected submission tag")
 }
 
@@ -112,7 +113,7 @@ func TestProcessorTEEAttestationValidationError(t *testing.T) {
 
 	badData := instruction.DataFixed{OriginalMessage: []byte("bad payload")}
 
-	_, _, err := proc.TEEAttestation(types.Threshold, &badData, nil, nil, nil)
+	_, _, err := proc.TEEAttestation(context.Background(), types.Threshold, &badData, nil, nil, nil)
 	require.Error(t, err)
 }
 

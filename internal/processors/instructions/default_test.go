@@ -1,6 +1,7 @@
 package instructions
 
 import (
+	"context"
 	"encoding/json"
 	"testing"
 	"time"
@@ -37,7 +38,7 @@ func TestDefaultInstructionProcessor(t *testing.T) {
 		"someOpType", "someOpCommand", []byte("dummyAction"),
 		privKeys, testNode.TeeID(), epochID, nil, variableMessages, nil, 0, types.Threshold, uint64(time.Now().Unix()),
 	)
-	firstResult := proc.Process(action)
+	firstResult := proc.Process(context.Background(), action)
 
 	require.Equal(t, action.Data.ID, firstResult.ID)
 	require.Len(t, firstResult.Data, 0)
@@ -55,7 +56,7 @@ func TestDefaultInstructionProcessor(t *testing.T) {
 		"someOpType", "someOpCommand", []byte("dummyAction"),
 		privKeys, testNode.TeeID(), epochID, nil, variableMessages, nil, 0, types.End, uint64(time.Now().Unix()),
 	)
-	endResult := proc.Process(endAction)
+	endResult := proc.Process(context.Background(), endAction)
 
 	require.Equal(t, endAction.Data.ID, endResult.ID)
 	require.Equal(t, uint8(1), endResult.Status)

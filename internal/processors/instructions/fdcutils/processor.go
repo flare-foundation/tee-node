@@ -1,6 +1,7 @@
 package fdcutils
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 
@@ -25,6 +26,7 @@ func NewProcessor(sig node.Signer) Processor {
 // Prove verifies the FDC request, aggregates the data provider and cosigner
 // signatures, and returns the encoded proof payload signed by the TEE.
 func (p *Processor) Prove(
+	_ context.Context,
 	_ types.SubmissionTag,
 	dataFixed *instruction.DataFixed,
 	variableMessages []hexutil.Bytes,

@@ -1,6 +1,7 @@
 package testutils
 
 import (
+	"context"
 	"crypto/ecdsa"
 	"crypto/rand"
 	"encoding/json"
@@ -96,7 +97,7 @@ func CreateMockWallet(
 		iSndD, ps, ws,
 	)
 
-	walletProofBytes, _, err := proc.KeyGenerate(types.Threshold, &instructionDataFixed, nil, nil, nil)
+	walletProofBytes, _, err := proc.KeyGenerate(context.Background(), types.Threshold, &instructionDataFixed, nil, nil, nil)
 	require.NoError(t, err)
 
 	walletExistenceProof, err := wallets.ExtractKeyExistence(walletProofBytes, iSndD.TeeID())

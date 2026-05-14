@@ -1,6 +1,7 @@
 package policyutils
 
 import (
+	"context"
 	"crypto/ecdsa"
 	"crypto/rand"
 	"encoding/json"
@@ -102,7 +103,7 @@ func (s *policyTestSetup) executeInitializePolicy(t *testing.T, req *types.Initi
 	message, err := json.Marshal(req)
 	require.NoError(t, err)
 
-	return s.processor.InitializePolicy(&types.DirectInstruction{Message: message})
+	return s.processor.InitializePolicy(context.Background(), &types.DirectInstruction{Message: message})
 }
 
 // executeUpdatePolicy executes UpdatePolicy with the given request
@@ -112,7 +113,7 @@ func (s *policyTestSetup) executeUpdatePolicy(t *testing.T, req *types.UpdatePol
 	message, err := json.Marshal(req)
 	require.NoError(t, err)
 
-	return s.processor.UpdatePolicy(&types.DirectInstruction{Message: message})
+	return s.processor.UpdatePolicy(context.Background(), &types.DirectInstruction{Message: message})
 }
 
 func TestInitializePolicyBasicFlow(t *testing.T) {
@@ -151,7 +152,7 @@ func TestInitializePolicyInvalidJSON(t *testing.T) {
 	setup := setupPolicyTest(t)
 
 	invalidMessage := []byte(`{"invalid": "json"`)
-	_, err := setup.processor.InitializePolicy(&types.DirectInstruction{Message: invalidMessage})
+	_, err := setup.processor.InitializePolicy(context.Background(), &types.DirectInstruction{Message: invalidMessage})
 	require.Error(t, err)
 }
 
@@ -302,7 +303,7 @@ func TestUpdatePolicyInvalidJSON(t *testing.T) {
 	setup := setupPolicyTestWithInitializedPolicy(t)
 
 	invalidMessage := []byte(`{"invalid": "json"`)
-	_, err := setup.processor.UpdatePolicy(&types.DirectInstruction{Message: invalidMessage})
+	_, err := setup.processor.UpdatePolicy(context.Background(), &types.DirectInstruction{Message: invalidMessage})
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "unexpected end of JSON input")
 }

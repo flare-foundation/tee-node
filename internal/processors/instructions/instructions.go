@@ -1,6 +1,7 @@
 package instructions
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 
@@ -18,7 +19,7 @@ import (
 	"github.com/flare-foundation/tee-node/pkg/utils"
 )
 
-type ProcessorFunction func(submissionTag types.SubmissionTag, dataFixed *instruction.DataFixed, variableMessages []hexutil.Bytes, signers []common.Address, signingPolicy *cpolicy.SigningPolicy) (data []byte, additionalResultStatus []byte, err error)
+type ProcessorFunction func(ctx context.Context, submissionTag types.SubmissionTag, dataFixed *instruction.DataFixed, variableMessages []hexutil.Bytes, signers []common.Address, signingPolicy *cpolicy.SigningPolicy) (data []byte, additionalResultStatus []byte, err error)
 
 type Processor struct {
 	f               ProcessorFunction
@@ -40,7 +41,7 @@ func NewProcessor(f ProcessorFunction, iSAndD node.IdentifierSignerAndDecrypter,
 
 // Process validates an instruction action and routes it through the configured
 // instruction handler, packaging the result for the router.
-func (p Processor) Process(a *types.Action) types.ActionResult {
+func (p Processor) Process(ctx context.Context, a *types.Action) types.ActionResult {
 	data, err := processorutils.Parse[instruction.DataFixed](a.Data.Message)
 	if err != nil {
 		return processorutils.Invalid(a, err)
@@ -51,7 +52,7 @@ func (p Processor) Process(a *types.Action) types.ActionResult {
 		return processorutils.Invalid(a, err)
 	}
 
-	pMessage, additionalStatus, err := p.f(a.Data.SubmissionTag, data, a.AdditionalVariableMessages, signers, signingPolicy)
+	pMessage, additionalStatus, err := p.f(ctx, a.Data.SubmissionTag, data, a.AdditionalVariableMessages, signers, signingPolicy)
 	if err != nil {
 		return processorutils.Invalid(a, err)
 	}

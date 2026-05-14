@@ -1,6 +1,7 @@
 package walletutils_test
 
 import (
+	"context"
 	"crypto/ecdsa"
 	"crypto/rand"
 	"encoding/json"
@@ -149,7 +150,7 @@ func TestKeyGenerate(t *testing.T) {
 	msg := setup.defaultKeyGenerateMessage()
 	instruction := setup.buildKeyGenerateInstruction(t, msg)
 
-	response, _, err := setup.processor.KeyGenerate(types.Threshold, instruction, nil, nil, nil)
+	response, _, err := setup.processor.KeyGenerate(context.Background(), types.Threshold, instruction, nil, nil, nil)
 	require.NoError(t, err)
 
 	walletExistenceProof, err := wallets.ExtractKeyExistence(response, setup.teeID)
@@ -178,7 +179,7 @@ func TestKeyGenerateNoCosigners(t *testing.T) {
 	msg.ConfigConstants.CosignersThreshold = 0
 	instruction := setup.buildKeyGenerateInstruction(t, msg)
 
-	_, _, err := setup.processor.KeyGenerate(types.Threshold, instruction, nil, nil, nil)
+	_, _, err := setup.processor.KeyGenerate(context.Background(), types.Threshold, instruction, nil, nil, nil)
 	require.NoError(t, err)
 }
 
@@ -189,7 +190,7 @@ func TestKeyGenerateInvalidTeeID(t *testing.T) {
 	msg.TeeId = common.HexToAddress("0x1234567890123456789012345678901234567890") // Wrong TEE ID
 	instruction := setup.buildKeyGenerateInstruction(t, msg)
 
-	_, _, err := setup.processor.KeyGenerate(types.Threshold, instruction, nil, nil, nil)
+	_, _, err := setup.processor.KeyGenerate(context.Background(), types.Threshold, instruction, nil, nil, nil)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "teeID does not match")
 }
@@ -202,7 +203,7 @@ func TestKeyGenerateNoAdminPublicKeys(t *testing.T) {
 	msg.ConfigConstants.AdminsThreshold = 0
 	instruction := setup.buildKeyGenerateInstruction(t, msg)
 
-	_, _, err := setup.processor.KeyGenerate(types.Threshold, instruction, nil, nil, nil)
+	_, _, err := setup.processor.KeyGenerate(context.Background(), types.Threshold, instruction, nil, nil, nil)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "no admin public keys")
 }
@@ -214,7 +215,7 @@ func TestKeyGenerateUnsupportedSigningAlgo(t *testing.T) {
 	msg.SigningAlgo = utils.ToHash("BLS") // Unsupported algorithm
 	instruction := setup.buildKeyGenerateInstruction(t, msg)
 
-	_, _, err := setup.processor.KeyGenerate(types.Threshold, instruction, nil, nil, nil)
+	_, _, err := setup.processor.KeyGenerate(context.Background(), types.Threshold, instruction, nil, nil, nil)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "signing algorithm not supported")
 }
@@ -226,12 +227,12 @@ func TestKeyGenerateDuplicateWallet(t *testing.T) {
 	instruction := setup.buildKeyGenerateInstruction(t, msg)
 
 	// First generation should succeed
-	response, _, err := setup.processor.KeyGenerate(types.Threshold, instruction, nil, nil, nil)
+	response, _, err := setup.processor.KeyGenerate(context.Background(), types.Threshold, instruction, nil, nil, nil)
 	require.NoError(t, err)
 	require.NotNil(t, response)
 
 	// Second generation with same wallet ID and key ID should fail
-	_, _, err = setup.processor.KeyGenerate(types.Threshold, instruction, nil, nil, nil)
+	_, _, err = setup.processor.KeyGenerate(context.Background(), types.Threshold, instruction, nil, nil, nil)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "already exists")
 }
@@ -242,7 +243,7 @@ func TestKeyGenerateAfterDeleteSameWalletFails(t *testing.T) {
 	generateMsg := setup.defaultKeyGenerateMessage()
 	generateInstruction := setup.buildKeyGenerateInstruction(t, generateMsg)
 
-	_, _, err := setup.processor.KeyGenerate(types.Threshold, generateInstruction, nil, nil, nil)
+	_, _, err := setup.processor.KeyGenerate(context.Background(), types.Threshold, generateInstruction, nil, nil, nil)
 	require.NoError(t, err)
 
 	deleteMsg := cwallet.IWalletKeyManagerKeyDelete{
@@ -257,10 +258,10 @@ func TestKeyGenerateAfterDeleteSameWalletFails(t *testing.T) {
 	}
 	deleteInstruction := deleteInstructionBuilder.buildKeyDeleteInstruction(t, deleteMsg)
 
-	_, _, err = setup.processor.KeyDelete(types.Threshold, deleteInstruction, nil, nil, nil)
+	_, _, err = setup.processor.KeyDelete(context.Background(), types.Threshold, deleteInstruction, nil, nil, nil)
 	require.NoError(t, err)
 
-	_, _, err = setup.processor.KeyGenerate(types.Threshold, generateInstruction, nil, nil, nil)
+	_, _, err = setup.processor.KeyGenerate(context.Background(), types.Threshold, generateInstruction, nil, nil, nil)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "permanent record")
 }
@@ -272,7 +273,7 @@ func TestKeyGenerateThresholdExceedsAdmins(t *testing.T) {
 	msg.ConfigConstants.AdminsThreshold = uint64(len(setup.adminWalletPublicKeys) + 10) // Threshold exceeds number of admins
 	instruction := setup.buildKeyGenerateInstruction(t, msg)
 
-	_, _, err := setup.processor.KeyGenerate(types.Threshold, instruction, nil, nil, nil)
+	_, _, err := setup.processor.KeyGenerate(context.Background(), types.Threshold, instruction, nil, nil, nil)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "admins threshold cannot be greater than the number of admins")
 }
@@ -284,7 +285,7 @@ func TestKeyGenerateZeroThreshold(t *testing.T) {
 	msg.ConfigConstants.AdminsThreshold = 0 // Zero threshold
 	instruction := setup.buildKeyGenerateInstruction(t, msg)
 
-	_, _, err := setup.processor.KeyGenerate(types.Threshold, instruction, nil, nil, nil)
+	_, _, err := setup.processor.KeyGenerate(context.Background(), types.Threshold, instruction, nil, nil, nil)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "admins threshold cannot be zero")
 }
@@ -296,7 +297,7 @@ func TestKeyGenerateThresholdExceedsCosigners(t *testing.T) {
 	msg.ConfigConstants.CosignersThreshold = uint64(len(setup.cosigners) + 10) // Threshold exceeds number of admins
 	instruction := setup.buildKeyGenerateInstruction(t, msg)
 
-	_, _, err := setup.processor.KeyGenerate(types.Threshold, instruction, nil, nil, nil)
+	_, _, err := setup.processor.KeyGenerate(context.Background(), types.Threshold, instruction, nil, nil, nil)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "cosigners threshold cannot be greater than the number of cosigners")
 }
@@ -418,7 +419,7 @@ func TestKeyDelete(t *testing.T) {
 	msg := setup.defaultKeyDeleteMessage(1)
 	deleteInstruction := setup.buildKeyDeleteInstruction(t, msg)
 
-	encID, status, err := setup.processor.KeyDelete(types.Threshold, deleteInstruction, nil, nil, nil)
+	encID, status, err := setup.processor.KeyDelete(context.Background(), types.Threshold, deleteInstruction, nil, nil, nil)
 	require.NoError(t, err)
 	require.Nil(t, status)
 
@@ -441,7 +442,7 @@ func TestKeyDelete(t *testing.T) {
 	require.Equal(t, uint64(1), nonce)
 
 	// reapply not possible
-	resp, status, err := setup.processor.KeyDelete(types.End, deleteInstruction, nil, nil, nil)
+	resp, status, err := setup.processor.KeyDelete(context.Background(), types.End, deleteInstruction, nil, nil, nil)
 	require.NoError(t, err)
 	require.Nil(t, resp)
 	require.Nil(t, status)
@@ -451,7 +452,7 @@ func TestKeyDelete(t *testing.T) {
 
 	deleteInstruction = setup.buildKeyDeleteInstruction(t, msg)
 
-	encID, status, err = setup.processor.KeyDelete(types.Threshold, deleteInstruction, nil, nil, nil)
+	encID, status, err = setup.processor.KeyDelete(context.Background(), types.Threshold, deleteInstruction, nil, nil, nil)
 	require.NoError(t, err)
 	require.Equal(t, []byte("key not stored"), status)
 
@@ -469,7 +470,7 @@ func TestKeyDelete(t *testing.T) {
 
 	deleteInstruction = setup.buildKeyDeleteInstruction(t, msg)
 
-	_, _, err = setup.processor.KeyDelete(types.Threshold, deleteInstruction, nil, nil, nil)
+	_, _, err = setup.processor.KeyDelete(context.Background(), types.Threshold, deleteInstruction, nil, nil, nil)
 	require.Error(t, err)
 }
 
@@ -484,20 +485,20 @@ func TestKeyDeleteEnd(t *testing.T) {
 	msg := setup.defaultKeyDeleteMessage(1)
 	deleteInstruction := setup.buildKeyDeleteInstruction(t, msg)
 
-	_, _, err = setup.processor.KeyDelete(types.End, deleteInstruction, nil, nil, nil)
+	_, _, err = setup.processor.KeyDelete(context.Background(), types.End, deleteInstruction, nil, nil, nil)
 	require.Error(t, err)
 
-	_, _, err = setup.processor.KeyDelete(types.Threshold, deleteInstruction, nil, nil, nil)
+	_, _, err = setup.processor.KeyDelete(context.Background(), types.Threshold, deleteInstruction, nil, nil, nil)
 	require.NoError(t, err)
 
-	_, _, err = setup.processor.KeyDelete(types.End, deleteInstruction, nil, nil, nil)
+	_, _, err = setup.processor.KeyDelete(context.Background(), types.End, deleteInstruction, nil, nil, nil)
 	require.NoError(t, err)
 
 	// nonce not used
 	msg = setup.defaultKeyDeleteMessage(2)
 	deleteInstruction = setup.buildKeyDeleteInstruction(t, msg)
 
-	_, _, err = setup.processor.KeyDelete(types.End, deleteInstruction, nil, nil, nil)
+	_, _, err = setup.processor.KeyDelete(context.Background(), types.End, deleteInstruction, nil, nil, nil)
 	require.Error(t, err)
 
 	// nonexistent key
@@ -505,7 +506,7 @@ func TestKeyDeleteEnd(t *testing.T) {
 	require.NoError(t, err)
 
 	deleteInstruction = setup.buildKeyDeleteInstruction(t, msg)
-	_, _, err = setup.processor.KeyDelete(types.End, deleteInstruction, nil, nil, nil)
+	_, _, err = setup.processor.KeyDelete(context.Background(), types.End, deleteInstruction, nil, nil, nil)
 	require.Error(t, err)
 }
 
@@ -522,7 +523,7 @@ func TestKeyDeleteInvalidNonce(t *testing.T) {
 	msg := setup.defaultKeyDeleteMessage(0)
 	deleteInstruction := setup.buildKeyDeleteInstruction(t, msg)
 
-	_, _, err = setup.processor.KeyDelete(types.Threshold, deleteInstruction, nil, nil, nil)
+	_, _, err = setup.processor.KeyDelete(context.Background(), types.Threshold, deleteInstruction, nil, nil, nil)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "nonce too small")
 
@@ -543,7 +544,7 @@ func TestKeyDeleteNonceTooSmall(t *testing.T) {
 	msg2 := setup.defaultKeyDeleteMessage(0)
 	deleteInstruction2 := setup.buildKeyDeleteInstruction(t, msg2)
 
-	_, _, err = setup.processor.KeyDelete(types.Threshold, deleteInstruction2, nil, nil, nil)
+	_, _, err = setup.processor.KeyDelete(context.Background(), types.Threshold, deleteInstruction2, nil, nil, nil)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "nonce too small")
 
@@ -554,7 +555,7 @@ func TestKeyDeleteNonceTooSmall(t *testing.T) {
 	msg4 := setup.defaultKeyDeleteMessage(2)
 	deleteInstruction4 := setup.buildKeyDeleteInstruction(t, msg4)
 
-	_, _, err = setup.processor.KeyDelete(types.Threshold, deleteInstruction4, nil, nil, nil)
+	_, _, err = setup.processor.KeyDelete(context.Background(), types.Threshold, deleteInstruction4, nil, nil, nil)
 	require.NoError(t, err)
 
 	// Verify wallet is now deleted and nonce is updated
@@ -889,7 +890,7 @@ func TestKeyDataProviderRestore(t *testing.T) {
 
 	restoreInstruction := setup.buildRestoreInstruction(t, setup.buildDefaultRestoreRequest(big.NewInt(int64(setup.nonce))))
 
-	resp, status, err := setup.processor.KeyDataProviderRestore(types.Threshold, restoreInstruction, variableMessages, signers, nil)
+	resp, status, err := setup.processor.KeyDataProviderRestore(context.Background(), types.Threshold, restoreInstruction, variableMessages, signers, nil)
 	require.NoError(t, err)
 	require.NotNil(t, resp)
 	require.NotNil(t, status)
@@ -914,7 +915,7 @@ func TestKeyDataProviderRestore(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, setup.nonce, nonce)
 
-	resp, endStatus, err := setup.processor.KeyDataProviderRestore(types.End, restoreInstruction, variableMessages, signers, nil)
+	resp, endStatus, err := setup.processor.KeyDataProviderRestore(context.Background(), types.End, restoreInstruction, variableMessages, signers, nil)
 	require.NoError(t, err)
 	require.Nil(t, resp)
 	require.Equal(t, status, endStatus)
@@ -927,7 +928,7 @@ func TestKeyDataProviderRestoreAdminThresholdNotMet(t *testing.T) {
 
 	restoreInstruction := setup.buildRestoreInstruction(t, setup.buildDefaultRestoreRequest(big.NewInt(int64(setup.nonce))))
 
-	_, _, err := setup.processor.KeyDataProviderRestore(types.Threshold, restoreInstruction, variableMessages, signers, nil)
+	_, _, err := setup.processor.KeyDataProviderRestore(context.Background(), types.Threshold, restoreInstruction, variableMessages, signers, nil)
 	require.Error(t, err)
 	require.True(t, err.Error() == "admin threshold not reached")
 }
@@ -951,7 +952,7 @@ func TestKeyDataProviderRestoreProviderThresholdNotMet(t *testing.T) {
 
 	restoreInstruction := setup.buildRestoreInstruction(t, setup.buildDefaultRestoreRequest(big.NewInt(int64(setup.nonce))))
 
-	_, _, err := setup.processor.KeyDataProviderRestore(types.Threshold, restoreInstruction, variableMessages, signers, nil)
+	_, _, err := setup.processor.KeyDataProviderRestore(context.Background(), types.Threshold, restoreInstruction, variableMessages, signers, nil)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "threshold of shares is not reached")
 }
@@ -963,11 +964,11 @@ func TestKeyDataProviderRestoreWalletAlreadyExists(t *testing.T) {
 	variableMessages, signers := setup.buildVariableMessages(t, len(setup.voterPrivKeys), len(setup.adminPrivKeys))
 	restoreInstruction := setup.buildRestoreInstruction(t, setup.buildDefaultRestoreRequest(big.NewInt(int64(setup.nonce))))
 
-	_, _, err := setup.processor.KeyDataProviderRestore(types.Threshold, restoreInstruction, variableMessages, signers, nil)
+	_, _, err := setup.processor.KeyDataProviderRestore(context.Background(), types.Threshold, restoreInstruction, variableMessages, signers, nil)
 	require.NoError(t, err)
 
 	// Try to restore the same wallet again
-	_, _, err = setup.processor.KeyDataProviderRestore(types.Threshold, restoreInstruction, variableMessages, signers, nil)
+	_, _, err = setup.processor.KeyDataProviderRestore(context.Background(), types.Threshold, restoreInstruction, variableMessages, signers, nil)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "wallet with given wallet-key id already exists")
 }
@@ -980,7 +981,7 @@ func TestKeyDataProviderRestoreWalletDoesNotExistEndPhase(t *testing.T) {
 	restoreInstruction := setup.buildRestoreInstruction(t, setup.buildDefaultRestoreRequest(big.NewInt(int64(setup.nonce))))
 
 	// Try to call End phase without having called Threshold phase first
-	_, _, err := setup.processor.KeyDataProviderRestore(types.End, restoreInstruction, variableMessages, signers, nil)
+	_, _, err := setup.processor.KeyDataProviderRestore(context.Background(), types.End, restoreInstruction, variableMessages, signers, nil)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "wallet does not exists")
 }
@@ -993,7 +994,7 @@ func TestKeyDataProviderRestoreInvalidSignatureOnKeySplitEnoughValidShares(t *te
 
 	restoreInstruction := setup.buildRestoreInstruction(t, setup.buildDefaultRestoreRequest(big.NewInt(int64(setup.nonce))))
 
-	resp, status, err := setup.processor.KeyDataProviderRestore(types.Threshold, restoreInstruction, variableMessages, signers, nil)
+	resp, status, err := setup.processor.KeyDataProviderRestore(context.Background(), types.Threshold, restoreInstruction, variableMessages, signers, nil)
 
 	// The function should succeed, but should track the error in status
 	require.NoError(t, err)
@@ -1038,7 +1039,7 @@ func TestKeyDataProviderRestoreInvalidSignatureOnKeySplitNotEnoughValidShares(t 
 
 	restoreInstruction := setup.buildRestoreInstruction(t, setup.buildDefaultRestoreRequest(big.NewInt(int64(setup.nonce))))
 
-	_, _, err := setup.processor.KeyDataProviderRestore(types.Threshold, restoreInstruction, variableMessages, signers, nil)
+	_, _, err := setup.processor.KeyDataProviderRestore(context.Background(), types.Threshold, restoreInstruction, variableMessages, signers, nil)
 
 	// The function should fail because we don't have enough valid shares after removing the invalid one
 	require.Error(t, err)
@@ -1088,7 +1089,7 @@ func TestKeyDataProviderRestorePublicKeyMismatch(t *testing.T) {
 
 	restoreInstruction := setup.buildRestoreInstruction(t, restoreReq)
 
-	_, _, err := setup.processor.KeyDataProviderRestore(types.Threshold, restoreInstruction, variableMessages, signers, nil)
+	_, _, err := setup.processor.KeyDataProviderRestore(context.Background(), types.Threshold, restoreInstruction, variableMessages, signers, nil)
 	require.Error(t, err)
 	// Corrupting the metadata public key causes validation errors during key reconstruction
 	// The error could be "shares should not be empty", "private key reconstruction error", or similar
@@ -1098,6 +1099,30 @@ func TestKeyDataProviderRestorePublicKeyMismatch(t *testing.T) {
 			strings.Contains(err.Error(), "reconstruction") ||
 			strings.Contains(err.Error(), "shares"),
 		"Expected reconstruction or validation error, got: %s", err.Error())
+}
+
+func TestKeyDataProviderRestoreDuplicateAdminPublicKeys(t *testing.T) {
+	setup := setupKeyDataProviderRestoreTest(t)
+
+	// Build messages first with valid backup metadata.
+	variableMessages, signers := setup.buildVariableMessages(t, len(setup.voterPrivKeys), len(setup.adminPrivKeys))
+
+	// Now duplicate the first admin pubkey in the metadata that will be
+	// shipped in AdditionalFixedMessage. The keys themselves are still valid
+	// on-curve, so PubKeysToAddresses will succeed — only the duplicate
+	// detection added in keyRestoreDataCheck should trip.
+	require.GreaterOrEqual(t, len(setup.walletBackup.AdminsPublicKeys), 1)
+	setup.walletBackup.AdminsPublicKeys = append(
+		setup.walletBackup.AdminsPublicKeys,
+		setup.walletBackup.AdminsPublicKeys[0],
+	)
+
+	restoreReq := setup.buildDefaultRestoreRequest(big.NewInt(int64(setup.nonce)))
+	restoreInstruction := setup.buildRestoreInstruction(t, restoreReq)
+
+	_, _, err := setup.processor.KeyDataProviderRestore(context.Background(), types.Threshold, restoreInstruction, variableMessages, signers, nil)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "duplicate admin addresses")
 }
 
 func TestKeyDataProviderRestoreDuplicateKeySplits(t *testing.T) {
@@ -1113,7 +1138,7 @@ func TestKeyDataProviderRestoreDuplicateKeySplits(t *testing.T) {
 	restoreInstruction := setup.buildRestoreInstruction(t, restoreReq)
 
 	// Should succeed but log an error about duplicate
-	_, status, err := setup.processor.KeyDataProviderRestore(types.Threshold, restoreInstruction, variableMessages, signers, nil)
+	_, status, err := setup.processor.KeyDataProviderRestore(context.Background(), types.Threshold, restoreInstruction, variableMessages, signers, nil)
 	require.NoError(t, err)
 
 	require.NotNil(t, status)
@@ -1148,7 +1173,7 @@ func TestKeyDataProviderRestoreDecryptionFailure(t *testing.T) {
 	restoreReq := setup.buildDefaultRestoreRequest(big.NewInt(int64(setup.nonce)))
 	restoreInstruction := setup.buildRestoreInstruction(t, restoreReq)
 
-	_, status, err := setup.processor.KeyDataProviderRestore(types.Threshold, restoreInstruction, variableMessages, signers, nil)
+	_, status, err := setup.processor.KeyDataProviderRestore(context.Background(), types.Threshold, restoreInstruction, variableMessages, signers, nil)
 
 	require.NoError(t, err)
 
@@ -1193,7 +1218,7 @@ func TestKeyDataProviderRestoreUnauthorizedSigner(t *testing.T) {
 	restoreReq := setup.buildDefaultRestoreRequest(big.NewInt(int64(setup.nonce)))
 	restoreInstruction := setup.buildRestoreInstruction(t, restoreReq)
 
-	_, _, err := setup.processor.KeyDataProviderRestore(types.Threshold, restoreInstruction, variableMessages, unauthorizedSigners, nil)
+	_, _, err := setup.processor.KeyDataProviderRestore(context.Background(), types.Threshold, restoreInstruction, variableMessages, unauthorizedSigners, nil)
 	require.Error(t, err)
 	require.Equal(t, err.Error(), "signed by an entity that is nether a provider nor an admin")
 }
@@ -1209,7 +1234,7 @@ func TestKeyDataProviderRestoreInvalidBackupIdTeeID(t *testing.T) {
 
 	restoreInstruction := setup.buildRestoreInstruction(t, restoreReq)
 
-	_, _, err := setup.processor.KeyDataProviderRestore(types.Threshold, restoreInstruction, variableMessages, signers, nil)
+	_, _, err := setup.processor.KeyDataProviderRestore(context.Background(), types.Threshold, restoreInstruction, variableMessages, signers, nil)
 	require.Error(t, err)
 	require.Equal(t, err.Error(), "wallet ids do not match")
 }
@@ -1243,7 +1268,7 @@ func TestKeyDataProviderRestoreInvalidTeeID(t *testing.T) {
 
 	restoreInstruction := setup.buildRestoreInstruction(t, restoreReq)
 
-	_, _, err := setup.processor.KeyDataProviderRestore(types.Threshold, restoreInstruction, variableMessages, signers, nil)
+	_, _, err := setup.processor.KeyDataProviderRestore(context.Background(), types.Threshold, restoreInstruction, variableMessages, signers, nil)
 	require.Error(t, err)
 	require.Equal(t, err.Error(), "teeID does not match given public key")
 }
@@ -1259,7 +1284,7 @@ func TestKeyDataProviderRestoreUnsupportedSigningAlgorithm(t *testing.T) {
 
 	restoreInstruction := setup.buildRestoreInstruction(t, restoreReq)
 
-	_, _, err := setup.processor.KeyDataProviderRestore(types.Threshold, restoreInstruction, variableMessages, signers, nil)
+	_, _, err := setup.processor.KeyDataProviderRestore(context.Background(), types.Threshold, restoreInstruction, variableMessages, signers, nil)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "signing algorithm not supported")
 }
@@ -1288,7 +1313,7 @@ func TestKeyDataProviderRestoreWithProviderAsAdmin(t *testing.T) {
 
 	restoreInstruction := setup.buildRestoreInstruction(t, setup.buildDefaultRestoreRequest(big.NewInt(int64(setup.nonce))))
 
-	resp, status, err := setup.processor.KeyDataProviderRestore(types.Threshold, restoreInstruction, variableMessages, signers, nil)
+	resp, status, err := setup.processor.KeyDataProviderRestore(context.Background(), types.Threshold, restoreInstruction, variableMessages, signers, nil)
 	require.NoError(t, err)
 	require.NotNil(t, resp)
 	require.NotNil(t, status)
@@ -1313,7 +1338,7 @@ func TestKeyDataProviderRestoreWithProviderAsAdmin(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, setup.nonce, nonce)
 
-	resp, endStatus, err := setup.processor.KeyDataProviderRestore(types.End, restoreInstruction, variableMessages, signers, nil)
+	resp, endStatus, err := setup.processor.KeyDataProviderRestore(context.Background(), types.End, restoreInstruction, variableMessages, signers, nil)
 	require.NoError(t, err)
 	require.Nil(t, resp)
 	require.Equal(t, status, endStatus)

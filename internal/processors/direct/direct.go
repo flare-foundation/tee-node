@@ -1,22 +1,24 @@
 package direct
 
 import (
+	"context"
+
 	"github.com/flare-foundation/tee-node/internal/settings"
 	"github.com/flare-foundation/tee-node/pkg/processorutils"
 	"github.com/flare-foundation/tee-node/pkg/types"
 )
 
-type Processor func(i *types.DirectInstruction) ([]byte, error)
+type Processor func(ctx context.Context, i *types.DirectInstruction) ([]byte, error)
 
 // Process parses the direct instruction and executes the wrapped processor
 // function, returning the action result payload.
-func (p Processor) Process(a *types.Action) types.ActionResult {
+func (p Processor) Process(ctx context.Context, a *types.Action) types.ActionResult {
 	di, err := processorutils.Parse[types.DirectInstruction](a.Data.Message)
 	if err != nil {
 		return processorutils.Invalid(a, err)
 	}
 
-	msg, err := p(di)
+	msg, err := p(ctx, di)
 	if err != nil {
 		return processorutils.Invalid(a, err)
 	}

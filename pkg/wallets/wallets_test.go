@@ -343,6 +343,25 @@ func TestCheckKeyGenerate(t *testing.T) {
 		require.ErrorContains(t, err, "cosigners threshold cannot be greater")
 	})
 
+	t.Run("duplicate admin public keys", func(t *testing.T) {
+		req := baseReq
+		req.ConfigConstants.AdminsPublicKeys = []wallet.PublicKey{adminPubKey, adminPubKey}
+		req.ConfigConstants.AdminsThreshold = 2
+		err := CheckKeyGenerate(req, teeID)
+		require.ErrorContains(t, err, "duplicate keys")
+	})
+
+	t.Run("duplicate admin public keys among distinct entries", func(t *testing.T) {
+		// Three admins, the first two identical. The threshold-vs-length check
+		// passes (2 ≤ 3) so this case relies entirely on the duplicate check.
+		req := baseReq
+		other := wallet.PublicKey{X: [32]byte{3}, Y: [32]byte{4}}
+		req.ConfigConstants.AdminsPublicKeys = []wallet.PublicKey{adminPubKey, adminPubKey, other}
+		req.ConfigConstants.AdminsThreshold = 2
+		err := CheckKeyGenerate(req, teeID)
+		require.ErrorContains(t, err, "duplicate keys")
+	})
+
 	t.Run("signing algo is not supported", func(t *testing.T) {
 		req := baseReq
 		req.SigningAlgo = common.HexToHash("0xabc123")

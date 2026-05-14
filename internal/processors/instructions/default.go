@@ -1,6 +1,7 @@
 package instructions
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os"
@@ -32,7 +33,7 @@ func NewDefaultProcessor(port int, policyStorage *policy.Storage, iSAndD node.Id
 
 // Process routes the instruction action to the external extension at threshold
 // and crafts the final vote response when the action ends.
-func (p DefaultProcessor) Process(a *types.Action) types.ActionResult {
+func (p DefaultProcessor) Process(_ context.Context, a *types.Action) types.ActionResult {
 	data, err := processorutils.Parse[instruction.DataFixed](a.Data.Message)
 	if err != nil {
 		return processorutils.Invalid(a, err)

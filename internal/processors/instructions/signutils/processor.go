@@ -1,6 +1,7 @@
 package signutils
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -42,6 +43,7 @@ func NewProcessor(iAndS node.IdentifierAndSigner, wStorage *wallets.Storage, pro
 // cumulative signed transaction set to the proxy after each entry's scheduled
 // delay elapses.
 func (p *Processor) SignXRPLPayment(
+	ctx context.Context,
 	submissionTag types.SubmissionTag,
 	dataFixed *instruction.DataFixed,
 	_ []hexutil.Bytes,

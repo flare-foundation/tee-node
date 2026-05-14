@@ -62,6 +62,7 @@ func HashMessage(
 		AttestationType:    req.Header.AttestationType,
 		SourceId:           req.Header.SourceId,
 		ThresholdBIPS:      req.Header.ThresholdBIPS,
+		ProofOwner:         req.Header.ProofOwner,
 		Cosigners:          cosigners,
 		CosignersThreshold: cosignersThreshold,
 		Timestamp:          timestamp,

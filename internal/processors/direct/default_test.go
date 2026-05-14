@@ -1,6 +1,7 @@
 package direct
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -25,7 +26,7 @@ func TestDefaultDirectProcessor(t *testing.T) {
 	proc := NewDefaultProcessor(extensionPort)
 
 	action := testutils.BuildMockDirectAction(t, op.Policy, op.InitializePolicy, "dummyAction")
-	firstResult := proc.Process(action)
+	firstResult := proc.Process(context.Background(), action)
 	require.Equal(t, action.Data.ID, firstResult.ID)
 	require.Len(t, firstResult.Data, 0)
 	require.Equal(t, uint8(2), firstResult.Status)

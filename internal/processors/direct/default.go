@@ -1,6 +1,7 @@
 package direct
 
 import (
+	"context"
 	"fmt"
 	"os"
 
@@ -22,8 +23,10 @@ func NewDefaultProcessor(port int) DefaultProcessor {
 }
 
 // Process validates the direct instruction and delegates execution to the
-// extension, marking the result as in-progress.
-func (p DefaultProcessor) Process(a *types.Action) types.ActionResult {
+// extension, marking the result as in-progress. The context's deadline is the
+// per-action timeout; cancellation-aware downstream HTTP plumbing should honor
+// it so a timeout cancels the extension call instead of leaving it in flight.
+func (p DefaultProcessor) Process(_ context.Context, a *types.Action) types.ActionResult {
 	di, err := processorutils.Parse[types.DirectInstruction](a.Data.Message)
 	if err != nil {
 		return processorutils.Invalid(a, err)

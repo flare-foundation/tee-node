@@ -53,6 +53,15 @@ func CheckKeyGenerate(newWalletRequest wallet.IWalletKeyManagerKeyGenerate, teeI
 		return errors.New("admins threshold cannot be greater than the number of admins")
 	}
 
+	// Reject duplicate admin public keys.
+	seenAdmins := make(map[wallet.PublicKey]bool, len(newWalletRequest.ConfigConstants.AdminsPublicKeys))
+	for _, key := range newWalletRequest.ConfigConstants.AdminsPublicKeys {
+		if _, ok := seenAdmins[key]; ok {
+			return errors.New("admin public key list contains duplicate keys")
+		}
+		seenAdmins[key] = true
+	}
+
 	if newWalletRequest.ConfigConstants.CosignersThreshold > uint64(len(newWalletRequest.ConfigConstants.Cosigners)) {
 		return errors.New("cosigners threshold cannot be greater than the number of cosigners")
 	}
