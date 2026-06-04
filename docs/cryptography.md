@@ -43,14 +43,37 @@ Verification checks four equations involving the witness points and can be perfo
 
 ## ECIES Encryption
 
-Elliptic Curve Integrated Encryption Scheme, used for encrypting key splits during backup.
+Elliptic Curve Integrated Encryption Scheme, used for encrypting key splits during backup and for encrypting a full wallet private key during direct TEE-to-TEE backup.
 
 - Parameters: `ECIES_AES128_SHA256` with secp256k1
 - Overhead: 113 bytes per encryption (ephemeral public key + MAC)
-- Encryption: `ecies.Encrypt(rand, recipientPubKey, plaintext, nil, nil)`
-- Decryption: `eciesPrivKey.Decrypt(ciphertext, nil, nil)`
+- Encryption: `utils.Encrypt(plaintext, recipientPubKey)` (wraps `ecies.Encrypt(rand, ..., nil, nil)`)
+- Decryption: `utils.Decrypt(ciphertext, privKey)` (wraps `eciesPrivKey.Decrypt(ciphertext, nil, nil)`)
 
-Decryption is supported for XRP and EVM wallet types only. VRF wallets do not support decryption.
+The `utils.Encrypt` / `utils.Decrypt` helpers in `pkg/utils/crypto.go` convert the secp256k1 ECDSA key to its ECIES form (rejecting non-S256 curves) before delegating to go-ethereum's `ecies`. Decryption is supported for XRP and EVM wallet types only. VRF wallets do not support decryption.
+
+## Domain-Separated Signed Payloads
+
+Signatures the TEE produces for on-chain verification are taken over a canonical domain-separated preimage rather than a bare hash, so a signature is bound to both its payload type and the target network. The construction matches the on-chain `SignedPayload` library:
+
+```
+DomainHash(prefix, chainID, dataHash) = keccak256(abi.encode(
+    bytes32 prefix,     // domain-separation tag for the payload type
+    uint256 chainID,    // binds the signature to one EVM network
+    bytes32 dataHash    // keccak256(abi.encode(payload fields))
+))
+```
+
+The TEE then signs this value with the standard eth-signed-message wrap (`accounts.TextHash`); on-chain verifiers recover against the matching `SignedPayload.ethSignedHash`. `DomainHash` lives in `pkg/utils/crypto.go`; `chainID` comes from the node's configured `CHAIN_ID` and is required (signing fails if it is unset).
+
+| Domain tag (`bytes32(string)`) | Payload | `dataHash` = `keccak256(abi.encode(...))` of |
+| ------------------------------ | ------- | -------------------------------------------- |
+| `TEE_MACHINE_REGISTER` | Machine registration / attestation | `TeeMachineData` (extension ID, owner, code hash, platform, public key, governance hash) |
+| `TEE_KEY_EXISTENCE`    | Key existence proof | the `KeyExistence` struct (TEE ID, wallet/key ID, public key, nonce, config) |
+| `TEE_MACHINE_PATH_LIST`| Governance machine-path list | `(extensionID, nonce, paths)` |
+| `FDC2`                 | FDC2 attestation proof | `(headerHash, requestBodyHash, responseBodyHash)` — see [FDC Proving](fdc.md) |
+
+The governance signer set itself is committed as `GovernanceHash = keccak256(abi.encode(address[] signers, uint256 threshold))`, included in the registered `TeeMachineData`.
 
 ## Shamir Secret Sharing
 

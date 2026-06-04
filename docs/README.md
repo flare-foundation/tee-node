@@ -18,7 +18,7 @@
 
 5. **[Wallet Operations](wallets.md)** — Key generation, deletion, storage model, and nonce-based replay protection.
 
-6. **[Backup & Restore](backup-restore.md)** — How wallets are backed up (key splitting, Shamir sharing, ECIES encryption) and restored. Security properties and limitations.
+6. **[Backup & Restore](backup-restore.md)** — How wallets are backed up and restored: Shamir-based data-provider backup and direct TEE-to-TEE backup (machine-path authorized). Security properties and limitations.
 
 7. **[XRP Signing](xrp-signing.md)** — Fee schedules, delayed delivery via goroutines, multisig support, and resource limits.
 
@@ -32,7 +32,7 @@
 
 ### Security & Internals
 
-12. **[Security Model](security.md)** — Trust boundaries, what the proxy can and cannot do, replay protection, resource limits, and known edge cases.
+12. **[Security Model](security.md)** — Trust boundaries, what the proxy can and cannot do, governance & machine-path authorization, replay protection, resource limits, and known edge cases.
 
 13. **[Cryptography](cryptography.md)** — All algorithms: ECDSA, VRF, ECIES, Shamir secret sharing, additive key splitting, hash functions.
 

@@ -6,20 +6,33 @@ import (
 	"encoding/hex"
 	"net/http"
 	"os"
+	"strconv"
 	"testing"
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/flare-foundation/tee-node/internal/settings"
 	"github.com/flare-foundation/tee-node/pkg/node"
+	"github.com/flare-foundation/tee-node/pkg/types"
 	"github.com/stretchr/testify/require"
 )
 
 const defaultProxyURL = ""
 
 var (
-	defaultExtensionID  = settings.DefaultExtensionID
-	defaultInitialOwner = common.Address{}
+	defaultExtensionID    = settings.DefaultExtensionID
+	defaultInitialOwner   = common.Address{}
+	defaultGovernanceHash = settings.DefaultGovernanceHash
+)
+
+// Governance test fixtures.
+var (
+	govSigners    = []common.Address{a, a2}
+	govThreshold  = uint64(2)
+	govSignersStr = a.Hex() + "," + a2.Hex()
+
+	govSigners2   = []common.Address{a2}
+	govThreshold2 = uint64(1)
 )
 
 type request struct {
@@ -94,6 +107,29 @@ func checkInitialOwner(t *testing.T, n *node.Node, a common.Address) {
 	require.Equal(t, a, n.Info().InitialOwner)
 }
 
+// checkGovernanceHash checks that a node's governance hash matches the given
+// hash (used for default/unset assertions).
+func checkGovernanceHash(t *testing.T, n *node.Node, hash common.Hash) {
+	t.Helper()
+
+	require.Equal(t, hash, n.Info().Governance.Hash)
+}
+
+// checkGovernance checks that a node's governance signers + threshold match
+// the expected values and that the stored hash equals the canonical
+// keccak256(abi.encode(signers, threshold)).
+func checkGovernance(t *testing.T, n *node.Node, signers []common.Address, threshold uint64) {
+	t.Helper()
+
+	g := n.Info().Governance
+	require.Equal(t, signers, g.Signers)
+	require.Equal(t, threshold, g.Threshold)
+
+	want, err := types.GovernanceHash(signers, threshold)
+	require.NoError(t, err)
+	require.Equal(t, want, g.Hash)
+}
+
 // setEnvVars sets test environment variables.
 func setEnvVars(t *testing.T) {
 	t.Helper()
@@ -101,13 +137,21 @@ func setEnvVars(t *testing.T) {
 	require.NoError(t, os.Setenv(settings.ProxyURLEnvVar, proxyURL))
 	require.NoError(t, os.Setenv(settings.ExtensionIDEnvVar, h))
 	require.NoError(t, os.Setenv(settings.InitialOwnerEnvVar, hex.EncodeToString(a[:])))
+	require.NoError(t, os.Setenv(settings.GovernanceSignersEnvVar, govSignersStr))
+	require.NoError(t, os.Setenv(settings.GovernanceThresholdEnvVar, strconv.FormatUint(govThreshold, 10)))
 }
 
 // unsetEnvVars unsets test environment variables.
 func unsetEnvVars(t *testing.T) {
 	t.Helper()
 
-	for _, v := range [3]string{settings.ProxyURLEnvVar, settings.ExtensionIDEnvVar, settings.InitialOwnerEnvVar} {
+	for _, v := range [5]string{
+		settings.ProxyURLEnvVar,
+		settings.ExtensionIDEnvVar,
+		settings.InitialOwnerEnvVar,
+		settings.GovernanceSignersEnvVar,
+		settings.GovernanceThresholdEnvVar,
+	} {
 		require.NoError(t, os.Unsetenv(v))
 	}
 }
@@ -124,6 +168,7 @@ func TestDefaults(t *testing.T) {
 		checkProxyURL(t, server, defaultProxyURL)
 		checkExtensionID(t, n, defaultExtensionID)
 		checkInitialOwner(t, n, defaultInitialOwner)
+		checkGovernanceHash(t, n, defaultGovernanceHash)
 	})
 
 	t.Run("with set environment variables", func(t *testing.T) {
@@ -136,6 +181,7 @@ func TestDefaults(t *testing.T) {
 		checkProxyURL(t, server, proxyURL)
 		checkExtensionID(t, n, h)
 		checkInitialOwner(t, n, a)
+		checkGovernance(t, n, govSigners, govThreshold)
 	})
 }
 
@@ -332,6 +378,90 @@ func TestEndpointInitialOwner(t *testing.T) {
 				t.Run("set initial owner 2", func(t *testing.T) {
 					postAndCheckCode(t, settings.SetInitialOwnerEndpoint, `{"owner": "`+a.String()+`"}`, http.StatusOK)
 					checkInitialOwner(t, n, a)
+				})
+			}
+		}()
+	}
+}
+
+// TestEndpointGovernance tests a config server's /governance endpoint.
+func TestEndpointGovernance(t *testing.T) {
+	validBody := `{"signers":["` + a.Hex() + `","` + a2.Hex() + `"],"threshold":2}`
+
+	requests := []request{
+		{
+			name:     "invalid JSON",
+			body:     "{invalid json}",
+			expected: http.StatusBadRequest,
+		},
+		{
+			name:     "missing signers field",
+			body:     `{"threshold":2}`,
+			expected: http.StatusBadRequest,
+		},
+		{
+			name:     "missing threshold field",
+			body:     `{"signers":["` + a.Hex() + `"]}`,
+			expected: http.StatusBadRequest,
+		},
+		{
+			name:     "unexpected field in JSON",
+			body:     `{"signers":["` + a.Hex() + `"],"threshold":1,"un":"expected"}`,
+			expected: http.StatusBadRequest,
+		},
+		{
+			name:     "threshold zero",
+			body:     `{"signers":["` + a.Hex() + `"],"threshold":0}`,
+			expected: http.StatusForbidden,
+		},
+		{
+			name:     "threshold exceeds signer count",
+			body:     `{"signers":["` + a.Hex() + `"],"threshold":2}`,
+			expected: http.StatusForbidden,
+		},
+		{
+			name:     "zero-address signer",
+			body:     `{"signers":["` + (common.Address{}).Hex() + `"],"threshold":1}`,
+			expected: http.StatusForbidden,
+		},
+	}
+
+	for _, setGovernance := range [2]bool{false, true} {
+		func() {
+			unsetEnvVars(t)
+			server, n := setup()
+			defer server.Close(context.Background()) //nolint:errcheck
+
+			if setGovernance {
+				t.Run("set governance", func(t *testing.T) {
+					postAndCheckCode(t, settings.SetGovernanceEndpoint, validBody, http.StatusOK)
+					checkGovernance(t, n, govSigners, govThreshold)
+				})
+
+				reqs := append(requests, request{
+					name:     "set governance again",
+					body:     `{"signers":["` + a2.Hex() + `"],"threshold":1}`,
+					expected: http.StatusForbidden,
+				})
+
+				for _, r := range reqs {
+					t.Run(r.name, func(t *testing.T) {
+						postAndCheckCode(t, settings.SetGovernanceEndpoint, r.body, r.expected)
+						checkGovernance(t, n, govSigners, govThreshold)
+					})
+				}
+			} else {
+				for _, r := range requests {
+					t.Run(r.name, func(t *testing.T) {
+						postAndCheckCode(t, settings.SetGovernanceEndpoint, r.body, r.expected)
+						checkGovernanceHash(t, n, defaultGovernanceHash)
+					})
+				}
+
+				t.Run("set governance 2", func(t *testing.T) {
+					body := `{"signers":["` + a2.Hex() + `"],"threshold":1}`
+					postAndCheckCode(t, settings.SetGovernanceEndpoint, body, http.StatusOK)
+					checkGovernance(t, n, govSigners2, govThreshold2)
 				})
 			}
 		}()

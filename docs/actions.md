@@ -26,7 +26,9 @@ The OpType and OpCommand are extracted from the action message (first two JSON f
 
 #### Direct Actions
 
-Direct actions are parsed and passed directly to their handler. No signing policy validation is required. Message size is bounded by `MaxActionSize` (default 10 MB).
+Direct actions are parsed and passed directly to their handler. No signing-policy validation is performed by the pipeline. Message size is bounded by `MaxActionSize` (default 10 MB).
+
+Some direct handlers enforce their own authorization. In particular, `F_GOVERNANCE` / `SET_MACHINE_PATH_LIST` requires at least the configured threshold of *distinct* governance-signer signatures over the chain-bound machine-path-list hash, with a strictly increasing nonce, before it updates the node's machine-path list. See [Security](security.md#governance--machine-path-authorization).
 
 #### Instruction Actions
 
@@ -67,6 +69,7 @@ The action result's `Data` field is hashed with Keccak256 and signed with the TE
 | TEEAttestation         | 50 KB            | 100 KB           | 0                |
 | KeyGenerate, KeyDelete | 50 KB            | 100 KB           | 0                |
 | Prove (FDC)            | 50 KB            | 100 KB           | 50 KB            |
+| KeyDirectBackup, KeyDirectRestore | 50 KB | 100 KB        | 50 KB            |
 | Default                | 50 KB            | 100 KB           | 50 KB            |
 
 ## Rewarding Data

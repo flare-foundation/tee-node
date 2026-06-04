@@ -174,10 +174,14 @@ func TestKeysProof(t *testing.T) {
 		require.Len(t, existenceProofs, len(requested))
 
 		for i, proof := range existenceProofs {
-			err = utils.VerifySignature(crypto.Keccak256(proof.KeyExistence), proof.Signature, testNode.TeeID())
+			walletExistenceProof, err := structs.Decode[wallet.IWalletKeyManagerKeyExistence](wallet.KeyExistenceStructArg, proof.KeyExistence)
 			require.NoError(t, err)
 
-			walletExistenceProof, err := structs.Decode[wallet.IWalletKeyManagerKeyExistence](wallet.KeyExistenceStructArg, proof.KeyExistence)
+			dataHash, err := types.KeyExistenceDataHash(&walletExistenceProof)
+			require.NoError(t, err)
+			signingHash, err := utils.DomainHash(types.TeeKeyExistenceTag, testNode.Info().ChainID, dataHash)
+			require.NoError(t, err)
+			err = utils.VerifySignature(signingHash[:], proof.Signature, testNode.TeeID())
 			require.NoError(t, err)
 
 			require.Equal(t, requested[i].WalletID, common.Hash(walletExistenceProof.WalletId))
@@ -250,7 +254,9 @@ func TestTEEInfo(t *testing.T) {
 		require.Equal(t, teeInfo.MachineData.InitialOwner, testNode.Info().InitialOwner)
 
 		// Signature
-		mdHash, err := teeInfo.MachineData.Hash()
+		mdDataHash, err := teeInfo.MachineData.DataHash()
+		require.NoError(t, err)
+		mdHash, err := utils.DomainHash(types.TeeMachineRegisterTag, testNode.Info().ChainID, mdDataHash)
 		require.NoError(t, err)
 		err = utils.VerifySignature(mdHash[:], teeInfo.DataSignature, testNode.Info().TeeID)
 		require.NoError(t, err)

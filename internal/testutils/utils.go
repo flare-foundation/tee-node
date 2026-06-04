@@ -8,6 +8,7 @@ import (
 	"math/rand"
 	"testing"
 
+	"github.com/flare-foundation/tee-node/pkg/fdc"
 	"github.com/flare-foundation/tee-node/pkg/types"
 	"github.com/flare-foundation/tee-node/pkg/utils"
 	"github.com/stretchr/testify/require"
@@ -117,7 +118,8 @@ func GenerateRandomPolicyData(t *testing.T, rewardEpochID uint32, voters []commo
 
 	event.SigningPolicyBytes = policyBytes
 
-	policy := commonpolicy.NewSigningPolicy(&event, nil)
+	policy, err := commonpolicy.NewSigningPolicy(&event, nil)
+	require.NoError(t, err)
 
 	return policy
 }
@@ -241,10 +243,16 @@ func encodeSigningPolicy(policy *relay.RelaySigningPolicyInitialized) ([]byte, e
 //   - signatures are strictly ordered by voter index,
 //   - every signature recovers (over msgHash) to voterAddresses[index].
 //
-// Blob layout:
+// Blob layout (Relay Mode-2 direct-message-signing calldata):
 //
-//	[4]byte relay selector || signingPolicyBytes || msgPrepended(38) ||
-//	[2]byte sigCount || { [65]byte V||R||S , [2]byte voterIndex }*
+//	[4]byte  relay selector
+//	         signingPolicyBytes
+//	[1]byte  protocolId        (== 1, direct signing)
+//	[4]byte  votingRoundId     (== 0)
+//	[1]byte  isSecureRandom    (== 0)
+//	[32]byte merkleRoot        (the SignedPayload-wrapped FDC2 messageHash)
+//	[2]byte  sigCount
+//	         { [65]byte V||R||S, [2]byte voterIndex } * sigCount
 //
 // signingPolicyBytes begins with 2 bytes numVoters and is 43 + numVoters*22
 // total, per encodeSigningPolicy.
@@ -261,7 +269,8 @@ func VerifyEncodedDataProviderSignatures(
 	require.GreaterOrEqual(t, len(blob), off+2, "blob too short for signing policy header")
 	numVoters := int(blob[off])<<8 | int(blob[off+1])
 	off += 43 + numVoters*22 // signing policy bytes
-	off += 38                // msgPrepended: 1 + 4 + 1 + 32
+	off += 6                 // Mode-2 prefix: protocolId | votingRoundId | isSecureRandom
+	off += 32                // merkleRoot = SignedPayload-wrapped FDC2 messageHash
 
 	require.GreaterOrEqual(t, len(blob), off+2, "blob too short for signature count")
 	dpCount := int(blob[off])<<8 | int(blob[off+1])
@@ -282,7 +291,9 @@ func VerifyEncodedDataProviderSignatures(
 		copy(rsv, vrs[1:33])
 		copy(rsv[32:], vrs[33:65])
 		rsv[64] = vrs[0] - 27
-		err := utils.VerifySignature(msgHash.Bytes(), rsv, voterAddresses[idx])
+		// DP signatures are over the Relay Mode-2 prefixed hash, not msgHash itself.
+		dpSigningHash := fdc.RelayPrefixedHash(msgHash)
+		err := utils.VerifySignature(dpSigningHash.Bytes(), rsv, voterAddresses[idx])
 		require.NoError(t, err, "DP signature %d (voter index %d) failed verification", i, idx)
 		prevIndex = idx
 	}

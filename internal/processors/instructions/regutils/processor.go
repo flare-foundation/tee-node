@@ -14,6 +14,7 @@ import (
 	"github.com/flare-foundation/tee-node/pkg/node"
 	"github.com/flare-foundation/tee-node/pkg/policy"
 	"github.com/flare-foundation/tee-node/pkg/types"
+	"github.com/flare-foundation/tee-node/pkg/utils"
 )
 
 type Processor struct {
@@ -60,7 +61,11 @@ func (p *Processor) TEEAttestation(
 			return nil, nil, err
 		}
 
-		mdHash, err := teeInfoResponse.MachineData.Hash()
+		mdDataHash, err := teeInfoResponse.MachineData.DataHash()
+		if err != nil {
+			return nil, nil, err
+		}
+		mdHash, err := utils.DomainHash(types.TeeMachineRegisterTag, nodeInfo.ChainID, mdDataHash)
 		if err != nil {
 			return nil, nil, err
 		}

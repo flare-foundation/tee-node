@@ -1,15 +1,83 @@
 package types
 
 import (
+	"errors"
+	"math/big"
+
+	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/flare-foundation/go-flare-common/pkg/convert"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/op"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/structs"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/structs/machine"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/structs/tee"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/structs/verification"
+	"github.com/flare-foundation/go-flare-common/pkg/tee/structs/wallet"
 )
+
+// TeeMachineRegisterTag is Solidity bytes32("TEE_MACHINE_REGISTER"), the
+// domain separator MachineManagerFacet.register binds into the signed
+// payload. Callers pass this to utils.DomainHash alongside the value
+// returned by MachineData.DataHash().
+var TeeMachineRegisterTag common.Hash
+
+// TeeKeyExistenceTag is Solidity bytes32("TEE_KEY_EXISTENCE"), the
+// domain separator WalletKeyManagerFacet.confirmKey binds into the
+// signed payload. Callers pass this to utils.DomainHash alongside the
+// value returned by KeyExistenceDataHash().
+var TeeKeyExistenceTag common.Hash
+
+// SystemStateVersionV1 is the value the node sets as TeeState.SystemStateVersion
+// in its availability-check responses. The SystemStateVerifier contract only
+// checks the version is non-zero (and then abi.decodes the state); the value
+// itself is not validated. "0x01" is the smallest such convention.
+//
+// TODO: switch to a canonical constant once the contract team publishes one;
+// today no such constant exists in flare-smart-contracts-v2
+var SystemStateVersionV1 = common.HexToHash("0x01")
+
+func init() {
+	tag, err := convert.StringToCommonHash("TEE_MACHINE_REGISTER")
+	if err != nil {
+		panic(err)
+	}
+	TeeMachineRegisterTag = tag
+
+	keyExistenceTag, err := convert.StringToCommonHash("TEE_KEY_EXISTENCE")
+	if err != nil {
+		panic(err)
+	}
+	TeeKeyExistenceTag = keyExistenceTag
+}
+
+// KeyExistenceDataHash returns keccak256(abi.encode(proof)), the inner
+// dataHash WalletKeyManagerFacet.confirmKey wraps with
+// SignedPayload.messageHash(TEE_KEY_EXISTENCE, ...). Callers wrap this
+// value with utils.DomainHash(TeeKeyExistenceTag, chainID, dataHash)
+// before signing or comparing.
+func KeyExistenceDataHash(proof *wallet.IWalletKeyManagerKeyExistence) (common.Hash, error) {
+	if proof == nil {
+		return common.Hash{}, errors.New("key existence data hash requires a non-nil proof")
+	}
+
+	innerEnc, err := abi.Arguments{wallet.KeyExistenceStructArg}.Pack(*proof)
+	if err != nil {
+		return common.Hash{}, err
+	}
+	return crypto.Keccak256Hash(innerEnc), nil
+}
+
+// EncodeTeeSystemState ABI-encodes a TeeSystemState tuple in the shape the
+// SystemStateVerifier facet abi.decodes on chain.
+func EncodeTeeSystemState(state verification.ISystemStateVerifierTeeSystemState) (hexutil.Bytes, error) {
+	enc, err := structs.Encode(verification.TeeSystemStateStructArg, state)
+	if err != nil {
+		return nil, err
+	}
+	return enc, nil
+}
 
 type TeeInfoRequest struct {
 	Challenge common.Hash
@@ -22,8 +90,11 @@ type TeeInfo struct {
 	InitialSigningPolicyHash common.Hash `json:"initialSigningPolicyHash"`
 	LastSigningPolicyID      uint32      `json:"lastSigningPolicyId"`
 	LastSigningPolicyHash    common.Hash `json:"lastSigningPolicyHash"`
+	ChainID                  uint64      `json:"chainId"`
 	State                    TeeState    `json:"state"`
 	TeeTimestamp             uint64      `json:"teeTimestamp"`
+	MachinePathListNonce     uint64      `json:"machinePathListNonce"`
+	MachinePathListHash      common.Hash `json:"machinePathListHash"`
 }
 
 // Hash encodes and hashes the TEE attestation payload.
@@ -38,6 +109,7 @@ func (ti *TeeInfo) Hash() ([]byte, error) {
 
 func (ti *TeeInfo) prepareForEncoding() tee.TeeStructsAttestation {
 	return tee.TeeStructsAttestation{
+		ChainId:   new(big.Int).SetUint64(ti.ChainID),
 		Challenge: ti.Challenge,
 		PublicKey: tee.PublicKey{
 			X: ti.PublicKey.X,
@@ -53,7 +125,9 @@ func (ti *TeeInfo) prepareForEncoding() tee.TeeStructsAttestation {
 			State:              ti.State.State,
 			StateVersion:       ti.State.StateVersion,
 		},
-		TeeTimestamp: ti.TeeTimestamp,
+		TeeTimestamp:         ti.TeeTimestamp,
+		MachinePathListNonce: new(big.Int).SetUint64(ti.MachinePathListNonce),
+		MachinePathListHash:  ti.MachinePathListHash,
 	}
 }
 
@@ -77,22 +151,25 @@ type TeeInfoResponse struct {
 }
 
 type MachineData struct {
-	ExtensionID  common.Hash    `json:"extensionId"`
-	InitialOwner common.Address `json:"initialOwner"`
-	CodeHash     common.Hash    `json:"codeHash"`
-	Platform     common.Hash    `json:"platform"`
-	PublicKey    PublicKey      `json:"publicKey"`
+	ExtensionID    common.Hash    `json:"extensionId"`
+	InitialOwner   common.Address `json:"initialOwner"`
+	CodeHash       common.Hash    `json:"codeHash"`
+	Platform       common.Hash    `json:"platform"`
+	PublicKey      PublicKey      `json:"publicKey"`
+	GovernanceHash common.Hash    `json:"governanceHash"`
 }
 
-func (md *MachineData) Hash() (common.Hash, error) {
-	encoded := md.prepareForEncoding()
-	enc, err := structs.Encode(machine.TeeMachineDataStructArg, encoded)
+// DataHash returns keccak256(abi.encode(teeMachineData)) — the inner
+// dataHash MachineManagerFacet.register wraps with
+// SignedPayload.messageHash(TEE_MACHINE_REGISTER, ...). Callers wrap
+// this value with utils.DomainHash(TeeMachineRegisterTag, chainID,
+// dataHash) before signing or comparing.
+func (md *MachineData) DataHash() (common.Hash, error) {
+	innerEnc, err := abi.Arguments{machine.TeeMachineDataStructArg}.Pack(md.prepareForEncoding())
 	if err != nil {
 		return common.Hash{}, err
 	}
-
-	hash := crypto.Keccak256Hash(enc)
-	return hash, nil
+	return crypto.Keccak256Hash(innerEnc), nil
 }
 
 func (md *MachineData) prepareForEncoding() machine.IMachineManagerTeeMachineData {
@@ -105,6 +182,7 @@ func (md *MachineData) prepareForEncoding() machine.IMachineManagerTeeMachineDat
 			X: md.PublicKey.X,
 			Y: md.PublicKey.Y,
 		},
+		GovernanceHash: md.GovernanceHash,
 	}
 }
 
@@ -145,4 +223,42 @@ type ConfigureInitialOwnerRequest struct {
 
 type ConfigureExtensionIDRequest struct {
 	ExtensionID *common.Hash `json:"extensionId"`
+}
+
+type ConfigureChainIDRequest struct {
+	ChainID *uint64 `json:"chainId"`
+}
+
+// Governance is the governance signer-set known to the node. Hash is
+// keccak256(abi.encode(Signers, Threshold)), the same value stored
+// on-chain as governanceHash.
+type Governance struct {
+	Signers   []common.Address `json:"signers"`
+	Threshold uint64           `json:"threshold"`
+	Hash      common.Hash      `json:"hash"`
+}
+
+type ConfigureGovernanceRequest struct {
+	Signers   *[]common.Address `json:"signers"`
+	Threshold *uint64           `json:"threshold"`
+}
+
+// GovernanceHash returns keccak256(abi.encode(address[], uint256)) for the
+// given (signers, threshold) tuple — the same value the on-chain contract
+// stores as `bytes32 governanceHash`.
+func GovernanceHash(signers []common.Address, threshold uint64) (common.Hash, error) {
+	addressArrayTy, err := abi.NewType("address[]", "", nil)
+	if err != nil {
+		return common.Hash{}, err
+	}
+	uint256Ty, err := abi.NewType("uint256", "", nil)
+	if err != nil {
+		return common.Hash{}, err
+	}
+	args := abi.Arguments{{Type: addressArrayTy}, {Type: uint256Ty}}
+	enc, err := args.Pack(signers, new(big.Int).SetUint64(threshold))
+	if err != nil {
+		return common.Hash{}, err
+	}
+	return crypto.Keccak256Hash(enc), nil
 }

@@ -11,12 +11,14 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
 	commonpolicy "github.com/flare-foundation/go-flare-common/pkg/policy"
+	"github.com/flare-foundation/go-flare-common/pkg/tee/structs/machinepath"
 	"github.com/stretchr/testify/require"
 
 	"github.com/flare-foundation/tee-node/internal/testutils"
 	"github.com/flare-foundation/tee-node/pkg/node"
 	"github.com/flare-foundation/tee-node/pkg/policy"
 	"github.com/flare-foundation/tee-node/pkg/types"
+	"github.com/flare-foundation/tee-node/pkg/utils"
 )
 
 // Test constants
@@ -25,6 +27,7 @@ const numVoters = 100
 // policyTestSetup holds common test setup data for policy tests
 type policyTestSetup struct {
 	pStorage      *policy.Storage
+	node          *node.Node
 	processor     Processor
 	voters        []common.Address
 	privKeys      []*ecdsa.PrivateKey
@@ -39,7 +42,9 @@ func setupPolicyTest(t *testing.T) *policyTestSetup {
 	t.Helper()
 
 	pStorage := policy.InitializeStorage()
-	processor := NewProcessor(pStorage)
+	teeNode, err := node.Initialize(node.ZeroState{})
+	require.NoError(t, err)
+	processor := NewProcessor(teeNode, pStorage)
 
 	epochID := uint32(1)
 	n, err := rand.Int(rand.Reader, big.NewInt(100000000))
@@ -56,6 +61,7 @@ func setupPolicyTest(t *testing.T) *policyTestSetup {
 
 	return &policyTestSetup{
 		pStorage:      pStorage,
+		node:          teeNode,
 		processor:     processor,
 		voters:        voters,
 		privKeys:      privKeys,
@@ -72,10 +78,7 @@ func setupPolicyTestWithInitializedPolicy(t *testing.T) *policyTestSetup {
 
 	setup := setupPolicyTest(t)
 
-	_, err := node.Initialize(node.ZeroState{})
-	require.NoError(t, err)
-
-	err = setup.pStorage.SetInitialPolicy(setup.initialPolicy, setup.pubKeysMap)
+	err := setup.pStorage.SetInitialPolicy(setup.initialPolicy, setup.pubKeysMap)
 	require.NoError(t, err)
 
 	return setup
@@ -494,4 +497,292 @@ func TestUpdatePolicyMultipleUpdates(t *testing.T) {
 	activePolicy, err := setup.pStorage.ActiveSigningPolicy()
 	require.NoError(t, err)
 	require.Equal(t, nextPolicy2.RewardEpochID, activePolicy.RewardEpochID)
+}
+
+// testChainID is the chain ID used by every governance-signed test in
+// this file. It is fixed so signature checks are deterministic.
+const testChainID uint64 = 31337
+
+// executeSetMachinePathList runs SetMachinePathList with the given request.
+func (s *policyTestSetup) executeSetMachinePathList(t *testing.T, req *types.SetMachinePathListRequest) ([]byte, error) {
+	t.Helper()
+
+	message, err := json.Marshal(req)
+	require.NoError(t, err)
+
+	return s.processor.SetMachinePathList(context.Background(), &types.DirectInstruction{Message: message})
+}
+
+// configureGovernance installs a 2-of-3 governance signer set on the node
+// plus the test chain ID, and returns the private keys so tests can
+// sign.
+func configureGovernance(t *testing.T, n *node.Node) []*ecdsa.PrivateKey {
+	t.Helper()
+
+	const (
+		count     = 3
+		threshold = uint64(2)
+	)
+	privKeys := make([]*ecdsa.PrivateKey, count)
+	addrs := make([]common.Address, count)
+	for i := range count {
+		pk, err := crypto.GenerateKey()
+		require.NoError(t, err)
+		privKeys[i] = pk
+		addrs[i] = crypto.PubkeyToAddress(pk.PublicKey)
+	}
+	require.NoError(t, n.SetGovernance(addrs, threshold))
+	require.NoError(t, n.SetChainID(testChainID))
+	return privKeys
+}
+
+// singlePathList wraps a (source, destination) pair into the single-path
+// list used by every test in this file.
+func singlePathList(source, destination []common.Address) []machinepath.IMachinePathManagerMachinePath {
+	return []machinepath.IMachinePathManagerMachinePath{{SourceTeeIds: source, DestinationTeeIds: destination}}
+}
+
+// signMachinePathList computes the canonical machine-path-list message
+// hash for a single (source, destination) path and signs it with each
+// provided key.
+func signMachinePathList(t *testing.T, n *node.Node, source, destination []common.Address, nonce uint64, keys []*ecdsa.PrivateKey) [][]byte {
+	t.Helper()
+
+	dataHash, err := types.MachinePathListDataHash(n.Info().ExtensionID, nonce, singlePathList(source, destination))
+	require.NoError(t, err)
+	hash, err := utils.DomainHash(types.MachinePathListDomainTag, testChainID, dataHash)
+	require.NoError(t, err)
+
+	sigs := make([][]byte, len(keys))
+	for i, key := range keys {
+		sig, err := utils.Sign(hash.Bytes(), key)
+		require.NoError(t, err)
+		sigs[i] = sig
+	}
+	return sigs
+}
+
+func TestSetMachinePathListHappyPath(t *testing.T) {
+	setup := setupPolicyTest(t)
+	govKeys := configureGovernance(t, setup.node)
+
+	other1 := common.HexToAddress("0x1111111111111111111111111111111111111111")
+	other2 := common.HexToAddress("0x2222222222222222222222222222222222222222")
+	source := []common.Address{setup.node.TeeID(), other1}
+	targets := []common.Address{other1, other2}
+
+	req := &types.SetMachinePathListRequest{
+		Paths:      singlePathList(source, targets),
+		Nonce:      1,
+		Signatures: signMachinePathList(t, setup.node, source, targets, 1, govKeys[:2]),
+	}
+	_, err := setup.executeSetMachinePathList(t, req)
+	require.NoError(t, err)
+
+	gotPaths, nonce := setup.node.MachinePaths()
+	require.Equal(t, singlePathList(source, targets), gotPaths)
+	require.Equal(t, uint64(1), nonce)
+}
+
+func TestSetMachinePathListSavesEvenWhenSelfNotOnSourceList(t *testing.T) {
+	setup := setupPolicyTest(t)
+	govKeys := configureGovernance(t, setup.node)
+
+	// The handler must persist the lists even when this node is absent
+	// from them; per-operation source/target checks are enforced
+	// downstream, not by SET_BACKUP_IDS.
+	other := common.HexToAddress("0x1111111111111111111111111111111111111111")
+	source := []common.Address{other}
+	target := []common.Address{other}
+
+	req := &types.SetMachinePathListRequest{
+		Paths:      singlePathList(source, target),
+		Nonce:      1,
+		Signatures: signMachinePathList(t, setup.node, source, target, 1, govKeys[:2]),
+	}
+	_, err := setup.executeSetMachinePathList(t, req)
+	require.NoError(t, err)
+
+	gotPaths, _ := setup.node.MachinePaths()
+	require.Equal(t, singlePathList(source, target), gotPaths)
+}
+
+func TestSetMachinePathListNonceNotHigher(t *testing.T) {
+	setup := setupPolicyTest(t)
+	govKeys := configureGovernance(t, setup.node)
+
+	other := common.HexToAddress("0x1111111111111111111111111111111111111111")
+	source := []common.Address{setup.node.TeeID()}
+	firstTargets := []common.Address{other}
+
+	req1 := &types.SetMachinePathListRequest{
+		Paths:      singlePathList(source, firstTargets),
+		Nonce:      5,
+		Signatures: signMachinePathList(t, setup.node, source, firstTargets, 5, govKeys[:2]),
+	}
+	_, err := setup.executeSetMachinePathList(t, req1)
+	require.NoError(t, err)
+
+	other2 := common.HexToAddress("0x2222222222222222222222222222222222222222")
+	for _, badNonce := range []uint64{5, 3, 0} {
+		targets := []common.Address{other2}
+		req := &types.SetMachinePathListRequest{
+			Paths:      singlePathList(source, targets),
+			Nonce:      badNonce,
+			Signatures: signMachinePathList(t, setup.node, source, targets, badNonce, govKeys[:2]),
+		}
+		_, err := setup.executeSetMachinePathList(t, req)
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "not higher than current")
+	}
+
+	gotPaths, nonce := setup.node.MachinePaths()
+	require.Equal(t, singlePathList(source, firstTargets), gotPaths)
+	require.Equal(t, uint64(5), nonce)
+}
+
+func TestSetMachinePathListSuccessiveUpdates(t *testing.T) {
+	setup := setupPolicyTest(t)
+	govKeys := configureGovernance(t, setup.node)
+
+	addr1 := common.HexToAddress("0x1111111111111111111111111111111111111111")
+	addr2 := common.HexToAddress("0x2222222222222222222222222222222222222222")
+	addr3 := common.HexToAddress("0x3333333333333333333333333333333333333333")
+	source := []common.Address{setup.node.TeeID()}
+
+	for _, step := range []struct {
+		nonce   uint64
+		targets []common.Address
+	}{
+		{1, []common.Address{addr1}},
+		{2, []common.Address{addr1, addr2}},
+		{10, []common.Address{addr3}},
+	} {
+		req := &types.SetMachinePathListRequest{
+			Paths:      singlePathList(source, step.targets),
+			Nonce:      step.nonce,
+			Signatures: signMachinePathList(t, setup.node, source, step.targets, step.nonce, govKeys[:2]),
+		}
+		_, err := setup.executeSetMachinePathList(t, req)
+		require.NoError(t, err)
+
+		gotPaths, nonce := setup.node.MachinePaths()
+		require.Equal(t, singlePathList(source, step.targets), gotPaths)
+		require.Equal(t, step.nonce, nonce)
+	}
+}
+
+func TestSetMachinePathListInvalidJSON(t *testing.T) {
+	setup := setupPolicyTest(t)
+
+	_, err := setup.processor.SetMachinePathList(context.Background(), &types.DirectInstruction{Message: []byte(`{"invalid"`)})
+	require.Error(t, err)
+}
+
+func TestSetMachinePathListGovernanceNotConfigured(t *testing.T) {
+	setup := setupPolicyTest(t)
+
+	source := []common.Address{setup.node.TeeID()}
+	targets := []common.Address{common.HexToAddress("0x1111111111111111111111111111111111111111")}
+	req := &types.SetMachinePathListRequest{
+		Paths: singlePathList(source, targets),
+		Nonce: 1,
+	}
+	_, err := setup.executeSetMachinePathList(t, req)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "governance not configured")
+
+	gotPaths, nonce := setup.node.MachinePaths()
+	require.Empty(t, gotPaths)
+	require.Equal(t, uint64(0), nonce)
+}
+
+func TestSetMachinePathListBelowThreshold(t *testing.T) {
+	setup := setupPolicyTest(t)
+	govKeys := configureGovernance(t, setup.node)
+
+	source := []common.Address{setup.node.TeeID()}
+	targets := []common.Address{common.HexToAddress("0x1111111111111111111111111111111111111111")}
+
+	// One valid signature when threshold is 2.
+	req := &types.SetMachinePathListRequest{
+		Paths:      singlePathList(source, targets),
+		Nonce:      1,
+		Signatures: signMachinePathList(t, setup.node, source, targets, 1, govKeys[:1]),
+	}
+	_, err := setup.executeSetMachinePathList(t, req)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "governance threshold not reached")
+
+	// No signatures at all.
+	req.Signatures = nil
+	_, err = setup.executeSetMachinePathList(t, req)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "governance threshold not reached")
+
+	gotPaths, nonce := setup.node.MachinePaths()
+	require.Empty(t, gotPaths)
+	require.Equal(t, uint64(0), nonce)
+}
+
+func TestSetMachinePathListDuplicateSignaturesNotCounted(t *testing.T) {
+	setup := setupPolicyTest(t)
+	govKeys := configureGovernance(t, setup.node)
+
+	source := []common.Address{setup.node.TeeID()}
+	targets := []common.Address{common.HexToAddress("0x1111111111111111111111111111111111111111")}
+
+	// Two signatures, but both from the same governance signer — only counts as one.
+	sigs := signMachinePathList(t, setup.node, source, targets, 1, []*ecdsa.PrivateKey{govKeys[0], govKeys[0]})
+	req := &types.SetMachinePathListRequest{
+		Paths:      singlePathList(source, targets),
+		Nonce:      1,
+		Signatures: sigs,
+	}
+	_, err := setup.executeSetMachinePathList(t, req)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "governance threshold not reached")
+}
+
+func TestSetMachinePathListNonGovernanceSigner(t *testing.T) {
+	setup := setupPolicyTest(t)
+	govKeys := configureGovernance(t, setup.node)
+
+	source := []common.Address{setup.node.TeeID()}
+	targets := []common.Address{common.HexToAddress("0x1111111111111111111111111111111111111111")}
+
+	outsider, err := crypto.GenerateKey()
+	require.NoError(t, err)
+
+	// One legitimate governance signer + one outsider — outsider is rejected
+	// before threshold is evaluated.
+	sigs := signMachinePathList(t, setup.node, source, targets, 1, []*ecdsa.PrivateKey{govKeys[0], outsider})
+	req := &types.SetMachinePathListRequest{
+		Paths:      singlePathList(source, targets),
+		Nonce:      1,
+		Signatures: sigs,
+	}
+	_, err = setup.executeSetMachinePathList(t, req)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "not a voter")
+}
+
+func TestSetMachinePathListSignaturesOverDifferentPayload(t *testing.T) {
+	setup := setupPolicyTest(t)
+	govKeys := configureGovernance(t, setup.node)
+
+	source := []common.Address{setup.node.TeeID()}
+	targets := []common.Address{common.HexToAddress("0x1111111111111111111111111111111111111111")}
+
+	// Signatures cover a different nonce than the one in the request.
+	sigs := signMachinePathList(t, setup.node, source, targets, 99, govKeys[:2])
+	req := &types.SetMachinePathListRequest{
+		Paths:      singlePathList(source, targets),
+		Nonce:      1,
+		Signatures: sigs,
+	}
+	_, err := setup.executeSetMachinePathList(t, req)
+	require.Error(t, err)
+	// Recovered address won't be a governance signer.
+	require.Contains(t, err.Error(), "not a voter")
 }

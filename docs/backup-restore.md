@@ -2,9 +2,15 @@
 
 ## Overview
 
-Wallet backup splits a wallet's private key into encrypted shares distributed among admins and data providers. Restoring requires collecting enough shares from both groups to reconstruct the key via Shamir secret sharing.
+The TEE node supports two independent mechanisms for moving a wallet's private key:
 
-## Backup Creation
+1. **Data-provider backup & restore** (Shamir-based) — the key is split into encrypted shares distributed among admins and data providers. Restoring requires collecting enough shares from both groups to reconstruct the key via Shamir secret sharing. This is the default, quorum-recoverable backup.
+
+2. **Direct backup & restore** (TEE-to-TEE) — a source TEE encrypts the *whole* private key directly under a single destination TEE's public key (ECIES) and signs it. The destination TEE decrypts and stores it. Both ends must be authorized by a governance-approved **machine-path list**. See [Direct Backup & Restore (TEE-to-TEE)](#direct-backup--restore-tee-to-tee).
+
+Both mechanisms run through the standard instruction pipeline, so the usual signature, threshold, and replay checks described in [Action Processing](actions.md) apply before any key material moves. Direct backup/restore additionally require a `>50%` data-provider voting-weight quorum; data-provider restore instead relies on Shamir reconstruction and the admin threshold (its data-provider weight threshold is `0`, see [Known Limitations](#data-provider-voting-weight-not-checked)).
+
+## Data-Provider Backup (Shamir)
 
 **Route**: `F_GET` / `TEE_BACKUP` (direct action)
 
@@ -78,7 +84,7 @@ Measured with the test suite (3 admins, 100 providers):
 
 VRF backups are larger because VRF signatures are ~939 bytes vs 65 bytes for ECDSA.
 
-## Restore
+## Data-Provider Restore (Shamir)
 
 **Route**: `F_WALLET` / `KEY_DATA_PROVIDER_RESTORE` (instruction)
 
@@ -129,7 +135,62 @@ Decryption or validation failures are logged and skipped rather than treated as 
 - Verify wallet exists
 - Verify nonce matches (confirms Threshold executed)
 
-## Security Properties
+## Direct Backup & Restore (TEE-to-TEE)
+
+Direct backup transfers a wallet key from one TEE to exactly one other TEE without splitting it. The source TEE encrypts the whole private key under the destination TEE's public key, and only TEE pairs explicitly authorized by a governance-approved machine-path list may participate.
+
+### Machine-Path Authorization
+
+A **machine path** is a tuple `(sourceTeeIds[], destinationTeeIds[])`. A path authorizes a transfer if the source TEE is in `sourceTeeIds` **and** the destination TEE is in `destinationTeeIds` of the *same* path. The list is installed by governance via the `F_GOVERNANCE` / `SET_MACHINE_PATH_LIST` direct action and is gated by governance signatures and a strictly increasing nonce (see [Security](security.md#governance--machine-path-authorization)). Authorization is always evaluated against the node's *current* machine-path list.
+
+### Direct Backup
+
+**Route**: `F_WALLET` / `KEY_DIRECT_BACKUP` (instruction)
+
+1. Parse the request and validate authorization (`validateKeyDirectBackupRequest`):
+    - `sourceTeeId` must equal this TEE's identity
+    - `machinePathListNonce` must equal the node's current nonce
+    - the destination public key must parse, and the current path list must authorize `(this TEE, destination)`
+2. Look up the wallet; require a secp256k1 signing algorithm
+3. ECIES-encrypt the private key under the destination's public key
+4. Assemble a `KeyDirectBackupPayload`: the `BackupID` (TEE ID, wallet/key ID, derived public key, key type, signing algo, **current reward epoch**, and a fresh `RandomNonce`), the encrypted private key, and the plaintext wallet configuration (admin keys, cosigners, thresholds, settings, status)
+5. Sign `keccak256(payload)` with the TEE identity key and return the envelope:
+
+```
+SignedKeyDirectBackup
+  Payload        (JSON KeyDirectBackupPayload)
+  TEESignature   (source TEE signature over keccak256(Payload))
+```
+
+The blob is stateless with respect to the destination's per-key nonce; replay is bounded by the reward-epoch window checked at restore.
+
+### Direct Restore
+
+**Route**: `F_WALLET` / `KEY_DIRECT_RESTORE` (instruction)
+
+The restore instruction carries a quorum-signed `BackupId` in its original message and the source TEE's `SignedKeyDirectBackup` envelope in `AdditionalFixedMessage`.
+
+1. Parse the request and validate authorization (`validateKeyDirectRestoreRequest`):
+    - `BackupId.teeId` must equal `sourceTeeId`
+    - `machinePathListNonce` must not exceed the node's current nonce
+    - the current path list must authorize `(source, this TEE)`
+2. Verify the envelope `TEESignature` over `keccak256(Payload)` against `sourceTeeId`
+3. Cross-check the source-signed payload's `BackupID` against the quorum-signed instruction `BackupId` by comparing their canonical ABI encodings (`matchesInstructionBackupId`)
+4. Verify the backup's `RewardEpochID` is fresh: the node's current reward epoch must be the backup's epoch or one greater (`{epoch, epoch+1}`)
+5. ECIES-decrypt the private key with this TEE's own key
+6. Reconstruct the wallet and verify the public key derived from the decrypted key matches `BackupID.PublicKey`
+7. Threshold phase: reject if the wallet already exists, validate the per-key nonce against any permanent record, store the wallet (marked `Restored`), update the nonce, and return a signed key existence proof. End phase verifies the wallet exists and the nonce matches.
+
+### Security Properties
+
+- **Confidentiality**: the private key is only ever transmitted as ECIES ciphertext under the destination TEE's public key; the plaintext never leaves the source TEE.
+- **Authorization is layered**: in addition to the data-provider quorum and cosigner checks enforced by the instruction pipeline, both ends must be authorized by the governance-approved machine-path list. The machine-path list narrows *who* may transfer; it is not a substitute for the quorum.
+- **Integrity binding**: the `BackupID` (including the public key and signing algorithm) is bound by the quorum-signed instruction, by the source TEE's signature over the payload, and by the decrypted-key-derives-`BackupID.PublicKey` check. A tampered payload, mismatched key, or wrong source signer is rejected.
+- **Replay protection**: the per-key nonce (against the permanent record) and the `{epoch, epoch+1}` reward-epoch freshness window bound reuse of a backup envelope.
+
+## Data-Provider Security Properties
+
+These properties apply to the Shamir-based data-provider backup/restore flow.
 
 ### RandomNonce Binding
 

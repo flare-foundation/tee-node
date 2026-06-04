@@ -9,6 +9,9 @@
 | `PROXY_URL`      | (empty) | Initial proxy URL, can be updated at runtime via config server        |
 | `INITIAL_OWNER`  | (empty) | Hex-encoded Ethereum address (20 bytes), optional `0x` prefix         |
 | `EXTENSION_ID`   | `MaxHash` | Hex-encoded 32-byte hash, optional `0x` prefix. Defaults to `MaxHash` if not set. |
+| `CHAIN_ID`       | (unset) | EVM chain ID (decimal or `0x`). Bound into every domain-separated signed payload (see [Cryptography](cryptography.md)). Set once via env or config server; `0` is rejected. |
+| `GOVERNANCE_SIGNERS`   | (unset) | Comma-separated `0x`-prefixed Ethereum addresses authorized to sign `SET_MACHINE_PATH_LIST`. Must be set together with `GOVERNANCE_THRESHOLD`. |
+| `GOVERNANCE_THRESHOLD` | (unset) | Minimum number of *distinct* `GOVERNANCE_SIGNERS` signatures required per machine-path list. Must be `>= 1` and `<=` the number of signers. |
 | `CONFIG_PORT`    | `5500`  | Port for the configuration HTTP server                                |
 | `SIGN_PORT`      | `8888`  | Port for the extension sign/decrypt server                            |
 | `EXTENSION_PORT` | `8889`  | Port where the extension service listens                              |
@@ -76,6 +79,24 @@ Sets the extension machine ID. This endpoint may only be called once; subsequent
 { "extensionId": "0xaabbccdd..." }
 ```
 
+### POST /chain-id
+
+Sets the EVM chain ID bound into signed payloads. This endpoint may only be called once; subsequent calls are rejected, and `0` is rejected.
+
+```json
+{ "chainId": 14 }
+```
+
+### POST /governance
+
+Sets the governance signer set and threshold that authorize `SET_MACHINE_PATH_LIST`. This endpoint may only be called once; subsequent calls are rejected. The threshold must be `>= 1` and `<=` the number of signers, and no signer may be the zero address.
+
+```json
+{ "signers": ["0xaabb...", "0xccdd..."], "threshold": 2 }
+```
+
+> **Note:** As with the other config endpoints, these setters are unauthenticated; security relies on network-level access control of `CONFIG_PORT`. Each value can alternatively (and preferably) be fixed at deploy time via its environment variable, which is read during node initialization *before* the config server starts and therefore closes any post-start window. See [Security](security.md#config-server).
+
 ## Startup Sequence
 
 1. Logger initialized with configured level
@@ -86,7 +107,11 @@ Sets the extension machine ID. This endpoint may only be called once; subsequent
 6. Router created with all processors registered
 7. Queue processing started (Main, Direct, Backup queues)
 
+During node initialization the env vars for the initial owner, extension ID, chain ID, and governance (signers + threshold) are read; each takes precedence over the corresponding config-server endpoint.
+
 The TEE node will not process any actions until:
 
 - A proxy URL is configured (via env var or config server)
 - A signing policy is initialized (via `INITIALIZE_POLICY` direct action)
+
+Additionally, direct TEE-to-TEE backup/restore (`KEY_DIRECT_BACKUP` / `KEY_DIRECT_RESTORE`) requires governance to be configured and a machine-path list to be installed via `SET_MACHINE_PATH_LIST`. See [Backup & Restore](backup-restore.md#direct-backup--restore-tee-to-tee).

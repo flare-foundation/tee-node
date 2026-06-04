@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 
-	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/structs"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/structs/wallet"
 	"github.com/flare-foundation/tee-node/internal/attestation"
@@ -12,6 +11,7 @@ import (
 	"github.com/flare-foundation/tee-node/pkg/node"
 	"github.com/flare-foundation/tee-node/pkg/policy"
 	"github.com/flare-foundation/tee-node/pkg/types"
+	"github.com/flare-foundation/tee-node/pkg/utils"
 
 	"github.com/flare-foundation/tee-node/pkg/wallets"
 )
@@ -51,7 +51,11 @@ func (p *Processor) TEEInfo(_ context.Context, i *types.DirectInstruction) ([]by
 		return nil, err
 	}
 
-	mdHash, err := response.MachineData.Hash()
+	mdDataHash, err := response.MachineData.DataHash()
+	if err != nil {
+		return nil, err
+	}
+	mdHash, err := utils.DomainHash(types.TeeMachineRegisterTag, info.ChainID, mdDataHash)
 	if err != nil {
 		return nil, err
 	}
@@ -118,8 +122,15 @@ func (p *Processor) KeysProof(_ context.Context, i *types.DirectInstruction) ([]
 		if err != nil {
 			return nil, err
 		}
-		hash := crypto.Keccak256(epEncoded)
-		signature, err := p.Sign(hash)
+		dataHash, err := types.KeyExistenceDataHash(ep)
+		if err != nil {
+			return nil, err
+		}
+		hash, err := utils.DomainHash(types.TeeKeyExistenceTag, p.Info().ChainID, dataHash)
+		if err != nil {
+			return nil, err
+		}
+		signature, err := p.Sign(hash[:])
 		if err != nil {
 			return nil, err
 		}

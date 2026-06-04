@@ -28,7 +28,8 @@ The TEE node can run in two modes, determined by which router is used at startup
 
 Used by `cmd/main.go` with `NewPMWRouter`. This is the **Protocol Managed Wallet** service, known on-chain as **Extension 0**. It provides the full built-in feature set:
 
-- Wallet management (generate, delete, backup, restore)
+- Wallet management (generate, delete, backup, restore, including direct TEE-to-TEE key backup/restore)
+- Governance machine-path management (`SET_MACHINE_PATH_LIST`)
 - XRP Ledger transaction signing (Pay, Reissue)
 - VRF proof generation
 - FDC attestation proving
@@ -43,7 +44,7 @@ Used with `NewForwardRouter`. This mode provides **base wallet management capabi
 ```
 TEE Node (Extension Mode)
   |
-  +-- Built-in: Wallet ops, Policy, TEEInfo, TEEBackup, Attestation
+  +-- Built-in: Wallet ops (incl. direct backup/restore), Policy, Governance, TEEInfo, TEEBackup, Attestation
   |
   +-- Forwarded to extension (port 8889):
       +-- Unrecognized direct actions
@@ -99,6 +100,8 @@ The config server (port 5500) accepts runtime configuration:
 - `/proxy` - Set/update proxy URL
 - `/initial-owner` - Set initial owner address (once)
 - `/extension-id` - Set extension machine ID (once)
+- `/chain-id` - Set the EVM chain ID bound into signed payloads (once)
+- `/governance` - Set the governance signer set and threshold (once)
 
 ## Action Processing Flow
 

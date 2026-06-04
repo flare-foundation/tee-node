@@ -16,6 +16,9 @@ func Setup(t *testing.T) (*node.Node, *policy.Storage, *wallets.Storage) {
 	node, err := node.Initialize(node.ZeroState{})
 	require.NoError(t, err)
 
+	// A chain ID is required to sign machine data for registration.
+	require.NoError(t, node.SetChainID(uint64(31337)))
+
 	ps := policy.InitializeStorage()
 	ws := wallets.InitializeStorage()
 

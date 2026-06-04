@@ -37,7 +37,7 @@ import (
 // instruction and returns its existence proof, for tests purposes.
 func CreateMockWallet(
 	t *testing.T,
-	iSndD node.IdentifierSignerAndDecrypter,
+	iSndD node.WalletNode,
 	ps *policy.Storage,
 	ws *wallets.Storage,
 	walletID common.Hash,
@@ -100,7 +100,7 @@ func CreateMockWallet(
 	walletProofBytes, _, err := proc.KeyGenerate(context.Background(), types.Threshold, &instructionDataFixed, nil, nil, nil)
 	require.NoError(t, err)
 
-	walletExistenceProof, err := wallets.ExtractKeyExistence(walletProofBytes, iSndD.TeeID())
+	walletExistenceProof, err := wallets.ExtractKeyExistence(walletProofBytes, iSndD.TeeID(), uint64(31337))
 	require.NoError(t, err)
 
 	require.NoError(t, err)

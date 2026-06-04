@@ -2,7 +2,6 @@ package backup
 
 import (
 	"crypto/ecdsa"
-	"crypto/rand"
 	"encoding/json"
 	"errors"
 	"slices"
@@ -17,7 +16,6 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/crypto/ecies"
 )
 
 const NormalizationConstant = 1000
@@ -193,12 +191,7 @@ func SplitAndEncrypt(
 			return nil, err
 		}
 
-		pubKey, err := utils.ECDSAPubKeyToECIES(encryptionPubKeys[i])
-		if err != nil {
-			return nil, err
-		}
-
-		cipher, err := ecies.Encrypt(rand.Reader, pubKey, plaintext, nil, nil)
+		cipher, err := utils.Encrypt(plaintext, encryptionPubKeys[i])
 		if err != nil {
 			return nil, err
 		}

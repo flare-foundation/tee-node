@@ -19,6 +19,7 @@ import (
 	"github.com/flare-foundation/tee-node/internal/settings"
 	"github.com/flare-foundation/tee-node/pkg/node"
 	"github.com/flare-foundation/tee-node/pkg/types"
+	"github.com/flare-foundation/tee-node/pkg/utils"
 	"github.com/flare-foundation/tee-node/pkg/wallets"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -219,7 +220,7 @@ func TestDecryptWithKey(t *testing.T) {
 	// Create test encrypted message (this is a dummy encrypted message for testing)
 	message := []byte("encrypted test message")
 
-	encryptedMessage, err := encrypt(message, &wallets.ToECDSAUnsafe(wallet.PrivateKey).PublicKey)
+	encryptedMessage, err := utils.Encrypt(message, &wallets.ToECDSAUnsafe(wallet.PrivateKey).PublicKey)
 	require.NoError(t, err)
 
 	// Create request body
@@ -251,7 +252,7 @@ func TestDecryptWithTee(t *testing.T) {
 
 	teePubKey, err := types.ParsePubKey(server.node.Info().PublicKey)
 	require.NoError(t, err)
-	encryptedMessage, err := encrypt(message, teePubKey)
+	encryptedMessage, err := utils.Encrypt(message, teePubKey)
 	require.NoError(t, err)
 
 	// Create request body

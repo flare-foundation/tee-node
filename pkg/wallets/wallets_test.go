@@ -431,9 +431,13 @@ func TestExtractKeyExistence(t *testing.T) {
 		keyExistenceBytes, err := structs.Encode(wallet.KeyExistenceStructArg, keyExistence)
 		require.NoError(t, err)
 
-		// Sign the hash
-		hash := crypto.Keccak256(keyExistenceBytes)
-		signature, err := utils.Sign(hash, teePrivKey)
+		// Sign the canonical chain-bound preimage matching what
+		// WalletKeyManagerFacet.confirmKey recovers against.
+		dataHash, err := types.KeyExistenceDataHash(keyExistence)
+		require.NoError(t, err)
+		hash, err := utils.DomainHash(types.TeeKeyExistenceTag, uint64(31337), dataHash)
+		require.NoError(t, err)
+		signature, err := utils.Sign(hash[:], teePrivKey)
 		require.NoError(t, err)
 
 		// Build SignedKeyExistenceProof struct and encode it
@@ -447,7 +451,7 @@ func TestExtractKeyExistence(t *testing.T) {
 		proofJSON, err := json.Marshal(signedProof)
 		require.NoError(t, err)
 
-		ret, err := ExtractKeyExistence(proofJSON, teeID)
+		ret, err := ExtractKeyExistence(proofJSON, teeID, uint64(31337))
 		require.NoError(t, err)
 		require.NotNil(t, ret)
 		require.Equal(t, keyExistence.WalletId, ret.WalletId)
@@ -464,13 +468,13 @@ func TestExtractKeyExistence(t *testing.T) {
 	})
 
 	t.Run("fails on malformed json", func(t *testing.T) {
-		_, err := ExtractKeyExistence([]byte("not a json"), teeID)
+		_, err := ExtractKeyExistence([]byte("not a json"), teeID, uint64(31337))
 		require.Error(t, err)
 	})
 
 	t.Run("fails on missing expected fields in json", func(t *testing.T) {
 		bad := []byte(`{}`)
-		_, err := ExtractKeyExistence(bad, teeID)
+		_, err := ExtractKeyExistence(bad, teeID, uint64(31337))
 		require.Error(t, err)
 	})
 }

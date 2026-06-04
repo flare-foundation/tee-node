@@ -96,7 +96,7 @@ func (p Processor) Process(ctx context.Context, a *types.Action) types.ActionRes
 	return result
 }
 
-func preprocess(a *types.Action, data *instruction.DataFixed, pStorage *policy.Storage, teeId common.Address) ([]common.Address, *cpolicy.SigningPolicy, error) {
+func preprocess(a *types.Action, data *instruction.DataFixed, pStorage *policy.Storage, teeID common.Address) ([]common.Address, *cpolicy.SigningPolicy, error) {
 	pStorage.RLock()
 	signingPolicy, err := pStorage.SigningPolicy(data.RewardEpochID)
 	if err != nil {
@@ -115,7 +115,7 @@ func preprocess(a *types.Action, data *instruction.DataFixed, pStorage *policy.S
 		return nil, nil, err
 	}
 
-	err = validateInstructionData(data, a.AdditionalVariableMessages, teeId, a.Data.ID)
+	err = validateInstructionData(data, a.AdditionalVariableMessages, teeID, a.Data.ID)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -133,7 +133,8 @@ func preprocess(a *types.Action, data *instruction.DataFixed, pStorage *policy.S
 	return signers, signingPolicy, nil
 }
 
-// validateInstructionData validates the instruction data and counts the votes.
+// validateInstructionData validates the instruction data and counts the
+// votes.
 func validateInstructionData(data *instruction.DataFixed, additionalVariableMessages []hexutil.Bytes, expectedTeeID common.Address, actionID common.Hash) error {
 	if data.TeeID != expectedTeeID {
 		return errors.New("unexpected tee ID")

@@ -74,5 +74,5 @@ func buildSignedTx(inst payments.ITeePaymentsPaymentInstructionMessage, privateK
 		return nil, errors.New("invalid signer item") // cannot happen
 	}
 
-	return signing.JoinMultisigJSON(tx, signerItems), nil
+	return signing.JoinMultisigJSON(tx, signerItems)
 }
