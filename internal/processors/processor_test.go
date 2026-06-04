@@ -30,6 +30,7 @@ import (
 	"github.com/flare-foundation/go-flare-common/pkg/xrpl/signing/secp256k1"
 	"github.com/flare-foundation/go-flare-common/pkg/xrpl/signing/signer"
 
+	"github.com/flare-foundation/go-flare-common/pkg/tee/structs/machinepath"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/structs/wallet"
 	"github.com/flare-foundation/tee-node/internal/router"
 	"github.com/flare-foundation/tee-node/internal/settings"
@@ -47,6 +48,21 @@ import (
 
 func TestProcessorsEndToEnd(t *testing.T) {
 	testNode, pStorage, wStorage := testutils.Setup(t)
+
+	// Governance signers that authorize SET_MACHINE_PATH_LIST later in
+	// the flow.
+	const govThreshold = uint64(2)
+	govPrivKeys := make([]*ecdsa.PrivateKey, 3)
+	govAddresses := make([]common.Address, len(govPrivKeys))
+	for i := range govPrivKeys {
+		pk, err := crypto.GenerateKey()
+		require.NoError(t, err)
+		govPrivKeys[i] = pk
+		govAddresses[i] = crypto.PubkeyToAddress(pk.PublicKey)
+	}
+	require.NoError(t, testNode.SetGovernance(govAddresses, govThreshold))
+	// testutils.Setup already configures this chain ID on the node.
+	const testChainID uint64 = 31337
 
 	numVoters, startingEpochID := 100, uint32(1)
 	finalEpochID := startingEpochID + 1
@@ -112,6 +128,9 @@ func TestProcessorsEndToEnd(t *testing.T) {
 
 	initializePolicy(t, mainActionInfoChan, actionResponseChan, providerPrivKeys, providerAddresses,
 		startingEpochID)
+	setMachinePathList(t, mainActionInfoChan, actionResponseChan, teeID,
+		testNode.Info().ExtensionID, testChainID,
+		[]common.Address{teeID}, []common.Address{teeID}, 1, govPrivKeys[:int(govThreshold)])
 
 	var walletID = common.HexToHash("0xabcdef")
 	var keyID = uint64(1)
@@ -139,20 +158,35 @@ func TestProcessorsEndToEnd(t *testing.T) {
 	recoveredWalletProof := recoverWallet(t, mainActionInfoChan, actionResponseChan, teeID, teePubKey, walletID, keyID,
 		providerPrivKeys, adminPrivKeys, finalEpochID, nonce, walletBackup, wStorage)
 	walletProof.Restored = true
-	walletProof.Nonce = nonce
+	walletProof.Nonce.Set(nonce)
 	require.Equal(t, walletProof, recoveredWalletProof)
 
 	nonce.Add(nonce, common.Big1)
 	recoveredVRFWalletProof := recoverWallet(t, mainActionInfoChan, actionResponseChan, teeID, teePubKey, vrfWalletID, vrfKeyID,
 		providerPrivKeys, adminPrivKeys, finalEpochID, nonce, vrfWalletBackup, wStorage)
 	randWalletProof.Restored = true
-	randWalletProof.Nonce = nonce
+	randWalletProof.Nonce.Set(nonce)
 	require.Equal(t, randWalletProof, recoveredVRFWalletProof)
+
+	directBackupEnvelope := keyDirectBackup(t, mainActionInfoChan, actionResponseChan, teeID,
+		walletID, keyID, teePubKey, 1, providerPrivKeys, finalEpochID)
+
+	nonce.Add(nonce, common.Big1)
+	deleteWallet(t, mainActionInfoChan, actionResponseChan, teeID, walletID, keyID, providerPrivKeys, finalEpochID, nonce, wStorage)
+
+	nonce.Add(nonce, common.Big1)
+	directRestoredProof := keyDirectRestore(t, mainActionInfoChan, actionResponseChan, teeID,
+		teeID, walletID, keyID, nonce.Uint64(), 1, directBackupEnvelope, providerPrivKeys, finalEpochID, wStorage)
+
+	require.Greater(t, directRestoredProof.Nonce.Uint64(), walletProof.Nonce.Uint64(),
+		"direct restore must bump the wallet nonce above the previous restored value")
+	walletProof.Nonce.Set(nonce)
+	require.Equal(t, walletProof, directRestoredProof)
 
 	getTeeAttestation(t, mainActionInfoChan, actionResponseChan, teeID,
 		providerPrivKeys, finalEpochID)
 
-	fdcProve(t, mainActionInfoChan, actionResponseChan, teeID, providerPrivKeys, adminPrivKeys, finalEpochID)
+	fdcProve(t, mainActionInfoChan, actionResponseChan, teeID, testChainID, providerPrivKeys, adminPrivKeys, finalEpochID)
 
 	updatePolicy(t, mainActionInfoChan, actionResponseChan, providerPrivKeys, providerAddresses, finalEpochID+1)
 }
@@ -197,6 +231,204 @@ func updatePolicy(t *testing.T,
 	installed, _, err := commonpolicy.FromRawBytes(newPolicy.RawBytes())
 	require.NoError(t, err)
 	require.Equal(t, newEpochID, installed.RewardEpochID)
+}
+
+// setMachinePathList submits a SET_MACHINE_PATH_LIST direct action signed
+// by the given governance keys and asserts the response is accepted by
+// the node.
+func setMachinePathList(
+	t *testing.T,
+	actionInfoChan chan *types.Action,
+	actionResponseChan chan *types.ActionResponse,
+	teeID common.Address,
+	extensionID common.Hash,
+	chainID uint64,
+	source, destination []common.Address,
+	nonce uint64,
+	govPrivKeys []*ecdsa.PrivateKey,
+) {
+	t.Helper()
+
+	paths := []machinepath.IMachinePathManagerMachinePath{{SourceTeeIds: source, DestinationTeeIds: destination}}
+	dataHash, err := types.MachinePathListDataHash(extensionID, nonce, paths)
+	require.NoError(t, err)
+	hash, err := utils.DomainHash(types.MachinePathListDomainTag, chainID, dataHash)
+	require.NoError(t, err)
+
+	sigs := make([][]byte, len(govPrivKeys))
+	for i, k := range govPrivKeys {
+		sig, err := utils.Sign(hash.Bytes(), k)
+		require.NoError(t, err)
+		sigs[i] = sig
+	}
+
+	req := &types.SetMachinePathListRequest{
+		Paths:      paths,
+		Nonce:      nonce,
+		Signatures: sigs,
+	}
+
+	action := testutils.BuildMockDirectAction(t, op.Governance, op.SetMachinePathList, req)
+	actionInfoChan <- action
+
+	response := <-actionResponseChan
+	require.Equal(t, uint8(1), response.Result.Status, response.Result.Log)
+	err = utils.VerifySignature(response.Result.Hash(), response.Signature, teeID)
+	require.NoError(t, err)
+}
+
+// keyDirectBackup drives a KEY_DIRECT_BACKUP instruction through both
+// submission phases and returns the signed envelope produced during the
+// Threshold phase.
+func keyDirectBackup(
+	t *testing.T,
+	actionInfoChan chan *types.Action,
+	actionResponseChan chan *types.ActionResponse,
+	teeID common.Address,
+	walletID [32]byte,
+	keyID uint64,
+	destinationPubKey *ecdsa.PublicKey,
+	machinePathListNonce uint64,
+	providerPrivKeys []*ecdsa.PrivateKey,
+	rewardEpochID uint32,
+) []byte {
+	t.Helper()
+
+	destinationPub := types.PubKeyToStruct(destinationPubKey)
+	originalMessage := wallet.IWalletBackupManagerKeyDirectBackup{
+		SourceTeeId:             teeID,
+		WalletId:                walletID,
+		KeyId:                   keyID,
+		DestinationTeePublicKey: wallet.PublicKey{X: destinationPub.X, Y: destinationPub.Y},
+		MachinePathListNonce:    new(big.Int).SetUint64(machinePathListNonce),
+	}
+	originalMessageEncoded, err := abi.Arguments{wallet.MessageArguments[op.KeyDirectBackup]}.Pack(originalMessage)
+	require.NoError(t, err)
+
+	action := testutils.BuildMockInstructionAction(
+		t, op.Wallet, op.KeyDirectBackup, originalMessageEncoded,
+		providerPrivKeys, teeID, rewardEpochID,
+		nil, nil, nil, 0, types.Threshold, uint64(time.Now().Unix()),
+	)
+	actionInfoChan <- action
+
+	response := <-actionResponseChan
+	require.Equal(t, uint8(1), response.Result.Status, response.Result.Log)
+	err = utils.VerifySignature(response.Result.Hash(), response.Signature, teeID)
+	require.NoError(t, err)
+
+	envelope := append([]byte(nil), response.Result.Data...)
+	require.NotEmpty(t, envelope)
+
+	action = testutils.BuildMockInstructionAction(
+		t, op.Wallet, op.KeyDirectBackup, originalMessageEncoded,
+		providerPrivKeys, teeID, rewardEpochID,
+		nil, nil, nil, 0, types.End, uint64(time.Now().Unix()),
+	)
+	actionInfoChan <- action
+
+	response = <-actionResponseChan
+	require.Equal(t, uint8(1), response.Result.Status, response.Result.Log)
+	err = utils.VerifySignature(response.Result.Hash(), response.Signature, teeID)
+	require.NoError(t, err)
+
+	var signerSequence types.RewardingData
+	err = json.Unmarshal(response.Result.Data, &signerSequence)
+	require.NoError(t, err)
+	err = utils.VerifySignature(signerSequence.VoteSequence.VoteHash[:], signerSequence.Signature, teeID)
+	require.NoError(t, err)
+
+	return envelope
+}
+
+// keyDirectRestore drives a KEY_DIRECT_RESTORE instruction through both
+// submission phases and returns the signed key existence proof produced
+// during the Threshold phase.
+func keyDirectRestore(
+	t *testing.T,
+	actionInfoChan chan *types.Action,
+	actionResponseChan chan *types.ActionResponse,
+	teeID common.Address,
+	sourceTeeID common.Address,
+	walletID [32]byte,
+	keyID uint64,
+	destinationNonce uint64,
+	machinePathListNonce uint64,
+	envelopeBytes []byte,
+	providerPrivKeys []*ecdsa.PrivateKey,
+	rewardEpochID uint32,
+	wStorage *wallets.Storage,
+) *wallet.IWalletKeyManagerKeyExistence {
+	t.Helper()
+
+	// Mirror the source's BackupID into the instruction so the
+	// destination's identity cross-check accepts.
+	var env types.SignedKeyDirectBackup
+	require.NoError(t, json.Unmarshal(envelopeBytes, &env))
+	var payload backup.KeyDirectBackupPayload
+	require.NoError(t, json.Unmarshal(env.Payload, &payload))
+
+	instructionID, err := random.Hash()
+	require.NoError(t, err)
+
+	originalMessage := wallet.IWalletBackupManagerKeyDirectRestore{
+		SourceTeeId:    sourceTeeID,
+		SourceProxyUrl: "test-proxy",
+		BackupId: wallet.IWalletBackupManagerBackupId{
+			TeeId:         payload.BackupID.TeeID,
+			WalletId:      payload.BackupID.WalletID,
+			KeyId:         payload.BackupID.KeyID,
+			KeyType:       payload.BackupID.KeyType,
+			SigningAlgo:   payload.BackupID.SigningAlgo,
+			PublicKey:     append([]byte(nil), payload.BackupID.PublicKey...),
+			RewardEpochId: payload.BackupID.RewardEpochID,
+			RandomNonce:   payload.BackupID.RandomNonce,
+		},
+		BackupInstructionId:  instructionID,
+		DestinationNonce:     new(big.Int).SetUint64(destinationNonce),
+		MachinePathListNonce: new(big.Int).SetUint64(machinePathListNonce),
+	}
+	originalMessageEncoded, err := abi.Arguments{wallet.MessageArguments[op.KeyDirectRestore]}.Pack(originalMessage)
+	require.NoError(t, err)
+
+	action := testutils.BuildMockInstructionAction(
+		t, op.Wallet, op.KeyDirectRestore, originalMessageEncoded,
+		providerPrivKeys, teeID, rewardEpochID,
+		envelopeBytes, nil, nil, 0, types.Threshold, uint64(time.Now().Unix()),
+	)
+	actionInfoChan <- action
+
+	response := <-actionResponseChan
+	require.Equal(t, uint8(1), response.Result.Status, response.Result.Log)
+	err = utils.VerifySignature(response.Result.Hash(), response.Signature, teeID)
+	require.NoError(t, err)
+
+	proof, err := wallets.ExtractKeyExistence(response.Result.Data, teeID, uint64(31337))
+	require.NoError(t, err)
+
+	stored, err := wStorage.Get(wallets.KeyIDPair{WalletID: walletID, KeyID: keyID})
+	require.NoError(t, err)
+	require.True(t, stored.Restored)
+
+	action = testutils.BuildMockInstructionAction(
+		t, op.Wallet, op.KeyDirectRestore, originalMessageEncoded,
+		providerPrivKeys, teeID, rewardEpochID,
+		envelopeBytes, nil, nil, 0, types.End, uint64(time.Now().Unix()),
+	)
+	actionInfoChan <- action
+
+	response = <-actionResponseChan
+	require.Equal(t, uint8(1), response.Result.Status, response.Result.Log)
+	err = utils.VerifySignature(response.Result.Hash(), response.Signature, teeID)
+	require.NoError(t, err)
+
+	var signerSequence types.RewardingData
+	err = json.Unmarshal(response.Result.Data, &signerSequence)
+	require.NoError(t, err)
+	err = utils.VerifySignature(signerSequence.VoteSequence.VoteHash[:], signerSequence.Signature, teeID)
+	require.NoError(t, err)
+
+	return proof
 }
 
 func setProxyURL(t *testing.T, proxyPort, setProxyPort int) {
@@ -337,7 +569,7 @@ func generateWallet(
 	err = utils.VerifySignature(response.Result.Hash(), response.Signature, teeID)
 	require.NoError(t, err)
 
-	walletExistenceProof, err := wallets.ExtractKeyExistence(response.Result.Data, teeID)
+	walletExistenceProof, err := wallets.ExtractKeyExistence(response.Result.Data, teeID, uint64(31337))
 	require.NoError(t, err)
 
 	newWallet, err := wStorage.Get(wallets.KeyIDPair{WalletID: walletID, KeyID: keyID})
@@ -836,7 +1068,7 @@ func recoverWallet(
 	err = utils.VerifySignature(response.Result.Hash(), response.Signature, teeID)
 	require.NoError(t, err)
 
-	walletExistenceProof, err := wallets.ExtractKeyExistence(response.Result.Data, teeID)
+	walletExistenceProof, err := wallets.ExtractKeyExistence(response.Result.Data, teeID, uint64(31337))
 	require.NoError(t, err)
 
 	// check that commonwallet is actually on the tee
@@ -940,6 +1172,7 @@ func fdcProve(
 	actionInfoChan chan *types.Action,
 	actionResponseChan chan *types.ActionResponse,
 	teeID common.Address,
+	chainID uint64,
 	providerPrivKeys, cosignerPrivKeys []*ecdsa.PrivateKey,
 	rewardEpochID uint32,
 ) {
@@ -986,13 +1219,17 @@ func fdcProve(
 	require.NoError(t, err)
 
 	timestamp := uint64(time.Now().Unix())
-	fdcMsgHash, msgHash, _, _, err := fdc.HashMessage(originalMessage, additionalFixedMessageEncoded, cosignerAddresses, cosignersThreshold, timestamp)
+	messageHash, _, err := fdc.HashMessage(chainID, originalMessage, additionalFixedMessageEncoded, cosignerAddresses, cosignersThreshold, timestamp)
 	require.NoError(t, err)
+	// Data providers and cosigners sign the Relay Mode-2 prefixed hash, not
+	// messageHash directly — see fdc.RelayPrefixedHash docs and the
+	// Verification.toCosignersMessageHash on-chain helper.
+	dpSigningHash := fdc.RelayPrefixedHash(messageHash)
 
 	variableMessages := make([][]byte, 0, len(providerPrivKeys)+len(cosignerPrivKeys))
 	privKeys := make([]*ecdsa.PrivateKey, 0, len(providerPrivKeys)+len(cosignerPrivKeys))
 	for _, privKey := range providerPrivKeys {
-		variableMessage, err := utils.Sign(fdcMsgHash[:], privKey)
+		variableMessage, err := utils.Sign(dpSigningHash[:], privKey)
 		require.NoError(t, err)
 
 		variableMessages = append(variableMessages, variableMessage)
@@ -1002,7 +1239,7 @@ func fdcProve(
 		if _, check := cosignerAndProvider[crypto.PubkeyToAddress(privKey.PublicKey)]; check {
 			continue
 		}
-		variableMessage, err := utils.Sign(fdcMsgHash[:], privKey)
+		variableMessage, err := utils.Sign(dpSigningHash[:], privKey)
 		require.NoError(t, err)
 
 		variableMessages = append(variableMessages, variableMessage)
@@ -1025,12 +1262,13 @@ func fdcProve(
 	err = json.Unmarshal(actionResponse.Result.Data, &fdcResponse)
 	require.NoError(t, err)
 
-	err = utils.VerifySignature(msgHash.Bytes(), fdcResponse.TEESignature, teeID)
+	err = utils.VerifySignature(messageHash.Bytes(), fdcResponse.TEESignature, teeID)
 	require.NoError(t, err)
 
 	require.Equal(t, len(fdcResponse.CosignerSignatures), len(cosignerPrivKeys))
 	for _, signature := range fdcResponse.CosignerSignatures {
-		_, err = utils.CheckSignature(fdcMsgHash.Bytes(), signature, cosignerAddresses)
+		// Cosigners sign the Relay Mode-2 prefixed hash, not messageHash itself.
+		_, err = utils.CheckSignature(dpSigningHash.Bytes(), signature, cosignerAddresses)
 		require.NoError(t, err)
 	}
 	require.Equal(t, fdcResponse.ResponseBody, additionalFixedMessageEncoded)
@@ -1041,7 +1279,7 @@ func fdcProve(
 		providerAddresses[i] = crypto.PubkeyToAddress(k.PublicKey)
 	}
 	testutils.VerifyEncodedDataProviderSignatures(
-		t, fdcResponse.DataProviderSignatures, fdcMsgHash, providerAddresses, len(providerPrivKeys),
+		t, fdcResponse.DataProviderSignatures, messageHash, providerAddresses, len(providerPrivKeys),
 	)
 
 	// generate action sent when voting closed

@@ -134,13 +134,21 @@ func (wb *WalletBackup) HashForSigning() (common.Hash, error) {
 
 // Check validates the metadata and share alignment in the wallet backup.
 func (wb *WalletBackup) Check() error {
+	if wb.AdminEncryptedParts == nil {
+		return errors.New("admin encrypted parts not present not matching given data")
+	}
+
+	if wb.ProviderEncryptedParts == nil {
+		return errors.New("provider encrypted parts not present not matching given data")
+	}
+
 	err := wb.AdminEncryptedParts.Check()
 	if err != nil {
-		return err
+		return fmt.Errorf("admin parts check: %w", err)
 	}
 	err = wb.ProviderEncryptedParts.Check()
 	if err != nil {
-		return err
+		return fmt.Errorf("provider parts check: %w", err)
 	}
 
 	if wb.AdminsThreshold != wb.AdminEncryptedParts.Threshold {
@@ -195,11 +203,7 @@ func (e *EncryptedShares) Check() error {
 
 // DecryptSplit decrypts an encrypted key split and verifies its integrity.
 func DecryptSplit(encryptedShare []byte, privKeyECDSA *ecdsa.PrivateKey) (*KeySplit, error) {
-	privKeyDecryption, err := utils.ECDSAPrivKeyToECIES(privKeyECDSA)
-	if err != nil {
-		return nil, err
-	}
-	shareBytes, err := privKeyDecryption.Decrypt(encryptedShare, nil, nil)
+	shareBytes, err := utils.Decrypt(encryptedShare, privKeyECDSA)
 	if err != nil {
 		return nil, err
 	}

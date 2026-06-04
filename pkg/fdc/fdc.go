@@ -1,23 +1,30 @@
 package fdc
 
 import (
-	"bytes"
-
+	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/flare-foundation/go-flare-common/pkg/convert"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/structs"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/structs/fdc2"
+	"github.com/flare-foundation/tee-node/pkg/utils"
 )
+
+// FDC2DomainTag is Solidity bytes32("FDC2"), the domain separator the
+// on-chain Verification facet binds into every FDC2 attestation-proof
+// signed payload (TEE availability check, PMW multisig configured,
+// etc.).
+var FDC2DomainTag, _ = convert.StringToCommonHash("FDC2")
 
 // ProveResponse represents the response structure for F_FDC2 PROVE opCommand.
 type ProveResponse struct {
-	ResponseHeader         hexutil.Bytes
-	RequestBody            hexutil.Bytes
-	ResponseBody           hexutil.Bytes
-	TEESignature           hexutil.Bytes
-	CosignerSignatures     []hexutil.Bytes
-	DataProviderSignatures hexutil.Bytes
+	ResponseHeader         hexutil.Bytes   `json:"responseHeader"`
+	RequestBody            hexutil.Bytes   `json:"requestBody"`
+	ResponseBody           hexutil.Bytes   `json:"responseBody"`
+	TEESignature           hexutil.Bytes   `json:"teeSignature"`
+	CosignerSignatures     []hexutil.Bytes `json:"cosignerSignatures"`
+	DataProviderSignatures hexutil.Bytes   `json:"dataProviderSignatures"`
 }
 
 // EncodeRequest encodes an FDC2 attestation request to bytes.
@@ -50,14 +57,47 @@ func DecodeResponse(data []byte) (fdc2.IFdc2HubFdc2ResponseHeader, error) {
 	return header, nil
 }
 
-// HashMessage creates a hash of the FDC message components.
+// relayDirectSigningPrefix matches the on-chain Relay Mode-2 message header
+// for protocolId=1 (direct message signing): 1B protocolId || 4B
+// votingRoundId || 1B isSecureRandom, all zeros except the leading 0x01.
+// It mirrors the bytes Verification.toCosignersMessageHash prepends and
+// must stay in sync with Relay.sol's MESSAGE_BYTES layout.
+var relayDirectSigningPrefix = []byte{0x01, 0x00, 0x00, 0x00, 0x00, 0x00}
+
+// RelayPrefixedHash returns keccak256(0x010000000000 || messageHash) — the
+// inner hash that both cosigner signatures (Verification.toCosignersMessageHash)
+// and signing-policy data-provider signatures (Relay.relay() Mode 2,
+// protocolId=1) are recovered against. eth_sign-wrap this value before
+// signing or recovering. Returns a 32-byte hash.
+//
+// The TEE's own signature path (Verification._verifyTeeSignature) recovers
+// against the bare messageHash, so do not use this helper there.
+func RelayPrefixedHash(messageHash common.Hash) common.Hash {
+	buf := make([]byte, 0, len(relayDirectSigningPrefix)+32)
+	buf = append(buf, relayDirectSigningPrefix...)
+	buf = append(buf, messageHash[:]...)
+	return crypto.Keccak256Hash(buf)
+}
+
+// HashMessage returns the SignedPayload preimage the on-chain Verification
+// facet recovers FDC2 signatures against:
+//
+//	utils.DomainHash(FDC2DomainTag, chainID, keccak256(abi.encode(
+//	    keccak256(abi.encode(header)),
+//	    keccak256(abi.encode(requestBody)),
+//	    keccak256(abi.encode(responseBody)),
+//	)))
+//
+// The encoded header is returned alongside so callers can embed it verbatim
+// in the proof response.
 func HashMessage(
+	chainID uint64,
 	req fdc2.IFdc2HubFdc2AttestationRequest,
 	responseBody []byte,
 	cosigners []common.Address,
 	cosignersThreshold uint64,
 	timestamp uint64,
-) (common.Hash, common.Hash, hexutil.Bytes, hexutil.Bytes, error) {
+) (common.Hash, hexutil.Bytes, error) {
 	header := fdc2.IFdc2HubFdc2ResponseHeader{
 		AttestationType:    req.Header.AttestationType,
 		SourceId:           req.Header.SourceId,
@@ -70,22 +110,30 @@ func HashMessage(
 
 	encHeader, err := EncodeResponseHeader(header)
 	if err != nil {
-		return common.Hash{}, common.Hash{}, nil, nil, err
+		return common.Hash{}, nil, err
 	}
 
-	headerHash := crypto.Keccak256(encHeader)
-	reqBodyHash := crypto.Keccak256(req.RequestBody)
-	resBodyHash := crypto.Keccak256(responseBody)
+	headerHash := crypto.Keccak256Hash(encHeader)
+	requestBodyHash := crypto.Keccak256Hash(req.RequestBody)
+	responseBodyHash := crypto.Keccak256Hash(responseBody)
 
-	msgHash := crypto.Keccak256Hash(headerHash, reqBodyHash, resBodyHash)
+	bytes32Ty, err := abi.NewType("bytes32", "", nil)
+	if err != nil {
+		return common.Hash{}, nil, err
+	}
+	innerEnc, err := abi.Arguments{
+		{Type: bytes32Ty},
+		{Type: bytes32Ty},
+		{Type: bytes32Ty},
+	}.Pack([32]byte(headerHash), [32]byte(requestBodyHash), [32]byte(responseBodyHash))
+	if err != nil {
+		return common.Hash{}, nil, err
+	}
+	dataHash := crypto.Keccak256Hash(innerEnc)
 
-	buffer := bytes.NewBuffer(nil)
-	buffer.WriteByte(1)           // 1 byte (protocolId=1)
-	buffer.Write(make([]byte, 5)) // 4 bytes (votingRoundId=0), 1 byte (isSecureRandom=false)
-	buffer.Write(msgHash[:])      // 32 bytes
-	msgHashPrepended := buffer.Bytes()
-
-	hashToBeSigned := crypto.Keccak256Hash(msgHashPrepended)
-
-	return hashToBeSigned, msgHash, msgHashPrepended, encHeader, nil
+	messageHash, err := utils.DomainHash(FDC2DomainTag, chainID, dataHash)
+	if err != nil {
+		return common.Hash{}, nil, err
+	}
+	return messageHash, encHeader, nil
 }

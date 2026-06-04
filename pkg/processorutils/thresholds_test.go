@@ -123,7 +123,7 @@ func TestCheckCosigners(t *testing.T) {
 
 func TestCheckThresholds(t *testing.T) {
 	weights := []uint16{50, 30, 20}
-	policy, voters := newPolicy(weights)
+	policy, voters := newPolicy(t, weights)
 	cosigners := []common.Address{common.HexToAddress("0x65"), common.HexToAddress("0x66")}
 
 	newData := func(cosignerThreshold uint64) *instruction.DataFixed {
@@ -177,15 +177,18 @@ func TestCheckThresholds(t *testing.T) {
 	})
 }
 
-func newPolicy(weights []uint16) (*cpolicy.SigningPolicy, []common.Address) {
+func newPolicy(t *testing.T, weights []uint16) (*cpolicy.SigningPolicy, []common.Address) {
+	t.Helper()
+
 	addresses := make([]common.Address, len(weights))
 	for i := range weights {
 		addresses[i] = common.BigToAddress(big.NewInt(int64(i + 1)))
 	}
 
-	return &cpolicy.SigningPolicy{
-		Voters: voters.NewSet(addresses, weights, nil),
-	}, addresses
+	voterSet, err := voters.NewSet(addresses, weights, nil)
+	require.NoError(t, err)
+
+	return &cpolicy.SigningPolicy{Voters: voterSet}, addresses
 }
 
 func buildFDCData(t *testing.T, threshold uint16, cosigners []common.Address, cosignersThreshold uint64) *instruction.DataFixed {

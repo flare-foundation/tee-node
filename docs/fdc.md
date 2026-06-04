@@ -25,17 +25,34 @@ FDC has custom threshold logic:
 - Maximum threshold: < 10000 BIPS (100%)
 - If DP threshold < 50%, then cosigner threshold must be > 50% (one-above-50 rule)
 
+## Message Hash
+
+The proof is bound to a domain-separated, chain-bound preimage (see [Cryptography](cryptography.md#domain-separated-signed-payloads)):
+
+```
+messageHash = DomainHash(FDC2, chainID, keccak256(abi.encode(
+    keccak256(abi.encode(header)),
+    keccak256(abi.encode(requestBody)),
+    keccak256(abi.encode(responseBody)),
+)))
+```
+
+`chainID` comes from the node's configured `CHAIN_ID`. Two recovery preimages are derived from `messageHash`:
+
+- **TEE signature** recovers against `messageHash` directly (matching `Verification._verifyTeeSignature`).
+- **Data-provider and cosigner signatures** recover against the *relay-prefixed* hash `keccak256(0x01_00000000_00 || messageHash)` — the 6-byte Relay Mode-2 header (`protocolId=1`, `votingRoundId=0`, `isSecureRandom=0`) that the on-chain Relay/Verification prepend.
+
 ## Processing Flow (Threshold Phase)
 
 1. Decode FDC request from original message
-2. Compute message hash: `Keccak256(ResponseBody || Cosigners || Timestamp)`
+2. Compute `messageHash` (above) and the relay-prefixed hash
 3. For each signer:
-    - Verify signature against message hash
+    - Verify signature against the relay-prefixed hash
     - Classify as data provider or cosigner
     - Data provider signatures: create indexed signature (sorted by voter index)
     - Cosigner signatures: collected separately
-4. Prepare finalization TX input (ABI-encoded relay call with signing policy, message, and indexed signatures)
-5. Sign message hash with TEE private key
+4. Prepare finalization TX input (relay function selector, signing policy, the 6-byte direct-signing prefix, `messageHash`, and ABI-encoded indexed signatures)
+5. Sign `messageHash` with the TEE private key
 
 ## Response
 
@@ -44,9 +61,9 @@ FDC has custom threshold logic:
   "responseHeader": "<ABI-encoded header>",
   "requestBody": "<original request>",
   "responseBody": "<attestation response>",
-  "teeSignature": "<TEE signature over message hash>",
-  "dataProviderSignatures": "<ABI-encoded indexed DP signatures>",
-  "cosignerSignatures": ["<raw sig 1>", "<raw sig 2>", ...]
+  "teeSignature": "<TEE signature over messageHash>",
+  "cosignerSignatures": ["<raw sig 1>", "<raw sig 2>", ...],
+  "dataProviderSignatures": "<ABI-encoded indexed DP signatures>"
 }
 ```
 

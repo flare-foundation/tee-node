@@ -13,6 +13,7 @@ import (
 	"github.com/flare-foundation/go-flare-common/pkg/tee/op"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/structs"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/structs/wallet"
+	"github.com/flare-foundation/tee-node/pkg/types"
 	"github.com/flare-foundation/tee-node/pkg/utils"
 )
 
@@ -110,6 +111,35 @@ func ParseKeyDataProviderRestore(instructionData *instruction.DataFixed) (wallet
 	return unpacked, nil
 }
 
+// ParseKeyDirectBackup decodes the key direct-backup instruction payload.
+func ParseKeyDirectBackup(instructionData *instruction.DataFixed) (wallet.IWalletBackupManagerKeyDirectBackup, error) {
+	arg := wallet.MessageArguments[op.KeyDirectBackup]
+	var unpacked wallet.IWalletBackupManagerKeyDirectBackup
+	if err := structs.DecodeTo(arg, instructionData.OriginalMessage, &unpacked); err != nil {
+		return wallet.IWalletBackupManagerKeyDirectBackup{}, err
+	}
+	if err := nonceCheck(unpacked.MachinePathListNonce); err != nil {
+		return wallet.IWalletBackupManagerKeyDirectBackup{}, err
+	}
+	return unpacked, nil
+}
+
+// ParseKeyDirectRestore decodes the key direct-restore instruction payload.
+func ParseKeyDirectRestore(instructionData *instruction.DataFixed) (wallet.IWalletBackupManagerKeyDirectRestore, error) {
+	arg := wallet.MessageArguments[op.KeyDirectRestore]
+	var unpacked wallet.IWalletBackupManagerKeyDirectRestore
+	if err := structs.DecodeTo(arg, instructionData.OriginalMessage, &unpacked); err != nil {
+		return wallet.IWalletBackupManagerKeyDirectRestore{}, err
+	}
+	if err := nonceCheck(unpacked.DestinationNonce); err != nil {
+		return wallet.IWalletBackupManagerKeyDirectRestore{}, err
+	}
+	if err := nonceCheck(unpacked.MachinePathListNonce); err != nil {
+		return wallet.IWalletBackupManagerKeyDirectRestore{}, err
+	}
+	return unpacked, nil
+}
+
 func nonceCheck(nonce *big.Int) error {
 	if nonce == nil {
 		return errors.New("nonce not given")
@@ -127,8 +157,8 @@ type KeyIDPair struct {
 }
 
 type TEEBackupResponse struct {
-	BackupID     WalletBackupID
-	WalletBackup []byte
+	BackupID     WalletBackupID `json:"backupId"`
+	WalletBackup []byte         `json:"walletBackup"`
 }
 
 type WalletBackupID struct {
@@ -193,22 +223,32 @@ type SignedKeyExistenceProof struct {
 	Signature    hexutil.Bytes `json:"signature"`
 }
 
-// ExtractKeyExistence parses a signed existence proof from bytes.
-func ExtractKeyExistence(b []byte, teeID common.Address) (*wallet.IWalletKeyManagerKeyExistence, error) {
+// ExtractKeyExistence parses a signed existence proof from bytes and
+// verifies the TEE signature against the canonical chain-bound preimage
+// utils.DomainHash(TeeKeyExistenceTag, chainID, KeyExistenceDataHash(proof)).
+// chainID must match the chain whose WalletKeyManagerFacet.confirmKey
+// will recover the signer.
+func ExtractKeyExistence(b []byte, teeID common.Address, chainID uint64) (*wallet.IWalletKeyManagerKeyExistence, error) {
 	var wskep SignedKeyExistenceProof
 	err := json.Unmarshal(b, &wskep)
 	if err != nil {
 		return nil, err
 	}
 
-	hash := crypto.Keccak256(wskep.KeyExistence)
-	err = utils.VerifySignature(hash, wskep.Signature, teeID)
+	keyExistence, err := structs.Decode[wallet.IWalletKeyManagerKeyExistence](wallet.KeyExistenceStructArg, wskep.KeyExistence)
 	if err != nil {
 		return nil, err
 	}
 
-	keyExistence, err := structs.Decode[wallet.IWalletKeyManagerKeyExistence](wallet.KeyExistenceStructArg, wskep.KeyExistence)
+	dataHash, err := types.KeyExistenceDataHash(&keyExistence)
 	if err != nil {
+		return nil, err
+	}
+	hash, err := utils.DomainHash(types.TeeKeyExistenceTag, chainID, dataHash)
+	if err != nil {
+		return nil, err
+	}
+	if err := utils.VerifySignature(hash[:], wskep.Signature, teeID); err != nil {
 		return nil, err
 	}
 

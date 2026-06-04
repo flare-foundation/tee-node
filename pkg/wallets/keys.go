@@ -172,17 +172,7 @@ func VerifySignature(msg, signature, publicKey []byte, signingAlgo common.Hash) 
 func (w *Wallet) Decrypt(cipher []byte) ([]byte, error) {
 	switch w.SigningAlgo {
 	case XRPSignAlgo, EVMSignAlgo:
-		prv := ToECDSAUnsafe(w.PrivateKey)
-		prvDecryption, err := utils.ECDSAPrivKeyToECIES(prv)
-		if err != nil {
-			return nil, err
-		}
-		plaintext, err := prvDecryption.Decrypt(cipher, nil, nil)
-		if err != nil {
-			return nil, err
-		}
-
-		return plaintext, nil
+		return utils.Decrypt(cipher, ToECDSAUnsafe(w.PrivateKey))
 
 	default:
 		return nil, errors.New("wallet does not support decryption")

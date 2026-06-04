@@ -152,14 +152,16 @@ func (s *fdcProveTestSetup) signMessage(t *testing.T, msgHash common.Hash, privK
 	return signatures, signers
 }
 
-// signFDCMessage creates the FDC message hash and signs it with the given private keys
+// signFDCMessage creates the FDC message hash and signs the Relay Mode-2
+// prefixed form of it with the given private keys (data-provider/cosigner
+// signature path; the bare TEE-signature path uses messageHash directly).
 func (s *fdcProveTestSetup) signFDCMessage(t *testing.T, request fdc2.IFdc2HubFdc2AttestationRequest, responseBody []byte, cosigners []common.Address, cosignersThreshold uint64, timestamp uint64, privKeys []*ecdsa.PrivateKey) ([]hexutil.Bytes, []common.Address) {
 	t.Helper()
 
-	msgHash, _, _, _, err := fdc.HashMessage(request, responseBody, cosigners, cosignersThreshold, timestamp)
+	msgHash, _, err := fdc.HashMessage(uint64(31337), request, responseBody, cosigners, cosignersThreshold, timestamp)
 	require.NoError(t, err)
 
-	return s.signMessage(t, msgHash, privKeys)
+	return s.signMessage(t, fdc.RelayPrefixedHash(msgHash), privKeys)
 }
 
 // buildActionWithPolicySigners creates an Action whose signatures are valid for
@@ -179,13 +181,15 @@ func (s *fdcProveTestSetup) buildActionWithPolicySigners(
 	sigs := make([]hexutil.Bytes, 0, len(privKeys))
 	vars := make([]hexutil.Bytes, 0, len(privKeys))
 
-	// Compute FDC hash once
-	fdcHash, _, _, _, err := fdc.HashMessage(request, responseBody, cosigners, cosignersThreshold, instr.Timestamp)
+	// Compute FDC hash once. Data providers sign the Relay Mode-2 prefixed
+	// hash (matches Verification.toCosignersMessageHash + Relay.relay()).
+	fdcHash, _, err := fdc.HashMessage(uint64(31337), request, responseBody, cosigners, cosignersThreshold, instr.Timestamp)
 	require.NoError(t, err)
+	fdcDPSigningHash := fdc.RelayPrefixedHash(fdcHash)
 
 	for _, pk := range privKeys {
 		// FDC signature by provider
-		fdcSig, err := utils.Sign(fdcHash[:], pk)
+		fdcSig, err := utils.Sign(fdcDPSigningHash[:], pk)
 		require.NoError(t, err)
 
 		// Provider signature over instruction hash including variable message (the FDC sig)
@@ -426,8 +430,9 @@ func TestFDCProveEncodedDataProviderSignatures(t *testing.T) {
 	request := setup.buildFDCRequest(utils.ToHash("PMWMultisigAccountConfigured"), utils.ToHash("XRP"), 6000, setup.defaultRequestBody)
 	instr := setup.buildInstruction(t, request, setup.defaultResponseBody, setup.cosigners[:2], 1, setup.defaultTimestamp)
 
-	msgHash, _, _, _, err := fdc.HashMessage(request, setup.defaultResponseBody, setup.cosigners[:2], 1, setup.defaultTimestamp)
+	msgHash, _, err := fdc.HashMessage(uint64(31337), request, setup.defaultResponseBody, setup.cosigners[:2], 1, setup.defaultTimestamp)
 	require.NoError(t, err)
+	dpSigningHash := fdc.RelayPrefixedHash(msgHash)
 
 	// Sign with a non-sorted subset of providers to exercise the sort inside
 	// checkResponseSignatures through the final wire blob.
@@ -435,7 +440,7 @@ func TestFDCProveEncodedDataProviderSignatures(t *testing.T) {
 	sigs := make([]hexutil.Bytes, 0, len(order))
 	signers := make([]common.Address, 0, len(order))
 	for _, i := range order {
-		sig, sigErr := utils.Sign(msgHash[:], setup.privKeys[i])
+		sig, sigErr := utils.Sign(dpSigningHash[:], setup.privKeys[i])
 		require.NoError(t, sigErr)
 		sigs = append(sigs, sig)
 		signers = append(signers, setup.signers[i])
@@ -455,20 +460,21 @@ func TestFDCProveDataProviderSignaturesAreSorted(t *testing.T) {
 	setup := setupFDCProveTest(t)
 
 	request := setup.buildFDCRequest(utils.ToHash("TestAttestation"), utils.ToHash("XRP"), 5000, setup.defaultRequestBody)
-	msgHash, _, _, _, err := fdc.HashMessage(request, setup.defaultResponseBody, setup.cosigners[:3], 2, setup.defaultTimestamp)
+	msgHash, _, err := fdc.HashMessage(uint64(31337), request, setup.defaultResponseBody, setup.cosigners[:3], 2, setup.defaultTimestamp)
 	require.NoError(t, err)
+	dpSigningHash := fdc.RelayPrefixedHash(msgHash)
 
 	order := []int{10, 2, 25, 7, 0, 18, 3}
 	sigs := make([]hexutil.Bytes, 0, len(order))
 	signers := make([]common.Address, 0, len(order))
 	for _, i := range order {
-		sig, se := utils.Sign(msgHash[:], setup.privKeys[i])
+		sig, se := utils.Sign(dpSigningHash[:], setup.privKeys[i])
 		require.NoError(t, se)
 		sigs = append(sigs, sig)
 		signers = append(signers, setup.signers[i])
 	}
 
-	dpSigs, _, err := checkResponseSignatures(msgHash, sigs, signers, setup.policy.Voters, setup.cosigners[:3])
+	dpSigs, _, err := checkResponseSignatures(dpSigningHash, sigs, signers, setup.policy.Voters, setup.cosigners[:3])
 	require.NoError(t, err)
 
 	for i := 1; i < len(dpSigs); i++ {

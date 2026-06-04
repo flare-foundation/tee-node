@@ -16,12 +16,17 @@
 - **TEE ID matching**: Instructions must target this specific TEE
 - **Instruction/Action ID consistency**: Prevents cross-action replay
 - **Message sizes**: All inputs bounded by constants
-- **Nonce ordering**: Delete and restore operations require strictly increasing nonces
+- **Nonce ordering**: Delete and restore operations require strictly increasing nonces; the machine-path list requires a strictly increasing nonce
 - **Policy freshness**: Instructions can only reference recent policies (within 1 epoch)
+- **Domain separation**: Signed payloads are bound to a payload-type tag and the configured chain ID (see [Cryptography](cryptography.md#domain-separated-signed-payloads))
+- **Governance signatures**: `SET_MACHINE_PATH_LIST` requires a threshold of distinct governance-signer signatures
+- **Machine-path authorization**: Direct key transfers must be authorized by the current machine-path list for the (source, destination) TEE pair
 
 ### Config Server
 
-The config server (port `CONFIG_PORT`) exposes endpoints to set the proxy URL, initial owner, and extension ID. It is assumed that network access to this port is restricted to the node owner. No authentication is performed on these endpoints; security relies on network-level access control.
+The config server (port `CONFIG_PORT`) exposes endpoints to set the proxy URL, initial owner, extension ID, chain ID, and the governance signer set. It is assumed that network access to this port is restricted to the node owner. No authentication is performed on these endpoints; security relies on network-level access control.
+
+All setters except `/proxy` are **one-shot** (a second call is rejected), and each value can instead be fixed at deploy time via its environment variable. The env vars are read during node initialization, *before* the config server starts, so providing them at deploy time closes any window in which a config-port reacher could set the value first. This matters most for `/governance`: the governance signer set is the root of direct-key-transfer authorization, and it is committed into the node's attested `GovernanceHash` (registered via `TEE_MACHINE_REGISTER`), so a value set here is observable on-chain rather than silent. Setting governance does not by itself enable key exfiltration — direct backup/restore are independently gated by the data-provider quorum (see [Governance & Machine-Path Authorization](#governance--machine-path-authorization)).
 
 ### What the Proxy Controls
 
@@ -44,6 +49,34 @@ The proxy **cannot**:
 A majority of data providers (by voting weight) can construct and sign arbitrary instructions that the TEE will accept. This is by design — the signing policy threshold mechanism assumes honest majority among data providers.
 
 For operations where data provider majority alone is not sufficient security (e.g., XRP payments, wallet restore), **cosigners** are added as an additional authorization layer. Cosigner thresholds are checked independently from data provider thresholds, requiring both to be met before the TEE executes the operation.
+
+## Governance & Machine-Path Authorization
+
+Direct TEE-to-TEE key transfer (`KEY_DIRECT_BACKUP` / `KEY_DIRECT_RESTORE`) is constrained by a governance-approved **machine-path list** that enumerates which `(source, destination)` TEE pairs may move keys.
+
+### Governance Signatures
+
+The list is installed by `F_GOVERNANCE` / `SET_MACHINE_PATH_LIST`. The handler:
+
+- Recovers each provided signature over `DomainHash(TEE_MACHINE_PATH_LIST, chainID, keccak256(abi.encode(extensionID, nonce, paths)))`
+- Requires each recovered address to be in the node's governance signer set, and counts only **distinct** signers
+- Requires at least `threshold` distinct signers
+- Requires the list nonce to be strictly greater than the currently stored nonce
+
+The governance set is itself one-shot and committed into the attested `GovernanceHash`; the threshold must be `>= 1` and `<=` the number of signers, and no signer may be the zero address.
+
+### Layered Authorization for Key Transfer
+
+The machine-path list is **not** the only gate on direct backup/restore. Because both commands are instructions, they first pass the standard pipeline checks — including a `>50%` data-provider voting-weight quorum and cosigner thresholds. The machine-path list *narrows* which TEE pairs may participate on top of that quorum; it cannot by itself authorize a transfer. Consequently, an actor who controls only governance (and thus the machine-path list) on a node still cannot cause a key to move without a quorum-signed instruction.
+
+### Integrity & Confidentiality of Direct Backup
+
+- The private key travels only as ECIES ciphertext under the destination TEE's public key.
+- The quorum-signed instruction `BackupId` is cross-checked (by canonical ABI encoding) against the source-TEE-signed payload, and the decrypted key must derive `BackupID.PublicKey`.
+- The envelope signature must verify against the declared `sourceTeeId`, which must equal `BackupId.teeId`.
+- A `{epoch, epoch+1}` reward-epoch window and the per-key nonce bound replay.
+
+See [Backup & Restore](backup-restore.md#direct-backup--restore-tee-to-tee) for the full flow.
 
 ## Replay Protection
 

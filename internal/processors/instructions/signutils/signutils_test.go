@@ -63,8 +63,13 @@ func TestSignPaymentTransaction(t *testing.T) {
 	})
 
 	// Nullification is triggered by a negative-BIPS fee schedule entry (0xFFFF).
+	// The lib's nullify path produces an AccountSet transaction signed by the
+	// sender; the recipient field is unused but still has to pass the
+	// PaymentTxFromInstruction sender != recipient precondition. MaxFee must
+	// be at least 10000 so the schedule's |BIPS|/10000 scaling lands on a
+	// nonzero drop count (the lib rejects a zero-Fee AccountSet).
 	iDataFixed.OriginalMessage = testutils.BuildMockPaymentOriginalMessage(
-		t, mockWalletID, testNode.TeeID(), mockKeyID, 0, 1000, []byte{0xFF, 0xFF, 0x00, 0x00}, "rHb9CJAWyB4rj91VRWn96DkukG4bwdtyTh", "rHb9CJAWyB4rj91VRWn96DkukG4bwdtyTh",
+		t, mockWalletID, testNode.TeeID(), mockKeyID, 0, 10000, []byte{0xFF, 0xFF, 0x00, 0x00}, "rHb9CJAWyB4rj91VRWn96DkukG4bwdtyTh", "rrrrrrrrrrrrrrrrrrrrrhoLvTp",
 	)
 	t.Run("nullify XRP payment", func(t *testing.T) {
 		_, _, err = proc.SignXRPLPayment(context.Background(), types.End, &iDataFixed, nil, nil, nil) // using types.End to skip posting to proxy

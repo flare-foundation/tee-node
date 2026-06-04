@@ -41,6 +41,8 @@ type ConfigServer struct {
 type Configurer interface {
 	SetOwner(common.Address) error
 	SetExtensionID(common.Hash) error
+	SetChainID(uint64) error
+	SetGovernance(signers []common.Address, threshold uint64) error
 }
 
 // NewConfigServer creates an HTTP server that accepts proxy configuration
@@ -62,6 +64,8 @@ func NewConfigServer(port int, configurer Configurer) *ConfigServer {
 	mux.HandleFunc("POST "+SetProxyURLEndpoint, proxyURL.proxyHandler)
 	mux.HandleFunc("POST "+SetInitialOwnerEndpoint, initialOwnerHandler(configurer))
 	mux.HandleFunc("POST "+SetExtensionIDEndpoint, extensionIDHandler(configurer))
+	mux.HandleFunc("POST "+SetChainIDEndpoint, chainIDHandler(configurer))
+	mux.HandleFunc("POST "+SetGovernanceEndpoint, governanceHandler(configurer))
 
 	pc := ConfigServer{
 		server:   server,
@@ -141,6 +145,35 @@ func extensionIDHandler(configurer Configurer) http.HandlerFunc {
 	}
 }
 
+// governanceHandler returns a handler of requests to /governance.
+func governanceHandler(configurer Configurer) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var request types.ConfigureGovernanceRequest
+		decoder := json.NewDecoder(r.Body)
+		decoder.DisallowUnknownFields()
+		if err := decoder.Decode(&request); err != nil {
+			http.Error(w, "Invalid JSON", http.StatusBadRequest)
+			return
+		}
+
+		if request.Signers == nil {
+			http.Error(w, "Missing signers in request", http.StatusBadRequest)
+			return
+		}
+		if request.Threshold == nil {
+			http.Error(w, "Missing threshold in request", http.StatusBadRequest)
+			return
+		}
+
+		if err := configurer.SetGovernance(*request.Signers, *request.Threshold); err != nil {
+			http.Error(w, fmt.Sprintf("Failed to set governance: %v", err), http.StatusForbidden)
+			return
+		}
+
+		w.WriteHeader(http.StatusOK)
+	}
+}
+
 // extensionIDHandler returns a handler of requests to /initial-owner.
 func initialOwnerHandler(configurer Configurer) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -159,6 +192,31 @@ func initialOwnerHandler(configurer Configurer) http.HandlerFunc {
 
 		if err := configurer.SetOwner(*request.Owner); err != nil {
 			http.Error(w, fmt.Sprintf("Failed to set initial owner: %v", err), http.StatusForbidden)
+			return
+		}
+
+		w.WriteHeader(http.StatusOK)
+	}
+}
+
+// chainIDHandler returns a handler of requests to /chain-id.
+func chainIDHandler(configurer Configurer) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var request types.ConfigureChainIDRequest
+		decoder := json.NewDecoder(r.Body)
+		decoder.DisallowUnknownFields()
+		if err := decoder.Decode(&request); err != nil {
+			http.Error(w, "Invalid JSON", http.StatusBadRequest)
+			return
+		}
+
+		if request.ChainID == nil {
+			http.Error(w, "Missing chain ID in request", http.StatusBadRequest)
+			return
+		}
+
+		if err := configurer.SetChainID(*request.ChainID); err != nil {
+			http.Error(w, fmt.Sprintf("Failed to set chain ID: %v", err), http.StatusForbidden)
 			return
 		}
 

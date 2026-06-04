@@ -22,6 +22,22 @@ A key pair managed by the TEE. Each wallet is identified by a `KeyIDPair` (Walle
 
 The TEE node supports two operating modes. In **base mode** (Extension 0, `NewPMWRouter`), all operations — wallet management, XRP signing, VRF, FDC — are handled by built-in processors. In **extension mode** (`NewForwardRouter`), the TEE provides base wallet management and attestation, but delegates unrecognized actions to a user-implemented external **extension server**. The extension server can call back to the TEE's sign/decrypt API to use managed keys. Each extension is identified by an `ExtensionID` included in attestation responses. See [Extensions](extensions.md) for details.
 
+### Chain ID
+
+The EVM chain ID the node is bound to (`CHAIN_ID`). It is mixed into every domain-separated signed payload, so a signature the TEE produces is valid only for one network. It is set once (env var or config server) and is required before the node can sign chain-bound payloads.
+
+### Governance Signer Set
+
+A set of Ethereum addresses plus a threshold, configured once (env vars or the `/governance` config endpoint). At least `threshold` *distinct* signatures from this set authorize a `SET_MACHINE_PATH_LIST` update. The set is committed as `GovernanceHash = keccak256(abi.encode(signers, threshold))`, which is included in the node's registered machine data.
+
+### Machine Path
+
+A governance-approved tuple `(sourceTeeIds[], destinationTeeIds[])`. A path authorizes a direct key transfer when the source TEE is in `sourceTeeIds` **and** the destination TEE is in `destinationTeeIds` of the same path. The full list carries a strictly increasing nonce and is installed via `SET_MACHINE_PATH_LIST`. See [Backup & Restore](backup-restore.md#direct-backup--restore-tee-to-tee).
+
+### Direct (TEE-to-TEE) Backup
+
+A backup mechanism in which a source TEE encrypts a whole wallet private key under one destination TEE's public key (ECIES) and signs the payload, rather than splitting it among admins and providers. Only machine-path-authorized TEE pairs may participate. Contrast with the Shamir-based data-provider backup.
+
 ## Key Types and Signing Algorithms
 
 ### Key Types
@@ -86,6 +102,8 @@ The following OpID pairs are built-in:
 | F_WALLET | KEY_GENERATE              | KeyGenerate            |
 | F_WALLET | KEY_DELETE                | KeyDelete              |
 | F_WALLET | KEY_DATA_PROVIDER_RESTORE | KeyDataProviderRestore |
+| F_WALLET | KEY_DIRECT_BACKUP         | KeyDirectBackup        |
+| F_WALLET | KEY_DIRECT_RESTORE        | KeyDirectRestore       |
 | F_WALLET | VRF                       | ProveRandomness        |
 | F_XRP    | PAY                       | SignXRPLPayment        |
 | F_XRP    | REISSUE                   | SignXRPLPayment        |
@@ -96,6 +114,7 @@ The following OpID pairs are built-in:
 | F_GET    | TEE_BACKUP                | TEEBackup              |
 | F_POLICY | INITIALIZE_POLICY         | InitializePolicy       |
 | F_POLICY | UPDATE_POLICY             | UpdatePolicy           |
+| F_GOVERNANCE | SET_MACHINE_PATH_LIST | SetMachinePathList    |
 
 In extension mode, user-implemented extensions may define custom OpType and OpCommand values. Actions with OpID pairs that do not match any built-in processor are forwarded to the extension server for handling. This allows extensions to introduce new operation types without modifying the TEE node itself.
 
@@ -112,6 +131,10 @@ Additional signers specified per-wallet. Cosigner threshold is checked separatel
 ### Admins
 
 Entities with administrative control over a wallet. During backup, each admin receives encrypted key shares. During restore, an admin threshold must be met.
+
+### Governance Signers
+
+Holders of the keys in the node's governance signer set. A threshold of them authorizes machine-path-list updates (`SET_MACHINE_PATH_LIST`), which in turn govern which TEE pairs may perform direct key transfers. Governance does not by itself move keys: direct backup/restore still require the data-provider quorum enforced by the instruction pipeline.
 
 ## Cryptographic Primitives
 

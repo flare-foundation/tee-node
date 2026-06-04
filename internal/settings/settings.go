@@ -82,6 +82,13 @@ const (
 
 	SetExtensionIDEndpoint = "/extension-id"
 	ExtensionIDEnvVar      = "EXTENSION_ID"
+
+	SetChainIDEndpoint = "/chain-id"
+	ChainIDEnvVar      = "CHAIN_ID"
+
+	SetGovernanceEndpoint     = "/governance"
+	GovernanceSignersEnvVar   = "GOVERNANCE_SIGNERS"
+	GovernanceThresholdEnvVar = "GOVERNANCE_THRESHOLD"
 )
 
 var (
@@ -98,5 +105,6 @@ var (
 	TestPlatform, _ = convert.StringToCommonHash("TEST_PLATFORM")
 	TestCodeHash    = common.HexToHash("194844cf417dde867073e5ab7199fa4d21fd82b5dbe2bdea8b3d7fc18d10fdc2")
 
-	DefaultExtensionID = common.MaxHash
+	DefaultExtensionID    = common.MaxHash
+	DefaultGovernanceHash = common.MaxHash
 )
