@@ -29,15 +29,6 @@ var TeeMachineRegisterTag common.Hash
 // value returned by KeyExistenceDataHash().
 var TeeKeyExistenceTag common.Hash
 
-// SystemStateVersionV1 is the value the node sets as TeeState.SystemStateVersion
-// in its availability-check responses. The SystemStateVerifier contract only
-// checks the version is non-zero (and then abi.decodes the state); the value
-// itself is not validated. "0x01" is the smallest such convention.
-//
-// TODO: switch to a canonical constant once the contract team publishes one;
-// today no such constant exists in flare-smart-contracts-v2
-var SystemStateVersionV1 = common.HexToHash("0x01")
-
 func init() {
 	tag, err := convert.StringToCommonHash("TEE_MACHINE_REGISTER")
 	if err != nil {
@@ -67,16 +58,6 @@ func KeyExistenceDataHash(proof *wallet.IWalletKeyManagerKeyExistence) (common.H
 		return common.Hash{}, err
 	}
 	return crypto.Keccak256Hash(innerEnc), nil
-}
-
-// EncodeTeeSystemState ABI-encodes a TeeSystemState tuple in the shape the
-// SystemStateVerifier facet abi.decodes on chain.
-func EncodeTeeSystemState(state verification.ISystemStateVerifierTeeSystemState) (hexutil.Bytes, error) {
-	enc, err := structs.Encode(verification.TeeSystemStateStructArg, state)
-	if err != nil {
-		return nil, err
-	}
-	return enc, nil
 }
 
 type TeeInfoRequest struct {

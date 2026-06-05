@@ -15,7 +15,6 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/flare-foundation/go-flare-common/pkg/logger"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/structs/machinepath"
-	"github.com/flare-foundation/go-flare-common/pkg/tee/structs/verification"
 	"github.com/flare-foundation/tee-node/internal/settings"
 	"github.com/flare-foundation/tee-node/pkg/types"
 	"github.com/flare-foundation/tee-node/pkg/utils"
@@ -124,22 +123,9 @@ func Initialize(state State) (*Node, error) {
 	return n, nil
 }
 
-// teeSystemStatusActive is the uint8 value of
-// ISystemStateVerifier.TeeMachineStatus.ACTIVE (the zero-indexed first variant).
-const teeSystemStatusActive uint8 = 0
-
 // State retrieves the current serialized node state.
 func (n *Node) State() (types.TeeState, error) {
 	return n.state.State()
-}
-
-type defaultSystemStateProvider struct {
-	state types.TeeState
-}
-
-// State returns the precomputed TeeState.
-func (p defaultSystemStateProvider) State() (types.TeeState, error) {
-	return p.state, nil
 }
 
 // Info returns the node metadata and current state.
@@ -363,24 +349,6 @@ func (n *Node) setGovernanceLocked(signers []common.Address, threshold uint64) e
 	n.governance.threshold = threshold
 	n.governance.hash = hash
 	n.governance.set = true
-
-	// SystemStateVerifier requires a non-empty systemState in
-	// availability-check responses. Compose the TeeSystemState tuple from
-	// the node's own teeID (= teeMachine.initialTeeId for fresh
-	// registrations) and freeze it on the node by swapping the state
-	// field. Subsequent state reads go through systemStateProvider and
-	// return this precomputed value.
-	encoded, err := types.EncodeTeeSystemState(verification.ISystemStateVerifierTeeSystemState{
-		Status:       teeSystemStatusActive,
-		InitialTeeId: n.teeID,
-	})
-	if err != nil {
-		return fmt.Errorf("encoding TeeSystemState for governance binding: %w", err)
-	}
-	n.state = defaultSystemStateProvider{state: types.TeeState{
-		SystemState:        encoded,
-		SystemStateVersion: types.SystemStateVersionV1,
-	}}
 
 	return nil
 }
