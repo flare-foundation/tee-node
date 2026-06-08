@@ -47,7 +47,12 @@ func (p Processor) Process(ctx context.Context, a *types.Action) types.ActionRes
 		return processorutils.Invalid(a, err)
 	}
 
-	signers, signingPolicy, err := preprocess(a, data, p.pStorage, p.iSAndD.TeeID())
+	chainID, err := p.iSAndD.ChainID()
+	if err != nil {
+		return processorutils.Invalid(a, err)
+	}
+
+	signers, signingPolicy, err := preprocess(a, data, p.pStorage, p.iSAndD.TeeID(), chainID)
 	if err != nil {
 		return processorutils.Invalid(a, err)
 	}
@@ -96,7 +101,7 @@ func (p Processor) Process(ctx context.Context, a *types.Action) types.ActionRes
 	return result
 }
 
-func preprocess(a *types.Action, data *instruction.DataFixed, pStorage *policy.Storage, teeID common.Address) ([]common.Address, *cpolicy.SigningPolicy, error) {
+func preprocess(a *types.Action, data *instruction.DataFixed, pStorage *policy.Storage, teeID common.Address, chainID uint64) ([]common.Address, *cpolicy.SigningPolicy, error) {
 	pStorage.RLock()
 	signingPolicy, err := pStorage.SigningPolicy(data.RewardEpochID)
 	if err != nil {
@@ -120,7 +125,7 @@ func preprocess(a *types.Action, data *instruction.DataFixed, pStorage *policy.S
 		return nil, nil, err
 	}
 
-	signers, err := signaturesToSigners(data, a.AdditionalVariableMessages, a.Signatures)
+	signers, err := signaturesToSigners(data, chainID, a.AdditionalVariableMessages, a.Signatures)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -161,7 +166,7 @@ func validateInstructionData(data *instruction.DataFixed, additionalVariableMess
 	return nil
 }
 
-func signaturesToSigners(instructionDataFixed *instruction.DataFixed, variableMessages, signatures []hexutil.Bytes) ([]common.Address, error) {
+func signaturesToSigners(instructionDataFixed *instruction.DataFixed, chainID uint64, variableMessages, signatures []hexutil.Bytes) ([]common.Address, error) {
 	if len(variableMessages) != len(signatures) {
 		return nil, errors.New("the number of variable messages does not match the number of signatures")
 	}
@@ -172,7 +177,7 @@ func signaturesToSigners(instructionDataFixed *instruction.DataFixed, variableMe
 		instructionData := instruction.Data{DataFixed: *instructionDataFixed}
 		instructionData.AdditionalVariableMessage = variableMessages[i]
 
-		hash, err := instructionData.HashForSigning()
+		hash, err := instructionData.HashForSigning(chainID)
 		if err != nil {
 			return nil, err
 		}

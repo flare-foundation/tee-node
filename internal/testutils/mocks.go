@@ -153,6 +153,7 @@ func BuildMockInstructionAction(
 	opCommand op.Command,
 	originalMessage []byte,
 	privKeys []*ecdsa.PrivateKey,
+	chainID uint64,
 	teeID common.Address,
 	rewardEpochID uint32,
 	additionalFixedMessageRaw any,
@@ -161,6 +162,7 @@ func BuildMockInstructionAction(
 	cosignersThreshold uint64,
 	submissionTag types.SubmissionTag,
 	timestamp uint64,
+
 ) *types.Action {
 	t.Helper()
 
@@ -212,7 +214,7 @@ func BuildMockInstructionAction(
 			instructionData.AdditionalVariableMessage = variableMessages[i]
 			additionalVariableMessages[i] = instructionData.AdditionalVariableMessage
 		}
-		signatures[i], err = sign(&instructionData, privKey)
+		signatures[i], err = sign(&instructionData, privKey, chainID)
 		require.NoError(t, err)
 	}
 
@@ -280,8 +282,8 @@ func BuildMockDirectAction(t *testing.T, opType op.Type, opCommand op.Command, m
 	return &action
 }
 
-func sign(r *instruction.Data, privKey *ecdsa.PrivateKey) ([]byte, error) {
-	hash, err := r.HashForSigning()
+func sign(r *instruction.Data, privKey *ecdsa.PrivateKey, chainID uint64) ([]byte, error) {
+	hash, err := r.HashForSigning(chainID)
 	if err != nil {
 		return nil, err
 	}

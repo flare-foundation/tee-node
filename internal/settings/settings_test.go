@@ -130,6 +130,23 @@ func checkGovernance(t *testing.T, n *node.Node, signers []common.Address, thres
 	require.Equal(t, want, g.Hash)
 }
 
+// checkChainID checks that a node's chain ID matches the expected value.
+func checkChainID(t *testing.T, n *node.Node, expected uint64) {
+	t.Helper()
+
+	cid, err := n.ChainID()
+	require.NoError(t, err)
+	require.Equal(t, expected, cid)
+}
+
+// checkChainIDUnset checks that a node has no chain ID configured.
+func checkChainIDUnset(t *testing.T, n *node.Node) {
+	t.Helper()
+
+	_, err := n.ChainID()
+	require.Error(t, err)
+}
+
 // setEnvVars sets test environment variables.
 func setEnvVars(t *testing.T) {
 	t.Helper()
@@ -462,6 +479,71 @@ func TestEndpointGovernance(t *testing.T) {
 					body := `{"signers":["` + a2.Hex() + `"],"threshold":1}`
 					postAndCheckCode(t, settings.SetGovernanceEndpoint, body, http.StatusOK)
 					checkGovernance(t, n, govSigners2, govThreshold2)
+				})
+			}
+		}()
+	}
+}
+
+// TestEndpointChainID tests a config server's /chain-id endpoint.
+func TestEndpointChainID(t *testing.T) {
+	requests := []request{
+		{
+			name:     "invalid JSON",
+			body:     "{invalid json}",
+			expected: http.StatusBadRequest,
+		},
+		{
+			name:     "missing chainId field",
+			body:     `{}`,
+			expected: http.StatusBadRequest,
+		},
+		{
+			name:     "unexpected field in JSON",
+			body:     `{"chainId": 31337, "un": "expected"}`,
+			expected: http.StatusBadRequest,
+		},
+		{
+			name:     "zero chain ID",
+			body:     `{"chainId": 0}`,
+			expected: http.StatusForbidden,
+		},
+	}
+
+	for _, setChainID := range [2]bool{false, true} {
+		func() {
+			server, n := setup()
+			defer server.Close(context.Background()) //nolint:errcheck
+
+			if setChainID {
+				t.Run("set chain ID", func(t *testing.T) {
+					postAndCheckCode(t, settings.SetChainIDEndpoint, `{"chainId": 31337}`, http.StatusOK)
+					checkChainID(t, n, 31337)
+				})
+
+				reqs := append(requests, request{
+					name:     "set chain ID again",
+					body:     `{"chainId": 42}`,
+					expected: http.StatusForbidden,
+				})
+
+				for _, r := range reqs {
+					t.Run(r.name, func(t *testing.T) {
+						postAndCheckCode(t, settings.SetChainIDEndpoint, r.body, r.expected)
+						checkChainID(t, n, 31337)
+					})
+				}
+			} else {
+				for _, r := range requests {
+					t.Run(r.name, func(t *testing.T) {
+						postAndCheckCode(t, settings.SetChainIDEndpoint, r.body, r.expected)
+						checkChainIDUnset(t, n)
+					})
+				}
+
+				t.Run("set chain ID 2", func(t *testing.T) {
+					postAndCheckCode(t, settings.SetChainIDEndpoint, `{"chainId": 31337}`, http.StatusOK)
+					checkChainID(t, n, 31337)
 				})
 			}
 		}()

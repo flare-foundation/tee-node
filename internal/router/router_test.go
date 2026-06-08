@@ -121,8 +121,18 @@ func TestRouterInstructionActionRoutingThreshold(t *testing.T) {
 	require.NoError(t, err)
 
 	action := testutils.BuildMockInstructionAction(
-		t, op.Wallet, op.KeyGenerate, originalMessageEncoded, providerPrivKeys, teeID,
-		epochID, nil, nil, nil, 0, types.Threshold, 1234567890,
+		t,
+		op.Wallet,
+		op.KeyGenerate,
+		originalMessageEncoded,
+		providerPrivKeys,
+		teeNode.Info().ChainID,
+		teeID,
+		epochID,
+		nil, nil, nil,
+		0,
+		types.Threshold,
+		1234567890,
 	)
 
 	// Process the action
@@ -441,6 +451,7 @@ func TestProcessDefaultInstruction(t *testing.T) {
 		op.Type("UnregisteredType"), op.Command("UnregisteredCommand"),
 		[]byte("test message"),
 		[]*ecdsa.PrivateKey{}, // Empty private keys for this test
+		testNode.Info().ChainID,
 		testNode.TeeID(),
 		1, // rewardEpochID
 		nil, nil, nil, 0,
