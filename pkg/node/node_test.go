@@ -5,6 +5,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/structs/machinepath"
+	"github.com/flare-foundation/tee-node/internal/settings"
 	"github.com/stretchr/testify/require"
 )
 
@@ -77,4 +78,60 @@ func TestMachinePathsDefensiveCopy(t *testing.T) {
 	got2, _ := n.MachinePaths()
 	require.Equal(t, srcAddr, got2[0].SourceTeeIds[0])
 	require.Equal(t, dstAddr, got2[0].DestinationTeeIds[0])
+}
+
+func TestSetChainID(t *testing.T) {
+	t.Run("set then read", func(t *testing.T) {
+		n, err := Initialize(ZeroState{})
+		require.NoError(t, err)
+
+		_, err = n.ChainID()
+		require.Error(t, err) // unset
+
+		require.NoError(t, n.SetChainID(42))
+		cid, err := n.ChainID()
+		require.NoError(t, err)
+		require.Equal(t, uint64(42), cid)
+	})
+
+	t.Run("zero is rejected", func(t *testing.T) {
+		n, err := Initialize(ZeroState{})
+		require.NoError(t, err)
+		require.EqualError(t, n.SetChainID(0), "0 is invalid chainID")
+	})
+
+	t.Run("cannot be set twice", func(t *testing.T) {
+		n, err := Initialize(ZeroState{})
+		require.NoError(t, err)
+
+		require.NoError(t, n.SetChainID(42))
+		require.EqualError(t, n.SetChainID(43), "chainID already set")
+
+		cid, err := n.ChainID()
+		require.NoError(t, err)
+		require.Equal(t, uint64(42), cid) // unchanged
+	})
+}
+
+func TestChainIDFromEnv(t *testing.T) {
+	t.Run("valid value is loaded", func(t *testing.T) {
+		t.Setenv(settings.ChainIDEnvVar, "42")
+		n, err := Initialize(ZeroState{})
+		require.NoError(t, err)
+		cid, err := n.ChainID()
+		require.NoError(t, err)
+		require.Equal(t, uint64(42), cid)
+	})
+
+	t.Run("zero is rejected", func(t *testing.T) {
+		t.Setenv(settings.ChainIDEnvVar, "0")
+		_, err := Initialize(ZeroState{})
+		require.Error(t, err)
+	})
+
+	t.Run("non-numeric is rejected", func(t *testing.T) {
+		t.Setenv(settings.ChainIDEnvVar, "not-a-number")
+		_, err := Initialize(ZeroState{})
+		require.Error(t, err)
+	})
 }

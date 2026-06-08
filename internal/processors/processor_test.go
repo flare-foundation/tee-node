@@ -49,6 +49,9 @@ import (
 func TestProcessorsEndToEnd(t *testing.T) {
 	testNode, pStorage, wStorage := testutils.Setup(t)
 
+	chainID, err := testNode.ChainID()
+	require.NoError(t, err)
+
 	// Governance signers that authorize SET_MACHINE_PATH_LIST later in
 	// the flow.
 	const govThreshold = uint64(2)
@@ -72,7 +75,6 @@ func TestProcessorsEndToEnd(t *testing.T) {
 	numAdmins := 3
 	adminPubKeys := make([]*ecdsa.PublicKey, numAdmins)
 	adminPrivKeys := make([]*ecdsa.PrivateKey, numAdmins)
-	var err error
 	for i := range numAdmins - 1 {
 		adminPrivKeys[i], err = crypto.GenerateKey()
 		require.NoError(t, err)
@@ -134,48 +136,48 @@ func TestProcessorsEndToEnd(t *testing.T) {
 
 	var walletID = common.HexToHash("0xabcdef")
 	var keyID = uint64(1)
-	walletProof := generateWallet(t, mainActionInfoChan, actionResponseChan, teeID, walletID, keyID,
+	walletProof := generateWallet(t, mainActionInfoChan, actionResponseChan, chainID, teeID, walletID, keyID,
 		providerPrivKeys, adminWalletPublicKeys, cosignerAddresses, cosignersThreshold, finalEpochID, wStorage, wallets.XRPType, wallets.XRPSignAlgo)
 	require.False(t, walletProof.Restored)
 
 	var vrfWalletID = common.HexToHash("0x123456")
 	var vrfKeyID = uint64(1)
-	randWalletProof := generateWallet(t, mainActionInfoChan, actionResponseChan, teeID, vrfWalletID, vrfKeyID,
+	randWalletProof := generateWallet(t, mainActionInfoChan, actionResponseChan, chainID, teeID, vrfWalletID, vrfKeyID,
 		providerPrivKeys, adminWalletPublicKeys, nil, 0, finalEpochID, wStorage, wallets.EVMType, wallets.VRFAlgo)
-	proveVRFRandomness(t, mainActionInfoChan, actionResponseChan, teeID, vrfWalletID, vrfKeyID, randWalletProof.PublicKey, providerPrivKeys, finalEpochID)
+	proveVRFRandomness(t, mainActionInfoChan, actionResponseChan, chainID, teeID, vrfWalletID, vrfKeyID, randWalletProof.PublicKey, providerPrivKeys, finalEpochID)
 
-	signTransaction(t, mainActionInfoChan, actionResponseChan, teeID, walletID, keyID, providerPrivKeys, cosignerPrivKeys, cosignerAddresses, cosignersThreshold, finalEpochID, wStorage)
+	signTransaction(t, mainActionInfoChan, actionResponseChan, chainID, teeID, walletID, keyID, providerPrivKeys, cosignerPrivKeys, cosignerAddresses, cosignersThreshold, finalEpochID, wStorage)
 
 	walletBackup := getBackup(t, readActionInfoChan, actionResponseChan, teeID, walletID, keyID)
 	vrfWalletBackup := getBackup(t, readActionInfoChan, actionResponseChan, teeID, vrfWalletID, vrfKeyID)
 
 	nonce := big.NewInt(1)
-	deleteWallet(t, mainActionInfoChan, actionResponseChan, teeID, walletID, keyID, providerPrivKeys, finalEpochID, nonce, wStorage)
+	deleteWallet(t, mainActionInfoChan, actionResponseChan, chainID, teeID, walletID, keyID, providerPrivKeys, finalEpochID, nonce, wStorage)
 	nonce.Add(nonce, common.Big1)
-	deleteWallet(t, mainActionInfoChan, actionResponseChan, teeID, vrfWalletID, vrfKeyID, providerPrivKeys, finalEpochID, nonce, wStorage)
+	deleteWallet(t, mainActionInfoChan, actionResponseChan, chainID, teeID, vrfWalletID, vrfKeyID, providerPrivKeys, finalEpochID, nonce, wStorage)
 	nonce.Add(nonce, common.Big1)
 
-	recoveredWalletProof := recoverWallet(t, mainActionInfoChan, actionResponseChan, teeID, teePubKey, walletID, keyID,
+	recoveredWalletProof := recoverWallet(t, mainActionInfoChan, actionResponseChan, chainID, teeID, teePubKey, walletID, keyID,
 		providerPrivKeys, adminPrivKeys, finalEpochID, nonce, walletBackup, wStorage)
 	walletProof.Restored = true
 	walletProof.Nonce.Set(nonce)
 	require.Equal(t, walletProof, recoveredWalletProof)
 
 	nonce.Add(nonce, common.Big1)
-	recoveredVRFWalletProof := recoverWallet(t, mainActionInfoChan, actionResponseChan, teeID, teePubKey, vrfWalletID, vrfKeyID,
+	recoveredVRFWalletProof := recoverWallet(t, mainActionInfoChan, actionResponseChan, chainID, teeID, teePubKey, vrfWalletID, vrfKeyID,
 		providerPrivKeys, adminPrivKeys, finalEpochID, nonce, vrfWalletBackup, wStorage)
 	randWalletProof.Restored = true
 	randWalletProof.Nonce.Set(nonce)
 	require.Equal(t, randWalletProof, recoveredVRFWalletProof)
 
-	directBackupEnvelope := keyDirectBackup(t, mainActionInfoChan, actionResponseChan, teeID,
+	directBackupEnvelope := keyDirectBackup(t, mainActionInfoChan, actionResponseChan, chainID, teeID,
 		walletID, keyID, teePubKey, 1, providerPrivKeys, finalEpochID)
 
 	nonce.Add(nonce, common.Big1)
-	deleteWallet(t, mainActionInfoChan, actionResponseChan, teeID, walletID, keyID, providerPrivKeys, finalEpochID, nonce, wStorage)
+	deleteWallet(t, mainActionInfoChan, actionResponseChan, chainID, teeID, walletID, keyID, providerPrivKeys, finalEpochID, nonce, wStorage)
 
 	nonce.Add(nonce, common.Big1)
-	directRestoredProof := keyDirectRestore(t, mainActionInfoChan, actionResponseChan, teeID,
+	directRestoredProof := keyDirectRestore(t, mainActionInfoChan, actionResponseChan, chainID, teeID,
 		teeID, walletID, keyID, nonce.Uint64(), 1, directBackupEnvelope, providerPrivKeys, finalEpochID, wStorage)
 
 	require.Greater(t, directRestoredProof.Nonce.Uint64(), walletProof.Nonce.Uint64(),
@@ -183,10 +185,10 @@ func TestProcessorsEndToEnd(t *testing.T) {
 	walletProof.Nonce.Set(nonce)
 	require.Equal(t, walletProof, directRestoredProof)
 
-	getTeeAttestation(t, mainActionInfoChan, actionResponseChan, teeID,
+	getTeeAttestation(t, mainActionInfoChan, actionResponseChan, chainID, teeID,
 		providerPrivKeys, finalEpochID)
 
-	fdcProve(t, mainActionInfoChan, actionResponseChan, teeID, testChainID, providerPrivKeys, adminPrivKeys, finalEpochID)
+	fdcProve(t, mainActionInfoChan, actionResponseChan, chainID, teeID, providerPrivKeys, adminPrivKeys, finalEpochID)
 
 	updatePolicy(t, mainActionInfoChan, actionResponseChan, providerPrivKeys, providerAddresses, finalEpochID+1)
 }
@@ -284,6 +286,7 @@ func keyDirectBackup(
 	t *testing.T,
 	actionInfoChan chan *types.Action,
 	actionResponseChan chan *types.ActionResponse,
+	chainID uint64,
 	teeID common.Address,
 	walletID [32]byte,
 	keyID uint64,
@@ -307,7 +310,7 @@ func keyDirectBackup(
 
 	action := testutils.BuildMockInstructionAction(
 		t, op.Wallet, op.KeyDirectBackup, originalMessageEncoded,
-		providerPrivKeys, teeID, rewardEpochID,
+		providerPrivKeys, chainID, teeID, rewardEpochID,
 		nil, nil, nil, 0, types.Threshold, uint64(time.Now().Unix()),
 	)
 	actionInfoChan <- action
@@ -322,7 +325,7 @@ func keyDirectBackup(
 
 	action = testutils.BuildMockInstructionAction(
 		t, op.Wallet, op.KeyDirectBackup, originalMessageEncoded,
-		providerPrivKeys, teeID, rewardEpochID,
+		providerPrivKeys, chainID, teeID, rewardEpochID,
 		nil, nil, nil, 0, types.End, uint64(time.Now().Unix()),
 	)
 	actionInfoChan <- action
@@ -348,6 +351,7 @@ func keyDirectRestore(
 	t *testing.T,
 	actionInfoChan chan *types.Action,
 	actionResponseChan chan *types.ActionResponse,
+	chainID uint64,
 	teeID common.Address,
 	sourceTeeID common.Address,
 	walletID [32]byte,
@@ -393,7 +397,7 @@ func keyDirectRestore(
 
 	action := testutils.BuildMockInstructionAction(
 		t, op.Wallet, op.KeyDirectRestore, originalMessageEncoded,
-		providerPrivKeys, teeID, rewardEpochID,
+		providerPrivKeys, chainID, teeID, rewardEpochID,
 		envelopeBytes, nil, nil, 0, types.Threshold, uint64(time.Now().Unix()),
 	)
 	actionInfoChan <- action
@@ -412,7 +416,7 @@ func keyDirectRestore(
 
 	action = testutils.BuildMockInstructionAction(
 		t, op.Wallet, op.KeyDirectRestore, originalMessageEncoded,
-		providerPrivKeys, teeID, rewardEpochID,
+		providerPrivKeys, chainID, teeID, rewardEpochID,
 		envelopeBytes, nil, nil, 0, types.End, uint64(time.Now().Unix()),
 	)
 	actionInfoChan <- action
@@ -523,6 +527,7 @@ func generateWallet(
 	t *testing.T,
 	actionInfoChan chan *types.Action,
 	actionResponseChan chan *types.ActionResponse,
+	chainID uint64,
 	teeID common.Address,
 	walletID [32]byte,
 	keyID uint64,
@@ -559,7 +564,7 @@ func generateWallet(
 
 	// generate action sent when threshold reached
 	action := testutils.BuildMockInstructionAction(
-		t, op.Wallet, op.KeyGenerate, originalMessageEncoded, privKeys, teeID, rewardEpochID, nil, nil, nil, 0, types.Threshold, uint64(time.Now().Unix()),
+		t, op.Wallet, op.KeyGenerate, originalMessageEncoded, privKeys, chainID, teeID, rewardEpochID, nil, nil, nil, 0, types.Threshold, uint64(time.Now().Unix()),
 	)
 	actionInfoChan <- action
 
@@ -580,7 +585,7 @@ func generateWallet(
 
 	// generate action sent when voting closed
 	action = testutils.BuildMockInstructionAction(
-		t, op.Wallet, op.KeyGenerate, originalMessageEncoded, privKeys, teeID, rewardEpochID, nil, nil, nil, 0, types.End, uint64(time.Now().Unix()),
+		t, op.Wallet, op.KeyGenerate, originalMessageEncoded, privKeys, chainID, teeID, rewardEpochID, nil, nil, nil, 0, types.End, uint64(time.Now().Unix()),
 	)
 	actionInfoChan <- action
 
@@ -606,6 +611,7 @@ func proveVRFRandomness(
 	t *testing.T,
 	actionInfoChan chan *types.Action,
 	actionResponseChan chan *types.ActionResponse,
+	chainID uint64,
 	teeID common.Address,
 	walletID [32]byte,
 	keyID uint64,
@@ -631,7 +637,7 @@ func proveVRFRandomness(
 	require.NoError(t, err)
 
 	action := testutils.BuildMockInstructionAction(
-		t, op.Wallet, op.Command("VRF"), originalMessageEncoded, privKeys, teeID, rewardEpochID, nil, nil, nil, 0, types.Threshold, uint64(time.Now().Unix()),
+		t, op.Wallet, op.Command("VRF"), originalMessageEncoded, privKeys, chainID, teeID, rewardEpochID, nil, nil, nil, 0, types.Threshold, uint64(time.Now().Unix()),
 	)
 	actionInfoChan <- action
 
@@ -654,7 +660,7 @@ func proveVRFRandomness(
 	require.NotEqual(t, common.Hash{}, randomness)
 
 	action = testutils.BuildMockInstructionAction(
-		t, op.Wallet, op.Command("VRF"), originalMessageEncoded, privKeys, teeID, rewardEpochID, nil, nil, nil, 0, types.End, uint64(time.Now().Unix()),
+		t, op.Wallet, op.Command("VRF"), originalMessageEncoded, privKeys, chainID, teeID, rewardEpochID, nil, nil, nil, 0, types.End, uint64(time.Now().Unix()),
 	)
 	actionInfoChan <- action
 
@@ -674,6 +680,7 @@ func signTransaction(
 	t *testing.T,
 	actionInfoChan chan *types.Action,
 	actionResponseChan chan *types.ActionResponse,
+	chainID uint64,
 	teeID common.Address,
 	walletID [32]byte,
 	keyID uint64,
@@ -709,7 +716,7 @@ func signTransaction(
 	signingKeys := mergePrivKeys(providerPrivKeys, cosignerPrivKeys)
 
 	action := testutils.BuildMockInstructionAction(
-		t, op.XRP, op.Pay, originalMessageEncoded, signingKeys, teeID, rewardEpochID, []byte{}, nil, cosignerAddresses, cosignersThreshold, types.Threshold, uint64(time.Now().Unix()),
+		t, op.XRP, op.Pay, originalMessageEncoded, signingKeys, chainID, teeID, rewardEpochID, []byte{}, nil, cosignerAddresses, cosignersThreshold, types.Threshold, uint64(time.Now().Unix()),
 	)
 	actionInfoChan <- action
 
@@ -743,7 +750,7 @@ func signTransaction(
 
 	// generate action sent when voting closed
 	action = testutils.BuildMockInstructionAction(
-		t, op.XRP, op.Pay, originalMessageEncoded, signingKeys, teeID, rewardEpochID, []byte{}, nil, cosignerAddresses, cosignersThreshold, types.End, uint64(time.Now().Unix()),
+		t, op.XRP, op.Pay, originalMessageEncoded, signingKeys, chainID, teeID, rewardEpochID, []byte{}, nil, cosignerAddresses, cosignersThreshold, types.End, uint64(time.Now().Unix()),
 	)
 	actionInfoChan <- action
 
@@ -864,6 +871,7 @@ func deleteWallet(
 	t *testing.T,
 	actionInfoChan chan *types.Action,
 	actionResponseChan chan *types.ActionResponse,
+	chainID uint64,
 	teeID common.Address,
 	walletID [32]byte,
 	keyID uint64,
@@ -884,7 +892,7 @@ func deleteWallet(
 	require.NoError(t, err)
 
 	action := testutils.BuildMockInstructionAction(
-		t, op.Wallet, op.KeyDelete, originalMessageEncoded, privKeys, teeID, rewardEpochID, nil, nil, nil, 0, types.Threshold, uint64(time.Now().Unix()),
+		t, op.Wallet, op.KeyDelete, originalMessageEncoded, privKeys, chainID, teeID, rewardEpochID, nil, nil, nil, 0, types.Threshold, uint64(time.Now().Unix()),
 	)
 	actionInfoChan <- action
 
@@ -896,7 +904,7 @@ func deleteWallet(
 
 	// generate action sent when voting closed
 	action = testutils.BuildMockInstructionAction(
-		t, op.Wallet, op.KeyDelete, originalMessageEncoded, privKeys, teeID, rewardEpochID, nil, nil, nil, 0, types.End, uint64(time.Now().Unix()),
+		t, op.Wallet, op.KeyDelete, originalMessageEncoded, privKeys, chainID, teeID, rewardEpochID, nil, nil, nil, 0, types.End, uint64(time.Now().Unix()),
 	)
 	actionInfoChan <- action
 
@@ -955,6 +963,7 @@ func recoverWallet(
 	t *testing.T,
 	actionInfoChan chan *types.Action,
 	actionResponseChan chan *types.ActionResponse,
+	chainID uint64,
 	teeID common.Address,
 	teePubKey *ecdsa.PublicKey,
 	walletID [32]byte,
@@ -1057,7 +1066,7 @@ func recoverWallet(
 	}
 
 	action := testutils.BuildMockInstructionAction(
-		t, op.Wallet, op.KeyDataProviderRestore, originalMessageEncoded, privKeys, teeID,
+		t, op.Wallet, op.KeyDataProviderRestore, originalMessageEncoded, privKeys, chainID, teeID,
 		rewardEpochID, additionalFixedMessage, additionalVariableMessages, adminAddresses, adminsThreshold,
 		types.Threshold, uint64(time.Now().Unix()),
 	)
@@ -1079,7 +1088,7 @@ func recoverWallet(
 
 	// generate action sent when voting closed
 	action = testutils.BuildMockInstructionAction(
-		t, op.Wallet, op.KeyDataProviderRestore, originalMessageEncoded, privKeys, teeID,
+		t, op.Wallet, op.KeyDataProviderRestore, originalMessageEncoded, privKeys, chainID, teeID,
 		rewardEpochID, additionalFixedMessage, additionalVariableMessages, adminAddresses, adminsThreshold,
 		types.End, uint64(time.Now().Unix()),
 	)
@@ -1104,6 +1113,7 @@ func getTeeAttestation(
 	t *testing.T,
 	actionInfoChan chan *types.Action,
 	actionResponseChan chan *types.ActionResponse,
+	chainID uint64,
 	teeID common.Address,
 	privKeys []*ecdsa.PrivateKey,
 	rewardEpochId uint32,
@@ -1129,7 +1139,7 @@ func getTeeAttestation(
 
 	// generate action sent when threshold reached
 	action := testutils.BuildMockInstructionAction(
-		t, op.Reg, op.TEEAttestation, originalMessageEncoded, privKeys, teeID, rewardEpochId, nil, nil, nil, 0, types.Threshold, uint64(time.Now().Unix()),
+		t, op.Reg, op.TEEAttestation, originalMessageEncoded, privKeys, chainID, teeID, rewardEpochId, nil, nil, nil, 0, types.Threshold, uint64(time.Now().Unix()),
 	)
 	actionInfoChan <- action
 
@@ -1150,7 +1160,7 @@ func getTeeAttestation(
 
 	// generate action sent when voting closed
 	action = testutils.BuildMockInstructionAction(
-		t, op.Reg, op.TEEAttestation, originalMessageEncoded, privKeys, teeID, rewardEpochId, nil, nil, nil, 0, types.End, uint64(time.Now().Unix()),
+		t, op.Reg, op.TEEAttestation, originalMessageEncoded, privKeys, chainID, teeID, rewardEpochId, nil, nil, nil, 0, types.End, uint64(time.Now().Unix()),
 	)
 	actionInfoChan <- action
 
@@ -1171,8 +1181,8 @@ func fdcProve(
 	t *testing.T,
 	actionInfoChan chan *types.Action,
 	actionResponseChan chan *types.ActionResponse,
-	teeID common.Address,
 	chainID uint64,
+	teeID common.Address,
 	providerPrivKeys, cosignerPrivKeys []*ecdsa.PrivateKey,
 	rewardEpochID uint32,
 ) {
@@ -1247,7 +1257,7 @@ func fdcProve(
 	}
 
 	action := testutils.BuildMockInstructionAction(
-		t, op.FDC2, op.Prove, originalMessageEncoded, privKeys, teeID, rewardEpochID,
+		t, op.FDC2, op.Prove, originalMessageEncoded, privKeys, chainID, teeID, rewardEpochID,
 		additionalFixedMessageEncoded, variableMessages, cosignerAddresses, cosignersThreshold,
 		types.Threshold, timestamp,
 	)
@@ -1284,7 +1294,7 @@ func fdcProve(
 
 	// generate action sent when voting closed
 	action = testutils.BuildMockInstructionAction(
-		t, op.FDC2, op.Prove, originalMessageEncoded, privKeys, teeID, rewardEpochID,
+		t, op.FDC2, op.Prove, originalMessageEncoded, privKeys, chainID, teeID, rewardEpochID,
 		additionalFixedMessageEncoded, variableMessages, cosignerAddresses, cosignersThreshold,
 		types.End, timestamp,
 	)

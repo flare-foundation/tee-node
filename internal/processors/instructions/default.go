@@ -39,7 +39,12 @@ func (p DefaultProcessor) Process(_ context.Context, a *types.Action) types.Acti
 		return processorutils.Invalid(a, err)
 	}
 
-	signers, _, err := preprocess(a, data, p.pStorage, p.iSAndD.TeeID())
+	chainID, err := p.iSAndD.ChainID()
+	if err != nil {
+		return processorutils.Invalid(a, err)
+	}
+
+	signers, _, err := preprocess(a, data, p.pStorage, p.iSAndD.TeeID(), chainID)
 	if err != nil {
 		return processorutils.Invalid(a, err)
 	}
