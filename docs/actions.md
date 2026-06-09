@@ -50,7 +50,7 @@ Instructions go through preprocessing before reaching the handler:
 
 ### 5. Sign Result
 
-The action result's `Data` field is hashed with Keccak256 and signed with the TEE's private key. The signed response is posted to `{proxyURL}/result`.
+The action result is signed with the TEE's private key over the domain-separated preimage `signing.Payload{TEE_ACTION_RESULT, chainID, ActionResult.Hash()}.Hash()` (see [Cryptography](cryptography.md#domain-separated-signed-payloads)); the proxy must recover against the same preimage. The signed response is posted to `{proxyURL}/result`. (Because signing now requires the chain ID, `CHAIN_ID` must be configured — see [Security](security.md).)
 
 ### 6. Error Handling
 
@@ -78,7 +78,7 @@ At the End phase, the TEE produces rewarding data containing:
 
 - A vote hash computed over all signatures, variable messages, and timestamps (must be in increasing order)
 - The instruction hash
-- The TEE's signature over the vote hash
+- The TEE's signature over the vote hash, taken over `signing.Payload{TEE_VOTE_HASH, chainID, voteHash}.Hash()` (the stored `voteHash` field remains the bare hash; only the signed preimage is domain-separated)
 - All original signatures and variable message hashes
 
 This data enables on-chain verification and reward distribution.

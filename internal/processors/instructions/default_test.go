@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	csigning "github.com/flare-foundation/go-flare-common/pkg/signing"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/instruction"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/op"
 	"github.com/flare-foundation/tee-node/internal/testutils"
@@ -84,7 +85,9 @@ func TestDefaultInstructionProcessor(t *testing.T) {
 	require.Equal(t, testNode.TeeID(), rewardingData.VoteSequence.TeeID)
 	require.Len(t, rewardingData.VoteSequence.Signatures, len(privKeys))
 	require.Len(t, rewardingData.VoteSequence.AdditionalVariableMessageHashes, len(privKeys))
-	require.NoError(t, utils.VerifySignature(rewardingData.VoteSequence.VoteHash[:], rewardingData.Signature, rewardingData.VoteSequence.TeeID))
+	voteSignHash, err := csigning.NewPayload(csigning.TEEVoteHash, 31337, rewardingData.VoteSequence.VoteHash).Hash()
+	require.NoError(t, err)
+	require.NoError(t, utils.VerifySignature(voteSignHash[:], rewardingData.Signature, rewardingData.VoteSequence.TeeID))
 }
 
 // TestDefaultInstructionProcessorWrongChainID checks that signatures made for

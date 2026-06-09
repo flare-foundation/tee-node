@@ -24,7 +24,7 @@ const DataProvidersThreshold = uint64(666)
 // BackupWallet packages the wallet state and encrypted key shares for admins
 // and providers so it can be reconstructed later. The result is signed with the
 // key that is split, but remains to be signed by the TEE.
-func BackupWallet(wallet *wallets.Wallet, providerPubKeys []*ecdsa.PublicKey, signingPolicyWeights []uint16, rewardEpochID uint32, teeID common.Address, normalizationParam uint16, dataProviderThreshold uint64) (*backup.WalletBackup, error) {
+func BackupWallet(wallet *wallets.Wallet, providerPubKeys []*ecdsa.PublicKey, signingPolicyWeights []uint16, rewardEpochID uint32, teeID common.Address, chainID uint64, normalizationParam uint16, dataProviderThreshold uint64) (*backup.WalletBackup, error) {
 	switch wallet.SigningAlgo {
 	case wallets.XRPSignAlgo, wallets.EVMSignAlgo, wallets.VRFAlgo:
 		// continue
@@ -72,12 +72,12 @@ func BackupWallet(wallet *wallets.Wallet, providerPubKeys []*ecdsa.PublicKey, si
 	}
 
 	weightsOne := utils.ConstantSlice(uint16(1), len(wallet.AdminPublicKeys))
-	adminEncryptedParts, err := SplitAndEncrypt(splitKey[0], wallet.AdminPublicKeys, wallet.AdminsThreshold, weightsOne, metaData.WalletBackupID, wallet, true)
+	adminEncryptedParts, err := SplitAndEncrypt(splitKey[0], wallet.AdminPublicKeys, wallet.AdminsThreshold, weightsOne, metaData.WalletBackupID, wallet, true, chainID)
 	if err != nil {
 		return nil, err
 	}
 
-	providerEncryptedParts, err := SplitAndEncrypt(splitKey[1], providerPubKeys, dataProviderThreshold, normalizedWeights, metaData.WalletBackupID, wallet, false)
+	providerEncryptedParts, err := SplitAndEncrypt(splitKey[1], providerPubKeys, dataProviderThreshold, normalizedWeights, metaData.WalletBackupID, wallet, false, chainID)
 	if err != nil {
 		return nil, err
 	}
@@ -88,11 +88,11 @@ func BackupWallet(wallet *wallets.Wallet, providerPubKeys []*ecdsa.PublicKey, si
 		ProviderEncryptedParts: providerEncryptedParts,
 	}
 
-	hash, err := walletBackup.HashForSigning()
+	ownerSignHash, err := walletBackup.OwnerSignHash(chainID)
 	if err != nil {
 		return nil, err
 	}
-	walletBackup.Signature, err = wallet.Sign(backup.PadForSigning(hash))
+	walletBackup.Signature, err = wallet.Sign(ownerSignHash[:])
 	if err != nil {
 		return nil, err
 	}
@@ -143,6 +143,7 @@ func SplitAndEncrypt(
 	backupID wallets.WalletBackupID,
 	signer wallets.Signer,
 	isAdmin bool,
+	chainID uint64,
 ) (*backup.EncryptedShares, error) {
 	if len(encryptionPubKeys) != len(weights) {
 		return nil, errors.New("number of encryption keys and weights do not match")
@@ -179,7 +180,7 @@ func SplitAndEncrypt(
 			PartialWalletBackupID: partialBackupID,
 			OwnerPublicKey:        types.PubKeyToStruct(encryptionPubKeys[i]),
 		}
-		sig, err := keySplitData.Sign(signer)
+		sig, err := keySplitData.Sign(signer, chainID)
 		if err != nil {
 			return nil, err
 		}

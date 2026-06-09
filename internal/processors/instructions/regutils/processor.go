@@ -8,13 +8,13 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	cpolicy "github.com/flare-foundation/go-flare-common/pkg/policy"
+	csigning "github.com/flare-foundation/go-flare-common/pkg/signing"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/instruction"
 
 	"github.com/flare-foundation/tee-node/internal/attestation"
 	"github.com/flare-foundation/tee-node/pkg/node"
 	"github.com/flare-foundation/tee-node/pkg/policy"
 	"github.com/flare-foundation/tee-node/pkg/types"
-	"github.com/flare-foundation/tee-node/pkg/utils"
 )
 
 type Processor struct {
@@ -65,7 +65,7 @@ func (p *Processor) TEEAttestation(
 		if err != nil {
 			return nil, nil, err
 		}
-		mdHash, err := utils.DomainHash(types.TeeMachineRegisterTag, nodeInfo.ChainID, mdDataHash)
+		mdHash, err := csigning.NewPayload(csigning.TEEMachineRegister, nodeInfo.ChainID, mdDataHash).Hash()
 		if err != nil {
 			return nil, nil, err
 		}

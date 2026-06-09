@@ -8,6 +8,7 @@ import (
 	"math/big"
 	"slices"
 
+	csigning "github.com/flare-foundation/go-flare-common/pkg/signing"
 	"github.com/flare-foundation/tee-node/pkg/types"
 	"github.com/flare-foundation/tee-node/pkg/utils"
 	"github.com/flare-foundation/tee-node/pkg/wallets"
@@ -87,13 +88,23 @@ func (ksd *KeySplitData) HashForSigning() (common.Hash, error) {
 	return hash, nil
 }
 
-// Sign signs the key split data with the provided private key.
-func (ksd *KeySplitData) Sign(signer wallets.Signer) ([]byte, error) {
+// SignHash returns the domain-separated, chain-bound preimage signed for a key
+// split: signing.Payload{csigning.PMWKeySplit, chainID, HashForSigning()}.Hash().
+func (ksd *KeySplitData) SignHash(chainID uint64) (common.Hash, error) {
 	hash, err := ksd.HashForSigning()
+	if err != nil {
+		return common.Hash{}, err
+	}
+	return csigning.NewPayload(csigning.PMWKeySplit, chainID, hash).Hash()
+}
+
+// Sign signs the key split data with the provided private key.
+func (ksd *KeySplitData) Sign(signer wallets.Signer, chainID uint64) ([]byte, error) {
+	signHash, err := ksd.SignHash(chainID)
 	if err != nil {
 		return nil, err
 	}
-	signature, err := signer.Sign(PadForSigning(hash))
+	signature, err := signer.Sign(signHash[:])
 	if err != nil {
 		return nil, err
 	}
@@ -102,13 +113,13 @@ func (ksd *KeySplitData) Sign(signer wallets.Signer) ([]byte, error) {
 }
 
 // VerifySignature checks that the key split signature matches the owner key.
-func (ks *KeySplit) VerifySignature() error {
-	hash, err := ks.HashForSigning()
+func (ks *KeySplit) VerifySignature(chainID uint64) error {
+	signHash, err := ks.SignHash(chainID)
 	if err != nil {
 		return err
 	}
 
-	return wallets.VerifySignature(PadForSigning(hash), ks.Signature, ks.PublicKey, ks.SigningAlgo)
+	return wallets.VerifySignature(signHash[:], ks.Signature, ks.PublicKey, ks.SigningAlgo)
 }
 
 // HashForSigning produces the hash over the wallet backup content.
@@ -132,8 +143,30 @@ func (wb *WalletBackup) HashForSigning() (common.Hash, error) {
 	return hash, nil
 }
 
+// OwnerSignHash returns the domain-separated, chain-bound preimage signed by
+// the wallet (owner) key over the backup:
+// signing.Payload{csigning.PMWWalletBackup, chainID, HashForSigning()}.Hash().
+func (wb *WalletBackup) OwnerSignHash(chainID uint64) (common.Hash, error) {
+	hash, err := wb.HashForSigning()
+	if err != nil {
+		return common.Hash{}, err
+	}
+	return csigning.NewPayload(csigning.PMWWalletBackup, chainID, hash).Hash()
+}
+
+// TEESignHash returns the domain-separated, chain-bound preimage signed by the
+// TEE identity key over the backup:
+// signing.Payload{csigning.TEEWalletBackup, chainID, HashForSigning()}.Hash().
+func (wb *WalletBackup) TEESignHash(chainID uint64) (common.Hash, error) {
+	hash, err := wb.HashForSigning()
+	if err != nil {
+		return common.Hash{}, err
+	}
+	return csigning.NewPayload(csigning.TEEWalletBackup, chainID, hash).Hash()
+}
+
 // Check validates the metadata and share alignment in the wallet backup.
-func (wb *WalletBackup) Check() error {
+func (wb *WalletBackup) Check(chainID uint64) error {
 	if wb.AdminEncryptedParts == nil {
 		return errors.New("admin encrypted parts not present not matching given data")
 	}
@@ -169,16 +202,19 @@ func (wb *WalletBackup) Check() error {
 		}
 	}
 
-	hash, err := wb.HashForSigning()
+	ownerSignHash, err := wb.OwnerSignHash(chainID)
 	if err != nil {
 		return err
 	}
-
-	if err = wallets.VerifySignature(PadForSigning(hash), wb.Signature, wb.PublicKey, wb.SigningAlgo); err != nil {
+	if err = wallets.VerifySignature(ownerSignHash[:], wb.Signature, wb.PublicKey, wb.SigningAlgo); err != nil {
 		return fmt.Errorf("wallet signature invalid: %w", err)
 	}
 
-	if err = utils.VerifySignature(hash[:], wb.TEESignature, wb.TeeID); err != nil {
+	teeSignHash, err := wb.TEESignHash(chainID)
+	if err != nil {
+		return err
+	}
+	if err = utils.VerifySignature(teeSignHash[:], wb.TEESignature, wb.TeeID); err != nil {
 		return fmt.Errorf("TEE signature invalid: %w", err)
 	}
 
@@ -202,7 +238,7 @@ func (e *EncryptedShares) Check() error {
 }
 
 // DecryptSplit decrypts an encrypted key split and verifies its integrity.
-func DecryptSplit(encryptedShare []byte, privKeyECDSA *ecdsa.PrivateKey) (*KeySplit, error) {
+func DecryptSplit(encryptedShare []byte, privKeyECDSA *ecdsa.PrivateKey, chainID uint64) (*KeySplit, error) {
 	shareBytes, err := utils.Decrypt(encryptedShare, privKeyECDSA)
 	if err != nil {
 		return nil, err
@@ -214,7 +250,7 @@ func DecryptSplit(encryptedShare []byte, privKeyECDSA *ecdsa.PrivateKey) (*KeySp
 		return nil, err
 	}
 
-	err = keySplit.VerifySignature()
+	err = keySplit.VerifySignature(chainID)
 	if err != nil {
 		return nil, err
 	}
@@ -224,9 +260,4 @@ func DecryptSplit(encryptedShare []byte, privKeyECDSA *ecdsa.PrivateKey) (*KeySp
 	}
 
 	return &keySplit, nil
-}
-
-// PadForSigning wraps a hash with the Flare PMW backup signing prefix.
-func PadForSigning(hash common.Hash) []byte {
-	return fmt.Appendf(nil, "\x19Flare PMW backup:\n%d%s", len(hash), hash)
 }

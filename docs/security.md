@@ -18,9 +18,11 @@
 - **Message sizes**: All inputs bounded by constants
 - **Nonce ordering**: Delete and restore operations require strictly increasing nonces; the machine-path list requires a strictly increasing nonce
 - **Policy freshness**: Instructions can only reference recent policies (within 1 epoch)
-- **Domain separation**: Signed payloads are bound to a payload-type tag and the configured chain ID (see [Cryptography](cryptography.md#domain-separated-signed-payloads))
+- **Domain separation**: *Every* TEE signature — key-existence proofs, machine registration, FDC2 proofs, action results, end-phase vote hashes, and backup signatures — is taken over a payload-type-tagged, chain-ID-bound preimage, so a signature for one purpose cannot be replayed for another (see [Cryptography](cryptography.md#domain-separated-signed-payloads)). The XRP transaction and VRF proof signatures are the deliberate exceptions (external bit-exact formats).
 - **Governance signatures**: `SET_MACHINE_PATH_LIST` requires a threshold of distinct governance-signer signatures
 - **Machine-path authorization**: Direct key transfers must be authorized by the current machine-path list for the (source, destination) TEE pair
+
+> **Chain-ID dependency**: because action-result, vote-hash, and backup signing all bind the chain ID, `CHAIN_ID` must be configured (via env or the config server) before the node can sign — signing fails closed otherwise. The matching chain ID must also be wired into the on-chain, proxy, and data-provider verifiers, which recover against the same domain-separated preimage. Deploy these in lockstep.
 
 ### Config Server
 
@@ -58,7 +60,7 @@ Direct TEE-to-TEE key transfer (`KEY_DIRECT_BACKUP` / `KEY_DIRECT_RESTORE`) is c
 
 The list is installed by `F_GOVERNANCE` / `SET_MACHINE_PATH_LIST`. The handler:
 
-- Recovers each provided signature over `DomainHash(TEE_MACHINE_PATH_LIST, chainID, keccak256(abi.encode(extensionID, nonce, paths)))`
+- Recovers each provided signature over `signing.Payload{TEE_MACHINE_PATH_LIST, chainID, keccak256(abi.encode(extensionID, nonce, paths))}.Hash()`
 - Requires each recovered address to be in the node's governance signer set, and counts only **distinct** signers
 - Requires at least `threshold` distinct signers
 - Requires the list nonce to be strictly greater than the currently stored nonce

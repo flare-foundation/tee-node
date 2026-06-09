@@ -12,6 +12,7 @@ import (
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/flare-foundation/go-flare-common/pkg/logger"
 	"github.com/flare-foundation/go-flare-common/pkg/policy"
+	csigning "github.com/flare-foundation/go-flare-common/pkg/signing"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/instruction"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/xrpl"
 	"github.com/flare-foundation/tee-node/internal/router/queue"
@@ -109,6 +110,11 @@ func (p *Processor) SignXRPLPayment(
 			return nil, nil, errors.New("proxy URL not set")
 		}
 
+		chainID, err := p.ChainID()
+		if err != nil {
+			return nil, nil, err
+		}
+
 		if p.activeRoutines.Load() >= int64(settings.MaxSignGoroutines) {
 			return nil, nil, errors.New("maximum number of concurrent sign goroutines reached")
 		}
@@ -147,7 +153,12 @@ func (p *Processor) SignXRPLPayment(
 					Data:          responseData,
 				}
 
-				sig, err := p.Sign(result.Hash())
+				signHash, err := csigning.NewPayload(csigning.TEEActionResult, chainID, common.BytesToHash(result.Hash())).Hash()
+				if err != nil {
+					logger.Errorf("sign schedule: try %d computing sign hash error: %v", i, err)
+					return
+				}
+				sig, err := p.Sign(signHash[:])
 				if err != nil { // this should never happen since we already signed the same data during pre-processing, but we handle it just in case
 					logger.Errorf("sign schedule: try %d signing result error: %v", i, err)
 					return

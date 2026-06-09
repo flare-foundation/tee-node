@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 
+	csigning "github.com/flare-foundation/go-flare-common/pkg/signing"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/structs"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/structs/wallet"
 	"github.com/flare-foundation/tee-node/internal/attestation"
@@ -11,7 +12,6 @@ import (
 	"github.com/flare-foundation/tee-node/pkg/node"
 	"github.com/flare-foundation/tee-node/pkg/policy"
 	"github.com/flare-foundation/tee-node/pkg/types"
-	"github.com/flare-foundation/tee-node/pkg/utils"
 
 	"github.com/flare-foundation/tee-node/pkg/wallets"
 )
@@ -55,7 +55,7 @@ func (p *Processor) TEEInfo(_ context.Context, i *types.DirectInstruction) ([]by
 	if err != nil {
 		return nil, err
 	}
-	mdHash, err := utils.DomainHash(types.TeeMachineRegisterTag, info.ChainID, mdDataHash)
+	mdHash, err := csigning.NewPayload(csigning.TEEMachineRegister, info.ChainID, mdDataHash).Hash()
 	if err != nil {
 		return nil, err
 	}
@@ -126,7 +126,7 @@ func (p *Processor) KeysProof(_ context.Context, i *types.DirectInstruction) ([]
 		if err != nil {
 			return nil, err
 		}
-		hash, err := utils.DomainHash(types.TeeKeyExistenceTag, p.Info().ChainID, dataHash)
+		hash, err := csigning.NewPayload(csigning.TEEKeyExistence, p.Info().ChainID, dataHash).Hash()
 		if err != nil {
 			return nil, err
 		}
@@ -156,7 +156,9 @@ func (p *Processor) TEEBackup(_ context.Context, i *types.DirectInstruction) ([]
 	if err != nil {
 		return nil, err
 	}
-	teeID := p.Info().TeeID
+	info := p.Info()
+	teeID := info.TeeID
+	chainID := info.ChainID
 
 	p.wStorage.RLock()
 	defer p.wStorage.RUnlock()
@@ -189,17 +191,18 @@ func (p *Processor) TEEBackup(_ context.Context, i *types.DirectInstruction) ([]
 		weights,
 		activePolicy.RewardEpochID,
 		teeID,
+		chainID,
 		backup.NormalizationConstant,
 		backup.DataProvidersThreshold,
 	)
 	if err != nil {
 		return nil, err
 	}
-	hash, err := walletBackup.HashForSigning()
+	signHash, err := walletBackup.TEESignHash(chainID)
 	if err != nil {
 		return nil, err
 	}
-	walletBackup.TEESignature, err = p.Sign(hash[:])
+	walletBackup.TEESignature, err = p.Sign(signHash[:])
 	if err != nil {
 		return nil, err
 	}

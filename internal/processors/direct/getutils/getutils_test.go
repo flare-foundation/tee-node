@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	csigning "github.com/flare-foundation/go-flare-common/pkg/signing"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/structs"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/structs/wallet"
 	"github.com/flare-foundation/tee-node/internal/settings"
@@ -179,7 +180,7 @@ func TestKeysProof(t *testing.T) {
 
 			dataHash, err := types.KeyExistenceDataHash(&walletExistenceProof)
 			require.NoError(t, err)
-			signingHash, err := utils.DomainHash(types.TeeKeyExistenceTag, testNode.Info().ChainID, dataHash)
+			signingHash, err := csigning.NewPayload(csigning.TEEKeyExistence, testNode.Info().ChainID, dataHash).Hash()
 			require.NoError(t, err)
 			err = utils.VerifySignature(signingHash[:], proof.Signature, testNode.TeeID())
 			require.NoError(t, err)
@@ -256,7 +257,7 @@ func TestTEEInfo(t *testing.T) {
 		// Signature
 		mdDataHash, err := teeInfo.MachineData.DataHash()
 		require.NoError(t, err)
-		mdHash, err := utils.DomainHash(types.TeeMachineRegisterTag, testNode.Info().ChainID, mdDataHash)
+		mdHash, err := csigning.NewPayload(csigning.TEEMachineRegister, testNode.Info().ChainID, mdDataHash).Hash()
 		require.NoError(t, err)
 		err = utils.VerifySignature(mdHash[:], teeInfo.DataSignature, testNode.Info().TeeID)
 		require.NoError(t, err)

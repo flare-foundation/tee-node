@@ -13,6 +13,7 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 	cpolicy "github.com/flare-foundation/go-flare-common/pkg/policy"
 	"github.com/flare-foundation/go-flare-common/pkg/random"
+	csigning "github.com/flare-foundation/go-flare-common/pkg/signing"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/instruction"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/structs"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/structs/machinepath"
@@ -105,7 +106,7 @@ func (p *Processor) KeyGenerate(
 	if err != nil {
 		return nil, nil, err
 	}
-	hash, err := utils.DomainHash(types.TeeKeyExistenceTag, chainID, dataHash)
+	hash, err := csigning.NewPayload(csigning.TEEKeyExistence, chainID, dataHash).Hash()
 	if err != nil {
 		return nil, nil, err
 	}
@@ -271,7 +272,7 @@ func (p *Processor) KeyDataProviderRestore(
 		if err != nil {
 			return nil, nil, err
 		}
-		hash, err := utils.DomainHash(types.TeeKeyExistenceTag, chainID, dataHash)
+		hash, err := csigning.NewPayload(csigning.TEEKeyExistence, chainID, dataHash).Hash()
 		if err != nil {
 			return nil, nil, err
 		}
@@ -456,7 +457,15 @@ func (p *Processor) KeyDirectBackup(
 			return nil, nil, err
 		}
 
-		signature, err := p.Sign(crypto.Keccak256(payloadBytes))
+		chainID, err := p.ChainID()
+		if err != nil {
+			return nil, nil, err
+		}
+		signHash, err := csigning.NewPayload(csigning.TEEKeyDirectBackup, chainID, crypto.Keccak256Hash(payloadBytes)).Hash()
+		if err != nil {
+			return nil, nil, err
+		}
+		signature, err := p.Sign(signHash[:])
 		if err != nil {
 			return nil, nil, err
 		}
@@ -533,7 +542,15 @@ func (p *Processor) KeyDirectRestore(
 	if err := json.Unmarshal(dataFixed.AdditionalFixedMessage, &envelope); err != nil {
 		return nil, nil, err
 	}
-	if err := utils.VerifySignature(crypto.Keccak256(envelope.Payload), envelope.TEESignature, req.SourceTeeId); err != nil {
+	chainID, err := p.ChainID()
+	if err != nil {
+		return nil, nil, err
+	}
+	envelopeSignHash, err := csigning.NewPayload(csigning.TEEKeyDirectBackup, chainID, crypto.Keccak256Hash(envelope.Payload)).Hash()
+	if err != nil {
+		return nil, nil, err
+	}
+	if err := utils.VerifySignature(envelopeSignHash[:], envelope.TEESignature, req.SourceTeeId); err != nil {
 		return nil, nil, err
 	}
 
@@ -600,7 +617,7 @@ func (p *Processor) KeyDirectRestore(
 		if err != nil {
 			return nil, nil, err
 		}
-		hash, err := utils.DomainHash(types.TeeKeyExistenceTag, chainID, dataHash)
+		hash, err := csigning.NewPayload(csigning.TEEKeyExistence, chainID, dataHash).Hash()
 		if err != nil {
 			return nil, nil, err
 		}

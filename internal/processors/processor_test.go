@@ -20,6 +20,7 @@ import (
 	"github.com/ethereum/go-ethereum/crypto/ecies"
 	commonpolicy "github.com/flare-foundation/go-flare-common/pkg/policy"
 	"github.com/flare-foundation/go-flare-common/pkg/random"
+	csigning "github.com/flare-foundation/go-flare-common/pkg/signing"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/instruction"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/op"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/structs/fdc2"
@@ -45,6 +46,25 @@ import (
 	"github.com/flare-foundation/tee-node/pkg/utils"
 	"github.com/stretchr/testify/require"
 )
+
+// actionResultSignHash recomputes the domain-separated preimage the TEE signs
+// over an action result: signing.Payload{TEEActionResultTag, chainID, Hash()}.Hash().
+// The test chain ID is 31337 (set by testutils.Setup).
+func actionResultSignHash(t *testing.T, ar types.ActionResult) []byte {
+	t.Helper()
+	h, err := csigning.NewPayload(csigning.TEEActionResult, 31337, common.BytesToHash(ar.Hash())).Hash()
+	require.NoError(t, err)
+	return h[:]
+}
+
+// voteSignHash recomputes the domain-separated preimage the TEE signs over an
+// end-phase vote hash: signing.Payload{TEEVoteHashTag, chainID, voteHash}.Hash().
+func voteSignHash(t *testing.T, voteHash common.Hash) []byte {
+	t.Helper()
+	h, err := csigning.NewPayload(csigning.TEEVoteHash, 31337, voteHash).Hash()
+	require.NoError(t, err)
+	return h[:]
+}
 
 func TestProcessorsEndToEnd(t *testing.T) {
 	testNode, pStorage, wStorage := testutils.Setup(t)
@@ -254,12 +274,12 @@ func setMachinePathList(
 	paths := []machinepath.IMachinePathManagerMachinePath{{SourceTeeIds: source, DestinationTeeIds: destination}}
 	dataHash, err := types.MachinePathListDataHash(extensionID, nonce, paths)
 	require.NoError(t, err)
-	hash, err := utils.DomainHash(types.MachinePathListDomainTag, chainID, dataHash)
+	hash, err := csigning.NewPayload(csigning.TEEMachinePathList, chainID, dataHash).Hash()
 	require.NoError(t, err)
 
 	sigs := make([][]byte, len(govPrivKeys))
 	for i, k := range govPrivKeys {
-		sig, err := utils.Sign(hash.Bytes(), k)
+		sig, err := utils.Sign(hash[:], k)
 		require.NoError(t, err)
 		sigs[i] = sig
 	}
@@ -275,7 +295,7 @@ func setMachinePathList(
 
 	response := <-actionResponseChan
 	require.Equal(t, uint8(1), response.Result.Status, response.Result.Log)
-	err = utils.VerifySignature(response.Result.Hash(), response.Signature, teeID)
+	err = utils.VerifySignature(actionResultSignHash(t, response.Result), response.Signature, teeID)
 	require.NoError(t, err)
 }
 
@@ -317,7 +337,7 @@ func keyDirectBackup(
 
 	response := <-actionResponseChan
 	require.Equal(t, uint8(1), response.Result.Status, response.Result.Log)
-	err = utils.VerifySignature(response.Result.Hash(), response.Signature, teeID)
+	err = utils.VerifySignature(actionResultSignHash(t, response.Result), response.Signature, teeID)
 	require.NoError(t, err)
 
 	envelope := append([]byte(nil), response.Result.Data...)
@@ -332,13 +352,13 @@ func keyDirectBackup(
 
 	response = <-actionResponseChan
 	require.Equal(t, uint8(1), response.Result.Status, response.Result.Log)
-	err = utils.VerifySignature(response.Result.Hash(), response.Signature, teeID)
+	err = utils.VerifySignature(actionResultSignHash(t, response.Result), response.Signature, teeID)
 	require.NoError(t, err)
 
 	var signerSequence types.RewardingData
 	err = json.Unmarshal(response.Result.Data, &signerSequence)
 	require.NoError(t, err)
-	err = utils.VerifySignature(signerSequence.VoteSequence.VoteHash[:], signerSequence.Signature, teeID)
+	err = utils.VerifySignature(voteSignHash(t, signerSequence.VoteSequence.VoteHash), signerSequence.Signature, teeID)
 	require.NoError(t, err)
 
 	return envelope
@@ -404,7 +424,7 @@ func keyDirectRestore(
 
 	response := <-actionResponseChan
 	require.Equal(t, uint8(1), response.Result.Status, response.Result.Log)
-	err = utils.VerifySignature(response.Result.Hash(), response.Signature, teeID)
+	err = utils.VerifySignature(actionResultSignHash(t, response.Result), response.Signature, teeID)
 	require.NoError(t, err)
 
 	proof, err := wallets.ExtractKeyExistence(response.Result.Data, teeID, uint64(31337))
@@ -423,13 +443,13 @@ func keyDirectRestore(
 
 	response = <-actionResponseChan
 	require.Equal(t, uint8(1), response.Result.Status, response.Result.Log)
-	err = utils.VerifySignature(response.Result.Hash(), response.Signature, teeID)
+	err = utils.VerifySignature(actionResultSignHash(t, response.Result), response.Signature, teeID)
 	require.NoError(t, err)
 
 	var signerSequence types.RewardingData
 	err = json.Unmarshal(response.Result.Data, &signerSequence)
 	require.NoError(t, err)
-	err = utils.VerifySignature(signerSequence.VoteSequence.VoteHash[:], signerSequence.Signature, teeID)
+	err = utils.VerifySignature(voteSignHash(t, signerSequence.VoteSequence.VoteHash), signerSequence.Signature, teeID)
 	require.NoError(t, err)
 
 	return proof
@@ -517,7 +537,7 @@ func getTeeInfo(
 
 	teeID := crypto.PubkeyToAddress(*teePubKey)
 
-	err = utils.VerifySignature(actionResponse.Result.Hash(), actionResponse.Signature, teeID)
+	err = utils.VerifySignature(actionResultSignHash(t, actionResponse.Result), actionResponse.Signature, teeID)
 	require.NoError(t, err)
 
 	return teeID, teePubKey
@@ -571,7 +591,7 @@ func generateWallet(
 	response := <-actionResponseChan
 	t.Log(response.Result.Log)
 	require.Equal(t, uint8(1), response.Result.Status)
-	err = utils.VerifySignature(response.Result.Hash(), response.Signature, teeID)
+	err = utils.VerifySignature(actionResultSignHash(t, response.Result), response.Signature, teeID)
 	require.NoError(t, err)
 
 	walletExistenceProof, err := wallets.ExtractKeyExistence(response.Result.Data, teeID, uint64(31337))
@@ -594,14 +614,14 @@ func generateWallet(
 	t.Log(response.Result.Log)
 	require.Equal(t, uint8(1), response.Result.Status)
 
-	err = utils.VerifySignature(response.Result.Hash(), response.Signature, teeID)
+	err = utils.VerifySignature(actionResultSignHash(t, response.Result), response.Signature, teeID)
 	require.NoError(t, err)
 
 	var signerSequence types.RewardingData
 	err = json.Unmarshal(response.Result.Data, &signerSequence)
 	require.NoError(t, err)
 
-	err = utils.VerifySignature(signerSequence.VoteSequence.VoteHash[:], signerSequence.Signature, teeID)
+	err = utils.VerifySignature(voteSignHash(t, signerSequence.VoteSequence.VoteHash), signerSequence.Signature, teeID)
 	require.NoError(t, err)
 
 	return walletExistenceProof
@@ -643,7 +663,7 @@ func proveVRFRandomness(
 
 	actionResponse := <-actionResponseChan
 	require.Equal(t, uint8(1), actionResponse.Result.Status, actionResponse.Result.Log)
-	err = utils.VerifySignature(actionResponse.Result.Hash(), actionResponse.Signature, teeID)
+	err = utils.VerifySignature(actionResultSignHash(t, actionResponse.Result), actionResponse.Signature, teeID)
 	require.NoError(t, err)
 
 	var proveResp types.ProveRandomnessResponse
@@ -666,13 +686,13 @@ func proveVRFRandomness(
 
 	actionResponse = <-actionResponseChan
 	require.Equal(t, uint8(1), actionResponse.Result.Status, actionResponse.Result.Log)
-	err = utils.VerifySignature(actionResponse.Result.Hash(), actionResponse.Signature, teeID)
+	err = utils.VerifySignature(actionResultSignHash(t, actionResponse.Result), actionResponse.Signature, teeID)
 	require.NoError(t, err)
 
 	var signerSequence types.RewardingData
 	err = json.Unmarshal(actionResponse.Result.Data, &signerSequence)
 	require.NoError(t, err)
-	err = utils.VerifySignature(signerSequence.VoteSequence.VoteHash[:], signerSequence.Signature, teeID)
+	err = utils.VerifySignature(voteSignHash(t, signerSequence.VoteSequence.VoteHash), signerSequence.Signature, teeID)
 	require.NoError(t, err)
 }
 
@@ -735,7 +755,7 @@ func signTransaction(
 		}
 	}
 	require.NotNil(t, actionResponse)
-	err = utils.VerifySignature(actionResponse.Result.Hash(), actionResponse.Signature, teeID)
+	err = utils.VerifySignature(actionResultSignHash(t, actionResponse.Result), actionResponse.Signature, teeID)
 	require.NoError(t, err)
 
 	// Verify the XRP multisig signatures the TEE produced are cryptographically
@@ -756,7 +776,7 @@ func signTransaction(
 
 	actionResponse = <-actionResponseChan
 	require.Equal(t, uint8(1), actionResponse.Result.Status)
-	err = utils.VerifySignature(actionResponse.Result.Hash(), actionResponse.Signature, teeID)
+	err = utils.VerifySignature(actionResultSignHash(t, actionResponse.Result), actionResponse.Signature, teeID)
 	require.NoError(t, err)
 
 	verifyRewardingData(t, action, actionResponse, teeID)
@@ -830,7 +850,7 @@ func verifyRewardingData(t *testing.T, endAction *types.Action, response *types.
 	require.NoError(t, err)
 
 	// TEE signed the voteHash.
-	err = utils.VerifySignature(rewardingData.VoteSequence.VoteHash[:], rewardingData.Signature, teeID)
+	err = utils.VerifySignature(voteSignHash(t, rewardingData.VoteSequence.VoteHash), rewardingData.Signature, teeID)
 	require.NoError(t, err)
 
 	// Recompute the voteHash from the original instruction + signature chain.
@@ -910,14 +930,14 @@ func deleteWallet(
 
 	actionResponse = <-actionResponseChan
 	require.Equal(t, uint8(1), actionResponse.Result.Status)
-	err = utils.VerifySignature(actionResponse.Result.Hash(), actionResponse.Signature, teeID)
+	err = utils.VerifySignature(actionResultSignHash(t, actionResponse.Result), actionResponse.Signature, teeID)
 	require.NoError(t, err)
 
 	var signerSequence types.RewardingData
 	err = json.Unmarshal(actionResponse.Result.Data, &signerSequence)
 	require.NoError(t, err)
 
-	err = utils.VerifySignature(signerSequence.VoteSequence.VoteHash[:], signerSequence.Signature, teeID)
+	err = utils.VerifySignature(voteSignHash(t, signerSequence.VoteSequence.VoteHash), signerSequence.Signature, teeID)
 	require.NoError(t, err)
 }
 
@@ -942,7 +962,7 @@ func getBackup(
 
 	actionResponse := <-actionResponseChan
 	require.Equal(t, uint8(1), actionResponse.Result.Status)
-	err := utils.VerifySignature(actionResponse.Result.Hash(), actionResponse.Signature, teeID)
+	err := utils.VerifySignature(actionResultSignHash(t, actionResponse.Result), actionResponse.Signature, teeID)
 	require.NoError(t, err)
 
 	var backupResponse wallets.TEEBackupResponse
@@ -953,7 +973,7 @@ func getBackup(
 	err = json.Unmarshal(backupResponse.WalletBackup, &backup)
 	require.NoError(t, err)
 
-	err = backup.Check()
+	err = backup.Check(uint64(31337))
 	require.NoError(t, err)
 
 	return &backup
@@ -1019,7 +1039,7 @@ func recoverWallet(
 	additionalVariableMessages := make([][]byte, 0, len(providersPrivKeys)+len(adminsPrivKeys))
 	privKeys := make([]*ecdsa.PrivateKey, 0, len(providersPrivKeys)+len(adminsPrivKeys))
 	for i, privKey := range providersPrivKeys {
-		keySplit, err := backup.DecryptSplit(walletBackup.ProviderEncryptedParts.Splits[i], privKey)
+		keySplit, err := backup.DecryptSplit(walletBackup.ProviderEncryptedParts.Splits[i], privKey, uint64(31337))
 		require.NoError(t, err)
 
 		address := crypto.PubkeyToAddress(privKey.PublicKey)
@@ -1029,7 +1049,7 @@ func recoverWallet(
 			plaintext, err = json.Marshal(keySplit)
 			require.NoError(t, err)
 		} else {
-			keySplitAdmin, err := backup.DecryptSplit(walletBackup.AdminEncryptedParts.Splits[j], privKey)
+			keySplitAdmin, err := backup.DecryptSplit(walletBackup.AdminEncryptedParts.Splits[j], privKey, uint64(31337))
 			require.NoError(t, err)
 			var twoKeySplits [2]backup.KeySplit
 			twoKeySplits[0] = *keySplit
@@ -1052,7 +1072,7 @@ func recoverWallet(
 			continue
 		}
 
-		keySplit, err := backup.DecryptSplit(walletBackup.AdminEncryptedParts.Splits[i], privKey)
+		keySplit, err := backup.DecryptSplit(walletBackup.AdminEncryptedParts.Splits[i], privKey, uint64(31337))
 		require.NoError(t, err)
 
 		plaintext, err := json.Marshal(keySplit)
@@ -1074,7 +1094,7 @@ func recoverWallet(
 
 	response := <-actionResponseChan
 	require.Equal(t, uint8(1), response.Result.Status)
-	err = utils.VerifySignature(response.Result.Hash(), response.Signature, teeID)
+	err = utils.VerifySignature(actionResultSignHash(t, response.Result), response.Signature, teeID)
 	require.NoError(t, err)
 
 	walletExistenceProof, err := wallets.ExtractKeyExistence(response.Result.Data, teeID, uint64(31337))
@@ -1096,14 +1116,14 @@ func recoverWallet(
 
 	response = <-actionResponseChan
 	require.Equal(t, uint8(1), response.Result.Status)
-	err = utils.VerifySignature(response.Result.Hash(), response.Signature, teeID)
+	err = utils.VerifySignature(actionResultSignHash(t, response.Result), response.Signature, teeID)
 	require.NoError(t, err)
 
 	var signerSequence types.RewardingData
 	err = json.Unmarshal(response.Result.Data, &signerSequence)
 	require.NoError(t, err)
 
-	err = utils.VerifySignature(signerSequence.VoteSequence.VoteHash[:], signerSequence.Signature, teeID)
+	err = utils.VerifySignature(voteSignHash(t, signerSequence.VoteSequence.VoteHash), signerSequence.Signature, teeID)
 	require.NoError(t, err)
 
 	return walletExistenceProof
@@ -1145,7 +1165,7 @@ func getTeeAttestation(
 
 	actionResponse := <-actionResponseChan
 	require.Equal(t, uint8(1), actionResponse.Result.Status)
-	err = utils.VerifySignature(actionResponse.Result.Hash(), actionResponse.Signature, teeID)
+	err = utils.VerifySignature(actionResultSignHash(t, actionResponse.Result), actionResponse.Signature, teeID)
 	require.NoError(t, err)
 
 	var teeInfoResponse types.TeeInfoResponse
@@ -1166,14 +1186,14 @@ func getTeeAttestation(
 
 	actionResponse = <-actionResponseChan
 	require.Equal(t, uint8(1), actionResponse.Result.Status)
-	err = utils.VerifySignature(actionResponse.Result.Hash(), actionResponse.Signature, teeID)
+	err = utils.VerifySignature(actionResultSignHash(t, actionResponse.Result), actionResponse.Signature, teeID)
 	require.NoError(t, err)
 
 	var signerSequence types.RewardingData
 	err = json.Unmarshal(actionResponse.Result.Data, &signerSequence)
 	require.NoError(t, err)
 
-	err = utils.VerifySignature(signerSequence.VoteSequence.VoteHash[:], signerSequence.Signature, teeID)
+	err = utils.VerifySignature(voteSignHash(t, signerSequence.VoteSequence.VoteHash), signerSequence.Signature, teeID)
 	require.NoError(t, err)
 }
 
@@ -1265,7 +1285,7 @@ func fdcProve(
 
 	actionResponse := <-actionResponseChan
 	require.Equal(t, uint8(1), actionResponse.Result.Status)
-	err = utils.VerifySignature(actionResponse.Result.Hash(), actionResponse.Signature, teeID)
+	err = utils.VerifySignature(actionResultSignHash(t, actionResponse.Result), actionResponse.Signature, teeID)
 	require.NoError(t, err)
 
 	var fdcResponse fdc.ProveResponse
@@ -1302,14 +1322,14 @@ func fdcProve(
 
 	actionResponse = <-actionResponseChan
 	require.Equal(t, uint8(1), actionResponse.Result.Status)
-	err = utils.VerifySignature(actionResponse.Result.Hash(), actionResponse.Signature, teeID)
+	err = utils.VerifySignature(actionResultSignHash(t, actionResponse.Result), actionResponse.Signature, teeID)
 	require.NoError(t, err)
 
 	var signerSequence types.RewardingData
 	err = json.Unmarshal(actionResponse.Result.Data, &signerSequence)
 	require.NoError(t, err)
 
-	err = utils.VerifySignature(signerSequence.VoteSequence.VoteHash[:], signerSequence.Signature, teeID)
+	err = utils.VerifySignature(voteSignHash(t, signerSequence.VoteSequence.VoteHash), signerSequence.Signature, teeID)
 	require.NoError(t, err)
 }
 

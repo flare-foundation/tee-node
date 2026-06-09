@@ -7,6 +7,7 @@ import (
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
+	csigning "github.com/flare-foundation/go-flare-common/pkg/signing"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/structs"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/structs/fdc2"
 	"github.com/stretchr/testify/require"
@@ -76,7 +77,7 @@ func TestPerBodyHash_MatchesSolidity(t *testing.T) {
 	expectedDataHash := crypto.Keccak256Hash(dataInner)
 
 	domainEnc, err := abi.Arguments{{Type: bytes32Ty}, {Type: uint256Ty}, {Type: bytes32Ty}}.Pack(
-		[32]byte(FDC2DomainTag), new(big.Int).SetUint64(31337), [32]byte(expectedDataHash),
+		[32]byte(csigning.FDC2), new(big.Int).SetUint64(31337), [32]byte(expectedDataHash),
 	)
 	require.NoError(t, err)
 	expectedMsgHash := crypto.Keccak256Hash(domainEnc)

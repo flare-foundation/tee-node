@@ -9,6 +9,7 @@ import (
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/crypto"
 	cpolicy "github.com/flare-foundation/go-flare-common/pkg/policy"
+	csigning "github.com/flare-foundation/go-flare-common/pkg/signing"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/instruction"
 	"github.com/flare-foundation/tee-node/internal/settings"
 	"github.com/flare-foundation/tee-node/pkg/constraints"
@@ -196,7 +197,7 @@ func signaturesToSigners(instructionDataFixed *instruction.DataFixed, chainID ui
 	return signers, nil
 }
 
-func rewardingData(id *instruction.DataFixed, signatures, variableMessages []hexutil.Bytes, signers []common.Address, timestamps []uint64, status hexutil.Bytes, signer node.Signer) ([]byte, error) {
+func rewardingData(id *instruction.DataFixed, signatures, variableMessages []hexutil.Bytes, signers []common.Address, timestamps []uint64, status hexutil.Bytes, signer node.IdentifierAndSigner) ([]byte, error) {
 	iHash, err := id.HashFixed()
 	if err != nil {
 		return nil, err
@@ -206,7 +207,15 @@ func rewardingData(id *instruction.DataFixed, signatures, variableMessages []hex
 	if err != nil {
 		return nil, err
 	}
-	signature, err := signer.Sign(voteHash[:])
+	chainID, err := signer.ChainID()
+	if err != nil {
+		return nil, err
+	}
+	voteSignHash, err := csigning.NewPayload(csigning.TEEVoteHash, chainID, voteHash).Hash()
+	if err != nil {
+		return nil, err
+	}
+	signature, err := signer.Sign(voteSignHash[:])
 	if err != nil {
 		return nil, errors.New("could not sign vote hash")
 	}

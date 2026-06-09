@@ -161,6 +161,11 @@ func checkSigners(signers []common.Address, expectedProviders []common.Address, 
 }
 
 func (p *Processor) processKeySplitMessages(variableMessages []hexutil.Bytes, isProviderAndAdmin []bool, walletBackupId wallets.WalletBackupID) ([]*pkgbackup.KeySplit, []byte, error) {
+	chainID, err := p.ChainID()
+	if err != nil {
+		return nil, nil, err
+	}
+
 	allKeySplits := make([]*pkgbackup.KeySplit, 0)
 	duplicateCheck := make(map[common.Hash]int)
 
@@ -174,7 +179,7 @@ outer:
 			continue outer
 		}
 
-		keySplits, err := processKeySplitPlaintext(keySplitsPlaintext, walletBackupId, isProviderAndAdmin[i])
+		keySplits, err := processKeySplitPlaintext(keySplitsPlaintext, walletBackupId, isProviderAndAdmin[i], chainID)
 		if err != nil {
 			restoreStatus.AddError(i, err)
 			continue outer
@@ -215,7 +220,7 @@ outer:
 // Otherwise, one split is expected.
 //
 // It is checked that the splits have the expected backupID and that the signature is valid.
-func processKeySplitPlaintext(plaintext []byte, walletBackupID wallets.WalletBackupID, isProviderAndAdmin bool) ([]*pkgbackup.KeySplit, error) {
+func processKeySplitPlaintext(plaintext []byte, walletBackupID wallets.WalletBackupID, isProviderAndAdmin bool, chainID uint64) ([]*pkgbackup.KeySplit, error) {
 	var err error
 	keySplits := make([]*pkgbackup.KeySplit, 0)
 	if !isProviderAndAdmin {
@@ -239,7 +244,7 @@ func processKeySplitPlaintext(plaintext []byte, walletBackupID wallets.WalletBac
 			return nil, errors.New("wallet backup id in the share does not match the id in the key split")
 		}
 
-		err = keySplit.VerifySignature()
+		err = keySplit.VerifySignature(chainID)
 		if err != nil {
 			return nil, err
 		}

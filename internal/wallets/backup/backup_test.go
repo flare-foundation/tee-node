@@ -22,6 +22,7 @@ var mockKeyID = uint64(1)
 
 func TestBackupAndRecover(t *testing.T) {
 	testNode, _, _ := testutils.Setup(t)
+	chainID, _ := testNode.ChainID()
 
 	idPair := wallets.KeyIDPair{WalletID: mockWalletID, KeyID: mockKeyID}
 	sk, err := crypto.GenerateKey()
@@ -61,7 +62,7 @@ func TestBackupAndRecover(t *testing.T) {
 	t.Run("Unsupported signing algorithm should fail", func(t *testing.T) {
 		unsupportedAlgoWallet := *baseWallet
 		unsupportedAlgoWallet.SigningAlgo = utils.ToHash("BLS-12-381")
-		_, err = backup.BackupWallet(&unsupportedAlgoWallet, providerPubKeys, weights, rewardEpochID, testNode.TeeID(), uint16(normalizationParam), dataProvidersBackupThreshold)
+		_, err = backup.BackupWallet(&unsupportedAlgoWallet, providerPubKeys, weights, rewardEpochID, testNode.TeeID(), chainID, uint16(normalizationParam), dataProvidersBackupThreshold)
 		assert.Error(t, err)
 	})
 
@@ -82,21 +83,21 @@ func TestBackupAndRecover(t *testing.T) {
 			givenWallet.SigningAlgo = tc.signingAlgo
 
 			// Backup the wallet
-			walletBackup, err := backup.BackupWallet(&givenWallet, providerPubKeys, weights, rewardEpochID, testNode.TeeID(), uint16(normalizationParam), dataProvidersBackupThreshold)
+			walletBackup, err := backup.BackupWallet(&givenWallet, providerPubKeys, weights, rewardEpochID, testNode.TeeID(), chainID, uint16(normalizationParam), dataProvidersBackupThreshold)
 			assert.NoError(t, err)
 			assert.NotNil(t, walletBackup)
 
 			// Add TEE signature (normally done by the TEE processor)
-			backupHash, err := walletBackup.HashForSigning()
+			signHash, err := walletBackup.TEESignHash(chainID)
 			assert.NoError(t, err)
-			walletBackup.TEESignature, err = testNode.Sign(backupHash[:])
+			walletBackup.TEESignature, err = testNode.Sign(signHash[:])
 			assert.NoError(t, err)
 
-			err = walletBackup.Check()
+			err = walletBackup.Check(chainID)
 			assert.NoError(t, err)
 
 			// Decrypt admin and provider shares
-			adminKeyShares, providerKeyShares := decryptAllShares(t, walletBackup.AdminEncryptedParts, walletBackup.ProviderEncryptedParts, adminKeys, providerKeys)
+			adminKeyShares, providerKeyShares := decryptAllShares(t, walletBackup.AdminEncryptedParts, walletBackup.ProviderEncryptedParts, adminKeys, providerKeys, chainID)
 
 			// Recover the wallet
 			recoveredWallet, err := backup.RecoverWallet(
@@ -122,13 +123,14 @@ func TestSplitAndEncrypt(t *testing.T) {
 	signer := &wallets.Wallet{PrivateKey: common.BigToHash(privateKey.D).Bytes(), SigningAlgo: wallets.EVMSignAlgo}
 
 	// Split and encrypt the key
-	encryptedShares, err := backup.SplitAndEncrypt(privateKey, encryptionPubKeys, 2, utils.ConstantSlice(uint16(1), 2), wallets.WalletBackupID{}, signer, false)
+	encryptedShares, err := backup.SplitAndEncrypt(privateKey, encryptionPubKeys, 2, utils.ConstantSlice(uint16(1), 2), wallets.WalletBackupID{}, signer, false, uint64(31337))
 	assert.NoError(t, err)
 	assert.NotNil(t, encryptedShares)
 }
 
 func TestRecoverWithMissingShares(t *testing.T) {
 	testNode, _, _ := testutils.Setup(t)
+	chainID, _ := testNode.ChainID()
 
 	idPair := wallets.KeyIDPair{WalletID: mockWalletID, KeyID: mockKeyID}
 	sk, err := crypto.GenerateKey()
@@ -167,21 +169,21 @@ func TestRecoverWithMissingShares(t *testing.T) {
 	rewardEpochID := uint32(100)
 
 	// Backup the wallet
-	walletBackup, err := backup.BackupWallet(givenWallet, providerPubKeys, weights, rewardEpochID, testNode.TeeID(), uint16(normalizationParam), dataProvidersBackupThreshold)
+	walletBackup, err := backup.BackupWallet(givenWallet, providerPubKeys, weights, rewardEpochID, testNode.TeeID(), chainID, uint16(normalizationParam), dataProvidersBackupThreshold)
 	assert.NoError(t, err)
 	assert.NotNil(t, walletBackup)
 
 	// Add TEE signature (normally done by the TEE processor)
-	backupHash, err := walletBackup.HashForSigning()
+	signHash, err := walletBackup.TEESignHash(chainID)
 	assert.NoError(t, err)
-	walletBackup.TEESignature, err = testNode.Sign(backupHash[:])
+	walletBackup.TEESignature, err = testNode.Sign(signHash[:])
 	assert.NoError(t, err)
 
-	err = walletBackup.Check()
+	err = walletBackup.Check(chainID)
 	assert.NoError(t, err)
 
 	// Decrypt admin and provider shares
-	adminKeyShares, providerKeyShares := decryptAllShares(t, walletBackup.AdminEncryptedParts, walletBackup.ProviderEncryptedParts, adminKeys, providerKeys)
+	adminKeyShares, providerKeyShares := decryptAllShares(t, walletBackup.AdminEncryptedParts, walletBackup.ProviderEncryptedParts, adminKeys, providerKeys, chainID)
 
 	t.Run("Recovery with missing provider share should fail", func(t *testing.T) {
 		recoveredWallet, err := backup.RecoverWallet(
@@ -327,18 +329,18 @@ func privateKeysToPublicKeys(t *testing.T, privateKeys []*ecdsa.PrivateKey) []*e
 	return publicKeys
 }
 
-func decryptAllShares(t *testing.T, adminEncryptedParts, providerEncryptedParts *pbackup.EncryptedShares, adminKeys, providerKeys []*ecdsa.PrivateKey) ([]*pbackup.KeySplit, []*pbackup.KeySplit) {
+func decryptAllShares(t *testing.T, adminEncryptedParts, providerEncryptedParts *pbackup.EncryptedShares, adminKeys, providerKeys []*ecdsa.PrivateKey, chainID uint64) ([]*pbackup.KeySplit, []*pbackup.KeySplit) {
 	t.Helper()
 	adminKeyShares := make([]*pbackup.KeySplit, len(adminKeys))
 	providerKeyShares := make([]*pbackup.KeySplit, len(providerKeys))
 	for i, k := range adminKeys {
-		share, err := pbackup.DecryptSplit(adminEncryptedParts.Splits[i], k)
+		share, err := pbackup.DecryptSplit(adminEncryptedParts.Splits[i], k, chainID)
 		assert.NoError(t, err)
 		adminKeyShares[i] = share
 	}
 
 	for i, k := range providerKeys {
-		share, err := pbackup.DecryptSplit(providerEncryptedParts.Splits[i], k)
+		share, err := pbackup.DecryptSplit(providerEncryptedParts.Splits[i], k, chainID)
 		assert.NoError(t, err)
 		providerKeyShares[i] = share
 	}

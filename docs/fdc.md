@@ -30,11 +30,11 @@ FDC has custom threshold logic:
 The proof is bound to a domain-separated, chain-bound preimage (see [Cryptography](cryptography.md#domain-separated-signed-payloads)):
 
 ```
-messageHash = DomainHash(FDC2, chainID, keccak256(abi.encode(
+messageHash = signing.Payload{FDC2, chainID, keccak256(abi.encode(
     keccak256(abi.encode(header)),
     keccak256(abi.encode(requestBody)),
     keccak256(abi.encode(responseBody)),
-)))
+))}.Hash()
 ```
 
 `chainID` comes from the node's configured `CHAIN_ID`. Two recovery preimages are derived from `messageHash`:
@@ -69,4 +69,4 @@ messageHash = DomainHash(FDC2, chainID, keccak256(abi.encode(
 
 ## End Phase
 
-Generates rewarding data with vote hash and TEE signature. No state changes.
+Generates rewarding data with the vote hash and a TEE signature. The vote-hash signature is domain-separated: the TEE signs `signing.Payload{TEE_VOTE_HASH, chainID, voteHash}.Hash()` (see [Cryptography](cryptography.md#domain-separated-signed-payloads)), so the on-chain/proxy consumer must recover against the same preimage. No state changes.
