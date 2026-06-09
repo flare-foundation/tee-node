@@ -8,7 +8,6 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/flare-foundation/go-flare-common/pkg/convert"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/op"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/structs"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/structs/machine"
@@ -17,36 +16,10 @@ import (
 	"github.com/flare-foundation/go-flare-common/pkg/tee/structs/wallet"
 )
 
-// TeeMachineRegisterTag is Solidity bytes32("TEE_MACHINE_REGISTER"), the
-// domain separator MachineManagerFacet.register binds into the signed
-// payload. Callers pass this to utils.DomainHash alongside the value
-// returned by MachineData.DataHash().
-var TeeMachineRegisterTag common.Hash
-
-// TeeKeyExistenceTag is Solidity bytes32("TEE_KEY_EXISTENCE"), the
-// domain separator WalletKeyManagerFacet.confirmKey binds into the
-// signed payload. Callers pass this to utils.DomainHash alongside the
-// value returned by KeyExistenceDataHash().
-var TeeKeyExistenceTag common.Hash
-
-func init() {
-	tag, err := convert.StringToCommonHash("TEE_MACHINE_REGISTER")
-	if err != nil {
-		panic(err)
-	}
-	TeeMachineRegisterTag = tag
-
-	keyExistenceTag, err := convert.StringToCommonHash("TEE_KEY_EXISTENCE")
-	if err != nil {
-		panic(err)
-	}
-	TeeKeyExistenceTag = keyExistenceTag
-}
-
 // KeyExistenceDataHash returns keccak256(abi.encode(proof)), the inner
 // dataHash WalletKeyManagerFacet.confirmKey wraps with
 // SignedPayload.messageHash(TEE_KEY_EXISTENCE, ...). Callers wrap this
-// value with utils.DomainHash(TeeKeyExistenceTag, chainID, dataHash)
+// value with signing.Payload{csigning.TEEKeyExistence, chainID, dataHash}.Hash()
 // before signing or comparing.
 func KeyExistenceDataHash(proof *wallet.IWalletKeyManagerKeyExistence) (common.Hash, error) {
 	if proof == nil {
@@ -143,8 +116,8 @@ type MachineData struct {
 // DataHash returns keccak256(abi.encode(teeMachineData)) — the inner
 // dataHash MachineManagerFacet.register wraps with
 // SignedPayload.messageHash(TEE_MACHINE_REGISTER, ...). Callers wrap
-// this value with utils.DomainHash(TeeMachineRegisterTag, chainID,
-// dataHash) before signing or comparing.
+// this value with signing.Payload{TeeMachineRegisterTag, chainID,
+// dataHash}.Hash() before signing or comparing.
 func (md *MachineData) DataHash() (common.Hash, error) {
 	innerEnc, err := abi.Arguments{machine.TeeMachineDataStructArg}.Pack(md.prepareForEncoding())
 	if err != nil {

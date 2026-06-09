@@ -5,53 +5,17 @@ import (
 	"crypto/rand"
 	"errors"
 	"fmt"
-	"math/big"
 	"slices"
 
 	"github.com/flare-foundation/go-flare-common/pkg/tee/structs/wallet"
 	"github.com/flare-foundation/tee-node/pkg/types"
 
 	"github.com/ethereum/go-ethereum/accounts"
-	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/crypto/ecies"
 	"github.com/ethereum/go-ethereum/crypto/secp256k1"
 )
-
-// domainHashArgs encodes (bytes32 prefix, uint256 chainID, bytes32
-// dataHash), matching the on-chain SignedPayload library's canonical
-// tuple shape used for cross-operation signed payloads.
-var domainHashArgs abi.Arguments
-
-func init() {
-	bytes32Ty, err := abi.NewType("bytes32", "", nil)
-	if err != nil {
-		panic(fmt.Sprintf("init domainHashArgs bytes32: %v", err))
-	}
-	uint256Ty, err := abi.NewType("uint256", "", nil)
-	if err != nil {
-		panic(fmt.Sprintf("init domainHashArgs uint256: %v", err))
-	}
-	domainHashArgs = abi.Arguments{
-		{Type: bytes32Ty},
-		{Type: uint256Ty},
-		{Type: bytes32Ty},
-	}
-}
-
-// DomainHash returns keccak256(abi.encode(prefix, chainID, dataHash)).
-// prefix domain-separates the payload type and chainID binds the
-// signature to a single network. Callers Sign over this value (which
-// adds the eth-signed-message wrap); on-chain verifiers recover against
-// the matching SignedPayload.ethSignedHash.
-func DomainHash(prefix common.Hash, chainID uint64, dataHash common.Hash) (common.Hash, error) {
-	enc, err := domainHashArgs.Pack(prefix, new(big.Int).SetUint64(chainID), dataHash)
-	if err != nil {
-		return common.Hash{}, err
-	}
-	return crypto.Keccak256Hash(enc), nil
-}
 
 // Sign signs the provided hash with the given private key.
 func Sign(msgHash []byte, privKey *ecdsa.PrivateKey) ([]byte, error) {

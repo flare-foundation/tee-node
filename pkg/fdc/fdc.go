@@ -5,17 +5,10 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/flare-foundation/go-flare-common/pkg/convert"
+	csigning "github.com/flare-foundation/go-flare-common/pkg/signing"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/structs"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/structs/fdc2"
-	"github.com/flare-foundation/tee-node/pkg/utils"
 )
-
-// FDC2DomainTag is Solidity bytes32("FDC2"), the domain separator the
-// on-chain Verification facet binds into every FDC2 attestation-proof
-// signed payload (TEE availability check, PMW multisig configured,
-// etc.).
-var FDC2DomainTag, _ = convert.StringToCommonHash("FDC2")
 
 // ProveResponse represents the response structure for F_FDC2 PROVE opCommand.
 type ProveResponse struct {
@@ -82,11 +75,11 @@ func RelayPrefixedHash(messageHash common.Hash) common.Hash {
 // HashMessage returns the SignedPayload preimage the on-chain Verification
 // facet recovers FDC2 signatures against:
 //
-//	utils.DomainHash(FDC2DomainTag, chainID, keccak256(abi.encode(
+//	signing.Payload{signing.FDC2, chainID, keccak256(abi.encode(
 //	    keccak256(abi.encode(header)),
 //	    keccak256(abi.encode(requestBody)),
 //	    keccak256(abi.encode(responseBody)),
-//	)))
+//	))}.Hash()
 //
 // The encoded header is returned alongside so callers can embed it verbatim
 // in the proof response.
@@ -131,7 +124,7 @@ func HashMessage(
 	}
 	dataHash := crypto.Keccak256Hash(innerEnc)
 
-	messageHash, err := utils.DomainHash(FDC2DomainTag, chainID, dataHash)
+	messageHash, err := csigning.NewPayload(csigning.FDC2, chainID, dataHash).Hash()
 	if err != nil {
 		return common.Hash{}, nil, err
 	}

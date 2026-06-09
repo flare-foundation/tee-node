@@ -13,8 +13,9 @@ type KeyInfo struct {
 }
 
 // SignedKeyDirectBackup is the envelope produced by KEY_DIRECT_BACKUP.
-// Payload is a JSON-encoded KeyDirectBackupPayload; TEESignature is
-// the source TEE's signature over keccak256(Payload).
+// Payload is a JSON-encoded KeyDirectBackupPayload; TEESignature is the
+// source TEE's signature over
+// signing.Payload{TEEKeyDirectBackupTag, chainID, keccak256(Payload)}.Hash().
 type SignedKeyDirectBackup struct {
 	Payload      hexutil.Bytes `json:"payload"`
 	TEESignature hexutil.Bytes `json:"teeSignature"`

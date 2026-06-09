@@ -14,6 +14,7 @@ import (
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/flare-foundation/go-flare-common/pkg/logger"
+	csigning "github.com/flare-foundation/go-flare-common/pkg/signing"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/structs/machinepath"
 	"github.com/flare-foundation/tee-node/internal/settings"
 	"github.com/flare-foundation/tee-node/pkg/types"
@@ -142,7 +143,8 @@ func (n *Node) Info() Info {
 		// signature-verification path surface the mismatch.
 		dataHash, err := types.MachinePathListDataHash(n.extensionID.value, n.machinePathNonce, n.machinePaths)
 		if err == nil {
-			if h, err := utils.DomainHash(types.MachinePathListDomainTag, n.chainID, dataHash); err == nil {
+			h, err := csigning.NewPayload(csigning.TEEMachinePathList, n.chainID, dataHash).Hash()
+			if err == nil {
 				pathListHash = h
 			}
 		}

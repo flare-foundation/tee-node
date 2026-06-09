@@ -48,7 +48,7 @@ func New(proxyURL *settings.ProxyURLMutex) Router {
 
 // Run spawns workers processing queues for both the instructions and
 // direct instructions.
-func (r Router) Run(signer node.Signer) {
+func (r Router) Run(signer node.IdentifierAndSigner) {
 	go r.ServeQueue(processorutils.Main, signer)
 	go r.ServeQueue(processorutils.Direct, signer)
 	r.ServeQueue(processorutils.Backup, signer)
@@ -56,7 +56,7 @@ func (r Router) Run(signer node.Signer) {
 
 // ServeQueue starts an endless loop that fetches actions from proxy's queue,
 // processes them, and posts the response to the proxy.
-func (r *Router) ServeQueue(id processorutils.QueueID, signer node.Signer) {
+func (r *Router) ServeQueue(id processorutils.QueueID, signer node.IdentifierAndSigner) {
 	logger.Infof("%s queue: processing started", id)
 	for {
 		sleep := r.serveQueueIteration(id, signer)
@@ -68,7 +68,7 @@ func (r *Router) ServeQueue(id processorutils.QueueID, signer node.Signer) {
 
 // serveQueueIteration executes a single iteration of the queue processing loop.
 // It is separated from ServeQueue to enable panic recovery via defer.
-func (r *Router) serveQueueIteration(id processorutils.QueueID, signer node.Signer) time.Duration {
+func (r *Router) serveQueueIteration(id processorutils.QueueID, signer node.IdentifierAndSigner) time.Duration {
 	var action *types.Action
 
 	defer func() {
@@ -127,7 +127,7 @@ func (r *Router) errorResult(action *types.Action, log string) types.ActionResul
 
 // signAndPost signs the result and posts it to the proxy.
 // On failure it retries with a minimal unsigned error result.
-func (r *Router) signAndPost(id processorutils.QueueID, result *types.ActionResult, signer node.Signer) {
+func (r *Router) signAndPost(id processorutils.QueueID, result *types.ActionResult, signer node.IdentifierAndSigner) {
 	response, err := SignResult(result, signer)
 	if err != nil {
 		logger.Errorf("%s queue: error signing: %v", id, err)

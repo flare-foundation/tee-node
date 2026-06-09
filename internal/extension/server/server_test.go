@@ -33,6 +33,7 @@ func setupTestServer(t *testing.T, proxyPort int, port int) *SignServer {
 
 	testNode, err := node.Initialize(node.ZeroState{})
 	require.NoError(t, err)
+	require.NoError(t, testNode.SetChainID(31337))
 
 	wStorage := wallets.InitializeStorage()
 

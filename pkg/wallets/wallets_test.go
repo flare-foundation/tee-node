@@ -11,6 +11,7 @@ import (
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/crypto/ecies"
+	csigning "github.com/flare-foundation/go-flare-common/pkg/signing"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/instruction"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/op"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/structs"
@@ -435,7 +436,7 @@ func TestExtractKeyExistence(t *testing.T) {
 		// WalletKeyManagerFacet.confirmKey recovers against.
 		dataHash, err := types.KeyExistenceDataHash(keyExistence)
 		require.NoError(t, err)
-		hash, err := utils.DomainHash(types.TeeKeyExistenceTag, uint64(31337), dataHash)
+		hash, err := csigning.NewPayload(csigning.TEEKeyExistence, 31337, dataHash).Hash()
 		require.NoError(t, err)
 		signature, err := utils.Sign(hash[:], teePrivKey)
 		require.NoError(t, err)

@@ -10,6 +10,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
 	commonpolicy "github.com/flare-foundation/go-flare-common/pkg/policy"
+	csigning "github.com/flare-foundation/go-flare-common/pkg/signing"
 	pnode "github.com/flare-foundation/tee-node/pkg/node"
 	"github.com/flare-foundation/tee-node/pkg/policy"
 	"github.com/flare-foundation/tee-node/pkg/types"
@@ -156,14 +157,14 @@ func verifyGovernanceSignatures(n *pnode.Node, req types.SetMachinePathListReque
 	if hashErr != nil {
 		return hashErr
 	}
-	hash, hashErr := utils.DomainHash(types.MachinePathListDomainTag, chainID, dataHash)
+	hash, hashErr := csigning.NewPayload(csigning.TEEMachinePathList, chainID, dataHash).Hash()
 	if hashErr != nil {
 		return hashErr
 	}
 
 	seen := make(map[common.Address]struct{}, len(req.Signatures))
 	for _, sig := range req.Signatures {
-		signer, err := utils.CheckSignature(hash.Bytes(), sig, govSigners)
+		signer, err := utils.CheckSignature(hash[:], sig, govSigners)
 		if err != nil {
 			return err
 		}

@@ -11,6 +11,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
 	commonpolicy "github.com/flare-foundation/go-flare-common/pkg/policy"
+	csigning "github.com/flare-foundation/go-flare-common/pkg/signing"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/structs/machinepath"
 	"github.com/stretchr/testify/require"
 
@@ -550,12 +551,12 @@ func signMachinePathList(t *testing.T, n *node.Node, source, destination []commo
 
 	dataHash, err := types.MachinePathListDataHash(n.Info().ExtensionID, nonce, singlePathList(source, destination))
 	require.NoError(t, err)
-	hash, err := utils.DomainHash(types.MachinePathListDomainTag, testChainID, dataHash)
+	hash, err := csigning.NewPayload(csigning.TEEMachinePathList, testChainID, dataHash).Hash()
 	require.NoError(t, err)
 
 	sigs := make([][]byte, len(keys))
 	for i, key := range keys {
-		sig, err := utils.Sign(hash.Bytes(), key)
+		sig, err := utils.Sign(hash[:], key)
 		require.NoError(t, err)
 		sigs[i] = sig
 	}

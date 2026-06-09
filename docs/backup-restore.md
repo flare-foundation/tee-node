@@ -21,8 +21,8 @@ Both mechanisms run through the standard instruction pipeline, so the usual sign
 3. Generate a random nonce (`RandomNonce`) to uniquely identify this backup
 4. Split private key into 2 additive shares (admin part + provider part)
 5. For each part, create Shamir secret shares and encrypt per-recipient
-6. Sign the backup with the wallet's private key
-7. Return backup for TEE signature
+6. Sign the backup with the wallet's private key over `signing.Payload{PMW_WALLET_BACKUP, chainID, contentHash}.Hash()`
+7. Return backup for the TEE signature over `signing.Payload{TEE_WALLET_BACKUP, chainID, contentHash}.Hash()`
 
 ### Key Splitting
 
@@ -47,7 +47,7 @@ Each part is further split using Shamir's scheme:
 For each recipient (admin or provider):
 
 1. Create `KeySplitData` containing their Shamir shares, backup ID, and owner public key
-2. Sign the `KeySplitData` with the wallet's private key
+2. Sign the `KeySplitData` with the wallet's private key over `signing.Payload{PMW_KEY_SPLIT, chainID, hash}.Hash()`
 3. Wrap in `KeySplit` (data + signature)
 4. JSON-marshal the `KeySplit`
 5. Encrypt with recipient's ECIES public key
@@ -69,8 +69,8 @@ WalletBackup
     Splits[]          (one ECIES-encrypted KeySplit per provider)
     OwnersPublicKeys[]
     Threshold, Weights[]
-  Signature           (wallet key signature over backup content)
-  TEESignature        (TEE key signature over backup hash)
+  Signature           (wallet-key signature, signing.Payload{PMW_WALLET_BACKUP, chainID, contentHash}.Hash())
+  TEESignature        (TEE-key signature, signing.Payload{TEE_WALLET_BACKUP, chainID, contentHash}.Hash())
 ```
 
 ### Backup Sizes
@@ -154,12 +154,12 @@ A **machine path** is a tuple `(sourceTeeIds[], destinationTeeIds[])`. A path au
 2. Look up the wallet; require a secp256k1 signing algorithm
 3. ECIES-encrypt the private key under the destination's public key
 4. Assemble a `KeyDirectBackupPayload`: the `BackupID` (TEE ID, wallet/key ID, derived public key, key type, signing algo, **current reward epoch**, and a fresh `RandomNonce`), the encrypted private key, and the plaintext wallet configuration (admin keys, cosigners, thresholds, settings, status)
-5. Sign `keccak256(payload)` with the TEE identity key and return the envelope:
+5. Sign `signing.Payload{TEE_KEY_DIRECT_BACKUP, chainID, keccak256(payload)}.Hash()` with the TEE identity key and return the envelope:
 
 ```
 SignedKeyDirectBackup
   Payload        (JSON KeyDirectBackupPayload)
-  TEESignature   (source TEE signature over keccak256(Payload))
+  TEESignature   (source TEE signature over signing.Payload{TEE_KEY_DIRECT_BACKUP, chainID, keccak256(Payload)}.Hash())
 ```
 
 The blob is stateless with respect to the destination's per-key nonce; replay is bounded by the reward-epoch window checked at restore.
@@ -174,7 +174,7 @@ The restore instruction carries a quorum-signed `BackupId` in its original messa
     - `BackupId.teeId` must equal `sourceTeeId`
     - `machinePathListNonce` must not exceed the node's current nonce
     - the current path list must authorize `(source, this TEE)`
-2. Verify the envelope `TEESignature` over `keccak256(Payload)` against `sourceTeeId`
+2. Verify the envelope `TEESignature` over `signing.Payload{TEE_KEY_DIRECT_BACKUP, chainID, keccak256(Payload)}.Hash()` against `sourceTeeId`
 3. Cross-check the source-signed payload's `BackupID` against the quorum-signed instruction `BackupId` by comparing their canonical ABI encodings (`matchesInstructionBackupId`)
 4. Verify the backup's `RewardEpochID` is fresh: the node's current reward epoch must be the backup's epoch or one greater (`{epoch, epoch+1}`)
 5. ECIES-decrypt the private key with this TEE's own key
@@ -198,7 +198,7 @@ Every backup generates a fresh `RandomNonce`. This is included in the `WalletBac
 
 ### Wallet Signature Verification
 
-Each `KeySplit` is signed with the wallet's private key during backup. During restore, this signature is verified. Providers cannot forge or modify their shares without the wallet's key.
+Each `KeySplit` is signed with the wallet's private key during backup over `signing.Payload{PMW_KEY_SPLIT, chainID, hash}.Hash()`. During restore, this signature is verified. Providers cannot forge or modify their shares without the wallet's key.
 
 ### Duplicate Detection
 

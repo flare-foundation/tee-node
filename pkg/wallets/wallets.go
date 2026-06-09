@@ -9,6 +9,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/crypto"
+	csigning "github.com/flare-foundation/go-flare-common/pkg/signing"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/instruction"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/op"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/structs"
@@ -225,7 +226,7 @@ type SignedKeyExistenceProof struct {
 
 // ExtractKeyExistence parses a signed existence proof from bytes and
 // verifies the TEE signature against the canonical chain-bound preimage
-// utils.DomainHash(TeeKeyExistenceTag, chainID, KeyExistenceDataHash(proof)).
+// signing.Payload{TeeKeyExistenceTag, chainID, KeyExistenceDataHash(proof)}.Hash().
 // chainID must match the chain whose WalletKeyManagerFacet.confirmKey
 // will recover the signer.
 func ExtractKeyExistence(b []byte, teeID common.Address, chainID uint64) (*wallet.IWalletKeyManagerKeyExistence, error) {
@@ -244,7 +245,7 @@ func ExtractKeyExistence(b []byte, teeID common.Address, chainID uint64) (*walle
 	if err != nil {
 		return nil, err
 	}
-	hash, err := utils.DomainHash(types.TeeKeyExistenceTag, chainID, dataHash)
+	hash, err := csigning.NewPayload(csigning.TEEKeyExistence, chainID, dataHash).Hash()
 	if err != nil {
 		return nil, err
 	}

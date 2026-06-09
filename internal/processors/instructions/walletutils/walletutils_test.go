@@ -27,6 +27,7 @@ import (
 	"github.com/ethereum/go-ethereum/crypto/secp256k1"
 	commonpolicy "github.com/flare-foundation/go-flare-common/pkg/policy"
 	"github.com/flare-foundation/go-flare-common/pkg/random"
+	csigning "github.com/flare-foundation/go-flare-common/pkg/signing"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/instruction"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/op"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/structs/machinepath"
@@ -678,6 +679,7 @@ func setupKeyDataProviderRestoreTestWithAdminsAndProviders(
 		weights,
 		initialPolicy.RewardEpochID,
 		testNode.TeeID(),
+		uint64(31337),
 		backup.NormalizationConstant,
 		backup.DataProvidersThreshold,
 	)
@@ -746,7 +748,7 @@ func (s *keyDataProviderRestoreTestSetup) buildVariableMessagesWithAdmins(
 		if isAdminAndProvider[i] {
 			continue
 		}
-		share, err := pkgbackup.DecryptSplit(s.walletBackup.ProviderEncryptedParts.Splits[i], s.voterPrivKeys[i])
+		share, err := pkgbackup.DecryptSplit(s.walletBackup.ProviderEncryptedParts.Splits[i], s.voterPrivKeys[i], uint64(31337))
 		require.NoError(t, err)
 
 		var shareBytes []byte
@@ -763,7 +765,7 @@ func (s *keyDataProviderRestoreTestSetup) buildVariableMessagesWithAdmins(
 		if isAdminAndProvider[i] {
 			continue
 		}
-		adminShare, err := pkgbackup.DecryptSplit(s.walletBackup.AdminEncryptedParts.Splits[i], s.adminPrivKeys[i])
+		adminShare, err := pkgbackup.DecryptSplit(s.walletBackup.AdminEncryptedParts.Splits[i], s.adminPrivKeys[i], uint64(31337))
 		require.NoError(t, err)
 		adminShareBytes, err := json.Marshal(adminShare)
 		require.NoError(t, err)
@@ -778,9 +780,9 @@ func (s *keyDataProviderRestoreTestSetup) buildVariableMessagesWithAdmins(
 			continue
 		}
 
-		adminShare, err := pkgbackup.DecryptSplit(s.walletBackup.AdminEncryptedParts.Splits[i], s.adminPrivKeys[i])
+		adminShare, err := pkgbackup.DecryptSplit(s.walletBackup.AdminEncryptedParts.Splits[i], s.adminPrivKeys[i], uint64(31337))
 		require.NoError(t, err)
-		providerShare, err := pkgbackup.DecryptSplit(s.walletBackup.ProviderEncryptedParts.Splits[i], s.voterPrivKeys[i])
+		providerShare, err := pkgbackup.DecryptSplit(s.walletBackup.ProviderEncryptedParts.Splits[i], s.voterPrivKeys[i], uint64(31337))
 		require.NoError(t, err)
 
 		bothShares, err := json.Marshal([2]*pkgbackup.KeySplit{adminShare, providerShare})
@@ -867,12 +869,12 @@ func (s *keyDataProviderRestoreTestSetup) buildVariableMessagesWithInvalidSignat
 
 		if invalidIndex < numProviders {
 			var err error
-			share, err = pkgbackup.DecryptSplit(s.walletBackup.ProviderEncryptedParts.Splits[invalidIndex], s.voterPrivKeys[invalidIndex])
+			share, err = pkgbackup.DecryptSplit(s.walletBackup.ProviderEncryptedParts.Splits[invalidIndex], s.voterPrivKeys[invalidIndex], uint64(31337))
 			require.NoError(t, err)
 		} else {
 			adminIndex := invalidIndex - numProviders
 			var err error
-			share, err = pkgbackup.DecryptSplit(s.walletBackup.AdminEncryptedParts.Splits[adminIndex], s.adminPrivKeys[adminIndex])
+			share, err = pkgbackup.DecryptSplit(s.walletBackup.AdminEncryptedParts.Splits[adminIndex], s.adminPrivKeys[adminIndex], uint64(31337))
 			require.NoError(t, err)
 		}
 
@@ -1432,7 +1434,9 @@ func TestKeyDirectBackupHappyPath(t *testing.T) {
 	// The envelope is plaintext, so parse it directly.
 	var envelope types.SignedKeyDirectBackup
 	require.NoError(t, json.Unmarshal(envelopeBytes, &envelope))
-	require.NoError(t, utils.VerifySignature(crypto.Keccak256(envelope.Payload), envelope.TEESignature, setup.teeID))
+	envelopeSignHash, err := csigning.NewPayload(csigning.TEEKeyDirectBackup, 31337, crypto.Keccak256Hash(envelope.Payload)).Hash()
+	require.NoError(t, err)
+	require.NoError(t, utils.VerifySignature(envelopeSignHash[:], envelope.TEESignature, setup.teeID))
 
 	var payload pkgbackup.KeyDirectBackupPayload
 	require.NoError(t, json.Unmarshal(envelope.Payload, &payload))
