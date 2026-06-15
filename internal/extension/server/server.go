@@ -243,12 +243,13 @@ func (s *SignServer) postResultHandler(w http.ResponseWriter, r *http.Request) {
 
 	response, err := router.SignResult(&result, s.node)
 	if err != nil {
+		logger.Errorf("/result: error signing result: %v", err)
 		http.Error(w, "can not sign", http.StatusInternalServerError)
+		return
 	}
 
 	postURL := fmt.Sprintf("%s/result", url)
-	postErr := queue.PostActionResponse(postURL, response)
-	if postErr != nil {
+	if postErr := queue.PostActionResponse(postURL, response); postErr != nil {
 		logger.Errorf("/result: error posting result: %v", postErr)
 
 		// Retry with a minimal unsigned error-only result.
@@ -261,12 +262,13 @@ func (s *SignServer) postResultHandler(w http.ResponseWriter, r *http.Request) {
 		if retryErr := queue.PostActionResponse(postURL, fallbackResp); retryErr != nil {
 			logger.Errorf("/result: error posting fallback result: %v", retryErr)
 		}
+
+		http.Error(w, "failed to forward result to proxy", http.StatusBadGateway)
+		return
 	}
 
-	// Return success response with empty body
-	if err == nil && postErr == nil {
-		w.WriteHeader(http.StatusOK)
-	}
+	// Result forwarded successfully.
+	w.WriteHeader(http.StatusOK)
 }
 
 // decryptWithKeyHandler handles POST /decrypt/{walletD}/{keyID}.

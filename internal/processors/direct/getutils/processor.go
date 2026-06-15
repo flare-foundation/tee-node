@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 
+	"github.com/ethereum/go-ethereum/common"
 	csigning "github.com/flare-foundation/go-flare-common/pkg/signing"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/structs"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/structs/wallet"
@@ -99,44 +100,65 @@ func (p *Processor) KeysInfo(_ context.Context, _ *types.DirectInstruction) ([]b
 
 // KeysProof returns signed key existence proofs for the requested (walletID, keyID) pairs.
 // Proofs are returned in the same order as the requested pairs.
-func (p *Processor) KeysProof(_ context.Context, i *types.DirectInstruction) ([]byte, error) {
+func (p *Processor) KeysProof(ctx context.Context, i *types.DirectInstruction) ([]byte, error) {
 	var requested []wallets.KeyIDPair
 	if err := json.Unmarshal(i.Message, &requested); err != nil {
 		return nil, err
 	}
 
-	teeID := p.Info().TeeID
+	info := p.Info()
+	teeID := info.TeeID
+	chainID := info.ChainID
+
+	// Build the proof payloads (encoding and hashing read wallet state) under
+	// the read lock, then release it before the per-element ECDSA signing,
+	// since signing is the dominant cost.
+	type pendingProof struct {
+		encoded []byte
+		hash    common.Hash
+	}
+	pending := make([]pendingProof, len(requested))
 
 	p.wStorage.RLock()
-	defer p.wStorage.RUnlock()
-
-	signedProofs := make([]wallets.SignedKeyExistenceProof, len(requested))
-	for i, idPair := range requested {
+	for idx, idPair := range requested {
 		storedWallet, err := p.wStorage.Get(idPair)
 		if err != nil {
+			p.wStorage.RUnlock()
 			return nil, err
 		}
 
 		ep := storedWallet.KeyExistenceProof(teeID)
 		epEncoded, err := structs.Encode(wallet.KeyExistenceStructArg, ep)
 		if err != nil {
+			p.wStorage.RUnlock()
 			return nil, err
 		}
 		dataHash, err := types.KeyExistenceDataHash(ep)
 		if err != nil {
+			p.wStorage.RUnlock()
 			return nil, err
 		}
-		hash, err := csigning.NewPayload(csigning.TEEKeyExistence, p.Info().ChainID, dataHash).Hash()
+		hash, err := csigning.NewPayload(csigning.TEEKeyExistence, chainID, dataHash).Hash()
 		if err != nil {
-			return nil, err
-		}
-		signature, err := p.Sign(hash[:])
-		if err != nil {
+			p.wStorage.RUnlock()
 			return nil, err
 		}
 
-		signedProofs[i] = wallets.SignedKeyExistenceProof{
-			KeyExistence: epEncoded,
+		pending[idx] = pendingProof{encoded: epEncoded, hash: hash}
+	}
+	p.wStorage.RUnlock()
+
+	signedProofs := make([]wallets.SignedKeyExistenceProof, len(requested))
+	for idx, pp := range pending {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+		signature, err := p.Sign(pp.hash.Bytes())
+		if err != nil {
+			return nil, err
+		}
+		signedProofs[idx] = wallets.SignedKeyExistenceProof{
+			KeyExistence: pp.encoded,
 			Signature:    signature,
 		}
 	}

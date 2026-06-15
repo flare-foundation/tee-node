@@ -8,6 +8,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/crypto"
 
 	"github.com/flare-foundation/tee-node/pkg/types"
 	"github.com/flare-foundation/tee-node/pkg/wallets"
@@ -107,9 +108,11 @@ func WalletFromKeyDirectBackupPayload(p *KeyDirectBackupPayload, privateKey []by
 		return nil, errors.New("private key is empty")
 	}
 
-	// The public key derived from the supplied private key must match
-	// the one recorded in BackupID.
-	derivedPub := types.PubKeyToBytes(&wallets.ToECDSAUnsafe(privateKey).PublicKey)
+	priv, err := crypto.ToECDSA(privateKey)
+	if err != nil {
+		return nil, fmt.Errorf("invalid decrypted private key: %w", err)
+	}
+	derivedPub := types.PubKeyToBytes(&priv.PublicKey)
 	if !slices.Equal(derivedPub, []byte(p.BackupID.PublicKey)) {
 		return nil, errors.New("decrypted private key does not match BackupID.PublicKey")
 	}

@@ -87,7 +87,9 @@ func (p *Processor) keyRestoreDataCheck(
 
 	keyActionNonce := restoreRequest.Nonce.Uint64()
 
+	p.pStorage.RLock()
 	policyAtBackup, err := p.pStorage.SigningPolicy(backupID.RewardEpochID)
+	p.pStorage.RUnlock()
 	if err != nil {
 		return nil, 0, nil, err
 	}

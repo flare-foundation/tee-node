@@ -164,7 +164,7 @@ func SplitAndEncrypt(
 	}
 	copy(encryptedShares.Weights, weights)
 
-	numShares := uint64(utils.Sum(weights))
+	numShares := utils.SumUint64(weights)
 	shamirShares, err := SplitToShamirShares(key.D, numShares, threshold)
 	if err != nil {
 		return nil, err
