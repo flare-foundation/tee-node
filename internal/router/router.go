@@ -39,11 +39,18 @@ type Router struct {
 	defaultInstruction Processor
 
 	proxyURL *settings.ProxyURLMutex
+
+	sleepTime time.Duration
+	pauseTime time.Duration
 }
 
 // New creates a router associated with the provided proxy URL mutex.
 func New(proxyURL *settings.ProxyURLMutex) Router {
-	return Router{proxyURL: proxyURL}
+	return Router{
+		proxyURL:  proxyURL,
+		sleepTime: settings.QueuedActionsSleepTime,
+		pauseTime: settings.QueuedActionsPauseTime,
+	}
 }
 
 // Run spawns workers processing queues for both the instructions and
@@ -83,7 +90,7 @@ func (r *Router) serveQueueIteration(id processorutils.QueueID, signer node.Iden
 	proxyURL := r.proxyURL.URL
 	r.proxyURL.RUnlock()
 	if proxyURL == "" {
-		return settings.QueuedActionsSleepTime
+		return r.sleepTime
 	}
 
 	var err error
@@ -92,10 +99,10 @@ func (r *Router) serveQueueIteration(id processorutils.QueueID, signer node.Iden
 		logger.Errorf("%s queue: error getting action: %v", id, err)
 		result := r.errorResult(action, fmt.Sprintf("error fetching action: %v", err))
 		r.signAndPost(id, &result, signer)
-		return settings.QueuedActionsSleepTime
+		return r.sleepTime
 	}
 	if action == nil || action.Data.ID == [32]byte{} {
-		return settings.QueuedActionsPauseTime
+		return r.pauseTime
 	}
 	logger.Infof("%s queue: fetched an action: id %v, type %v, submission tag %v", id, action.Data.ID, action.Data.Type, action.Data.SubmissionTag)
 

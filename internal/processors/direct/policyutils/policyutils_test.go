@@ -268,6 +268,60 @@ func TestInitializePolicyRollbackOnError(t *testing.T) {
 	require.Equal(t, "signing policy not initialized", err.Error())
 }
 
+// TestInitializePolicyPreservesLivePolicyOnError verifies that a failed
+// InitializePolicy on an already-initialized node never destroys the live
+// signing policy. Pre-mutation errors (malformed JSON, undecodable policy bytes,
+// mismatched public keys) must leave the active policy untouched, since
+// InitializePolicy carries no signature and is reachable as a direct action.
+func TestInitializePolicyPreservesLivePolicyOnError(t *testing.T) {
+	badRequests := map[string][]byte{
+		"malformed JSON":      []byte(`{"invalid": "json"`),
+		"undecodable policy":  mustMarshal(t, &types.InitializePolicyRequest{InitialPolicyBytes: []byte{0x01, 0x02, 0x03}}),
+		"mismatched pubkeys":  nil, // filled in per-iteration below to use the setup's policy bytes
+		"already initialized": nil,
+	}
+
+	for name := range badRequests {
+		t.Run(name, func(t *testing.T) {
+			setup := setupPolicyTestWithInitializedPolicy(t)
+			wantEpoch := setup.initialPolicy.RewardEpochID
+			wantHash := setup.initialPolicy.Hash()
+
+			var message []byte
+			switch name {
+			case "mismatched pubkeys":
+				message = mustMarshal(t, &types.InitializePolicyRequest{
+					InitialPolicyBytes: setup.initialPolicy.RawBytes(),
+					PublicKeys:         setup.pubKeys[:numVoters/2],
+				})
+			case "already initialized":
+				message = mustMarshal(t, &types.InitializePolicyRequest{
+					InitialPolicyBytes: setup.initialPolicy.RawBytes(),
+					PublicKeys:         setup.pubKeys,
+				})
+			default:
+				message = badRequests[name]
+			}
+
+			_, err := setup.processor.InitializePolicy(context.Background(), &types.DirectInstruction{Message: message})
+			require.Error(t, err)
+
+			// The live policy must still be present and unchanged.
+			active, err := setup.pStorage.ActiveSigningPolicy()
+			require.NoError(t, err, "live policy must not be destroyed by a failed re-initialization")
+			require.Equal(t, wantEpoch, active.RewardEpochID)
+			require.Equal(t, wantHash, active.Hash())
+		})
+	}
+}
+
+func mustMarshal(t *testing.T, v any) []byte {
+	t.Helper()
+	b, err := json.Marshal(v)
+	require.NoError(t, err)
+	return b
+}
+
 func TestUpdatePolicyBasicFlow(t *testing.T) {
 	setup := setupPolicyTestWithInitializedPolicy(t)
 

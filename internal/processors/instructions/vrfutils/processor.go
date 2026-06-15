@@ -11,6 +11,7 @@ import (
 	"github.com/flare-foundation/go-flare-common/pkg/policy"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/instruction"
 	"github.com/flare-foundation/tee-node/pkg/node"
+	"github.com/flare-foundation/tee-node/pkg/processorutils"
 	"github.com/flare-foundation/tee-node/pkg/types"
 	"github.com/flare-foundation/tee-node/pkg/wallets"
 	"github.com/flare-foundation/tee-node/pkg/wallets/vrf"
@@ -62,6 +63,10 @@ func (p *Processor) ProveRandomness(
 	case wallets.VRFAlgo:
 	default:
 		return nil, nil, errors.New("wallet signing algorithm does not support vrf")
+	}
+
+	if err := processorutils.CheckMatchingCosigners(dataFixed.Cosigners, walletKey.Cosigners, dataFixed.CosignersThreshold, walletKey.CosignersThreshold); err != nil {
+		return nil, nil, err
 	}
 
 	sk, err := crypto.ToECDSA(walletKey.PrivateKey)

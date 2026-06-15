@@ -230,7 +230,7 @@ func (e *EncryptedShares) Check() error {
 	if len(e.Splits) != len(e.Weights) {
 		return errors.New("the number of splits does not match the number of weights")
 	}
-	if uint64(utils.Sum(e.Weights)) < e.Threshold {
+	if utils.SumUint64(e.Weights) < e.Threshold {
 		return errors.New("threshold too high")
 	}
 

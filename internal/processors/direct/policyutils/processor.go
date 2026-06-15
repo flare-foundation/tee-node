@@ -31,24 +31,15 @@ func NewProcessor(teeNode *pnode.Node, policyStorage *policy.Storage) Processor 
 // InitializePolicy sets the first signing policy along with its associated
 // public keys.
 func (p *Processor) InitializePolicy(ctx context.Context, i *types.DirectInstruction) ([]byte, error) {
-	var err error
-	defer func() {
-		if err != nil {
-			p.DestroyState()
-		}
-	}()
-
 	var req types.InitializePolicyRequest
-	err = json.Unmarshal(i.Message, &req)
-	if err != nil {
+	if err := json.Unmarshal(i.Message, &req); err != nil {
 		return nil, err
 	}
 
 	p.Lock()
 	defer p.Unlock()
 
-	_, err = p.ActiveSigningPolicy()
-	if err == nil {
+	if _, err := p.ActiveSigningPolicy(); err == nil {
 		return nil, errors.New("policy already initialized")
 	}
 
@@ -66,8 +57,9 @@ func (p *Processor) InitializePolicy(ctx context.Context, i *types.DirectInstruc
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	err = p.SetInitialPolicy(initialPolicy, pubKeysMap)
-	if err != nil {
+
+	if err := p.SetInitialPolicy(initialPolicy, pubKeysMap); err != nil {
+		p.DestroyState()
 		return nil, err
 	}
 

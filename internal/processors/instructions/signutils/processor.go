@@ -115,10 +115,12 @@ func (p *Processor) SignXRPLPayment(
 			return nil, nil, err
 		}
 
-		if p.activeRoutines.Load() >= int64(settings.MaxSignGoroutines) {
+		// Reserve a slot atomically: a separate Load-then-Add would let two
+		// concurrent callers both observe a count below the cap and both proceed.
+		if n := p.activeRoutines.Add(1); n > int64(settings.MaxSignGoroutines) {
+			p.activeRoutines.Add(-1)
 			return nil, nil, errors.New("maximum number of concurrent sign goroutines reached")
 		}
-		p.activeRoutines.Add(1)
 
 		go func() {
 			defer func() {
@@ -171,7 +173,7 @@ func (p *Processor) SignXRPLPayment(
 
 				if err := queue.PostActionResponse(proxyURL+"/result", response); err != nil {
 					logger.Errorf("sign schedule: try %d error posting result: %v", i, err)
-					return
+					continue
 				}
 			}
 		}()
