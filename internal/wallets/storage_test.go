@@ -6,6 +6,8 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/require"
+
+	publicwallets "github.com/flare-foundation/tee-node/pkg/wallets"
 )
 
 func TestInitializeStorage(t *testing.T) {
@@ -15,21 +17,21 @@ func TestInitializeStorage(t *testing.T) {
 	require.NotNil(t, s.permanent)
 }
 
-func createTestWalletForStorage() *Wallet {
-	return &Wallet{
+func createTestWalletForStorage() *publicwallets.Wallet {
+	return &publicwallets.Wallet{
 		WalletID:    common.HexToHash("0x6b"),
 		KeyID:       777,
 		PrivateKey:  []byte{1, 2, 3, 4, 5},
-		KeyType:     XRPType,
-		SigningAlgo: XRPSignAlgo,
-		Status:      &WalletStatus{Nonce: 1, StatusCode: 2, PausingNonce: common.HexToHash("0xaa")},
+		KeyType:     publicwallets.XRPType,
+		SigningAlgo: publicwallets.XRPSignAlgo,
+		Status:      &publicwallets.WalletStatus{Nonce: 1, StatusCode: 2, PausingNonce: common.HexToHash("0xaa")},
 	}
 }
 
 func TestStoreAndGetWallet(t *testing.T) {
 	s := InitializeStorage()
 	w := createTestWalletForStorage()
-	idPair := KeyIDPair{WalletID: w.WalletID, KeyID: w.KeyID}
+	idPair := publicwallets.KeyIDPair{WalletID: w.WalletID, KeyID: w.KeyID}
 
 	s.Lock()
 	defer s.Unlock()
@@ -66,7 +68,7 @@ func TestStoreDuplicateWallet(t *testing.T) {
 func TestRemoveWallet(t *testing.T) {
 	s := InitializeStorage()
 	w := createTestWalletForStorage()
-	idPair := KeyIDPair{WalletID: w.WalletID, KeyID: w.KeyID}
+	idPair := publicwallets.KeyIDPair{WalletID: w.WalletID, KeyID: w.KeyID}
 
 	s.Lock()
 	err := s.Store(w)
@@ -82,7 +84,7 @@ func TestRemoveWallet(t *testing.T) {
 
 func TestGetNonExistentWallet(t *testing.T) {
 	s := InitializeStorage()
-	idPair := KeyIDPair{WalletID: common.HexToHash("0xFAFA"), KeyID: 4321}
+	idPair := publicwallets.KeyIDPair{WalletID: common.HexToHash("0xFAFA"), KeyID: 4321}
 
 	s.RLock()
 	defer s.RUnlock()
@@ -112,12 +114,12 @@ func TestGetWallets(t *testing.T) {
 	require.Len(t, wallets, 2)
 
 	// All returned wallets should be copies, mutations don't affect storage
-	original, err := s.Get(KeyIDPair{WalletID: w1.WalletID, KeyID: w1.KeyID})
+	original, err := s.Get(publicwallets.KeyIDPair{WalletID: w1.WalletID, KeyID: w1.KeyID})
 	require.NoError(t, err)
 	require.Equal(t, w1.WalletID, original.WalletID)
 	wallets[0].WalletID = common.HexToHash("0x999")
 
-	original2, err := s.Get(KeyIDPair{WalletID: w1.WalletID, KeyID: w1.KeyID})
+	original2, err := s.Get(publicwallets.KeyIDPair{WalletID: w1.WalletID, KeyID: w1.KeyID})
 	require.NoError(t, err)
 	require.Equal(t, w1.WalletID, original2.WalletID)
 }
@@ -125,7 +127,7 @@ func TestGetWallets(t *testing.T) {
 func TestWalletExists(t *testing.T) {
 	s := InitializeStorage()
 	w := createTestWalletForStorage()
-	idPair := KeyIDPair{WalletID: w.WalletID, KeyID: w.KeyID}
+	idPair := publicwallets.KeyIDPair{WalletID: w.WalletID, KeyID: w.KeyID}
 
 	s.Lock()
 	defer s.Unlock()
@@ -140,7 +142,7 @@ func TestWalletExists(t *testing.T) {
 func TestCheckNonce(t *testing.T) {
 	s := InitializeStorage()
 	w := createTestWalletForStorage()
-	idPair := KeyIDPair{WalletID: w.WalletID, KeyID: w.KeyID}
+	idPair := publicwallets.KeyIDPair{WalletID: w.WalletID, KeyID: w.KeyID}
 
 	s.Lock()
 	defer s.Unlock()
@@ -162,7 +164,7 @@ func TestCheckNonce(t *testing.T) {
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "nonce too small")
 
-	missingPair := KeyIDPair{WalletID: common.HexToHash("0x1234"), KeyID: 99999}
+	missingPair := publicwallets.KeyIDPair{WalletID: common.HexToHash("0x1234"), KeyID: 99999}
 	err = s.CheckNonce(missingPair, 1)
 	require.Error(t, err)
 }
@@ -170,7 +172,7 @@ func TestCheckNonce(t *testing.T) {
 func TestNonceAndUpdateNonce(t *testing.T) {
 	s := InitializeStorage()
 	w := createTestWalletForStorage()
-	idPair := KeyIDPair{WalletID: w.WalletID, KeyID: w.KeyID}
+	idPair := publicwallets.KeyIDPair{WalletID: w.WalletID, KeyID: w.KeyID}
 	_ = s.Store(w)
 
 	s.Lock()
@@ -187,7 +189,7 @@ func TestNonceAndUpdateNonce(t *testing.T) {
 	require.Equal(t, newNonce, got2)
 
 	// Nonce for non-existent wallet errors
-	missingPair := KeyIDPair{WalletID: common.HexToHash("0xabcd"), KeyID: 5656}
+	missingPair := publicwallets.KeyIDPair{WalletID: common.HexToHash("0xabcd"), KeyID: 5656}
 	_, err = s.Nonce(missingPair)
 	require.Error(t, err)
 	require.Equal(t, "no wallet nonce", err.Error())
@@ -196,7 +198,7 @@ func TestNonceAndUpdateNonce(t *testing.T) {
 func TestStorePreservesStatusPointer(t *testing.T) {
 	s := InitializeStorage()
 	w := createTestWalletForStorage()
-	idPair := KeyIDPair{WalletID: w.WalletID, KeyID: w.KeyID}
+	idPair := publicwallets.KeyIDPair{WalletID: w.WalletID, KeyID: w.KeyID}
 
 	s.Lock()
 	defer s.Unlock()

@@ -18,24 +18,25 @@ import (
 	"github.com/flare-foundation/go-flare-common/pkg/tee/structs"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/structs/machinepath"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/structs/wallet"
+	"github.com/flare-foundation/tee-node/internal/node"
+	"github.com/flare-foundation/tee-node/internal/policy"
+	walletstorage "github.com/flare-foundation/tee-node/internal/wallets"
 	"github.com/flare-foundation/tee-node/internal/wallets/backup"
-	"github.com/flare-foundation/tee-node/pkg/node"
-	"github.com/flare-foundation/tee-node/pkg/policy"
 	"github.com/flare-foundation/tee-node/pkg/types"
 	"github.com/flare-foundation/tee-node/pkg/utils"
-	"github.com/flare-foundation/tee-node/pkg/wallets"
+	wallets "github.com/flare-foundation/tee-node/pkg/wallets"
 	pkgbackup "github.com/flare-foundation/tee-node/pkg/wallets/backup"
 )
 
 type Processor struct {
 	pStorage *policy.Storage
-	wStorage *wallets.Storage
+	wStorage *walletstorage.Storage
 	node.WalletNode
 }
 
 // NewProcessor constructs the wallet utility processor with the storages and
 // TEE capabilities it relies on.
-func NewProcessor(walletNode node.WalletNode, policyStorage *policy.Storage, walletsStorage *wallets.Storage) Processor {
+func NewProcessor(walletNode node.WalletNode, policyStorage *policy.Storage, walletsStorage *walletstorage.Storage) Processor {
 	return Processor{
 		pStorage:   policyStorage,
 		wStorage:   walletsStorage,

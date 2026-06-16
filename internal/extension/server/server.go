@@ -13,12 +13,13 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/flare-foundation/go-flare-common/pkg/logger"
+	"github.com/flare-foundation/tee-node/internal/node"
 	"github.com/flare-foundation/tee-node/internal/router"
 	"github.com/flare-foundation/tee-node/internal/router/queue"
 	"github.com/flare-foundation/tee-node/internal/settings"
-	"github.com/flare-foundation/tee-node/pkg/node"
+	walletstorage "github.com/flare-foundation/tee-node/internal/wallets"
 	"github.com/flare-foundation/tee-node/pkg/types"
-	"github.com/flare-foundation/tee-node/pkg/wallets"
+	wallets "github.com/flare-foundation/tee-node/pkg/wallets"
 )
 
 const (
@@ -31,14 +32,14 @@ const (
 
 type SignServer struct {
 	server   *http.Server
-	wStorage *wallets.Storage
+	wStorage *walletstorage.Storage
 	node     *node.Node
 	proxyURL *settings.ProxyURLMutex
 }
 
 // NewSignServer constructs an HTTP server that exposes wallet and TEE
 // functionality to extension clients on the provided port.
-func NewSignServer(port int, node *node.Node, wStorage *wallets.Storage, proxyURL *settings.ProxyURLMutex) *SignServer {
+func NewSignServer(port int, node *node.Node, wStorage *walletstorage.Storage, proxyURL *settings.ProxyURLMutex) *SignServer {
 	addr := fmt.Sprintf(":%d", port)
 
 	server := &http.Server{
@@ -107,7 +108,7 @@ func (s *SignServer) getKeyInfoHandler(w http.ResponseWriter, r *http.Request) {
 	})
 	s.wStorage.RUnlock()
 	if err != nil {
-		if errors.Is(err, wallets.ErrWalletNonExistent) {
+		if errors.Is(err, walletstorage.ErrWalletNonExistent) {
 			http.Error(w, err.Error(), http.StatusNotFound)
 			return
 		}
@@ -157,7 +158,7 @@ func (s *SignServer) signWithKeyHandler(w http.ResponseWriter, r *http.Request) 
 	wallet, err := s.wStorage.Get(wallets.KeyIDPair{WalletID: wID, KeyID: kID})
 	s.wStorage.RUnlock()
 	if err != nil {
-		if errors.Is(err, wallets.ErrWalletNonExistent) {
+		if errors.Is(err, walletstorage.ErrWalletNonExistent) {
 			http.Error(w, err.Error(), http.StatusNotFound)
 			return
 		}
@@ -303,7 +304,7 @@ func (s *SignServer) decryptWithKeyHandler(w http.ResponseWriter, r *http.Reques
 	wallet, err := s.wStorage.Get(wallets.KeyIDPair{WalletID: wID, KeyID: kID})
 	s.wStorage.RUnlock()
 	if err != nil {
-		if errors.Is(err, wallets.ErrWalletNonExistent) {
+		if errors.Is(err, walletstorage.ErrWalletNonExistent) {
 			http.Error(w, err.Error(), http.StatusNotFound)
 			return
 		}

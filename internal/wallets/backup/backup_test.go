@@ -2,6 +2,7 @@ package backup_test
 
 import (
 	"crypto/ecdsa"
+	"math"
 	"testing"
 
 	"github.com/flare-foundation/tee-node/internal/testutils"
@@ -345,4 +346,22 @@ func decryptAllShares(t *testing.T, adminEncryptedParts, providerEncryptedParts 
 		providerKeyShares[i] = share
 	}
 	return adminKeyShares, providerKeyShares
+}
+
+// TestJoinKeySharesHugeThresholdDoesNotAllocate is the regression for X-1: a
+// huge (attacker-controlled) threshold must not drive an eager allocation.
+// JoinKeyShares should fail the share-count check, not panic or OOM. Before the
+// fix, make([]ShamirShare, 0, threshold) panicked "makeslice: cap out of range"
+// for MaxUint64 (and would OOM for in-range-but-multi-GB values).
+func TestJoinKeySharesHugeThresholdDoesNotAllocate(t *testing.T) {
+	var (
+		key *ecdsa.PrivateKey
+		err error
+	)
+	require.NotPanics(t, func() {
+		key, err = backup.JoinKeyShares(nil, math.MaxUint64)
+	})
+	require.Error(t, err)
+	require.Nil(t, key)
+	require.Contains(t, err.Error(), "threshold of shares is not reached")
 }

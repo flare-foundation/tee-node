@@ -10,12 +10,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/flare-foundation/tee-node/internal/node"
 	"github.com/flare-foundation/tee-node/internal/processors/instructions/signutils"
 	"github.com/flare-foundation/tee-node/internal/settings"
 	"github.com/flare-foundation/tee-node/internal/testutils"
-	"github.com/flare-foundation/tee-node/pkg/node"
+	walletstorage "github.com/flare-foundation/tee-node/internal/wallets"
 	"github.com/flare-foundation/tee-node/pkg/types"
-	"github.com/flare-foundation/tee-node/pkg/wallets"
+	wallets "github.com/flare-foundation/tee-node/pkg/wallets"
 
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
@@ -80,7 +81,7 @@ func TestSignPaymentTransaction(t *testing.T) {
 // signXRPLTestSetup provides common setup and helpers for XRP signing tests
 type signXRPLTestSetup struct {
 	testNode  *node.Node
-	wStorage  *wallets.Storage
+	wStorage  *walletstorage.Storage
 	teeID     common.Address
 	walletID  common.Hash
 	epochID   uint32
@@ -390,7 +391,7 @@ func TestSignXRPLWalletNotFound(t *testing.T) {
 	instr := setup.buildPaymentInstruction(t, []payments.TeeIdKeyIdPair{{TeeId: setup.teeID, KeyId: 999}}, nil, 0, nil)
 	_, _, err := setup.processor.SignXRPLPayment(context.Background(), types.Threshold, instr, nil, nil, nil)
 	require.Error(t, err)
-	require.Equal(t, wallets.ErrWalletNonExistent, err)
+	require.Equal(t, walletstorage.ErrWalletNonExistent, err)
 }
 
 // TEE ID Mismatch Handling

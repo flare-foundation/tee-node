@@ -60,7 +60,7 @@ func NewConfigServer(port int, configurer Configurer) *ConfigServer {
 	}
 
 	mux := http.NewServeMux()
-	server.Handler = mux
+	server.Handler = limitRequestBody(mux, maxConfigBodyBytes)
 	mux.HandleFunc("POST "+SetProxyURLEndpoint, proxyURL.proxyHandler)
 	mux.HandleFunc("POST "+SetInitialOwnerEndpoint, initialOwnerHandler(configurer))
 	mux.HandleFunc("POST "+SetExtensionIDEndpoint, extensionIDHandler(configurer))
@@ -84,6 +84,21 @@ func (pc *ConfigServer) Serve() error {
 // Close gracefully shuts down the proxy configuration server.
 func (pc *ConfigServer) Close(ctx context.Context) error {
 	return pc.server.Shutdown(ctx)
+}
+
+// maxConfigBodyBytes caps config request bodies. These payloads are tiny (a
+// URL, an address, an id, a small signer list), so a small cap removes any
+// unbounded-decode allocation without rejecting legitimate requests.
+const maxConfigBodyBytes = 64 << 10 // 64 KiB
+
+// limitRequestBody caps each request body via http.MaxBytesReader so an
+// oversized POST cannot drive an unbounded JSON-decode allocation; reads past
+// the cap fail and the handlers surface them as a 400.
+func limitRequestBody(h http.Handler, n int64) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		r.Body = http.MaxBytesReader(w, r.Body, n)
+		h.ServeHTTP(w, r)
+	})
 }
 
 // proxyHandler handles requests to /proxy.

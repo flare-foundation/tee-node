@@ -2,6 +2,7 @@ package router
 
 import (
 	"github.com/flare-foundation/go-flare-common/pkg/tee/op"
+	"github.com/flare-foundation/tee-node/internal/policy"
 	"github.com/flare-foundation/tee-node/internal/processors/direct"
 	"github.com/flare-foundation/tee-node/internal/processors/direct/getutils"
 	"github.com/flare-foundation/tee-node/internal/processors/direct/policyutils"
@@ -12,10 +13,9 @@ import (
 	"github.com/flare-foundation/tee-node/internal/processors/instructions/vrfutils"
 	"github.com/flare-foundation/tee-node/internal/processors/instructions/walletutils"
 	"github.com/flare-foundation/tee-node/internal/settings"
-	"github.com/flare-foundation/tee-node/pkg/policy"
-	"github.com/flare-foundation/tee-node/pkg/wallets"
+	"github.com/flare-foundation/tee-node/internal/wallets"
 
-	pnode "github.com/flare-foundation/tee-node/pkg/node"
+	pnode "github.com/flare-foundation/tee-node/internal/node"
 )
 
 // NewPMWRouter wires direct and instruction processors for the Protocol Managed

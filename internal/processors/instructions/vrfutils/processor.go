@@ -10,20 +10,21 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/flare-foundation/go-flare-common/pkg/policy"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/instruction"
-	"github.com/flare-foundation/tee-node/pkg/node"
+	"github.com/flare-foundation/tee-node/internal/node"
+	walletstorage "github.com/flare-foundation/tee-node/internal/wallets"
 	"github.com/flare-foundation/tee-node/pkg/processorutils"
 	"github.com/flare-foundation/tee-node/pkg/types"
-	"github.com/flare-foundation/tee-node/pkg/wallets"
+	wallets "github.com/flare-foundation/tee-node/pkg/wallets"
 	"github.com/flare-foundation/tee-node/pkg/wallets/vrf"
 )
 
 type Processor struct {
-	*wallets.Storage
+	*walletstorage.Storage
 	node.Identifier
 }
 
 // NewProcessor creates a VRF instruction processor backed by wallet storage.
-func NewProcessor(identifier node.Identifier, wStorage *wallets.Storage) Processor {
+func NewProcessor(identifier node.Identifier, wStorage *walletstorage.Storage) Processor {
 	return Processor{
 		Storage:    wStorage,
 		Identifier: identifier,

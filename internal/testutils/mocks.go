@@ -13,12 +13,13 @@ import (
 	"slices"
 	"testing"
 
+	"github.com/flare-foundation/tee-node/internal/node"
+	"github.com/flare-foundation/tee-node/internal/policy"
 	"github.com/flare-foundation/tee-node/internal/processors/instructions/walletutils"
-	"github.com/flare-foundation/tee-node/pkg/node"
-	"github.com/flare-foundation/tee-node/pkg/policy"
+	walletstorage "github.com/flare-foundation/tee-node/internal/wallets"
 	"github.com/flare-foundation/tee-node/pkg/types"
 	"github.com/flare-foundation/tee-node/pkg/utils"
-	"github.com/flare-foundation/tee-node/pkg/wallets"
+	wallets "github.com/flare-foundation/tee-node/pkg/wallets"
 
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
@@ -39,7 +40,7 @@ func CreateMockWallet(
 	t *testing.T,
 	iSndD node.WalletNode,
 	ps *policy.Storage,
-	ws *wallets.Storage,
+	ws *walletstorage.Storage,
 	walletID common.Hash,
 	keyID uint64,
 	rewardEpochID uint32,

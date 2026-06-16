@@ -9,14 +9,15 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/flare-foundation/tee-node/internal/node"
+	"github.com/flare-foundation/tee-node/internal/policy"
 	"github.com/flare-foundation/tee-node/internal/processors/instructions/walletutils"
 	"github.com/flare-foundation/tee-node/internal/testutils"
+	walletstorage "github.com/flare-foundation/tee-node/internal/wallets"
 	"github.com/flare-foundation/tee-node/internal/wallets/backup"
-	"github.com/flare-foundation/tee-node/pkg/node"
-	"github.com/flare-foundation/tee-node/pkg/policy"
 	"github.com/flare-foundation/tee-node/pkg/types"
 	"github.com/flare-foundation/tee-node/pkg/utils"
-	"github.com/flare-foundation/tee-node/pkg/wallets"
+	wallets "github.com/flare-foundation/tee-node/pkg/wallets"
 	pkgbackup "github.com/flare-foundation/tee-node/pkg/wallets/backup"
 
 	"github.com/ethereum/go-ethereum/accounts/abi"
@@ -48,7 +49,7 @@ func walletPubKey(pub *ecdsa.PublicKey) cwallet.PublicKey {
 type keyGenerateTestSetup struct {
 	testNode              *node.Node
 	pStorage              *policy.Storage
-	wStorage              *wallets.Storage
+	wStorage              *walletstorage.Storage
 	walletID              common.Hash
 	keyID                 uint64
 	teeID                 common.Address
@@ -347,7 +348,7 @@ func TestParseKeyGenerateInvalidData(t *testing.T) {
 type keyDeleteTestSetup struct {
 	testNode     *node.Node
 	pStorage     *policy.Storage
-	wStorage     *wallets.Storage
+	wStorage     *walletstorage.Storage
 	walletID     common.Hash
 	keyID        uint64
 	teeID        common.Address
@@ -443,7 +444,7 @@ func TestKeyDelete(t *testing.T) {
 	require.False(t, setup.wStorage.WalletExists(idPair))
 	_, err = setup.wStorage.Get(idPair)
 	require.Error(t, err)
-	require.Equal(t, wallets.ErrWalletNonExistent, err)
+	require.Equal(t, walletstorage.ErrWalletNonExistent, err)
 
 	// check that the nonce is updated (the wallet status is persisted)
 	nonce, err = setup.wStorage.Nonce(idPair)
@@ -580,7 +581,7 @@ func TestKeyDeleteNonceTooSmall(t *testing.T) {
 type keyDataProviderRestoreTestSetup struct {
 	testNode        *node.Node
 	pStorage        *policy.Storage
-	wStorage        *wallets.Storage
+	wStorage        *walletstorage.Storage
 	walletID        common.Hash
 	keyID           uint64
 	teeID           common.Address
@@ -646,7 +647,7 @@ func setupKeyDataProviderRestoreTestWithAdminsAndProviders(
 	voterPrivKeys []*ecdsa.PrivateKey,
 	testNode *node.Node,
 	pStorage *policy.Storage,
-	wStorage *wallets.Storage,
+	wStorage *walletstorage.Storage,
 	epochID uint32,
 	initialPolicy *commonpolicy.SigningPolicy,
 ) *keyDataProviderRestoreTestSetup {
@@ -1724,7 +1725,7 @@ func (s *stubWalletNode) MachinePaths() ([]machinepath.IMachinePathManagerMachin
 type directRestoreFixture struct {
 	sourceSetup     *keyGenerateTestSetup
 	destination     *stubWalletNode
-	destStorage     *wallets.Storage
+	destStorage     *walletstorage.Storage
 	destProc        walletutils.Processor
 	envelope        []byte
 	payloadBackupID wallets.WalletBackupID
@@ -1767,7 +1768,7 @@ func setupDirectRestoreFixture(t *testing.T) *directRestoreFixture {
 	var payload pkgbackup.KeyDirectBackupPayload
 	require.NoError(t, json.Unmarshal(env.Payload, &payload))
 
-	destStorage := wallets.InitializeStorage()
+	destStorage := walletstorage.InitializeStorage()
 	destProc := walletutils.NewProcessor(destination, sourceSetup.pStorage, destStorage)
 
 	return &directRestoreFixture{

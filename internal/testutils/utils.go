@@ -13,7 +13,7 @@ import (
 	"github.com/flare-foundation/tee-node/pkg/utils"
 	"github.com/stretchr/testify/require"
 
-	ppolicy "github.com/flare-foundation/tee-node/pkg/policy"
+	ppolicy "github.com/flare-foundation/tee-node/internal/policy"
 
 	"github.com/flare-foundation/go-flare-common/pkg/contracts/relay"
 	commonpolicy "github.com/flare-foundation/go-flare-common/pkg/policy"
