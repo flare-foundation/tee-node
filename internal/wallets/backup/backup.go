@@ -312,7 +312,8 @@ func JoinKeyShares(splits []*backup.KeySplit, threshold uint64) (*ecdsa.PrivateK
 		return nil, errors.New("threshold should be positive")
 	}
 
-	shares := make([]backup.ShamirShare, 0, threshold)
+	// we do not pre-locate the slice to avoid possible OOM attacks
+	shares := make([]backup.ShamirShare, 0)
 	for _, split := range splits {
 		shares = append(shares, split.Shares...)
 	}

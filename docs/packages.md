@@ -16,27 +16,22 @@ cmd/main.go
   |     +-- internal/processors/     (all action handlers)
   |
   +-- internal/settings       (configuration, config server)
-  +-- pkg/node                (TEE identity, signing)
-  +-- pkg/wallets             (wallet storage, key management)
-  +-- pkg/policy              (signing policy storage)
+  +-- internal/node           (TEE identity, signing)
+  +-- internal/wallets        (wallet storage)
+  +-- internal/policy         (signing policy storage)
+  +-- pkg/wallets             (wallet data types, key management)
 ```
 
 ## pkg/ - Library Packages
 
-### pkg/node
-TEE node identity management. Generates the ECDSA key pair, provides signing and decryption, manages initial owner and extension ID.
-
 ### pkg/wallets
-Wallet storage and key operations. Defines the `Wallet` struct, `Storage` with dual-tier (active + permanent) maps, and signing methods for all three algorithms (ECDSA-Keccak256, ECDSA-SHA512Half, VRF).
+Wallet data types and key operations. Defines the `Wallet` struct and signing methods for all three algorithms (ECDSA-Keccak256, ECDSA-SHA512Half, VRF).
 
 ### pkg/wallets/backup
 Data types for backup structures: `WalletBackup`, `WalletBackupMetaData`, `EncryptedShares`, `KeySplit`, `KeySplitData`, `ShamirShare`. Also contains signature verification and hash computation methods.
 
 ### pkg/wallets/vrf
 VRF (Verifiable Random Function) implementation. Proof generation and verification using secp256k1. Includes `HashToCurve`, `HashToZn`, and on-chain-compatible proof structure.
-
-### pkg/policy
-Signing policy storage. Stores policies by reward epoch ID, tracks active policy and associated voter public keys. Thread-safe with RWMutex.
 
 ### pkg/types
 Shared data structures: `Action`, `ActionResult`, `ActionResponse`, `OpID`, `DirectInstruction`, submission tags, payment types, VRF types, sign/decrypt request/response types.
@@ -66,6 +61,15 @@ HTTP client for proxy communication. `FetchAction` polls a queue, `PostActionRes
 
 ### internal/settings
 Runtime configuration. Constants (size limits, timeouts, safety bounds), environment variable reading, config HTTP server (/proxy, /initial-owner, /extension-id).
+
+### internal/node
+TEE node identity management. Generates the ECDSA key pair, provides signing and decryption, manages initial owner and extension ID.
+
+### internal/wallets
+Wallet storage. Defines `Storage` with dual-tier active and permanent maps.
+
+### internal/policy
+Signing policy storage. Stores policies by reward epoch ID, tracks active policy and associated voter public keys. Thread-safe with RWMutex.
 
 ### internal/processors/direct
 Direct action processors (no signing policy required):

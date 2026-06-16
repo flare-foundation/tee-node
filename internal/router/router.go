@@ -12,8 +12,8 @@ import (
 	"github.com/flare-foundation/tee-node/internal/processors/instructions"
 	"github.com/flare-foundation/tee-node/internal/router/queue"
 
+	"github.com/flare-foundation/tee-node/internal/node"
 	"github.com/flare-foundation/tee-node/internal/settings"
-	"github.com/flare-foundation/tee-node/pkg/node"
 	"github.com/flare-foundation/tee-node/pkg/processorutils"
 	"github.com/flare-foundation/tee-node/pkg/types"
 )

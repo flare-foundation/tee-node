@@ -9,23 +9,24 @@ import (
 	"github.com/flare-foundation/go-flare-common/pkg/tee/structs"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/structs/wallet"
 	"github.com/flare-foundation/tee-node/internal/attestation"
+	"github.com/flare-foundation/tee-node/internal/node"
+	"github.com/flare-foundation/tee-node/internal/policy"
 	"github.com/flare-foundation/tee-node/internal/wallets/backup"
-	"github.com/flare-foundation/tee-node/pkg/node"
-	"github.com/flare-foundation/tee-node/pkg/policy"
 	"github.com/flare-foundation/tee-node/pkg/types"
 
-	"github.com/flare-foundation/tee-node/pkg/wallets"
+	walletstorage "github.com/flare-foundation/tee-node/internal/wallets"
+	wallets "github.com/flare-foundation/tee-node/pkg/wallets"
 )
 
 type Processor struct {
 	node.InformerAndSigner
 	pStorage *policy.Storage
-	wStorage *wallets.Storage
+	wStorage *walletstorage.Storage
 }
 
 // NewProcessor builds a direct processor that serves TEE metadata and wallet
 // information.
-func NewProcessor(aAndS node.InformerAndSigner, policyStorage *policy.Storage, walletsStorage *wallets.Storage) Processor {
+func NewProcessor(aAndS node.InformerAndSigner, policyStorage *policy.Storage, walletsStorage *walletstorage.Storage) Processor {
 	return Processor{
 		InformerAndSigner: aAndS,
 		pStorage:          policyStorage,
@@ -41,6 +42,7 @@ func (p *Processor) TEEInfo(_ context.Context, i *types.DirectInstruction) ([]by
 		return nil, err
 	}
 
+	// return even if not all is set
 	info := p.Info()
 
 	p.pStorage.RLock()

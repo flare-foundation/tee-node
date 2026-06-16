@@ -8,6 +8,7 @@ go test ./...
 
 # Specific package
 go test ./pkg/wallets/...
+go test ./internal/wallets/...
 go test ./internal/processors/...
 
 # Verbose with no cache
@@ -20,9 +21,10 @@ go test ./... -v -count=1
 
 | Package                                      | Tests Cover                                                                       |
 | -------------------------------------------- | --------------------------------------------------------------------------------- |
-| `pkg/wallets`                                | Storage operations, signing algorithms, key generation, wallet copy, nonce checks |
+| `pkg/wallets`                                | Signing algorithms, key generation, wallet copy                                   |
+| `internal/wallets`                           | Storage operations, permanent wallet records, nonce checks                        |
 | `pkg/wallets/vrf`                            | VRF proof generation and verification, edge cases (nil keys, invalid points)      |
-| `pkg/policy`                                 | Policy storage, initialization, updates, public key mapping                       |
+| `internal/policy`                            | Policy storage, initialization, updates, public key mapping                       |
 | `pkg/processorutils`                         | Threshold checking, cosigner matching                                             |
 | `internal/processors/instructions/signutils` | XRP signing, multisig, fee schedules, cosigner validation, error cases            |
 | `internal/processors/direct/policyutils`     | Policy init/update with signature verification                                    |

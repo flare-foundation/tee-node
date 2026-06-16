@@ -41,7 +41,8 @@ import (
 	"github.com/flare-foundation/tee-node/pkg/wallets/backup"
 	"github.com/flare-foundation/tee-node/pkg/wallets/vrf"
 
-	"github.com/flare-foundation/tee-node/pkg/wallets"
+	walletstorage "github.com/flare-foundation/tee-node/internal/wallets"
+	wallets "github.com/flare-foundation/tee-node/pkg/wallets"
 
 	"github.com/flare-foundation/tee-node/pkg/utils"
 	"github.com/stretchr/testify/require"
@@ -381,7 +382,7 @@ func keyDirectRestore(
 	envelopeBytes []byte,
 	providerPrivKeys []*ecdsa.PrivateKey,
 	rewardEpochID uint32,
-	wStorage *wallets.Storage,
+	wStorage *walletstorage.Storage,
 ) *wallet.IWalletKeyManagerKeyExistence {
 	t.Helper()
 
@@ -556,7 +557,7 @@ func generateWallet(
 	cosigners []common.Address,
 	cosignersThreshold uint64,
 	rewardEpochID uint32,
-	wStorage *wallets.Storage,
+	wStorage *walletstorage.Storage,
 	keyType common.Hash,
 	signingAlgo common.Hash,
 ) *wallet.IWalletKeyManagerKeyExistence {
@@ -709,7 +710,7 @@ func signTransaction(
 	cosignerAddresses []common.Address,
 	cosignersThreshold uint64,
 	rewardEpochID uint32,
-	wStorage *wallets.Storage,
+	wStorage *walletstorage.Storage,
 ) {
 	t.Helper()
 
@@ -898,7 +899,7 @@ func deleteWallet(
 	privKeys []*ecdsa.PrivateKey,
 	rewardEpochID uint32,
 	nonce *big.Int,
-	wStorage *wallets.Storage,
+	wStorage *walletstorage.Storage,
 ) {
 	t.Helper()
 
@@ -993,7 +994,7 @@ func recoverWallet(
 	rewardEpochID uint32,
 	nonce *big.Int,
 	walletBackup *backup.WalletBackup,
-	wStorage *wallets.Storage,
+	wStorage *walletstorage.Storage,
 ) *wallet.IWalletKeyManagerKeyExistence {
 	t.Helper()
 

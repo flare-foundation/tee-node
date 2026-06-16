@@ -7,12 +7,13 @@ import (
 	"net/http"
 	"os"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/flare-foundation/tee-node/internal/node"
 	"github.com/flare-foundation/tee-node/internal/settings"
-	"github.com/flare-foundation/tee-node/pkg/node"
 	"github.com/flare-foundation/tee-node/pkg/types"
 	"github.com/stretchr/testify/require"
 )
@@ -223,6 +224,13 @@ func TestEndpointProxy(t *testing.T) {
 		{
 			name:     `invalid URL in "url" field`,
 			body:     `{"url": "http://invalid url"}`,
+			expected: http.StatusBadRequest,
+		},
+		{
+			// Body well over the config server's body-size cap must be rejected
+			// (bounded decode), not allocated wholesale.
+			name:     "oversized body rejected by size cap",
+			body:     `{"url": "` + strings.Repeat("a", 128*1024) + `"}`,
 			expected: http.StatusBadRequest,
 		},
 	}
