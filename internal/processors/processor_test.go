@@ -724,8 +724,6 @@ func signTransaction(
 		FeeSchedule:      []byte{0x27, 0x10, 0x00, 0x01}, // 100% of MaxFee, 1s delay
 		PaymentReference: [32]byte{},
 		Nonce:            0,
-		SubNonce:         0,
-		BatchEndTs:       0,
 	}
 
 	originalMessageEncoded, err := abi.Arguments{payments.MessageArguments[op.Pay]}.Pack(originalMessage)

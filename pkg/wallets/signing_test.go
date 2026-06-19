@@ -140,8 +140,6 @@ func TestXRPLSigning(t *testing.T) {
 		FeeSchedule:      []byte{0x27, 0x10, 0x00, 0x00}, // 100% of MaxFee, 0s delay
 		PaymentReference: [32]byte{},
 		Nonce:            uint64(0),
-		SubNonce:         uint64(0),
-		BatchEndTs:       uint64(0),
 	}
 
 	tx, err := xrpl.PaymentTxFromInstruction(originalMessage, 0)

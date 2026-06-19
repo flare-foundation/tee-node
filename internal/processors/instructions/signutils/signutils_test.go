@@ -25,6 +25,7 @@ import (
 	"github.com/flare-foundation/go-flare-common/pkg/tee/instruction"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/op"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/structs/payments"
+	"github.com/flare-foundation/go-flare-common/pkg/xrpl/address"
 	"github.com/flare-foundation/go-flare-common/pkg/xrpl/signing"
 	"github.com/flare-foundation/go-flare-common/pkg/xrpl/signing/secp256k1"
 	"github.com/flare-foundation/go-flare-common/pkg/xrpl/signing/signer"
@@ -138,6 +139,13 @@ func (s *signXRPLTestSetup) createWallet(t *testing.T, keyID uint64, keyType, al
 // If feeSchedule is nil, a single-entry 100%-of-MaxFee schedule with no delay is used.
 func (s *signXRPLTestSetup) buildPaymentInstruction(t *testing.T, teeKeyPairs []payments.TeeIdKeyIdPair, cosigners []common.Address, cosignerThreshold uint64, feeSchedule []byte) *instruction.DataFixed {
 	t.Helper()
+	return s.buildPaymentInstructionTo(t, "rrrrrrrrrrrrrrrrrrrrrhoLvTp", teeKeyPairs, cosigners, cosignerThreshold, feeSchedule)
+}
+
+// buildPaymentInstructionTo is buildPaymentInstruction with an explicit recipient
+// address, so callers can exercise classic (r...) and X-address (X.../T...) forms.
+func (s *signXRPLTestSetup) buildPaymentInstructionTo(t *testing.T, recipient string, teeKeyPairs []payments.TeeIdKeyIdPair, cosigners []common.Address, cosignerThreshold uint64, feeSchedule []byte) *instruction.DataFixed {
+	t.Helper()
 
 	if feeSchedule == nil {
 		feeSchedule = []byte{0x27, 0x10, 0x00, 0x00} // 100% of MaxFee, 0s delay
@@ -147,14 +155,12 @@ func (s *signXRPLTestSetup) buildPaymentInstruction(t *testing.T, teeKeyPairs []
 		WalletId:         s.walletID,
 		TeeIdKeyIdPairs:  teeKeyPairs,
 		SenderAddress:    "rHb9CJAWyB4rj91VRWn96DkukG4bwdtyTh",
-		RecipientAddress: "rrrrrrrrrrrrrrrrrrrrrhoLvTp",
+		RecipientAddress: recipient,
 		Amount:           big.NewInt(1000000000),
 		MaxFee:           big.NewInt(1000),
 		FeeSchedule:      feeSchedule,
 		PaymentReference: [32]byte{},
 		Nonce:            uint64(0),
-		SubNonce:         uint64(0),
-		BatchEndTs:       uint64(0),
 	}
 
 	enc, err := abi.Arguments{payments.MessageArguments[op.Pay]}.Pack(msg)
@@ -284,6 +290,62 @@ func TestSignXRPLBasicSuccess(t *testing.T) {
 	case <-time.After(2 * time.Second):
 		t.Fatal("timeout waiting for goroutine to post signed transaction")
 	}
+}
+
+// Payment to an X-address must resolve to the classic Destination plus the
+// embedded DestinationTag, and the signatures must remain valid over the
+// resulting tagged transaction.
+func TestSignXRPLPaymentToXAddress(t *testing.T) {
+	setup := setupSignXRPLTest(t)
+	wal := setup.createWallet(t, 1, wallets.XRPType, wallets.XRPSignAlgo, []common.Address{}, 0)
+
+	const classicRecipient = "rrrrrrrrrrrrrrrrrrrrrhoLvTp"
+	const destinationTag = uint32(13371337)
+	tag := destinationTag
+	xRecipient, err := address.ClassicToX(classicRecipient, &tag, false)
+	require.NoError(t, err)
+	require.NotEqual(t, classicRecipient, xRecipient, "sanity: X-address must differ from the classic form")
+
+	proxyMux, responses := startMockResultServer(t)
+	proc := signutils.NewProcessor(setup.testNode, setup.wStorage, proxyMux)
+	instr := setup.buildPaymentInstructionTo(t, xRecipient,
+		[]payments.TeeIdKeyIdPair{{TeeId: setup.teeID, KeyId: 1}}, nil, 0, nil)
+
+	_, _, err = proc.SignXRPLPayment(context.Background(), types.Threshold, instr, nil, nil, nil)
+	require.NoError(t, err)
+
+	select {
+	case resp := <-responses:
+		var txs types.XRPSignResponse
+		require.NoError(t, json.Unmarshal(resp.Result.Data, &txs))
+		require.NotEmpty(t, txs)
+		for i, tx := range txs {
+			require.Equal(t, classicRecipient, tx["Destination"],
+				"tx[%d]: X-address must be resolved to its classic Destination", i)
+			// DestinationTag survives JSON encoding as a number (float64 once decoded).
+			require.Equal(t, float64(destinationTag), tx["DestinationTag"],
+				"tx[%d]: DestinationTag must equal the tag embedded in the X-address", i)
+		}
+		requireValidSignatures(t, txs)
+		requireSignedByWallets(t, txs, []*wallets.Wallet{wal})
+	case <-time.After(2 * time.Second):
+		t.Fatal("timeout waiting for goroutine to post signed transaction")
+	}
+}
+
+// A recipient that is neither a classic (r...) nor an X-address (X.../T...) must
+// be rejected at signing time rather than producing a transaction.
+func TestSignXRPLPaymentRejectsInvalidRecipient(t *testing.T) {
+	setup := setupSignXRPLTest(t)
+	setup.createWallet(t, 1, wallets.XRPType, wallets.XRPSignAlgo, []common.Address{}, 0)
+
+	proxyMux, _ := startMockResultServer(t)
+	proc := signutils.NewProcessor(setup.testNode, setup.wStorage, proxyMux)
+	instr := setup.buildPaymentInstructionTo(t, "zNotAValidXRPAddress",
+		[]payments.TeeIdKeyIdPair{{TeeId: setup.teeID, KeyId: 1}}, nil, 0, nil)
+
+	_, _, err := proc.SignXRPLPayment(context.Background(), types.Threshold, instr, nil, nil, nil)
+	require.ErrorContains(t, err, "address")
 }
 
 // Multi-Key Multisig Signing

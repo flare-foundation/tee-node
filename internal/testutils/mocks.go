@@ -136,8 +136,6 @@ func BuildMockPaymentOriginalMessage(
 		FeeSchedule:      feeSchedule,
 		PaymentReference: [32]byte{},
 		Nonce:            uint64(0),
-		SubNonce:         uint64(0),
-		BatchEndTs:       uint64(0),
 	}
 
 	originalMessageEncoded, err := abi.Arguments{payments.MessageArguments[op.Pay]}.Pack(originalMessage)
