@@ -8,6 +8,7 @@ import (
 	"github.com/flare-foundation/tee-node/internal/policy"
 	"github.com/flare-foundation/tee-node/internal/router"
 	"github.com/flare-foundation/tee-node/internal/settings"
+	"github.com/flare-foundation/tee-node/internal/testutils"
 	walletstorage "github.com/flare-foundation/tee-node/internal/wallets"
 
 	"github.com/flare-foundation/go-flare-common/pkg/logger"
@@ -69,4 +70,11 @@ func StartServerExtension(configPort, signPort, extensionPort int) {
 
 	// Start a forward router.
 	router.NewForwardRouter(teeNode, ws, ps, extensionPort, cs.ProxyURL).Run(teeNode)
+}
+
+// StartExampleExtension runs a dummy extension signing server for integration
+// testing. It mirrors what a real extension exposes without booting a full node.
+func StartExampleExtension(signPort, extensionPort int) {
+	ext := testutils.NewDummyExtensionServer(extensionPort, signPort)
+	ext.Serve() //nolint:errcheck,gosec // example/test helper; serve error is non-fatal here
 }
