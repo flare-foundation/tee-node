@@ -15,7 +15,7 @@ jobs:
       contents: read
       packages: write
     steps:
-    - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4
+    - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7
       with:
         fetch-depth: 0
 
@@ -27,14 +27,14 @@ jobs:
         echo "SOURCE_DATE_EPOCH=$(git log -1 --format=%ct)" >>$GITHUB_ENV
 
     - name: Login to ghcr.io
-      uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9  # v3
+      uses: docker/login-action@af1e73f918a031802d376d3c8bbc3fe56130a9b0  # v4
       with:
         registry: ghcr.io
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
 
     - name: Reproducibly build and push image
-      uses: freedomofpress/repro-build@b4c783c4458bbd0ee430f516e0ed3a60108e61da  # 1.0.0
+      uses: freedomofpress/repro-build@e3539de5c53c198f897fe6053ec2662f8f0e9bf3  # 1.1.0
       with:
         tags: ${{ env.IMAGE_TAG }}
         source_date_epoch: ${{ env.SOURCE_DATE_EPOCH }}
@@ -48,7 +48,7 @@ jobs:
       contents: read
       packages: read
     steps:
-    - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4
+    - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7
       with:
         ref: ci
         fetch-depth: 0
@@ -61,14 +61,14 @@ jobs:
         echo "SOURCE_DATE_EPOCH=$(git log -1 --format=%ct)" >>$GITHUB_ENV
 
     - name: Login to ghcr.io
-      uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9  # v3
+      uses: docker/login-action@af1e73f918a031802d376d3c8bbc3fe56130a9b0  # v4
       with:
         registry: ghcr.io
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
 
     - name: Verify image reproducibility
-      uses: freedomofpress/repro-build/verify@b4c783c4458bbd0ee430f516e0ed3a60108e61da  # 1.0.0
+      uses: freedomofpress/repro-build/verify@e3539de5c53c198f897fe6053ec2662f8f0e9bf3  # 1.1.0
       with:
         target_image: ${{ env.IMAGE_TAG }}
         source_date_epoch: ${{ env.SOURCE_DATE_EPOCH }}
