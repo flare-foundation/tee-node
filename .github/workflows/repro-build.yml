@@ -1,0 +1,74 @@
+name: repro-container-images
+
+on:
+  push:
+    branches: [ "ci" ]
+  schedule:
+    - cron: '0 0 * * *'
+
+jobs:
+  build-repro:
+    name: Build (repro)
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+    - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4
+      with:
+        fetch-depth: 0
+
+    - name: Set build metadata
+      env:
+        REPOSITORY: '${{ github.repository }}'
+      run: |
+        echo "IMAGE_TAG=ghcr.io/${REPOSITORY,,}:ci" >>$GITHUB_ENV
+        echo "SOURCE_DATE_EPOCH=$(git log -1 --format=%ct)" >>$GITHUB_ENV
+
+    - name: Login to ghcr.io
+      uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9  # v3
+      with:
+        registry: ghcr.io
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Reproducibly build and push image
+      uses: freedomofpress/repro-build@b4c783c4458bbd0ee430f516e0ed3a60108e61da  # 1.0.0
+      with:
+        tags: ${{ env.IMAGE_TAG }}
+        source_date_epoch: ${{ env.SOURCE_DATE_EPOCH }}
+        push: true
+
+  verify-repro:
+    name: Verify digest (daily)
+    if: github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
+    steps:
+    - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4
+      with:
+        ref: ci
+        fetch-depth: 0
+
+    - name: Set build metadata
+      env:
+        REPOSITORY: '${{ github.repository }}'
+      run: |
+        echo "IMAGE_TAG=ghcr.io/${REPOSITORY,,}:ci" >>$GITHUB_ENV
+        echo "SOURCE_DATE_EPOCH=$(git log -1 --format=%ct)" >>$GITHUB_ENV
+
+    - name: Login to ghcr.io
+      uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9  # v3
+      with:
+        registry: ghcr.io
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Verify image reproducibility
+      uses: freedomofpress/repro-build/verify@b4c783c4458bbd0ee430f516e0ed3a60108e61da  # 1.0.0
+      with:
+        target_image: ${{ env.IMAGE_TAG }}
+        source_date_epoch: ${{ env.SOURCE_DATE_EPOCH }}
