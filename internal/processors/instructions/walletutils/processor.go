@@ -143,6 +143,9 @@ func (p *Processor) KeyDelete(
 	if err != nil {
 		return nil, nil, err
 	}
+	if req.TeeId != p.TeeID() {
+		return nil, nil, fmt.Errorf("instruction teeId %s does not match this TEE %s", req.TeeId, p.TeeID())
+	}
 	if !req.Nonce.IsUint64() {
 		return nil, nil, errors.New("nonce too large")
 	}
