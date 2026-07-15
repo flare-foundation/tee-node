@@ -33,6 +33,12 @@ func init() {
 
 const EncodingVersion = "1.0.0"
 
+// SignHost is the interface the sign/decrypt server binds to. It is fixed to
+// loopback so the unauthenticated sign/decrypt API is reachable only from
+// within the TEE instance, per the security model. It is intentionally not
+// configurable.
+const SignHost = "127.0.0.1"
+
 // Processor configuration
 var QueuedActionsSleepTime = 2 * time.Second
 var QueuedActionsPauseTime = 100 * time.Millisecond

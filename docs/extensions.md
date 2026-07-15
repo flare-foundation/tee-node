@@ -72,10 +72,10 @@ For instructions, the Threshold result is forwarded directly. At End, the TEE co
 
 Two separate ports are involved in extension communication:
 
-| Port             | Default | Purpose                                                                                                        |
-| ---------------- | ------- | -------------------------------------------------------------------------------------------------------------- |
-| `EXTENSION_PORT` | 8889    | The extension service listens here. The TEE forwards unrecognized actions to this port.                        |
-| `SIGN_PORT`      | 8888    | The TEE exposes its sign/decrypt API here. The extension calls back to this port for cryptographic operations. |
+| Port             | Default | Purpose                                                                                                                                                                                                           |
+| ---------------- | ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `EXTENSION_PORT` | 8889    | The extension service listens here. The TEE forwards unrecognized actions to this port.                                                                                                                           |
+| `SIGN_PORT`      | 8888    | The TEE exposes its sign/decrypt API here. The extension calls back to this port for cryptographic operations. The server binds to loopback (`127.0.0.1`) only — the extension must run in the same TEE instance. |
 
 ## Extension Server API (SIGN_PORT)
 

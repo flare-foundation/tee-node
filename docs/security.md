@@ -7,7 +7,7 @@
 - **Its own key material**: Generated internally, never exported
 - **Google Cloud Confidential Space**: Hardware-level isolation and attestation
 - **Cryptographic primitives**: secp256k1, Keccak256, SHA512-Half, ECIES, Shamir
-- **Extension server**: In extension mode, the TEE node and the user-implemented extension are expected to run inside the same trusted TEE instance. Communication between them occurs over localhost and is protected by the TEE's hardware isolation — no external entity can observe or tamper with this traffic. The extension server API (sign, decrypt) does not perform authentication, as security relies on the shared TEE boundary.
+- **Extension server**: In extension mode, the TEE node and the user-implemented extension are expected to run inside the same trusted TEE instance. Communication between them occurs over localhost and is protected by the TEE's hardware isolation — no external entity can observe or tamper with this traffic. The extension server API (sign, decrypt) does not perform authentication, as security relies on the shared TEE boundary. To enforce that boundary in code, the sign/decrypt server always binds to loopback (`127.0.0.1`) rather than all interfaces; this is fixed and not configurable.
 
 ### What the TEE Validates
 
@@ -18,7 +18,7 @@
 - **Message sizes**: All inputs bounded by constants
 - **Nonce ordering**: Delete and restore operations require strictly increasing nonces; the machine-path list requires a strictly increasing nonce
 - **Policy freshness**: Instructions can only reference recent policies (within 1 epoch)
-- **Domain separation**: *Every* TEE signature — key-existence proofs, machine registration, FDC2 proofs, action results, end-phase vote hashes, and backup signatures — is taken over a payload-type-tagged, chain-ID-bound preimage, so a signature for one purpose cannot be replayed for another (see [Cryptography](cryptography.md#domain-separated-signed-payloads)). The XRP transaction and VRF proof signatures are the deliberate exceptions (external bit-exact formats).
+- **Domain separation**: _Every_ TEE signature — key-existence proofs, machine registration, FDC2 proofs, action results, end-phase vote hashes, and backup signatures — is taken over a payload-type-tagged, chain-ID-bound preimage, so a signature for one purpose cannot be replayed for another (see [Cryptography](cryptography.md#domain-separated-signed-payloads)). The XRP transaction and VRF proof signatures are the deliberate exceptions (external bit-exact formats).
 - **Governance signatures**: `SET_MACHINE_PATH_LIST` requires a threshold of distinct governance-signer signatures
 - **Machine-path authorization**: Direct key transfers must be authorized by the current machine-path list for the (source, destination) TEE pair
 
@@ -28,7 +28,7 @@
 
 The config server (port `CONFIG_PORT`) exposes endpoints to set the proxy URL, initial owner, extension ID, chain ID, and the governance signer set. It is assumed that network access to this port is restricted to the node owner. No authentication is performed on these endpoints; security relies on network-level access control.
 
-All setters except `/proxy` are **one-shot** (a second call is rejected), and each value can instead be fixed at deploy time via its environment variable. The env vars are read during node initialization, *before* the config server starts, so providing them at deploy time closes any window in which a config-port reacher could set the value first. This matters most for `/governance`: the governance signer set is the root of direct-key-transfer authorization, and it is committed into the node's attested `GovernanceHash` (registered via `TEE_MACHINE_REGISTER`), so a value set here is observable on-chain rather than silent. Setting governance does not by itself enable key exfiltration — direct backup/restore are independently gated by the data-provider quorum (see [Governance & Machine-Path Authorization](#governance--machine-path-authorization)).
+All setters except `/proxy` are **one-shot** (a second call is rejected), and each value can instead be fixed at deploy time via its environment variable. The env vars are read during node initialization, _before_ the config server starts, so providing them at deploy time closes any window in which a config-port reacher could set the value first. This matters most for `/governance`: the governance signer set is the root of direct-key-transfer authorization, and it is committed into the node's attested `GovernanceHash` (registered via `TEE_MACHINE_REGISTER`), so a value set here is observable on-chain rather than silent. Setting governance does not by itself enable key exfiltration — direct backup/restore are independently gated by the data-provider quorum (see [Governance & Machine-Path Authorization](#governance--machine-path-authorization)).
 
 ### What the Proxy Controls
 
@@ -69,7 +69,7 @@ The governance set is itself one-shot and committed into the attested `Governanc
 
 ### Layered Authorization for Key Transfer
 
-The machine-path list is **not** the only gate on direct backup/restore. Because both commands are instructions, they first pass the standard pipeline checks — including a `>50%` data-provider voting-weight quorum and cosigner thresholds. The machine-path list *narrows* which TEE pairs may participate on top of that quorum; it cannot by itself authorize a transfer. Consequently, an actor who controls only governance (and thus the machine-path list) on a node still cannot cause a key to move without a quorum-signed instruction.
+The machine-path list is **not** the only gate on direct backup/restore. Because both commands are instructions, they first pass the standard pipeline checks — including a `>50%` data-provider voting-weight quorum and cosigner thresholds. The machine-path list _narrows_ which TEE pairs may participate on top of that quorum; it cannot by itself authorize a transfer. Consequently, an actor who controls only governance (and thus the machine-path list) on a node still cannot cause a key to move without a quorum-signed instruction.
 
 ### Integrity & Confidentiality of Direct Backup
 

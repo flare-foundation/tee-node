@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net"
 	"net/http"
 	"strconv"
 	"strings"
@@ -40,10 +41,12 @@ type SignServer struct {
 // NewSignServer constructs an HTTP server that exposes wallet and TEE
 // functionality to extension clients on the provided port.
 func NewSignServer(port int, node *node.Node, wStorage *walletstorage.Storage, proxyURL *settings.ProxyURLMutex) *SignServer {
-	addr := fmt.Sprintf(":%d", port)
+	// Bind to loopback: the sign/decrypt API is unauthenticated and relies on
+	// the shared TEE boundary, so it must not listen on all interfaces.
+	addr := net.JoinHostPort(settings.SignHost, strconv.Itoa(port))
 
 	server := &http.Server{
-		Addr: addr, // todo
+		Addr: addr,
 		// ReadTimeout:                  0,
 		// ReadHeaderTimeout:            0,
 		// WriteTimeout:                 0,
