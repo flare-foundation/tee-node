@@ -3,6 +3,7 @@ package queue_test
 import (
 	"encoding/json"
 	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -108,7 +109,9 @@ func TestFetchAction_HTTPError(t *testing.T) {
 	// Use invalid URL to trigger connection error
 	_, err := queue.FetchAction("http://invalid-url-that-does-not-exist:9999")
 	require.Error(t, err)
-	require.Contains(t, err.Error(), "no such host")
+	// resolver error wording varies by platform; assert the failure type instead
+	var dnsErr *net.DNSError
+	require.ErrorAs(t, err, &dnsErr)
 }
 
 // TestFetchAction_NonOKStatus tests non-200 HTTP status codes
@@ -217,7 +220,9 @@ func TestPostActionResponse_HTTPError(t *testing.T) {
 	// Use invalid URL to trigger connection error
 	err := queue.PostActionResponse("http://invalid-url-that-does-not-exist:9999", mockResponse)
 	require.Error(t, err)
-	require.Contains(t, err.Error(), "no such host")
+	// resolver error wording varies by platform; assert the failure type instead
+	var dnsErr *net.DNSError
+	require.ErrorAs(t, err, &dnsErr)
 }
 
 // TestPostActionResponse_NonOKStatus tests non-200 HTTP status codes
