@@ -8,6 +8,7 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/flare-foundation/go-flare-common/pkg/xrpl/hash"
 	"github.com/flare-foundation/tee-node/pkg/types"
+	"github.com/flare-foundation/tee-node/pkg/utils"
 	"github.com/flare-foundation/tee-node/pkg/wallets/vrf"
 )
 
@@ -53,6 +54,9 @@ func verifySHA512HalfSecp256k1ECDSA(msg, signature, publicKey []byte) error {
 	if err != nil {
 		return err
 	}
+	if err := utils.CheckCanonicalSignature(signature); err != nil {
+		return err
+	}
 	msgHash := hash.Sha512Half(msg)
 	recovered, err := crypto.SigToPub(msgHash, signature)
 	if err != nil {
@@ -70,6 +74,9 @@ func verifySHA512HalfSecp256k1ECDSA(msg, signature, publicKey []byte) error {
 func verifyKeccak256Secp256k1ECDSA(msg, signature, publicKey []byte) error {
 	pk, err := types.ParsePubKeyBytes(publicKey)
 	if err != nil {
+		return err
+	}
+	if err := utils.CheckCanonicalSignature(signature); err != nil {
 		return err
 	}
 	msgHash := crypto.Keccak256(msg)

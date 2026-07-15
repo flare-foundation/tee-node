@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"errors"
 	"fmt"
+	"math/big"
 	"slices"
 
 	"github.com/flare-foundation/go-flare-common/pkg/tee/structs/wallet"
@@ -57,9 +58,27 @@ func VerifySignature(hash, signature []byte, signerAddress common.Address) error
 	return nil
 }
 
+// CheckCanonicalSignature rejects malformed and non-canonical (high-S)
+// [R || S || V] signatures to keep the (data, signature) pair unique.
+func CheckCanonicalSignature(signature []byte) error {
+	if len(signature) != 65 {
+		return fmt.Errorf("signature must be 65 bytes, got %d", len(signature))
+	}
+	r := new(big.Int).SetBytes(signature[:32])
+	s := new(big.Int).SetBytes(signature[32:64])
+	v := signature[64]
+	if !crypto.ValidateSignatureValues(v, r, s, true) {
+		return errors.New("non-canonical signature (high-S or zero scalar)")
+	}
+	return nil
+}
+
 // SignatureToSignersAddress recovers the Ethereum address associated with the
-// signature of the given hash.
+// signature of the given hash. Non-canonical signatures are rejected.
 func SignatureToSignersAddress(hash, signature []byte) (common.Address, error) {
+	if err := CheckCanonicalSignature(signature); err != nil {
+		return common.Address{}, err
+	}
 	pubKey, err := crypto.SigToPub(accounts.TextHash(hash), signature)
 	if err != nil {
 		return common.Address{}, err
