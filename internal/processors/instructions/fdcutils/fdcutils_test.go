@@ -347,7 +347,7 @@ func TestFDCProveInvalidSignature(t *testing.T) {
 
 	_, err := setup.executeAndDecodeProve(t, instruction, signatures, signers)
 	require.Error(t, err)
-	require.Contains(t, err.Error(), "invalid signature")
+	require.Contains(t, err.Error(), "signature must be 65 bytes")
 }
 
 func TestFDCProveThresholdsThroughProcessorProcess(t *testing.T) {

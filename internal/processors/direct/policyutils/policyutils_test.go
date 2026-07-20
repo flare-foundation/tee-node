@@ -480,7 +480,7 @@ func TestUpdatePolicyInvalidSignatureLength(t *testing.T) {
 
 	_, err := setup.executeUpdatePolicy(t, req)
 	require.Error(t, err)
-	require.Contains(t, err.Error(), "invalid signature length")
+	require.Contains(t, err.Error(), "signature must be 65 bytes")
 }
 
 func TestUpdatePolicyInvalidSignature(t *testing.T) {

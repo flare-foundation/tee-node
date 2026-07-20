@@ -16,6 +16,7 @@ import (
 	"github.com/flare-foundation/go-flare-common/pkg/xrpl/hash"
 	"github.com/flare-foundation/go-flare-common/pkg/xrpl/signing/secp256k1"
 	"github.com/flare-foundation/go-flare-common/pkg/xrpl/signing/utils"
+	teetypes "github.com/flare-foundation/tee-node/pkg/types"
 	"github.com/stretchr/testify/require"
 )
 
@@ -53,6 +54,38 @@ func TestSignKeccak256Secp256k1ECDSABasic(t *testing.T) {
 	require.NoError(t, err)
 
 	require.Equal(t, privateKey.PublicKey, *recoveredPubKey)
+}
+
+func TestVerifyRejectsHighSSignature(t *testing.T) {
+	privateKey, err := crypto.GenerateKey()
+	require.NoError(t, err)
+	pubKey := teetypes.PubKeyToBytes(&privateKey.PublicKey)
+
+	msg := []byte("high-s message")
+
+	// high-S variant of a signature; recovers the same key unless rejected
+	toHighS := func(sig []byte) []byte {
+		high := make([]byte, 65)
+		copy(high, sig[:32])
+		s := new(big.Int).SetBytes(sig[32:64])
+		new(big.Int).Sub(crypto.S256().Params().N, s).FillBytes(high[32:64])
+		high[64] = sig[64] ^ 1
+		return high
+	}
+
+	t.Run("keccak256", func(t *testing.T) {
+		sig, err := signKeccak256Secp256k1ECDSA(privateKey, msg)
+		require.NoError(t, err)
+		require.NoError(t, verifyKeccak256Secp256k1ECDSA(msg, sig, pubKey))
+		require.ErrorContains(t, verifyKeccak256Secp256k1ECDSA(msg, toHighS(sig), pubKey), "non-canonical")
+	})
+
+	t.Run("sha512half", func(t *testing.T) {
+		sig, err := signSHA512HalfSecp256k1ECDSA(privateKey, msg)
+		require.NoError(t, err)
+		require.NoError(t, verifySHA512HalfSecp256k1ECDSA(msg, sig, pubKey))
+		require.ErrorContains(t, verifySHA512HalfSecp256k1ECDSA(msg, toHighS(sig), pubKey), "non-canonical")
+	})
 }
 
 func TestSignEthTransaction(t *testing.T) {
