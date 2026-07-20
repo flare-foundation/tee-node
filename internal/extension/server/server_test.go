@@ -48,6 +48,15 @@ func setupTestServer(t *testing.T, proxyPort int, port int) *SignServer {
 	return server
 }
 
+func TestSignServerBindsLoopback(t *testing.T) {
+	// The sign/decrypt API is unauthenticated and must not listen on all
+	// interfaces; it always binds to loopback.
+	require.Equal(t, "127.0.0.1", settings.SignHost)
+
+	server := setupTestServer(t, 5599, 8899)
+	require.Equal(t, "127.0.0.1:8899", server.server.Addr)
+}
+
 func setupTestWallet(t *testing.T, ws *walletstorage.Storage, signingAlgo common.Hash) *wallets.Wallet {
 	t.Helper()
 
