@@ -541,6 +541,25 @@ func TestKeyDeleteInvalidNonce(t *testing.T) {
 	require.True(t, setup.wStorage.WalletExists(idPair))
 }
 
+func TestKeyDeleteTeeIDMismatch(t *testing.T) {
+	setup := setupKeyDeleteTest(t)
+
+	msg := setup.defaultKeyDeleteMessage(1)
+	msg.TeeId = common.HexToAddress("0x1234567890abcdef1234567890abcdef12345678")
+	deleteInstruction := setup.buildKeyDeleteInstruction(t, msg)
+
+	_, _, err := setup.processor.KeyDelete(context.Background(), types.Threshold, deleteInstruction, nil, nil, nil)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "does not match this TEE")
+
+	// Verify wallet still exists and nonce is unchanged
+	idPair := wallets.KeyIDPair{WalletID: setup.walletID, KeyID: setup.keyID}
+	require.True(t, setup.wStorage.WalletExists(idPair))
+	nonce, err := setup.wStorage.Nonce(idPair)
+	require.NoError(t, err)
+	require.Equal(t, uint64(0), nonce)
+}
+
 func TestKeyDeleteNonceTooSmall(t *testing.T) {
 	setup := setupKeyDeleteTest(t)
 
