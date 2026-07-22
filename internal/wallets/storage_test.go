@@ -1,12 +1,14 @@
 package wallets
 
 import (
+	"crypto/ecdsa"
 	"errors"
 	"testing"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/require"
 
+	"github.com/flare-foundation/tee-node/internal/settings"
 	publicwallets "github.com/flare-foundation/tee-node/pkg/wallets"
 )
 
@@ -63,6 +65,30 @@ func TestStoreDuplicateWallet(t *testing.T) {
 	err = s.Store(w)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "wallet with given walletID and keyID already exists")
+}
+
+func TestStoreRejectsWalletsExceedingMemberLimits(t *testing.T) {
+	t.Run("admins", func(t *testing.T) {
+		s := InitializeStorage()
+		w := createTestWalletForStorage()
+		w.AdminPublicKeys = make([]*ecdsa.PublicKey, settings.MaxAdminsPerWalletKey+1)
+
+		err := s.Store(w)
+		require.EqualError(t, err, "wallet key cannot have more than 50 admins")
+		require.Empty(t, s.wallets)
+		require.Empty(t, s.permanent)
+	})
+
+	t.Run("cosigners", func(t *testing.T) {
+		s := InitializeStorage()
+		w := createTestWalletForStorage()
+		w.Cosigners = make([]common.Address, settings.MaxCosignersPerWalletKey+1)
+
+		err := s.Store(w)
+		require.EqualError(t, err, "wallet key cannot have more than 50 cosigners")
+		require.Empty(t, s.wallets)
+		require.Empty(t, s.permanent)
+	})
 }
 
 func TestRemoveWallet(t *testing.T) {

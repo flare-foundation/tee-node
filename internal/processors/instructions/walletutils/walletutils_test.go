@@ -960,7 +960,7 @@ func TestKeyDataProviderRestoreAdminThresholdNotMet(t *testing.T) {
 
 	_, _, err := setup.processor.KeyDataProviderRestore(context.Background(), types.Threshold, restoreInstruction, variableMessages, signers, nil)
 	require.Error(t, err)
-	require.True(t, err.Error() == "admin threshold not reached")
+	require.Contains(t, err.Error(), "threshold of shares is not reached")
 }
 
 func TestKeyDataProviderRestoreProviderThresholdNotMet(t *testing.T) {
@@ -1216,41 +1216,32 @@ func TestKeyDataProviderRestoreDecryptionFailure(t *testing.T) {
 	require.Contains(t, restoreStatus.ErrorPositions, 0)
 }
 
-func TestKeyDataProviderRestoreUnauthorizedSigner(t *testing.T) {
+// TestKeyDataProviderRestoreGarbageMessagesFailClosed verifies that messages
+// which are not valid re-encrypted key splits contribute nothing: without any
+// valid shares the restore fails at reconstruction. Signer-set membership is
+// enforced by the instruction pipeline, not by this processor.
+func TestKeyDataProviderRestoreGarbageMessagesFailClosed(t *testing.T) {
 	setup := setupKeyDataProviderRestoreTest(t)
 
-	// Build normal admin messages
-	_, adminSigners := setup.buildVariableMessages(t, 0, len(setup.adminPrivKeys))
-
-	// Create unauthorized signers (not in voter set and not admins)
-	unauthorizedPrivKeys := make([]*ecdsa.PrivateKey, 3)
-	unauthorizedSigners := make([]common.Address, 3, 3+len(adminSigners))
-	variableMessages := make([]hexutil.Bytes, 3, 3+len(adminSigners))
-
+	signers := make([]common.Address, 3)
+	variableMessages := make([]hexutil.Bytes, 3)
 	for i := range 3 {
-		var err error
-		unauthorizedPrivKeys[i], err = crypto.GenerateKey()
+		privKey, err := crypto.GenerateKey()
 		require.NoError(t, err)
-		unauthorizedSigners[i] = crypto.PubkeyToAddress(unauthorizedPrivKeys[i].PublicKey)
+		signers[i] = crypto.PubkeyToAddress(privKey.PublicKey)
 
-		// Create some dummy encrypted message
-		dummyData := []byte("unauthorized data")
-		cipher, err := ecies.Encrypt(rand.Reader, setup.eciesPub, dummyData, nil, nil)
+		cipher, err := ecies.Encrypt(rand.Reader, setup.eciesPub, []byte("unauthorized data"), nil, nil)
 		require.NoError(t, err)
 		variableMessages[i] = cipher
 	}
 
-	// Add admin signers
-	variableMessages = append(variableMessages, make([]hexutil.Bytes, len(adminSigners))...)
-	copy(variableMessages[3:], make([]hexutil.Bytes, len(adminSigners)))
-	unauthorizedSigners = append(unauthorizedSigners, adminSigners...)
-
 	restoreReq := setup.buildDefaultRestoreRequest(big.NewInt(int64(setup.nonce)))
 	restoreInstruction := setup.buildRestoreInstruction(t, restoreReq)
 
-	_, _, err := setup.processor.KeyDataProviderRestore(context.Background(), types.Threshold, restoreInstruction, variableMessages, unauthorizedSigners, nil)
+	_, _, err := setup.processor.KeyDataProviderRestore(context.Background(), types.Threshold, restoreInstruction, variableMessages, signers, nil)
 	require.Error(t, err)
-	require.Equal(t, err.Error(), "signed by an entity that is nether a provider nor an admin")
+	require.Contains(t, err.Error(), "shares should not be empty")
+	require.False(t, setup.wStorage.WalletExists(wallets.KeyIDPair{WalletID: setup.walletID, KeyID: setup.keyID}))
 }
 
 func TestKeyDataProviderRestoreInvalidBackupIdTeeID(t *testing.T) {
@@ -1372,6 +1363,234 @@ func TestKeyDataProviderRestoreWithProviderAsAdmin(t *testing.T) {
 	require.NoError(t, err)
 	require.Nil(t, resp)
 	require.Equal(t, status, endStatus)
+}
+
+// TestKeyDataProviderRestoreWithoutBackupEpochPolicy verifies that a node that
+// never held the signing policy of the backup's reward epoch (e.g. it joined
+// later) can still restore: provider participation is enforced by the
+// wallet-signed key splits and the Shamir thresholds, not by historical policy
+// membership.
+func TestKeyDataProviderRestoreWithoutBackupEpochPolicy(t *testing.T) {
+	setup := setupKeyDataProviderRestoreTest(t)
+
+	variableMessages, signers := setup.buildVariableMessages(t, len(setup.voterPrivKeys), len(setup.adminPrivKeys))
+	restoreInstruction := setup.buildRestoreInstruction(t, setup.buildDefaultRestoreRequest(big.NewInt(int64(setup.nonce))))
+
+	restoreProcessor := walletutils.NewProcessor(setup.testNode, policy.InitializeStorage(), setup.wStorage)
+
+	resp, status, err := restoreProcessor.KeyDataProviderRestore(context.Background(), types.Threshold, restoreInstruction, variableMessages, signers, nil)
+	require.NoError(t, err)
+	require.NotNil(t, resp)
+	require.NotNil(t, status)
+
+	var restoreStatus wallets.KeyDataProviderRestoreResultStatus
+	require.NoError(t, json.Unmarshal(status, &restoreStatus))
+	require.Empty(t, restoreStatus.ErrorLogs)
+
+	restoredWallet, err := setup.wStorage.Get(wallets.KeyIDPair{WalletID: setup.walletID, KeyID: setup.keyID})
+	require.NoError(t, err)
+	require.True(t, restoredWallet.Restored)
+}
+
+// TestKeyDataProviderRestoreCourierSubmission verifies the courier model:
+// valid re-encrypted shares are the restore credential, regardless of which
+// signer addresses carry them. Signer-set membership is the pipeline's job.
+func TestKeyDataProviderRestoreCourierSubmission(t *testing.T) {
+	setup := setupKeyDataProviderRestoreTest(t)
+
+	variableMessages, _ := setup.buildVariableMessages(t, len(setup.voterPrivKeys), len(setup.adminPrivKeys))
+
+	foreignSigners := make([]common.Address, len(variableMessages))
+	for i := range foreignSigners {
+		privKey, err := crypto.GenerateKey()
+		require.NoError(t, err)
+		foreignSigners[i] = crypto.PubkeyToAddress(privKey.PublicKey)
+	}
+
+	restoreInstruction := setup.buildRestoreInstruction(t, setup.buildDefaultRestoreRequest(big.NewInt(int64(setup.nonce))))
+
+	resp, _, err := setup.processor.KeyDataProviderRestore(context.Background(), types.Threshold, restoreInstruction, variableMessages, foreignSigners, nil)
+	require.NoError(t, err)
+	require.NotNil(t, resp)
+
+	restoredWallet, err := setup.wStorage.Get(wallets.KeyIDPair{WalletID: setup.walletID, KeyID: setup.keyID})
+	require.NoError(t, err)
+	require.True(t, restoredWallet.Restored)
+}
+
+// TestKeyDataProviderRestoreTamperedIsAdminFlag verifies that the IsAdmin flag
+// used to classify splits is covered by the wallet-key signature: a flipped
+// flag invalidates the split, which is logged and skipped.
+func TestKeyDataProviderRestoreTamperedIsAdminFlag(t *testing.T) {
+	setup := setupKeyDataProviderRestoreTest(t)
+
+	variableMessages, signers := setup.buildVariableMessages(t, len(setup.voterPrivKeys), len(setup.adminPrivKeys))
+
+	share, err := pkgbackup.DecryptSplit(setup.walletBackup.ProviderEncryptedParts.Splits[0], setup.voterPrivKeys[0], uint64(31337))
+	require.NoError(t, err)
+	share.IsAdmin = true
+	shareBytes, err := json.Marshal(share)
+	require.NoError(t, err)
+	cipher, err := ecies.Encrypt(rand.Reader, setup.eciesPub, shareBytes, nil, nil)
+	require.NoError(t, err)
+	variableMessages[0] = cipher
+
+	restoreInstruction := setup.buildRestoreInstruction(t, setup.buildDefaultRestoreRequest(big.NewInt(int64(setup.nonce))))
+
+	_, status, err := setup.processor.KeyDataProviderRestore(context.Background(), types.Threshold, restoreInstruction, variableMessages, signers, nil)
+	require.NoError(t, err)
+
+	var restoreStatus wallets.KeyDataProviderRestoreResultStatus
+	require.NoError(t, json.Unmarshal(status, &restoreStatus))
+	require.Len(t, restoreStatus.ErrorPositions, 1)
+	require.Contains(t, restoreStatus.ErrorPositions, 0)
+
+	// The remaining shares still meet the thresholds.
+	restoredWallet, err := setup.wStorage.Get(wallets.KeyIDPair{WalletID: setup.walletID, KeyID: setup.keyID})
+	require.NoError(t, err)
+	require.True(t, restoredWallet.Restored)
+}
+
+// TestKeyDataProviderRestoreCosignerBinding pins the cosigner-to-admin binding
+// that the instruction pipeline's cosigner-threshold check relies on: with the
+// backup-epoch signer check removed, this binding is what enforces the admin
+// threshold on the signer set.
+func TestKeyDataProviderRestoreCosignerBinding(t *testing.T) {
+	t.Run("missing cosigner", func(t *testing.T) {
+		setup := setupKeyDataProviderRestoreTest(t)
+		variableMessages, signers := setup.buildVariableMessages(t, len(setup.voterPrivKeys), len(setup.adminPrivKeys))
+		restoreInstruction := setup.buildRestoreInstruction(t, setup.buildDefaultRestoreRequest(big.NewInt(int64(setup.nonce))))
+		restoreInstruction.Cosigners = restoreInstruction.Cosigners[:len(restoreInstruction.Cosigners)-1]
+
+		_, _, err := setup.processor.KeyDataProviderRestore(context.Background(), types.Threshold, restoreInstruction, variableMessages, signers, nil)
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "number of provided cosigners does not match")
+	})
+
+	t.Run("mismatched threshold", func(t *testing.T) {
+		setup := setupKeyDataProviderRestoreTest(t)
+		variableMessages, signers := setup.buildVariableMessages(t, len(setup.voterPrivKeys), len(setup.adminPrivKeys))
+		restoreInstruction := setup.buildRestoreInstruction(t, setup.buildDefaultRestoreRequest(big.NewInt(int64(setup.nonce))))
+		restoreInstruction.CosignersThreshold--
+
+		_, _, err := setup.processor.KeyDataProviderRestore(context.Background(), types.Threshold, restoreInstruction, variableMessages, signers, nil)
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "threshold of provided cosigners does not match")
+	})
+}
+
+// TestKeyDataProviderRestoreSingleSplitInArrayForm verifies that a single
+// split wrapped in a JSON array is accepted alongside the bare-object form.
+func TestKeyDataProviderRestoreSingleSplitInArrayForm(t *testing.T) {
+	setup := setupKeyDataProviderRestoreTest(t)
+
+	variableMessages, signers := setup.buildVariableMessages(t, len(setup.voterPrivKeys), len(setup.adminPrivKeys))
+
+	share, err := pkgbackup.DecryptSplit(setup.walletBackup.ProviderEncryptedParts.Splits[0], setup.voterPrivKeys[0], uint64(31337))
+	require.NoError(t, err)
+	arrayBytes, err := json.Marshal([]*pkgbackup.KeySplit{share})
+	require.NoError(t, err)
+	cipher, err := ecies.Encrypt(rand.Reader, setup.eciesPub, arrayBytes, nil, nil)
+	require.NoError(t, err)
+	variableMessages[0] = cipher
+
+	restoreInstruction := setup.buildRestoreInstruction(t, setup.buildDefaultRestoreRequest(big.NewInt(int64(setup.nonce))))
+
+	_, status, err := setup.processor.KeyDataProviderRestore(context.Background(), types.Threshold, restoreInstruction, variableMessages, signers, nil)
+	require.NoError(t, err)
+
+	var restoreStatus wallets.KeyDataProviderRestoreResultStatus
+	require.NoError(t, json.Unmarshal(status, &restoreStatus))
+	require.Empty(t, restoreStatus.ErrorLogs)
+
+	restoredWallet, err := setup.wStorage.Get(wallets.KeyIDPair{WalletID: setup.walletID, KeyID: setup.keyID})
+	require.NoError(t, err)
+	require.True(t, restoredWallet.Restored)
+}
+
+// TestKeyDataProviderRestoreTooManySplitsInMessage verifies the per-message
+// split cap: a message carrying more than maxKeySplitsPerMessage splits is
+// rejected as a whole (logged and skipped).
+func TestKeyDataProviderRestoreTooManySplitsInMessage(t *testing.T) {
+	setup := setupKeyDataProviderRestoreTest(t)
+
+	variableMessages, signers := setup.buildVariableMessages(t, len(setup.voterPrivKeys), len(setup.adminPrivKeys))
+
+	oversized := make([]*pkgbackup.KeySplit, 3)
+	for i := range oversized {
+		var err error
+		oversized[i], err = pkgbackup.DecryptSplit(setup.walletBackup.ProviderEncryptedParts.Splits[i], setup.voterPrivKeys[i], uint64(31337))
+		require.NoError(t, err)
+	}
+	oversizedBytes, err := json.Marshal(oversized)
+	require.NoError(t, err)
+	cipher, err := ecies.Encrypt(rand.Reader, setup.eciesPub, oversizedBytes, nil, nil)
+	require.NoError(t, err)
+	variableMessages = append(variableMessages, cipher)
+	signers = append(signers, signers[0])
+
+	restoreInstruction := setup.buildRestoreInstruction(t, setup.buildDefaultRestoreRequest(big.NewInt(int64(setup.nonce))))
+
+	_, status, err := setup.processor.KeyDataProviderRestore(context.Background(), types.Threshold, restoreInstruction, variableMessages, signers, nil)
+	require.NoError(t, err)
+
+	var restoreStatus wallets.KeyDataProviderRestoreResultStatus
+	require.NoError(t, json.Unmarshal(status, &restoreStatus))
+	require.Len(t, restoreStatus.ErrorPositions, 1)
+	require.Contains(t, restoreStatus.ErrorPositions, len(variableMessages)-1)
+
+	restoredWallet, err := setup.wStorage.Get(wallets.KeyIDPair{WalletID: setup.walletID, KeyID: setup.keyID})
+	require.NoError(t, err)
+	require.True(t, restoredWallet.Restored)
+}
+
+// TestKeyDataProviderRestoreFutureBackupEpoch verifies the sanity bound on the
+// backup's reward epoch: more than one epoch ahead of the instruction's
+// (quorum-signed) reward epoch is rejected, while exactly one epoch ahead —
+// a backup taken under a newer policy than the instruction's epoch — is
+// accepted. There is no lower bound: old backups stay restorable.
+func TestKeyDataProviderRestoreFutureBackupEpoch(t *testing.T) {
+	t.Run("more than one epoch ahead rejected", func(t *testing.T) {
+		setup := setupKeyDataProviderRestoreTest(t)
+
+		// Stamp the backup id two epochs ahead of the instruction's epoch. The
+		// bound fires before share processing, so no messages are needed.
+		setup.walletBackup.RewardEpochID = setup.epochID + 2
+
+		restoreInstruction := setup.buildRestoreInstruction(t, setup.buildDefaultRestoreRequest(big.NewInt(int64(setup.nonce))))
+
+		_, _, err := setup.processor.KeyDataProviderRestore(context.Background(), types.Threshold, restoreInstruction, nil, nil, nil)
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "is in the future of instruction reward epoch")
+	})
+
+	t.Run("one epoch ahead accepted", func(t *testing.T) {
+		setup := setupKeyDataProviderRestoreTest(t)
+
+		futureBackup, err := backup.BackupWallet(
+			setup.storedWallet,
+			setup.providerPubKeys,
+			setup.weights,
+			setup.epochID+1,
+			setup.testNode.TeeID(),
+			uint64(31337),
+			backup.NormalizationConstant,
+			backup.DataProvidersThreshold,
+		)
+		require.NoError(t, err)
+		setup.walletBackup = futureBackup
+
+		variableMessages, signers := setup.buildVariableMessages(t, len(setup.voterPrivKeys), len(setup.adminPrivKeys))
+		restoreInstruction := setup.buildRestoreInstruction(t, setup.buildDefaultRestoreRequest(big.NewInt(int64(setup.nonce))))
+
+		resp, _, err := setup.processor.KeyDataProviderRestore(context.Background(), types.Threshold, restoreInstruction, variableMessages, signers, nil)
+		require.NoError(t, err)
+		require.NotNil(t, resp)
+
+		restoredWallet, err := setup.wStorage.Get(wallets.KeyIDPair{WalletID: setup.walletID, KeyID: setup.keyID})
+		require.NoError(t, err)
+		require.True(t, restoredWallet.Restored)
+	})
 }
 
 // * ========================== KEY DIRECT BACKUP ========================== *
@@ -2109,7 +2328,7 @@ func TestKeyDirectRestoreStaleRewardEpoch(t *testing.T) {
 
 	_, _, err := fx.destProc.KeyDirectRestore(context.Background(), types.Threshold, inst, nil, nil, nil)
 	require.Error(t, err)
-	require.Contains(t, err.Error(), "stale backup: reward epoch")
+	require.Contains(t, err.Error(), "stale backup: restore reward epoch")
 }
 
 func TestKeyDirectRestoreEndSubmissionTag(t *testing.T) {

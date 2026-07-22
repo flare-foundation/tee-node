@@ -3,6 +3,7 @@ package wallets
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"math/big"
 	"slices"
 
@@ -14,6 +15,7 @@ import (
 	"github.com/flare-foundation/go-flare-common/pkg/tee/op"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/structs"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/structs/wallet"
+	"github.com/flare-foundation/tee-node/internal/settings"
 	"github.com/flare-foundation/tee-node/pkg/types"
 	"github.com/flare-foundation/tee-node/pkg/utils"
 )
@@ -42,6 +44,12 @@ func ParseKeyGenerate(instructionData *instruction.DataFixed) (wallet.IWalletKey
 func CheckKeyGenerate(newWalletRequest wallet.IWalletKeyManagerKeyGenerate, teeID common.Address) error {
 	if newWalletRequest.TeeId != teeID {
 		return errors.New("requested teeID does not match required")
+	}
+	if err := ValidateWalletMemberCounts(
+		len(newWalletRequest.ConfigConstants.AdminsPublicKeys),
+		len(newWalletRequest.ConfigConstants.Cosigners),
+	); err != nil {
+		return err
 	}
 
 	if len(newWalletRequest.ConfigConstants.AdminsPublicKeys) == 0 {
@@ -74,6 +82,19 @@ func CheckKeyGenerate(newWalletRequest wallet.IWalletKeyManagerKeyGenerate, teeI
 
 	if !slices.Contains(Algos, newWalletRequest.SigningAlgo) {
 		return errors.New("signing algorithm not supported")
+	}
+
+	return nil
+}
+
+// ValidateWalletMemberCounts enforces the maximum number of administrators
+// and cosigners that may be associated with a wallet key.
+func ValidateWalletMemberCounts(adminCount, cosignerCount int) error {
+	if adminCount > settings.MaxAdminsPerWalletKey {
+		return fmt.Errorf("wallet key cannot have more than %d admins", settings.MaxAdminsPerWalletKey)
+	}
+	if cosignerCount > settings.MaxCosignersPerWalletKey {
+		return fmt.Errorf("wallet key cannot have more than %d cosigners", settings.MaxCosignersPerWalletKey)
 	}
 
 	return nil

@@ -34,7 +34,7 @@ func TestDataProvidersThreshold(t *testing.T) {
 		common.HexToAddress("0x18"),
 	}
 
-	t.Run("wallet restore has zero threshold", func(t *testing.T) {
+	t.Run("wallet restore uses the default majority threshold", func(t *testing.T) {
 		data := &instruction.DataFixed{
 			OPType:    op.Wallet.Hash(),
 			OPCommand: op.KeyDataProviderRestore.Hash(),
@@ -42,10 +42,10 @@ func TestDataProvidersThreshold(t *testing.T) {
 
 		threshold, err := dataProvidersThreshold(data, totalWeight)
 		assert.NoError(t, err)
-		assert.Equal(t, uint16(0), threshold)
+		assert.Equal(t, computeThreshold(totalWeight, maxBIPS/2), threshold)
 	})
 
-	t.Run("op different from Wallet/KeyDataProviderRestore/F_FDC2/Prove should have threshold = computeThreshold(totalWeight, maxBIPS/2)", func(t *testing.T) {
+	t.Run("op different from F_FDC2/Prove should have threshold = computeThreshold(totalWeight, maxBIPS/2)", func(t *testing.T) {
 		data := &instruction.DataFixed{
 			OPType:    op.XRP.Hash(),
 			OPCommand: op.Pay.Hash(),
@@ -173,6 +173,26 @@ func TestCheckThresholds(t *testing.T) {
 		signers := []common.Address{voters[0], voters[1], cosigners[0]}
 
 		err := CheckThresholds(data, signers, policy)
+		assert.NoError(t, err)
+	})
+
+	// Restore requires a majority of the current policy's data-provider
+	// weight among signers — a filter by the current provider set on top of
+	// the cryptographic Shamir thresholds enforced at reconstruction.
+	t.Run("restore requires majority of current-policy weight", func(t *testing.T) {
+		data := &instruction.DataFixed{
+			OPType:             op.Wallet.Hash(),
+			OPCommand:          op.KeyDataProviderRestore.Hash(),
+			Cosigners:          cosigners,
+			CosignersThreshold: 1,
+		}
+
+		// weight 50 of 100 is not strictly greater than the 50% threshold
+		err := CheckThresholds(data, []common.Address{voters[0], cosigners[0]}, policy)
+		assert.EqualError(t, err, "data providers threshold not reached")
+
+		// weight 80 of 100 passes
+		err = CheckThresholds(data, []common.Address{voters[0], voters[1], cosigners[0]}, policy)
 		assert.NoError(t, err)
 	})
 }

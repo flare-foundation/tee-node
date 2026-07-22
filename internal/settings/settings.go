@@ -74,6 +74,8 @@ const (
 
 	MaxWallets                = 200_000          // Maximum number of wallets that can be stored in memory. This is a safety limit to prevent OOM errors.
 	MaxPermanentWalletsStatus = 1_000_000        // Maximum number of wallets that can be stored in permanent storage. This is a safety limit to prevent OOM errors.
+	MaxAdminsPerWalletKey     = 50               // Maximum number of admins that can be associated with a wallet key.
+	MaxCosignersPerWalletKey  = 50               // Maximum number of cosigners that can be associated with a wallet key.
 	MaxSignGoroutines         = 3000             // Maximum number of concurrent XRP sign schedule goroutines. Prevents OOM from accumulated sleeping goroutines.
 	MaxFeeEntries             = 50               // Maximum number of fee schedule entries per XRP sign instruction.
 	MaxFeeScheduleTime        = 10 * time.Minute // Maximum delay allowed in a fee schedule entry.
