@@ -2,9 +2,11 @@ package backup_test
 
 import (
 	"crypto/ecdsa"
+	"encoding/json"
 	"math"
 	"testing"
 
+	"github.com/flare-foundation/tee-node/internal/settings"
 	"github.com/flare-foundation/tee-node/internal/testutils"
 	"github.com/flare-foundation/tee-node/internal/wallets/backup"
 	"github.com/flare-foundation/tee-node/pkg/utils"
@@ -108,6 +110,96 @@ func TestBackupAndRecover(t *testing.T) {
 			assert.NoError(t, err)
 			givenWallet.Restored = true
 			assert.Equal(t, &givenWallet, recoveredWallet)
+		})
+	}
+}
+
+// maxActionResponseSize is the budget every action response must stay under.
+const maxActionResponseSize = 1_500_000 // 1.5 MB
+
+// TestBackupSizes guards the serialized size of wallet backups with the
+// maximum supported numbers of admins and cosigners, 100 providers, and the
+// production normalization and provider threshold. The TEEBackupResponse
+// envelope becomes the action result's data, and every action response must
+// stay under 1.5 MB.
+func TestBackupSizes(t *testing.T) {
+	testNode, _, _ := testutils.Setup(t)
+	chainID, err := testNode.ChainID()
+	require.NoError(t, err)
+
+	sk, err := crypto.GenerateKey()
+	require.NoError(t, err)
+
+	adminKeys, providerKeys := generateTestKeys(t, settings.MaxAdminsPerWalletKey, 100)
+	adminPubKeys := privateKeysToPublicKeys(t, adminKeys)
+	providerPubKeys := privateKeysToPublicKeys(t, providerKeys)
+	cosigners := make([]common.Address, settings.MaxCosignersPerWalletKey)
+	for i := range cosigners {
+		cosigners[i] = common.BytesToAddress([]byte{byte(i + 1)})
+	}
+
+	weights := make([]uint16, len(providerKeys))
+	for i := range weights {
+		weights[i] = 10
+	}
+
+	baseWallet := &wallets.Wallet{
+		WalletID:    mockWalletID,
+		KeyID:       mockKeyID,
+		PrivateKey:  common.BigToHash(sk.D).Bytes(),
+		KeyType:     wallets.XRPType,
+		SigningAlgo: wallets.XRPSignAlgo,
+
+		AdminPublicKeys:    adminPubKeys,
+		AdminsThreshold:    uint64(len(adminPubKeys)),
+		Cosigners:          cosigners,
+		CosignersThreshold: uint64(len(cosigners)),
+
+		Status: &wallets.WalletStatus{},
+
+		SettingsVersion: common.Hash{},
+		Settings:        hexutil.Bytes{},
+	}
+
+	cases := []struct {
+		name        string
+		keyType     common.Hash
+		signingAlgo common.Hash
+	}{
+		{"ECDSA", wallets.XRPType, wallets.XRPSignAlgo},
+		{"VRF", wallets.EVMType, wallets.VRFAlgo},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			givenWallet := *baseWallet
+			givenWallet.KeyType = tc.keyType
+			givenWallet.SigningAlgo = tc.signingAlgo
+
+			walletBackup, err := backup.BackupWallet(
+				&givenWallet, providerPubKeys, weights, uint32(100), testNode.TeeID(),
+				chainID, backup.NormalizationConstant, backup.DataProvidersThreshold,
+			)
+			require.NoError(t, err)
+
+			signHash, err := walletBackup.TEESignHash(chainID)
+			require.NoError(t, err)
+			walletBackup.TEESignature, err = testNode.Sign(signHash[:])
+			require.NoError(t, err)
+
+			encoded, err := json.Marshal(walletBackup)
+			require.NoError(t, err)
+
+			response, err := json.Marshal(wallets.TEEBackupResponse{
+				BackupID:     walletBackup.WalletBackupID,
+				WalletBackup: encoded,
+			})
+			require.NoError(t, err)
+
+			t.Logf("%s wallet backup JSON: %d bytes (%.0f KB), TEEBackupResponse: %d bytes (%.0f KB)",
+				tc.name, len(encoded), float64(len(encoded))/1024, len(response), float64(len(response))/1024)
+			require.Less(t, len(response), maxActionResponseSize,
+				"%s backup response exceeds the 1.5 MB action-response budget; check the format and refresh docs/backup-restore.md", tc.name)
 		})
 	}
 }

@@ -16,6 +16,7 @@ import (
 	"github.com/flare-foundation/go-flare-common/pkg/tee/op"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/structs"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/structs/wallet"
+	"github.com/flare-foundation/tee-node/internal/settings"
 	"github.com/flare-foundation/tee-node/pkg/types"
 	"github.com/flare-foundation/tee-node/pkg/utils"
 	"github.com/stretchr/testify/require"
@@ -291,6 +292,14 @@ func TestCheckKeyGenerate(t *testing.T) {
 		X: [32]byte{1},
 		Y: [32]byte{2},
 	}
+	maxAdmins := make([]wallet.PublicKey, settings.MaxAdminsPerWalletKey)
+	for i := range maxAdmins {
+		maxAdmins[i].X[31] = byte(i + 1)
+	}
+	maxCosigners := make([]common.Address, settings.MaxCosignersPerWalletKey)
+	for i := range maxCosigners {
+		maxCosigners[i] = common.BigToAddress(big.NewInt(int64(i + 1)))
+	}
 
 	baseReq := createKeyGenerateRequest(
 		teeID,
@@ -305,6 +314,29 @@ func TestCheckKeyGenerate(t *testing.T) {
 	t.Run("ok", func(t *testing.T) {
 		err := CheckKeyGenerate(baseReq, teeID)
 		require.NoError(t, err)
+	})
+
+	t.Run("maximum number of admins and cosigners", func(t *testing.T) {
+		req := baseReq
+		req.ConfigConstants.AdminsPublicKeys = maxAdmins
+		req.ConfigConstants.Cosigners = maxCosigners
+		err := CheckKeyGenerate(req, teeID)
+		require.NoError(t, err)
+	})
+
+	t.Run("too many admins", func(t *testing.T) {
+		req := baseReq
+		extraAdmin := wallet.PublicKey{X: [32]byte{settings.MaxAdminsPerWalletKey + 1}}
+		req.ConfigConstants.AdminsPublicKeys = append(maxAdmins, extraAdmin)
+		err := CheckKeyGenerate(req, teeID)
+		require.EqualError(t, err, "wallet key cannot have more than 50 admins")
+	})
+
+	t.Run("too many cosigners", func(t *testing.T) {
+		req := baseReq
+		req.ConfigConstants.Cosigners = append(maxCosigners, common.BigToAddress(big.NewInt(settings.MaxCosignersPerWalletKey+1)))
+		err := CheckKeyGenerate(req, teeID)
+		require.EqualError(t, err, "wallet key cannot have more than 50 cosigners")
 	})
 
 	t.Run("teeID mismatch", func(t *testing.T) {

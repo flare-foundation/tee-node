@@ -30,6 +30,10 @@ func InitializeStorage() *Storage {
 //
 // s.RWMutex Lock should be used when calling this method.
 func (s *Storage) Store(wallet *publicwallets.Wallet) error {
+	if err := publicwallets.ValidateWalletMemberCounts(len(wallet.AdminPublicKeys), len(wallet.Cosigners)); err != nil {
+		return err
+	}
+
 	idPair := publicwallets.KeyIDPair{WalletID: wallet.WalletID, KeyID: wallet.KeyID}
 	walletCopied := wallet.Copy()
 

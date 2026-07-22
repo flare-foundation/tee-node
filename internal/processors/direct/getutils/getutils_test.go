@@ -90,14 +90,14 @@ func TestKeysProofSize100(t *testing.T) {
 	sk, err := crypto.GenerateKey()
 	require.NoError(t, err)
 
-	adminKeys := make([]*ecdsa.PublicKey, 10)
+	adminKeys := make([]*ecdsa.PublicKey, settings.MaxAdminsPerWalletKey)
 	for j := range adminKeys {
 		k, err := crypto.GenerateKey()
 		require.NoError(t, err)
 		adminKeys[j] = &k.PublicKey
 	}
 
-	cosigners := make([]common.Address, 10)
+	cosigners := make([]common.Address, settings.MaxCosignersPerWalletKey)
 	for j := range cosigners {
 		k, err := crypto.GenerateKey()
 		require.NoError(t, err)
@@ -115,9 +115,9 @@ func TestKeysProofSize100(t *testing.T) {
 			KeyType:            pwallets.XRPType,
 			SigningAlgo:        pwallets.XRPSignAlgo,
 			AdminPublicKeys:    adminKeys,
-			AdminsThreshold:    5,
+			AdminsThreshold:    uint64(len(adminKeys)),
 			Cosigners:          cosigners,
-			CosignersThreshold: 5,
+			CosignersThreshold: uint64(len(cosigners)),
 			Status:             &pwallets.WalletStatus{},
 		}
 		require.NoError(t, wStorage.Store(w))
@@ -137,7 +137,7 @@ func TestKeysProofSize100(t *testing.T) {
 	require.NoError(t, json.Unmarshal(res, &proofs))
 	require.Len(t, proofs, n)
 
-	require.Less(t, len(res), 1024*1024, "KEY_PROOF response for %d keys should be under 1 MiB, got %d bytes", n, len(res))
+	require.Less(t, len(res), 1_500_000, "KEY_PROOF response for %d keys should be under 1.5 MB, got %d bytes", n, len(res))
 }
 
 func TestKeysProof(t *testing.T) {

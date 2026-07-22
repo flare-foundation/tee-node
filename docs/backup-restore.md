@@ -8,7 +8,7 @@ The TEE node supports two independent mechanisms for moving a wallet's private k
 
 2. **Direct backup & restore** (TEE-to-TEE) — a source TEE encrypts the *whole* private key directly under a single destination TEE's public key (ECIES) and signs it. The destination TEE decrypts and stores it. Both ends must be authorized by a governance-approved **machine-path list**. See [Direct Backup & Restore (TEE-to-TEE)](#direct-backup--restore-tee-to-tee).
 
-Both mechanisms run through the standard instruction pipeline, so the usual signature, threshold, and replay checks described in [Action Processing](actions.md) apply before any key material moves. Direct backup/restore additionally require a `>50%` data-provider voting-weight quorum; data-provider restore instead relies on Shamir reconstruction and the admin threshold (its data-provider weight threshold is `0`, see [Known Limitations](#data-provider-voting-weight-not-checked)).
+Both mechanisms run through the standard instruction pipeline, so the usual signature, threshold, and replay checks described in [Action Processing](actions.md) apply before any key material moves. All of these flows require a `>50%` data-provider voting-weight quorum with respect to the **current** signing policy; data-provider restore additionally enforces the admin threshold and provider participation cryptographically through Shamir reconstruction.
 
 ## Data-Provider Backup (Shamir)
 
@@ -95,17 +95,33 @@ VRF backups are larger because VRF signatures are ~939 bytes vs 65 bytes for ECD
 3. Verify signing algorithm is supported
 4. Unmarshal backup metadata from `AdditionalFixedMessage`
 5. Verify backup ID in request matches metadata
-6. Verify cosigners match admin addresses and thresholds
-7. Verify admin threshold is met among instruction signers
-8. Verify all signers are either data providers (from backup epoch policy) or admins
-9. Look up signing policy for backup's reward epoch
+6. Verify the backup's reward epoch is at most one epoch ahead of the
+   instruction's (quorum-signed) reward epoch — a backup cannot postdate the
+   instruction that restores it; one epoch of skew is tolerated, and there is
+   no lower bound (old backups stay restorable)
+7. Verify cosigners match admin addresses and thresholds
+
+The signing policy of the backup's reward epoch is deliberately **not**
+consulted, so backups remain restorable on nodes that never held that policy
+(e.g. nodes that joined later). Signer authorization comes from the instruction
+pipeline: signers must be current-policy data providers or cosigners,
+data-provider signatures must exceed `50%` of the **current** policy's voting
+weight (an endorsement filter by the current provider set), and the cosigner
+threshold — pinned to the backup's admin set and threshold in step 7 — must be
+met. Provider participation is enforced cryptographically during key
+reconstruction: possession of a decrypted share is the credential (only its
+owner could decrypt it), and any instruction signer may courier another
+holder's re-encrypted share.
 
 ### Key Split Processing (`processKeySplitMessages`)
 
 For each signer's variable message:
 
 1. **Decrypt** with TEE private key (ECIES)
-2. **Parse** JSON to KeySplit (single split for provider-only, two splits for provider+admin)
+2. **Parse** JSON: either a single `KeySplit` object or an array of at most two
+   splits (an entity that is both provider and admin holds two). Splits are
+   classified as admin or provider by their `IsAdmin` flag, which is covered by
+   the wallet-key signature.
 3. **Verify backup ID** in split matches expected ID
 4. **Verify signature** on split (signed by wallet's key, not provider's key)
 5. **Check for duplicates** via hash
@@ -213,7 +229,3 @@ With `ProvidersThreshold = 666` out of 1000 total shares, providers controlling 
 ### State Reset on Restore
 
 Restored wallets have zeroed `SettingsVersion`, `Settings`, `StatusCode`, and `PausingNonce`. This is acceptable while these fields are unused but must be addressed before they carry security semantics.
-
-### Data Provider Voting Weight Not Checked
-
-The data provider voting weight threshold is 0 for restore operations. Provider participation is enforced cryptographically via Shamir reconstruction, not through voting weight checks.

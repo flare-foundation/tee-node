@@ -202,16 +202,17 @@ func (p *Processor) KeyDelete(
 }
 
 // KeyDataProviderRestore reconstructs a wallet key from provider shares and
-// emits a signed existence proof when successful.
+// emits a signed existence proof when successful. Shares are the restore
+// credential: each is wallet-key signed and was ECIES-encrypted to its holder.
 func (p *Processor) KeyDataProviderRestore(
 	ctx context.Context,
 	submissionTag types.SubmissionTag,
 	dataFixed *instruction.DataFixed,
 	variableMessages []hexutil.Bytes,
-	signers []common.Address,
+	_ []common.Address,
 	_ *cpolicy.SigningPolicy,
 ) ([]byte, []byte, error) {
-	metadata, nonce, signersBothRoles, err := p.keyRestoreDataCheck(dataFixed, signers, p.TeeID())
+	metadata, nonce, err := p.keyRestoreDataCheck(dataFixed, p.TeeID())
 	if err != nil {
 		return nil, nil, err
 	}
@@ -219,7 +220,7 @@ func (p *Processor) KeyDataProviderRestore(
 	backupID := metadata.WalletBackupID
 	id := wallets.KeyIDPair{WalletID: backupID.WalletID, KeyID: backupID.KeyID}
 
-	keySplits, status, err := p.processKeySplitMessages(variableMessages, signersBothRoles, backupID)
+	keySplits, status, err := p.processKeySplitMessages(variableMessages, backupID)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -422,13 +423,9 @@ func (p *Processor) KeyDirectBackup(
 
 	switch submissionTag {
 	case types.Threshold:
-		p.pStorage.RLock()
-		activePolicy, err := p.pStorage.ActiveSigningPolicy()
-		p.pStorage.RUnlock()
 		if err != nil {
 			return nil, nil, err
 		}
-		rewardEpochID := activePolicy.RewardEpochID
 
 		randomNonce, err := random.Hash()
 		if err != nil {
@@ -452,7 +449,7 @@ func (p *Processor) KeyDirectBackup(
 			return nil, nil, err
 		}
 
-		payload, err := pkgbackup.NewKeyDirectBackupPayload(w, p.TeeID(), encryptedPrivateKey, rewardEpochID, randomNonce)
+		payload, err := pkgbackup.NewKeyDirectBackupPayload(w, p.TeeID(), encryptedPrivateKey, dataFixed.RewardEpochID, randomNonce)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -527,14 +524,6 @@ func (p *Processor) KeyDirectRestore(
 		return nil, nil, err
 	}
 
-	p.pStorage.RLock()
-	activePolicy, err := p.pStorage.ActiveSigningPolicy()
-	p.pStorage.RUnlock()
-	if err != nil {
-		return nil, nil, err
-	}
-	currentRewardEpoch := activePolicy.RewardEpochID
-
 	walletID := common.Hash(req.BackupId.WalletId)
 	id := wallets.KeyIDPair{WalletID: walletID, KeyID: req.BackupId.KeyId}
 
@@ -562,14 +551,17 @@ func (p *Processor) KeyDirectRestore(
 	if err := json.Unmarshal(envelope.Payload, &payload); err != nil {
 		return nil, nil, err
 	}
+	if err := wallets.ValidateWalletMemberCounts(len(payload.AdminPublicKeys), len(payload.Cosigners)); err != nil {
+		return nil, nil, err
+	}
 	if err := matchesInstructionBackupId(&payload.BackupID, &req.BackupId); err != nil {
 		return nil, nil, err
 	}
 
-	if currentRewardEpoch != payload.BackupID.RewardEpochID &&
-		currentRewardEpoch != payload.BackupID.RewardEpochID+1 {
-		return nil, nil, fmt.Errorf("stale backup: reward epoch %d not in {%d, %d}",
-			currentRewardEpoch, payload.BackupID.RewardEpochID, payload.BackupID.RewardEpochID+1)
+	if dataFixed.RewardEpochID != payload.BackupID.RewardEpochID &&
+		dataFixed.RewardEpochID != payload.BackupID.RewardEpochID+1 {
+		return nil, nil, fmt.Errorf("stale backup: restore reward epoch %d not in {%d, %d}",
+			dataFixed.RewardEpochID, payload.BackupID.RewardEpochID, payload.BackupID.RewardEpochID+1)
 	}
 
 	privateKey, err := p.Decrypt(payload.EncryptedPrivateKey)
