@@ -97,6 +97,10 @@ const (
 	SetGovernanceEndpoint     = "/governance"
 	GovernanceSignersEnvVar   = "GOVERNANCE_SIGNERS"
 	GovernanceThresholdEnvVar = "GOVERNANCE_THRESHOLD"
+	// GovernanceSafeEnvVar and GovernanceTeeManagerEnvVar are
+	// extra fields that configure Safe-backed governance
+	GovernanceSafeEnvVar       = "GOVERNANCE_SAFE"
+	GovernanceTeeManagerEnvVar = "GOVERNANCE_TEE_MANAGER"
 )
 
 var (

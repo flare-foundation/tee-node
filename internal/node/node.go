@@ -60,6 +60,12 @@ type governance struct {
 	signers   []common.Address
 	threshold uint64
 	hash      common.Hash
+	// safe and teeManager are set for Safe-backed governance only: the Safe
+	// multisig backing the governance and the FlareTeeManager diamond it is
+	// registered on. Both feed the Safe-flavor governance hash; a zero safe
+	// means plain governance.
+	safe       common.Address
+	teeManager common.Address
 }
 
 type State interface {
@@ -158,9 +164,11 @@ func (n *Node) Info() Info {
 		ExtensionID:  n.extensionID.value,
 		ChainID:      n.chainID,
 		Governance: types.Governance{
-			Signers:   signersCopy,
-			Threshold: n.governance.threshold,
-			Hash:      n.governance.hash,
+			Signers:    signersCopy,
+			Threshold:  n.governance.threshold,
+			Hash:       n.governance.hash,
+			Safe:       n.governance.safe,
+			TeeManager: n.governance.teeManager,
 		},
 		MachinePathListNonce: n.machinePathNonce,
 		MachinePathListHash:  pathListHash,
@@ -314,18 +322,20 @@ func (n *Node) extensionIDFromEnv() error {
 	return nil
 }
 
-// SetGovernance sets the governance signer set and threshold. It can only be
-// set once. It computes and stores the canonical governance hash.
-func (n *Node) SetGovernance(signers []common.Address, threshold uint64) error {
+// SetGovernance sets the governance signer set and threshold, and — for
+// Safe-backed governance — the Safe multisig and FlareTeeManager diamond
+// addresses (both zero for plain governance). It can only be set once. It
+// computes and stores the canonical governance hash of the matching flavor.
+func (n *Node) SetGovernance(signers []common.Address, threshold uint64, safe, teeManager common.Address) error {
 	n.lock.Lock()
 	defer n.lock.Unlock()
 
-	return n.setGovernanceLocked(signers, threshold)
+	return n.setGovernanceLocked(signers, threshold, safe, teeManager)
 }
 
 // setGovernanceLocked is the shared one-shot setter used by SetGovernance and
 // governanceFromEnv. The caller must already hold n.lock.
-func (n *Node) setGovernanceLocked(signers []common.Address, threshold uint64) error {
+func (n *Node) setGovernanceLocked(signers []common.Address, threshold uint64, safe, teeManager common.Address) error {
 	if n.governance.set {
 		return errors.New("governance already set")
 	}
@@ -341,8 +351,17 @@ func (n *Node) setGovernanceLocked(signers []common.Address, threshold uint64) e
 			return fmt.Errorf("governance signer at index %d is the zero address", i)
 		}
 	}
+	if (safe == zero) != (teeManager == zero) {
+		return errors.New("governance safe and tee manager addresses must be set together")
+	}
 
-	hash, err := types.GovernanceHash(signers, threshold)
+	var hash common.Hash
+	var err error
+	if safe != zero {
+		hash, err = types.GovernanceHashSafe(teeManager, safe, signers, threshold)
+	} else {
+		hash, err = types.GovernanceHash(signers, threshold)
+	}
 	if err != nil {
 		return fmt.Errorf("compute governance hash: %w", err)
 	}
@@ -350,6 +369,8 @@ func (n *Node) setGovernanceLocked(signers []common.Address, threshold uint64) e
 	n.governance.signers = append([]common.Address(nil), signers...)
 	n.governance.threshold = threshold
 	n.governance.hash = hash
+	n.governance.safe = safe
+	n.governance.teeManager = teeManager
 	n.governance.set = true
 
 	return nil
@@ -383,7 +404,41 @@ func (n *Node) governanceFromEnv() error {
 		return fmt.Errorf("invalid %s: %w", settings.GovernanceThresholdEnvVar, err)
 	}
 
-	return n.setGovernanceLocked(signers, threshold)
+	// Optional Safe-backed governance: the Safe multisig and FlareTeeManager
+	// diamond addresses must be provided together.
+	safeStr, safeSet := syscall.Getenv(settings.GovernanceSafeEnvVar)
+	teeManagerStr, teeManagerSet := syscall.Getenv(settings.GovernanceTeeManagerEnvVar)
+	if safeSet != teeManagerSet {
+		return fmt.Errorf("governance: both %s and %s must be set together",
+			settings.GovernanceSafeEnvVar, settings.GovernanceTeeManagerEnvVar)
+	}
+
+	var safe, teeManager common.Address
+	if safeSet {
+		safe, err = parseAddress(safeStr)
+		if err != nil {
+			return fmt.Errorf("invalid %s: %w", settings.GovernanceSafeEnvVar, err)
+		}
+		teeManager, err = parseAddress(teeManagerStr)
+		if err != nil {
+			return fmt.Errorf("invalid %s: %w", settings.GovernanceTeeManagerEnvVar, err)
+		}
+	}
+
+	return n.setGovernanceLocked(signers, threshold, safe, teeManager)
+}
+
+// parseAddress parses a single 0x-prefixed, non-zero Ethereum address.
+func parseAddress(s string) (common.Address, error) {
+	s = strings.TrimSpace(s)
+	if !common.IsHexAddress(s) {
+		return common.Address{}, fmt.Errorf("not a valid address: %q", s)
+	}
+	addr := common.HexToAddress(s)
+	if addr == (common.Address{}) {
+		return common.Address{}, errors.New("address is the zero address")
+	}
+	return addr, nil
 }
 
 // parseSignersList parses a comma-separated list of 0x-prefixed Ethereum
@@ -413,6 +468,16 @@ func (n *Node) Governance() (signers []common.Address, threshold uint64, set boo
 
 	signersCopy := append([]common.Address(nil), n.governance.signers...)
 	return signersCopy, n.governance.threshold, n.governance.set
+}
+
+// GovernanceSafe returns the Safe multisig and FlareTeeManager diamond
+// addresses of a Safe-backed governance. Both are zero for plain governance
+// (and before governance is configured).
+func (n *Node) GovernanceSafe() (safe, teeManager common.Address) {
+	n.lock.RLock()
+	defer n.lock.RUnlock()
+
+	return n.governance.safe, n.governance.teeManager
 }
 
 // SetMachinePathList stores the governance-approved list of machine

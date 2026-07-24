@@ -183,18 +183,30 @@ type ConfigureChainIDRequest struct {
 	ChainID *uint64 `json:"chainId"`
 }
 
-// Governance is the governance signer-set known to the node. Hash is
-// keccak256(abi.encode(Signers, Threshold)), the same value stored
-// on-chain as governanceHash.
+// Governance is the governance signer-set known to the node. Two flavors
+// exist, discriminated by Safe:
+//   - plain: Hash is keccak256(abi.encode(Signers, Threshold)) and Safe is
+//     the zero address;
+//   - Safe-backed: Signers/Threshold are the snapshot of the Safe multisig's
+//     owners and threshold recorded on-chain at registration, and Hash is
+//     keccak256(abi.encode(TeeManager, Safe, Signers, Threshold)).
+//
+// Both match the value stored on-chain as governanceHash.
 type Governance struct {
-	Signers   []common.Address `json:"signers"`
-	Threshold uint64           `json:"threshold"`
-	Hash      common.Hash      `json:"hash"`
+	Signers    []common.Address `json:"signers"`
+	Threshold  uint64           `json:"threshold"`
+	Hash       common.Hash      `json:"hash"`
+	Safe       common.Address   `json:"safe"`
+	TeeManager common.Address   `json:"teeManager"`
 }
 
 type ConfigureGovernanceRequest struct {
 	Signers   *[]common.Address `json:"signers"`
 	Threshold *uint64           `json:"threshold"`
+	// Safe and TeeManager configure Safe-backed governance; both must be set
+	// together, and omitting them configures plain governance.
+	Safe       *common.Address `json:"safe,omitempty"`
+	TeeManager *common.Address `json:"teeManager,omitempty"`
 }
 
 // GovernanceHash returns keccak256(abi.encode(address[], uint256)) for the
@@ -211,6 +223,33 @@ func GovernanceHash(signers []common.Address, threshold uint64) (common.Hash, er
 	}
 	args := abi.Arguments{{Type: addressArrayTy}, {Type: uint256Ty}}
 	enc, err := args.Pack(signers, new(big.Int).SetUint64(threshold))
+	if err != nil {
+		return common.Hash{}, err
+	}
+	return crypto.Keccak256Hash(enc), nil
+}
+
+// GovernanceHashSafe returns keccak256(abi.encode(teeManager, safe, owners,
+// threshold)) — the governance hash the ExtensionGovernanceFacet stores for
+// Safe-backed governance registered via setNewTeeGovernanceSafe. teeManager is
+// the FlareTeeManager diamond address (address(this) in the facet) and owners
+// and threshold are the Safe's owner set and threshold snapshotted at
+// registration.
+func GovernanceHashSafe(teeManager, safe common.Address, owners []common.Address, threshold uint64) (common.Hash, error) {
+	addressTy, err := abi.NewType("address", "", nil)
+	if err != nil {
+		return common.Hash{}, err
+	}
+	addressArrayTy, err := abi.NewType("address[]", "", nil)
+	if err != nil {
+		return common.Hash{}, err
+	}
+	uint64Ty, err := abi.NewType("uint64", "", nil)
+	if err != nil {
+		return common.Hash{}, err
+	}
+	args := abi.Arguments{{Type: addressTy}, {Type: addressTy}, {Type: addressArrayTy}, {Type: uint64Ty}}
+	enc, err := args.Pack(teeManager, safe, owners, threshold)
 	if err != nil {
 		return common.Hash{}, err
 	}
