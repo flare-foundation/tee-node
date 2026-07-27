@@ -12,6 +12,8 @@
 | `CHAIN_ID`       | (unset) | EVM chain ID (decimal or `0x`). Bound into every domain-separated signed payload (see [Cryptography](cryptography.md)). Set once via env or config server; `0` is rejected. |
 | `GOVERNANCE_SIGNERS`   | (unset) | Comma-separated `0x`-prefixed Ethereum addresses authorized to sign `SET_MACHINE_PATH_LIST`. Must be set together with `GOVERNANCE_THRESHOLD`. |
 | `GOVERNANCE_THRESHOLD` | (unset) | Minimum number of *distinct* `GOVERNANCE_SIGNERS` signatures required per machine-path list. Must be `>= 1` and `<=` the number of signers. |
+| `GOVERNANCE_SAFE`      | (unset) | Optional. Governance Safe address for Safe-backed governance; a `SET_MACHINE_PATH_LIST` may then be authorized by the Safe's `approveMachinePathList` transaction instead of direct signatures. Must be set together with `GOVERNANCE_TEE_MANAGER`. |
+| `GOVERNANCE_TEE_MANAGER` | (unset) | Optional. `FlareTeeManager` address that the Safe's `approveMachinePathList` call targets. Must be set together with `GOVERNANCE_SAFE`. |
 | `CONFIG_PORT`    | `5500`  | Port for the configuration HTTP server                                |
 | `SIGN_PORT`      | `8888`  | Port for the extension sign/decrypt server                            |
 | `EXTENSION_PORT` | `8889`  | Port where the extension service listens                              |

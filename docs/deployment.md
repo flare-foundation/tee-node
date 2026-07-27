@@ -65,7 +65,7 @@ Both IDs must be identical. If they differ, the image in the registry does not m
 
 The Dockerfile uses `golang:1.25.1-alpine` (pinned by SHA256) as the build stage and `alpine:3.23.3` (pinned by SHA256) as the runtime. It produces a single statically-linked Go binary (`server`) and includes CA certificates and the Google Confidential Space root certificate.
 
-The image exposes port 5500 and sets `MODE=0` (production) by default. Allowed environment variable overrides are declared via the `tee.launch_policy.allow_env_override` label: `LOG_LEVEL`, `PROXY_URL`, `INITIAL_OWNER`, `EXTENSION_ID`.
+The image exposes port 5500 and sets `MODE=0` (production) by default. Allowed environment variable overrides are declared via the `tee.launch_policy.allow_env_override` label: `LOG_LEVEL`, `PROXY_URL`, `INITIAL_OWNER`, `EXTENSION_ID`, `CHAIN_ID`, `GOVERNANCE_SIGNERS`, `GOVERNANCE_THRESHOLD`, `GOVERNANCE_SAFE`, `GOVERNANCE_TEE_MANAGER`.
 
 ### Transfer Image to Server
 
