@@ -26,7 +26,7 @@ type Configurer interface {
 	SetOwner(common.Address) error
 	SetExtensionID(common.Hash) error
 	SetChainID(uint64) error
-	SetGovernance(signers []common.Address, threshold uint64) error
+	SetGovernance(signers []common.Address, threshold uint64, safe, teeManager common.Address) error
 }
 
 type IdentifierAndSigner interface {

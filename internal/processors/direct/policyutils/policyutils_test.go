@@ -15,6 +15,7 @@ import (
 	"github.com/flare-foundation/go-flare-common/pkg/tee/structs/machinepath"
 	"github.com/stretchr/testify/require"
 
+	safe "github.com/flare-foundation/go-flare-common/pkg/safe"
 	"github.com/flare-foundation/tee-node/internal/node"
 	"github.com/flare-foundation/tee-node/internal/policy"
 	"github.com/flare-foundation/tee-node/internal/testutils"
@@ -586,7 +587,7 @@ func configureGovernance(t *testing.T, n *node.Node) []*ecdsa.PrivateKey {
 		privKeys[i] = pk
 		addrs[i] = crypto.PubkeyToAddress(pk.PublicKey)
 	}
-	require.NoError(t, n.SetGovernance(addrs, threshold))
+	require.NoError(t, n.SetGovernance(addrs, threshold, common.Address{}, common.Address{}))
 	require.NoError(t, n.SetChainID(testChainID))
 	return privKeys
 }
@@ -840,4 +841,176 @@ func TestSetMachinePathListSignaturesOverDifferentPayload(t *testing.T) {
 	require.Error(t, err)
 	// Recovered address won't be a governance signer.
 	require.Contains(t, err.Error(), "not a voter")
+}
+
+// --- Safe-backed governance -------------------------------------------------
+
+var (
+	testSafeAddress       = common.HexToAddress("0x5afe5afe5afe5afe5afe5afe5afe5afe5afe5afe")
+	testTeeManagerAddress = common.HexToAddress("0x1a9C4A0f9D76c0b1D91d22E24E573a9b377618aE")
+)
+
+// configureSafeGovernance installs a 2-of-3 Safe-backed governance (owner
+// snapshot + threshold + Safe and diamond addresses) on the node plus the
+// test chain ID, and returns the owner private keys.
+func configureSafeGovernance(t *testing.T, n *node.Node) []*ecdsa.PrivateKey {
+	t.Helper()
+
+	const (
+		count     = 3
+		threshold = uint64(2)
+	)
+	privKeys := make([]*ecdsa.PrivateKey, count)
+	addrs := make([]common.Address, count)
+	for i := range count {
+		pk, err := crypto.GenerateKey()
+		require.NoError(t, err)
+		privKeys[i] = pk
+		addrs[i] = crypto.PubkeyToAddress(pk.PublicKey)
+	}
+	require.NoError(t, n.SetGovernance(addrs, threshold, testSafeAddress, testTeeManagerAddress))
+	require.NoError(t, n.SetChainID(testChainID))
+	return privKeys
+}
+
+// safeApprovalFor builds the Safe approval evidence for an
+// approveMachinePathList call binding the given list, executed at safeNonce
+// and signed by the provided owner keys. The returned approval carries the
+// Safe nonce, so the node verifies at it without scanning.
+func safeApprovalFor(t *testing.T, n *node.Node, source, destination []common.Address, nonce, safeNonce uint64, keys []*ecdsa.PrivateKey) *safe.Approval {
+	t.Helper()
+
+	dataHash, err := types.MachinePathListDataHash(n.Info().ExtensionID, nonce, singlePathList(source, destination))
+	require.NoError(t, err)
+	messageHash, err := csigning.NewPayload(csigning.TEEMachinePathList, testChainID, dataHash).Hash()
+	require.NoError(t, err)
+	calldata, err := types.ApproveMachinePathListCalldata(n.Info().ExtensionID, nonce, messageHash)
+	require.NoError(t, err)
+
+	tx := safe.Tx{
+		To:        testTeeManagerAddress,
+		Data:      calldata,
+		Operation: safe.OperationCall,
+		Nonce:     new(big.Int).SetUint64(safeNonce),
+	}
+	txHash, err := tx.Hash(testChainID, testSafeAddress)
+	require.NoError(t, err)
+
+	blob := make([]byte, 0, len(keys)*safe.SignatureLength)
+	for _, key := range keys {
+		sig, err := crypto.Sign(txHash[:], key)
+		require.NoError(t, err)
+		sig[64] += 27
+		blob = append(blob, sig...)
+	}
+
+	return &safe.Approval{
+		ExecTransaction: safe.ExecTransactionInputs{
+			To:         testTeeManagerAddress,
+			Data:       calldata,
+			Operation:  safe.OperationCall,
+			Signatures: blob,
+		},
+		Nonce: safeNonce,
+	}
+}
+
+func TestSetMachinePathListSafeApprovalHappyPath(t *testing.T) {
+	setup := setupPolicyTest(t)
+	ownerKeys := configureSafeGovernance(t, setup.node)
+
+	source := []common.Address{setup.node.TeeID()}
+	targets := []common.Address{common.HexToAddress("0x1111111111111111111111111111111111111111")}
+
+	req := &types.SetMachinePathListRequest{
+		Paths:        singlePathList(source, targets),
+		Nonce:        1,
+		SafeApproval: safeApprovalFor(t, setup.node, source, targets, 1, 5, ownerKeys[:2]),
+	}
+	_, err := setup.executeSetMachinePathList(t, req)
+	require.NoError(t, err)
+
+	gotPaths, nonce := setup.node.MachinePaths()
+	require.Equal(t, singlePathList(source, targets), gotPaths)
+	require.Equal(t, uint64(1), nonce)
+}
+
+func TestSetMachinePathListSafeGovernanceDirectSignaturesStillWork(t *testing.T) {
+	// Under Safe-backed governance the snapshot owners can still authorize a
+	// list the old way — by direct signatures over the list message hash
+	// (the on-chain signMachinePathList bridge) — without any Safe evidence.
+	setup := setupPolicyTest(t)
+	ownerKeys := configureSafeGovernance(t, setup.node)
+
+	source := []common.Address{setup.node.TeeID()}
+	targets := []common.Address{common.HexToAddress("0x1111111111111111111111111111111111111111")}
+
+	req := &types.SetMachinePathListRequest{
+		Paths:      singlePathList(source, targets),
+		Nonce:      1,
+		Signatures: signMachinePathList(t, setup.node, source, targets, 1, ownerKeys[:2]),
+	}
+	_, err := setup.executeSetMachinePathList(t, req)
+	require.NoError(t, err)
+
+	gotPaths, nonce := setup.node.MachinePaths()
+	require.Equal(t, singlePathList(source, targets), gotPaths)
+	require.Equal(t, uint64(1), nonce)
+}
+
+func TestSetMachinePathListSafeApprovalWrongList(t *testing.T) {
+	setup := setupPolicyTest(t)
+	ownerKeys := configureSafeGovernance(t, setup.node)
+
+	source := []common.Address{setup.node.TeeID()}
+	targets := []common.Address{common.HexToAddress("0x1111111111111111111111111111111111111111")}
+
+	// The approval binds nonce 2; the request applies nonce 1.
+	req := &types.SetMachinePathListRequest{
+		Paths:        singlePathList(source, targets),
+		Nonce:        1,
+		SafeApproval: safeApprovalFor(t, setup.node, source, targets, 2, 0, ownerKeys[:2]),
+	}
+	_, err := setup.executeSetMachinePathList(t, req)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "does not bind this machine path list")
+}
+
+func TestSetMachinePathListSafeApprovalBelowThreshold(t *testing.T) {
+	setup := setupPolicyTest(t)
+	ownerKeys := configureSafeGovernance(t, setup.node)
+
+	source := []common.Address{setup.node.TeeID()}
+	targets := []common.Address{common.HexToAddress("0x1111111111111111111111111111111111111111")}
+
+	req := &types.SetMachinePathListRequest{
+		Paths:        singlePathList(source, targets),
+		Nonce:        1,
+		SafeApproval: safeApprovalFor(t, setup.node, source, targets, 1, 0, ownerKeys[:1]),
+	}
+	_, err := setup.executeSetMachinePathList(t, req)
+	require.Error(t, err)
+
+	gotPaths, nonce := setup.node.MachinePaths()
+	require.Empty(t, gotPaths)
+	require.Equal(t, uint64(0), nonce)
+}
+
+func TestSetMachinePathListSafeApprovalRejectedForPlainGovernance(t *testing.T) {
+	setup := setupPolicyTest(t)
+	govKeys := configureGovernance(t, setup.node) // plain flavor
+
+	source := []common.Address{setup.node.TeeID()}
+	targets := []common.Address{common.HexToAddress("0x1111111111111111111111111111111111111111")}
+
+	// Build evidence signed by the plain governance keys; without a
+	// configured Safe the node must reject it.
+	req := &types.SetMachinePathListRequest{
+		Paths:        singlePathList(source, targets),
+		Nonce:        1,
+		SafeApproval: safeApprovalFor(t, setup.node, source, targets, 1, 0, govKeys[:2]),
+	}
+	_, err := setup.executeSetMachinePathList(t, req)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "not safe-backed")
 }

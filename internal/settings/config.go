@@ -42,7 +42,7 @@ type Configurer interface {
 	SetOwner(common.Address) error
 	SetExtensionID(common.Hash) error
 	SetChainID(uint64) error
-	SetGovernance(signers []common.Address, threshold uint64) error
+	SetGovernance(signers []common.Address, threshold uint64, safe, teeManager common.Address) error
 }
 
 // NewConfigServer creates an HTTP server that accepts proxy configuration
@@ -179,8 +179,17 @@ func governanceHandler(configurer Configurer) http.HandlerFunc {
 			http.Error(w, "Missing threshold in request", http.StatusBadRequest)
 			return
 		}
+		// Safe-backed governance: safe and teeManager are optional but must
+		// come together (validated again by the configurer).
+		var safe, teeManager common.Address
+		if request.Safe != nil {
+			safe = *request.Safe
+		}
+		if request.TeeManager != nil {
+			teeManager = *request.TeeManager
+		}
 
-		if err := configurer.SetGovernance(*request.Signers, *request.Threshold); err != nil {
+		if err := configurer.SetGovernance(*request.Signers, *request.Threshold, safe, teeManager); err != nil {
 			http.Error(w, fmt.Sprintf("Failed to set governance: %v", err), http.StatusForbidden)
 			return
 		}

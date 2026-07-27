@@ -84,7 +84,7 @@ func TestProcessorsEndToEnd(t *testing.T) {
 		govPrivKeys[i] = pk
 		govAddresses[i] = crypto.PubkeyToAddress(pk.PublicKey)
 	}
-	require.NoError(t, testNode.SetGovernance(govAddresses, govThreshold))
+	require.NoError(t, testNode.SetGovernance(govAddresses, govThreshold, common.Address{}, common.Address{}))
 	// testutils.Setup already configures this chain ID on the node.
 	const testChainID uint64 = 31337
 
