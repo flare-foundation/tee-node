@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	csigning "github.com/flare-foundation/go-flare-common/pkg/signing"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/instruction"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/op"
 	"github.com/flare-foundation/tee-node/internal/testutils"
@@ -19,6 +20,9 @@ func TestDefaultInstructionProcessor(t *testing.T) {
 	numVoters, randSeed, epochID := 100, int64(12345), uint32(1)
 	_, signers, privKeys := testutils.GenerateAndSetInitialPolicy(t, pStorage, numVoters, randSeed, epochID)
 	variableMessages := make([][]byte, len(privKeys))
+
+	chainID, err := testNode.ChainID()
+	require.NoError(t, err)
 
 	signPort := 8612
 	extensionPort := 8613
@@ -36,7 +40,7 @@ func TestDefaultInstructionProcessor(t *testing.T) {
 	action := testutils.BuildMockInstructionAction(
 		t,
 		"someOpType", "someOpCommand", []byte("dummyAction"),
-		privKeys, testNode.TeeID(), epochID, nil, variableMessages, nil, 0, types.Threshold, uint64(time.Now().Unix()),
+		privKeys, chainID, testNode.TeeID(), epochID, nil, variableMessages, nil, 0, types.Threshold, uint64(time.Now().Unix()),
 	)
 	firstResult := proc.Process(context.Background(), action)
 
@@ -54,7 +58,7 @@ func TestDefaultInstructionProcessor(t *testing.T) {
 	endAction := testutils.BuildMockInstructionAction(
 		t,
 		"someOpType", "someOpCommand", []byte("dummyAction"),
-		privKeys, testNode.TeeID(), epochID, nil, variableMessages, nil, 0, types.End, uint64(time.Now().Unix()),
+		privKeys, chainID, testNode.TeeID(), epochID, nil, variableMessages, nil, 0, types.End, uint64(time.Now().Unix()),
 	)
 	endResult := proc.Process(context.Background(), endAction)
 
@@ -65,7 +69,7 @@ func TestDefaultInstructionProcessor(t *testing.T) {
 	require.Equal(t, "someOpCommand", string(op.HashToOPType(endResult.OPCommand)))
 
 	var rewardingData types.RewardingData
-	err := json.Unmarshal(endResult.Data, &rewardingData)
+	err = json.Unmarshal(endResult.Data, &rewardingData)
 	require.NoError(t, err)
 
 	var instructionData instruction.DataFixed
@@ -81,5 +85,32 @@ func TestDefaultInstructionProcessor(t *testing.T) {
 	require.Equal(t, testNode.TeeID(), rewardingData.VoteSequence.TeeID)
 	require.Len(t, rewardingData.VoteSequence.Signatures, len(privKeys))
 	require.Len(t, rewardingData.VoteSequence.AdditionalVariableMessageHashes, len(privKeys))
-	require.NoError(t, utils.VerifySignature(rewardingData.VoteSequence.VoteHash[:], rewardingData.Signature, rewardingData.VoteSequence.TeeID))
+	voteSignHash, err := csigning.NewPayload(csigning.TEEVoteHash, 31337, rewardingData.VoteSequence.VoteHash).Hash()
+	require.NoError(t, err)
+	require.NoError(t, utils.VerifySignature(voteSignHash[:], rewardingData.Signature, rewardingData.VoteSequence.TeeID))
+}
+
+// TestDefaultInstructionProcessorWrongChainID checks that signatures made for
+// another chain are rejected before reaching the extension.
+func TestDefaultInstructionProcessorWrongChainID(t *testing.T) {
+	testNode, pStorage, _ := testutils.Setup(t)
+	numVoters, randSeed, epochID := 100, int64(12345), uint32(1)
+	_, _, privKeys := testutils.GenerateAndSetInitialPolicy(t, pStorage, numVoters, randSeed, epochID)
+	variableMessages := make([][]byte, len(privKeys))
+
+	chainID, err := testNode.ChainID()
+	require.NoError(t, err)
+
+	proc := NewDefaultProcessor(0, pStorage, testNode)
+
+	// Sign for a different chain than the node uses.
+	action := testutils.BuildMockInstructionAction(
+		t,
+		"someOpType", "someOpCommand", []byte("dummyAction"),
+		privKeys, chainID+1, testNode.TeeID(), epochID, nil, variableMessages, nil, 0, types.Threshold, uint64(time.Now().Unix()),
+	)
+
+	res := proc.Process(context.Background(), action)
+	require.Equal(t, uint8(0), res.Status)
+	require.Equal(t, "data providers threshold not reached", res.Log)
 }

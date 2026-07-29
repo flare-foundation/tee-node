@@ -2,27 +2,25 @@ package server
 
 import (
 	"context"
-	"crypto/ecdsa"
-	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net"
 	"net/http"
 	"strconv"
 	"strings"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/crypto/ecies"
 	"github.com/flare-foundation/go-flare-common/pkg/logger"
+	"github.com/flare-foundation/tee-node/internal/node"
 	"github.com/flare-foundation/tee-node/internal/router"
 	"github.com/flare-foundation/tee-node/internal/router/queue"
 	"github.com/flare-foundation/tee-node/internal/settings"
-	"github.com/flare-foundation/tee-node/pkg/node"
+	walletstorage "github.com/flare-foundation/tee-node/internal/wallets"
 	"github.com/flare-foundation/tee-node/pkg/types"
-	"github.com/flare-foundation/tee-node/pkg/utils"
-	"github.com/flare-foundation/tee-node/pkg/wallets"
+	wallets "github.com/flare-foundation/tee-node/pkg/wallets"
 )
 
 const (
@@ -35,18 +33,20 @@ const (
 
 type SignServer struct {
 	server   *http.Server
-	wStorage *wallets.Storage
+	wStorage *walletstorage.Storage
 	node     *node.Node
 	proxyURL *settings.ProxyURLMutex
 }
 
 // NewSignServer constructs an HTTP server that exposes wallet and TEE
 // functionality to extension clients on the provided port.
-func NewSignServer(port int, node *node.Node, wStorage *wallets.Storage, proxyURL *settings.ProxyURLMutex) *SignServer {
-	addr := fmt.Sprintf(":%d", port)
+func NewSignServer(port int, node *node.Node, wStorage *walletstorage.Storage, proxyURL *settings.ProxyURLMutex) *SignServer {
+	// Bind to loopback: the sign/decrypt API is unauthenticated and relies on
+	// the shared TEE boundary, so it must not listen on all interfaces.
+	addr := net.JoinHostPort(settings.SignHost, strconv.Itoa(port))
 
 	server := &http.Server{
-		Addr: addr, // todo
+		Addr: addr,
 		// ReadTimeout:                  0,
 		// ReadHeaderTimeout:            0,
 		// WriteTimeout:                 0,
@@ -111,7 +111,7 @@ func (s *SignServer) getKeyInfoHandler(w http.ResponseWriter, r *http.Request) {
 	})
 	s.wStorage.RUnlock()
 	if err != nil {
-		if errors.Is(err, wallets.ErrWalletNonExistent) {
+		if errors.Is(err, walletstorage.ErrWalletNonExistent) {
 			http.Error(w, err.Error(), http.StatusNotFound)
 			return
 		}
@@ -161,7 +161,7 @@ func (s *SignServer) signWithKeyHandler(w http.ResponseWriter, r *http.Request) 
 	wallet, err := s.wStorage.Get(wallets.KeyIDPair{WalletID: wID, KeyID: kID})
 	s.wStorage.RUnlock()
 	if err != nil {
-		if errors.Is(err, wallets.ErrWalletNonExistent) {
+		if errors.Is(err, walletstorage.ErrWalletNonExistent) {
 			http.Error(w, err.Error(), http.StatusNotFound)
 			return
 		}
@@ -247,12 +247,13 @@ func (s *SignServer) postResultHandler(w http.ResponseWriter, r *http.Request) {
 
 	response, err := router.SignResult(&result, s.node)
 	if err != nil {
+		logger.Errorf("/result: error signing result: %v", err)
 		http.Error(w, "can not sign", http.StatusInternalServerError)
+		return
 	}
 
 	postURL := fmt.Sprintf("%s/result", url)
-	postErr := queue.PostActionResponse(postURL, response)
-	if postErr != nil {
+	if postErr := queue.PostActionResponse(postURL, response); postErr != nil {
 		logger.Errorf("/result: error posting result: %v", postErr)
 
 		// Retry with a minimal unsigned error-only result.
@@ -265,12 +266,13 @@ func (s *SignServer) postResultHandler(w http.ResponseWriter, r *http.Request) {
 		if retryErr := queue.PostActionResponse(postURL, fallbackResp); retryErr != nil {
 			logger.Errorf("/result: error posting fallback result: %v", retryErr)
 		}
+
+		http.Error(w, "failed to forward result to proxy", http.StatusBadGateway)
+		return
 	}
 
-	// Return success response with empty body
-	if err == nil && postErr == nil {
-		w.WriteHeader(http.StatusOK)
-	}
+	// Result forwarded successfully.
+	w.WriteHeader(http.StatusOK)
 }
 
 // decryptWithKeyHandler handles POST /decrypt/{walletD}/{keyID}.
@@ -305,7 +307,7 @@ func (s *SignServer) decryptWithKeyHandler(w http.ResponseWriter, r *http.Reques
 	wallet, err := s.wStorage.Get(wallets.KeyIDPair{WalletID: wID, KeyID: kID})
 	s.wStorage.RUnlock()
 	if err != nil {
-		if errors.Is(err, wallets.ErrWalletNonExistent) {
+		if errors.Is(err, walletstorage.ErrWalletNonExistent) {
 			http.Error(w, err.Error(), http.StatusNotFound)
 			return
 		}
@@ -362,22 +364,6 @@ func (s *SignServer) decryptWithTeeHandler(w http.ResponseWriter, r *http.Reques
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-}
-
-// encrypt wraps the ECIES encryption helper for plaintext using the provided
-// public key.
-func encrypt(plaintext []byte, publicKey *ecdsa.PublicKey) ([]byte, error) {
-	pk, err := utils.ECDSAPubKeyToECIES(publicKey)
-	if err != nil {
-		return nil, err
-	}
-
-	privKeyEncryption, err := ecies.Encrypt(rand.Reader, pk, plaintext, nil, nil)
-	if err != nil {
-		return nil, err
-	}
-
-	return privKeyEncryption, nil
 }
 
 func uint64Param(r *http.Request, param string) (uint64, error) {

@@ -9,11 +9,12 @@ import (
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/crypto"
 	cpolicy "github.com/flare-foundation/go-flare-common/pkg/policy"
+	csigning "github.com/flare-foundation/go-flare-common/pkg/signing"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/instruction"
+	"github.com/flare-foundation/tee-node/internal/node"
+	"github.com/flare-foundation/tee-node/internal/policy"
 	"github.com/flare-foundation/tee-node/internal/settings"
 	"github.com/flare-foundation/tee-node/pkg/constraints"
-	"github.com/flare-foundation/tee-node/pkg/node"
-	"github.com/flare-foundation/tee-node/pkg/policy"
 	"github.com/flare-foundation/tee-node/pkg/processorutils"
 	"github.com/flare-foundation/tee-node/pkg/types"
 	"github.com/flare-foundation/tee-node/pkg/utils"
@@ -47,7 +48,12 @@ func (p Processor) Process(ctx context.Context, a *types.Action) types.ActionRes
 		return processorutils.Invalid(a, err)
 	}
 
-	signers, signingPolicy, err := preprocess(a, data, p.pStorage, p.iSAndD.TeeID())
+	chainID, err := p.iSAndD.ChainID()
+	if err != nil {
+		return processorutils.Invalid(a, err)
+	}
+
+	signers, signingPolicy, err := preprocess(a, data, p.pStorage, p.iSAndD.TeeID(), chainID)
 	if err != nil {
 		return processorutils.Invalid(a, err)
 	}
@@ -96,7 +102,7 @@ func (p Processor) Process(ctx context.Context, a *types.Action) types.ActionRes
 	return result
 }
 
-func preprocess(a *types.Action, data *instruction.DataFixed, pStorage *policy.Storage, teeId common.Address) ([]common.Address, *cpolicy.SigningPolicy, error) {
+func preprocess(a *types.Action, data *instruction.DataFixed, pStorage *policy.Storage, teeID common.Address, chainID uint64) ([]common.Address, *cpolicy.SigningPolicy, error) {
 	pStorage.RLock()
 	signingPolicy, err := pStorage.SigningPolicy(data.RewardEpochID)
 	if err != nil {
@@ -115,12 +121,12 @@ func preprocess(a *types.Action, data *instruction.DataFixed, pStorage *policy.S
 		return nil, nil, err
 	}
 
-	err = validateInstructionData(data, a.AdditionalVariableMessages, teeId, a.Data.ID)
+	err = validateInstructionData(data, a.AdditionalVariableMessages, teeID, a.Data.ID)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	signers, err := signaturesToSigners(data, a.AdditionalVariableMessages, a.Signatures)
+	signers, err := signaturesToSigners(data, chainID, a.AdditionalVariableMessages, a.Signatures)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -133,7 +139,8 @@ func preprocess(a *types.Action, data *instruction.DataFixed, pStorage *policy.S
 	return signers, signingPolicy, nil
 }
 
-// validateInstructionData validates the instruction data and counts the votes.
+// validateInstructionData validates the instruction data and counts the
+// votes.
 func validateInstructionData(data *instruction.DataFixed, additionalVariableMessages []hexutil.Bytes, expectedTeeID common.Address, actionID common.Hash) error {
 	if data.TeeID != expectedTeeID {
 		return errors.New("unexpected tee ID")
@@ -160,7 +167,7 @@ func validateInstructionData(data *instruction.DataFixed, additionalVariableMess
 	return nil
 }
 
-func signaturesToSigners(instructionDataFixed *instruction.DataFixed, variableMessages, signatures []hexutil.Bytes) ([]common.Address, error) {
+func signaturesToSigners(instructionDataFixed *instruction.DataFixed, chainID uint64, variableMessages, signatures []hexutil.Bytes) ([]common.Address, error) {
 	if len(variableMessages) != len(signatures) {
 		return nil, errors.New("the number of variable messages does not match the number of signatures")
 	}
@@ -171,7 +178,7 @@ func signaturesToSigners(instructionDataFixed *instruction.DataFixed, variableMe
 		instructionData := instruction.Data{DataFixed: *instructionDataFixed}
 		instructionData.AdditionalVariableMessage = variableMessages[i]
 
-		hash, err := instructionData.HashForSigning()
+		hash, err := instructionData.HashForSigning(chainID)
 		if err != nil {
 			return nil, err
 		}
@@ -190,7 +197,7 @@ func signaturesToSigners(instructionDataFixed *instruction.DataFixed, variableMe
 	return signers, nil
 }
 
-func rewardingData(id *instruction.DataFixed, signatures, variableMessages []hexutil.Bytes, signers []common.Address, timestamps []uint64, status hexutil.Bytes, signer node.Signer) ([]byte, error) {
+func rewardingData(id *instruction.DataFixed, signatures, variableMessages []hexutil.Bytes, signers []common.Address, timestamps []uint64, status hexutil.Bytes, signer node.IdentifierAndSigner) ([]byte, error) {
 	iHash, err := id.HashFixed()
 	if err != nil {
 		return nil, err
@@ -200,7 +207,15 @@ func rewardingData(id *instruction.DataFixed, signatures, variableMessages []hex
 	if err != nil {
 		return nil, err
 	}
-	signature, err := signer.Sign(voteHash[:])
+	chainID, err := signer.ChainID()
+	if err != nil {
+		return nil, err
+	}
+	voteSignHash, err := csigning.NewPayload(csigning.TEEVoteHash, chainID, voteHash).Hash()
+	if err != nil {
+		return nil, err
+	}
+	signature, err := signer.Sign(voteSignHash[:])
 	if err != nil {
 		return nil, errors.New("could not sign vote hash")
 	}

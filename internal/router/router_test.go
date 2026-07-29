@@ -121,8 +121,18 @@ func TestRouterInstructionActionRoutingThreshold(t *testing.T) {
 	require.NoError(t, err)
 
 	action := testutils.BuildMockInstructionAction(
-		t, op.Wallet, op.KeyGenerate, originalMessageEncoded, providerPrivKeys, teeID,
-		epochID, nil, nil, nil, 0, types.Threshold, 1234567890,
+		t,
+		op.Wallet,
+		op.KeyGenerate,
+		originalMessageEncoded,
+		providerPrivKeys,
+		teeNode.Info().ChainID,
+		teeID,
+		epochID,
+		nil, nil, nil,
+		0,
+		types.Threshold,
+		1234567890,
 	)
 
 	// Process the action
@@ -173,10 +183,10 @@ func TestRouterRun(t *testing.T) {
 	proxyURL := &settings.ProxyURLMutex{URL: "http://localhost:9999"}
 	r := NewPMWRouter(testNode, ws, ps, proxyURL)
 
-	// r.Run spawns ServeQueue goroutines that have no production-side cancellation
-	// hook, so they keep running past this test. Clearing the proxy URL on test
-	// exit makes each subsequent iteration short-circuit at the empty-URL check
-	// in serveQueueIteration and sleep silently instead of spamming
+	// r.Run spawns ServeQueue goroutines with no cancellation hook, so they keep
+	// running past this test. Clearing the proxy URL on test exit makes each
+	// subsequent iteration short-circuit at the empty-URL check in
+	// serveQueueIteration and sleep silently instead of spamming
 	// "connection refused" logs into every later test in this package.
 	defer func() {
 		proxyURL.Lock()
@@ -301,10 +311,10 @@ func TestServeQueueEmptyProxyURL(t *testing.T) {
 		proxyMutex.Unlock()
 	}()
 
-	// Set a short sleep time for faster tests
-	originalSleepTime := settings.QueuedActionsSleepTime
-	settings.QueuedActionsSleepTime = 500 * time.Millisecond
-	defer func() { settings.QueuedActionsSleepTime = originalSleepTime }()
+	// Use a short sleep time for faster tests, set on this router instance so no
+	// shared package-level state is mutated (which previously raced the workers).
+	const sleepTime = 500 * time.Millisecond
+	r.sleepTime = sleepTime
 
 	// Run ServeQueue in a goroutine
 	go func() {
@@ -315,12 +325,12 @@ func TestServeQueueEmptyProxyURL(t *testing.T) {
 	select {
 	case <-actionFetched:
 		t.Fatal("action should not be fetched while proxy URL is empty")
-	case <-time.After(settings.QueuedActionsSleepTime / 2):
+	case <-time.After(sleepTime / 2):
 		// Expected: no action fetched yet
 		break
 	}
 
-	time.Sleep(settings.QueuedActionsSleepTime)
+	time.Sleep(sleepTime)
 
 	r.proxyURL.Lock()
 	r.proxyURL.URL = server.URL
@@ -330,7 +340,7 @@ func TestServeQueueEmptyProxyURL(t *testing.T) {
 	case <-actionFetched:
 		// Expected: action fetched after proxy URL is set
 		break
-	case <-time.After(settings.QueuedActionsSleepTime * 2):
+	case <-time.After(sleepTime * 2):
 		t.Fatal("action was not fetched after proxy URL set")
 	}
 }
@@ -441,6 +451,7 @@ func TestProcessDefaultInstruction(t *testing.T) {
 		op.Type("UnregisteredType"), op.Command("UnregisteredCommand"),
 		[]byte("test message"),
 		[]*ecdsa.PrivateKey{}, // Empty private keys for this test
+		testNode.Info().ChainID,
 		testNode.TeeID(),
 		1, // rewardEpochID
 		nil, nil, nil, 0,

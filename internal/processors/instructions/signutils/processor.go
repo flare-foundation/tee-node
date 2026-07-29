@@ -12,13 +12,14 @@ import (
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/flare-foundation/go-flare-common/pkg/logger"
 	"github.com/flare-foundation/go-flare-common/pkg/policy"
+	csigning "github.com/flare-foundation/go-flare-common/pkg/signing"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/instruction"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/xrpl"
+	"github.com/flare-foundation/tee-node/internal/node"
 	"github.com/flare-foundation/tee-node/internal/router/queue"
 	"github.com/flare-foundation/tee-node/internal/settings"
-	"github.com/flare-foundation/tee-node/pkg/node"
+	"github.com/flare-foundation/tee-node/internal/wallets"
 	"github.com/flare-foundation/tee-node/pkg/types"
-	"github.com/flare-foundation/tee-node/pkg/wallets"
 )
 
 type Processor struct {
@@ -109,10 +110,17 @@ func (p *Processor) SignXRPLPayment(
 			return nil, nil, errors.New("proxy URL not set")
 		}
 
-		if p.activeRoutines.Load() >= int64(settings.MaxSignGoroutines) {
+		chainID, err := p.ChainID()
+		if err != nil {
+			return nil, nil, err
+		}
+
+		// Reserve a slot atomically: a separate Load-then-Add would let two
+		// concurrent callers both observe a count below the cap and both proceed.
+		if n := p.activeRoutines.Add(1); n > int64(settings.MaxSignGoroutines) {
+			p.activeRoutines.Add(-1)
 			return nil, nil, errors.New("maximum number of concurrent sign goroutines reached")
 		}
-		p.activeRoutines.Add(1)
 
 		go func() {
 			defer func() {
@@ -147,7 +155,12 @@ func (p *Processor) SignXRPLPayment(
 					Data:          responseData,
 				}
 
-				sig, err := p.Sign(result.Hash())
+				signHash, err := csigning.NewPayload(csigning.TEEActionResult, chainID, common.BytesToHash(result.Hash())).Hash()
+				if err != nil {
+					logger.Errorf("sign schedule: try %d computing sign hash error: %v", i, err)
+					return
+				}
+				sig, err := p.Sign(signHash[:])
 				if err != nil { // this should never happen since we already signed the same data during pre-processing, but we handle it just in case
 					logger.Errorf("sign schedule: try %d signing result error: %v", i, err)
 					return
@@ -160,7 +173,7 @@ func (p *Processor) SignXRPLPayment(
 
 				if err := queue.PostActionResponse(proxyURL+"/result", response); err != nil {
 					logger.Errorf("sign schedule: try %d error posting result: %v", i, err)
-					return
+					continue
 				}
 			}
 		}()

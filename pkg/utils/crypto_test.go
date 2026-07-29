@@ -4,6 +4,7 @@ import (
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
+	"math/big"
 	"testing"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -90,6 +91,38 @@ func TestSignatureToSignersAddress(t *testing.T) {
 	addr, err := SignatureToSignersAddress(hash, sig)
 	require.NoError(t, err)
 	assert.Equal(t, crypto.PubkeyToAddress(privKey.PublicKey), addr)
+}
+
+// toHighS returns the non-canonical (high-S) variant of a signature; it
+// recovers the same address unless rejected.
+func toHighS(t *testing.T, sig []byte) []byte {
+	t.Helper()
+
+	high := make([]byte, 65)
+	copy(high, sig[:32])
+	s := new(big.Int).SetBytes(sig[32:64])
+	new(big.Int).Sub(crypto.S256().Params().N, s).FillBytes(high[32:64])
+	high[64] = sig[64] ^ 1
+	return high
+}
+
+func TestSignatureToSignersAddressRejectsNonCanonical(t *testing.T) {
+	privKey, err := crypto.GenerateKey()
+	require.NoError(t, err)
+
+	hash := makeHash("non-canonical")
+	sig, err := Sign(hash, privKey)
+	require.NoError(t, err)
+
+	t.Run("high-S signature", func(t *testing.T) {
+		_, err := SignatureToSignersAddress(hash, toHighS(t, sig))
+		assert.EqualError(t, err, "non-canonical signature (high-S or zero scalar)")
+	})
+
+	t.Run("wrong length", func(t *testing.T) {
+		_, err := SignatureToSignersAddress(hash, sig[:64])
+		assert.EqualError(t, err, "signature must be 65 bytes, got 64")
+	})
 }
 
 func TestParsePubKeys(t *testing.T) {

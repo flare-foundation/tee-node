@@ -15,11 +15,11 @@ import (
 	"github.com/flare-foundation/go-flare-common/pkg/tee/instruction"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/op"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/structs/fdc2"
+	"github.com/flare-foundation/tee-node/internal/node"
+	"github.com/flare-foundation/tee-node/internal/policy"
 	"github.com/flare-foundation/tee-node/internal/processors/instructions"
 	"github.com/flare-foundation/tee-node/internal/testutils"
 	"github.com/flare-foundation/tee-node/pkg/fdc"
-	"github.com/flare-foundation/tee-node/pkg/node"
-	"github.com/flare-foundation/tee-node/pkg/policy"
 
 	"github.com/flare-foundation/tee-node/pkg/types"
 	"github.com/flare-foundation/tee-node/pkg/utils"
@@ -152,14 +152,16 @@ func (s *fdcProveTestSetup) signMessage(t *testing.T, msgHash common.Hash, privK
 	return signatures, signers
 }
 
-// signFDCMessage creates the FDC message hash and signs it with the given private keys
+// signFDCMessage creates the FDC message hash and signs the Relay Mode-2
+// prefixed form of it with the given private keys (data-provider/cosigner
+// signature path; the bare TEE-signature path uses messageHash directly).
 func (s *fdcProveTestSetup) signFDCMessage(t *testing.T, request fdc2.IFdc2HubFdc2AttestationRequest, responseBody []byte, cosigners []common.Address, cosignersThreshold uint64, timestamp uint64, privKeys []*ecdsa.PrivateKey) ([]hexutil.Bytes, []common.Address) {
 	t.Helper()
 
-	msgHash, _, _, _, err := fdc.HashMessage(request, responseBody, cosigners, cosignersThreshold, timestamp)
+	msgHash, _, err := fdc.HashMessage(uint64(31337), request, responseBody, cosigners, cosignersThreshold, timestamp)
 	require.NoError(t, err)
 
-	return s.signMessage(t, msgHash, privKeys)
+	return s.signMessage(t, fdc.RelayPrefixedHash(msgHash), privKeys)
 }
 
 // buildActionWithPolicySigners creates an Action whose signatures are valid for
@@ -172,6 +174,7 @@ func (s *fdcProveTestSetup) buildActionWithPolicySigners(
 	cosigners []common.Address,
 	cosignersThreshold uint64,
 	privKeys []*ecdsa.PrivateKey,
+	chainID uint64,
 ) *types.Action {
 	t.Helper()
 
@@ -179,13 +182,15 @@ func (s *fdcProveTestSetup) buildActionWithPolicySigners(
 	sigs := make([]hexutil.Bytes, 0, len(privKeys))
 	vars := make([]hexutil.Bytes, 0, len(privKeys))
 
-	// Compute FDC hash once
-	fdcHash, _, _, _, err := fdc.HashMessage(request, responseBody, cosigners, cosignersThreshold, instr.Timestamp)
+	// Compute FDC hash once. Data providers sign the Relay Mode-2 prefixed
+	// hash (matches Verification.toCosignersMessageHash + Relay.relay()).
+	fdcHash, _, err := fdc.HashMessage(uint64(31337), request, responseBody, cosigners, cosignersThreshold, instr.Timestamp)
 	require.NoError(t, err)
+	fdcDPSigningHash := fdc.RelayPrefixedHash(fdcHash)
 
 	for _, pk := range privKeys {
 		// FDC signature by provider
-		fdcSig, err := utils.Sign(fdcHash[:], pk)
+		fdcSig, err := utils.Sign(fdcDPSigningHash[:], pk)
 		require.NoError(t, err)
 
 		// Provider signature over instruction hash including variable message (the FDC sig)
@@ -193,7 +198,7 @@ func (s *fdcProveTestSetup) buildActionWithPolicySigners(
 			DataFixed:                 *instr,
 			AdditionalVariableMessage: fdcSig,
 		}
-		h, err := data.HashForSigning()
+		h, err := data.HashForSigning(chainID)
 		require.NoError(t, err)
 		provSig, err := utils.Sign(h[:], pk)
 		require.NoError(t, err)
@@ -237,18 +242,21 @@ func TestFDCProveBasicFlow(t *testing.T) {
 	setup := setupFDCProveTest(t)
 	proc := setup.setupInstructionProcessor()
 
+	chainID, err := setup.testNode.ChainID()
+	require.NoError(t, err)
+
 	// Use DP threshold >= 50% to satisfy the one-above-50 rule with cosigners (1/2)
 	request := setup.buildFDCRequest(utils.ToHash("PMWMultisigAccountConfigured"), utils.ToHash("XRP"), 6000, setup.defaultRequestBody)
 	instruction := setup.buildInstruction(t, request, setup.defaultResponseBody, setup.cosigners[:2], 1, setup.defaultTimestamp)
 
 	// Build action and process via instruction processor
-	action := setup.buildActionWithPolicySigners(t, instruction, request, setup.defaultResponseBody, setup.cosigners[:2], 1, setup.privKeys)
+	action := setup.buildActionWithPolicySigners(t, instruction, request, setup.defaultResponseBody, setup.cosigners[:2], 1, setup.privKeys, chainID)
 	res := proc.Process(context.Background(), action)
 	require.Equal(t, uint8(1), res.Status)
 
 	// Decode result data into ProveResponse for assertions
 	var proveResponse fdc.ProveResponse
-	err := json.Unmarshal(res.Data, &proveResponse)
+	err = json.Unmarshal(res.Data, &proveResponse)
 	require.NoError(t, err)
 
 	// Verify response header
@@ -339,17 +347,20 @@ func TestFDCProveInvalidSignature(t *testing.T) {
 
 	_, err := setup.executeAndDecodeProve(t, instruction, signatures, signers)
 	require.Error(t, err)
-	require.Contains(t, err.Error(), "invalid signature")
+	require.Contains(t, err.Error(), "signature must be 65 bytes")
 }
 
 func TestFDCProveThresholdsThroughProcessorProcess(t *testing.T) {
 	setup := setupFDCProveTest(t)
 	proc := setup.setupInstructionProcessor()
 
+	chainID, err := setup.testNode.ChainID()
+	require.NoError(t, err)
+
 	// Case 1: Below minimum DP threshold (3999) should fail
 	request := setup.buildFDCRequest(utils.ToHash("TestAttestation"), utils.ToHash("XRP"), 3999, setup.defaultRequestBody)
 	instr := setup.buildInstruction(t, request, setup.defaultResponseBody, []common.Address{}, 0, setup.defaultTimestamp)
-	action := setup.buildActionWithPolicySigners(t, instr, request, setup.defaultResponseBody, []common.Address{}, 0, setup.privKeys)
+	action := setup.buildActionWithPolicySigners(t, instr, request, setup.defaultResponseBody, []common.Address{}, 0, setup.privKeys, chainID)
 	res := proc.Process(context.Background(), action)
 	require.Equal(t, uint8(0), res.Status)
 	require.Contains(t, res.Log, "data providers threshold too low")
@@ -358,7 +369,7 @@ func TestFDCProveThresholdsThroughProcessorProcess(t *testing.T) {
 	request = setup.buildFDCRequest(utils.ToHash("TestAttestation"), utils.ToHash("XRP"), 4000, setup.defaultRequestBody)
 	cos := setup.cosigners[:4]
 	instr = setup.buildInstruction(t, request, setup.defaultResponseBody, cos, 2, setup.defaultTimestamp)
-	action = setup.buildActionWithPolicySigners(t, instr, request, setup.defaultResponseBody, cos, 2, setup.privKeys)
+	action = setup.buildActionWithPolicySigners(t, instr, request, setup.defaultResponseBody, cos, 2, setup.privKeys, chainID)
 	res = proc.Process(context.Background(), action)
 	require.Equal(t, uint8(0), res.Status)
 	require.Contains(t, res.Log, "one threshold should be above 50%")
@@ -366,14 +377,14 @@ func TestFDCProveThresholdsThroughProcessorProcess(t *testing.T) {
 	// Case 3: Zero BIPS (default 50%) should pass
 	request = setup.buildFDCRequest(utils.ToHash("TestAttestation"), utils.ToHash("XRP"), 0, setup.defaultRequestBody)
 	instr = setup.buildInstruction(t, request, setup.defaultResponseBody, []common.Address{}, 0, setup.defaultTimestamp)
-	action = setup.buildActionWithPolicySigners(t, instr, request, setup.defaultResponseBody, []common.Address{}, 0, setup.privKeys)
+	action = setup.buildActionWithPolicySigners(t, instr, request, setup.defaultResponseBody, []common.Address{}, 0, setup.privKeys, chainID)
 	res = proc.Process(context.Background(), action)
 	require.Equal(t, uint8(1), res.Status)
 
 	// Case 4: Max DP threshold (9999) should pass with all providers
 	request = setup.buildFDCRequest(utils.ToHash("TestAttestation"), utils.ToHash("XRP"), 9999, setup.defaultRequestBody)
 	instr = setup.buildInstruction(t, request, setup.defaultResponseBody, []common.Address{}, 0, setup.defaultTimestamp)
-	action = setup.buildActionWithPolicySigners(t, instr, request, setup.defaultResponseBody, []common.Address{}, 0, setup.privKeys)
+	action = setup.buildActionWithPolicySigners(t, instr, request, setup.defaultResponseBody, []common.Address{}, 0, setup.privKeys, chainID)
 	res = proc.Process(context.Background(), action)
 	require.Equal(t, uint8(1), res.Status)
 
@@ -381,14 +392,25 @@ func TestFDCProveThresholdsThroughProcessorProcess(t *testing.T) {
 	request = setup.buildFDCRequest(utils.ToHash("TestAttestation"), utils.ToHash("XRP"), 4000, setup.defaultRequestBody)
 	cos = setup.cosigners[:5]
 	instr = setup.buildInstruction(t, request, setup.defaultResponseBody, cos, 3, setup.defaultTimestamp)
-	action = setup.buildActionWithPolicySigners(t, instr, request, setup.defaultResponseBody, cos, 3, setup.privKeys)
+	action = setup.buildActionWithPolicySigners(t, instr, request, setup.defaultResponseBody, cos, 3, setup.privKeys, chainID)
 	res = proc.Process(context.Background(), action)
 	require.Equal(t, uint8(1), res.Status)
+
+	// Case 5: wrong chainID rejects (recovered signers miss the policy)
+	request = setup.buildFDCRequest(utils.ToHash("TestAttestation"), utils.ToHash("XRP"), 9999, setup.defaultRequestBody)
+	instr = setup.buildInstruction(t, request, setup.defaultResponseBody, []common.Address{}, 0, setup.defaultTimestamp)
+	action = setup.buildActionWithPolicySigners(t, instr, request, setup.defaultResponseBody, []common.Address{}, 0, setup.privKeys, chainID+1)
+	res = proc.Process(context.Background(), action)
+	require.Equal(t, uint8(0), res.Status)
+	require.Contains(t, res.Log, "data providers threshold not reached")
 }
 
 func TestFDCProveSignatureEdgeCases(t *testing.T) {
 	setup := setupFDCProveTest(t)
 	proc := setup.setupInstructionProcessor()
+
+	chainID, err := setup.testNode.ChainID()
+	require.NoError(t, err)
 
 	// Base request: default 50% DP threshold (BIPS=0), no cosigners
 	request := setup.buildFDCRequest(utils.ToHash("TestAttestation"), utils.ToHash("XRP"), 0, setup.defaultRequestBody)
@@ -396,21 +418,21 @@ func TestFDCProveSignatureEdgeCases(t *testing.T) {
 
 	// 1) Not enough provider signatures (10% < 50%)
 	pks1 := setup.privKeys[:10]
-	action := setup.buildActionWithPolicySigners(t, instr, request, setup.defaultResponseBody, []common.Address{}, 0, pks1)
+	action := setup.buildActionWithPolicySigners(t, instr, request, setup.defaultResponseBody, []common.Address{}, 0, pks1, chainID)
 	res := proc.Process(context.Background(), action)
 	require.Equal(t, uint8(0), res.Status)
 	require.Contains(t, res.Log, "data providers threshold not reached")
 
 	// 2) Empty signatures array
 	none := []*ecdsa.PrivateKey{}
-	action = setup.buildActionWithPolicySigners(t, instr, request, setup.defaultResponseBody, []common.Address{}, 0, none)
+	action = setup.buildActionWithPolicySigners(t, instr, request, setup.defaultResponseBody, []common.Address{}, 0, none, chainID)
 	res = proc.Process(context.Background(), action)
 	require.Equal(t, uint8(0), res.Status)
 	require.Contains(t, res.Log, "data providers threshold not reached")
 
 	// 3) Duplicate signer (double signing)
 	dup := []*ecdsa.PrivateKey{setup.privKeys[0], setup.privKeys[0], setup.privKeys[1], setup.privKeys[2], setup.privKeys[3], setup.privKeys[4], setup.privKeys[5], setup.privKeys[6], setup.privKeys[7], setup.privKeys[8], setup.privKeys[9], setup.privKeys[10], setup.privKeys[11], setup.privKeys[12], setup.privKeys[13], setup.privKeys[14], setup.privKeys[15], setup.privKeys[16], setup.privKeys[17], setup.privKeys[18], setup.privKeys[19], setup.privKeys[20], setup.privKeys[21], setup.privKeys[22], setup.privKeys[23], setup.privKeys[24], setup.privKeys[25], setup.privKeys[26], setup.privKeys[27], setup.privKeys[28], setup.privKeys[29], setup.privKeys[30], setup.privKeys[31], setup.privKeys[32], setup.privKeys[33], setup.privKeys[34], setup.privKeys[35], setup.privKeys[36], setup.privKeys[37], setup.privKeys[38], setup.privKeys[39], setup.privKeys[40], setup.privKeys[41], setup.privKeys[42], setup.privKeys[43], setup.privKeys[44], setup.privKeys[45], setup.privKeys[46], setup.privKeys[47], setup.privKeys[48]}
-	action = setup.buildActionWithPolicySigners(t, instr, request, setup.defaultResponseBody, []common.Address{}, 0, dup)
+	action = setup.buildActionWithPolicySigners(t, instr, request, setup.defaultResponseBody, []common.Address{}, 0, dup, chainID)
 	res = proc.Process(context.Background(), action)
 	require.Equal(t, uint8(0), res.Status)
 	require.Contains(t, res.Log, "double signing")
@@ -426,8 +448,9 @@ func TestFDCProveEncodedDataProviderSignatures(t *testing.T) {
 	request := setup.buildFDCRequest(utils.ToHash("PMWMultisigAccountConfigured"), utils.ToHash("XRP"), 6000, setup.defaultRequestBody)
 	instr := setup.buildInstruction(t, request, setup.defaultResponseBody, setup.cosigners[:2], 1, setup.defaultTimestamp)
 
-	msgHash, _, _, _, err := fdc.HashMessage(request, setup.defaultResponseBody, setup.cosigners[:2], 1, setup.defaultTimestamp)
+	msgHash, _, err := fdc.HashMessage(uint64(31337), request, setup.defaultResponseBody, setup.cosigners[:2], 1, setup.defaultTimestamp)
 	require.NoError(t, err)
+	dpSigningHash := fdc.RelayPrefixedHash(msgHash)
 
 	// Sign with a non-sorted subset of providers to exercise the sort inside
 	// checkResponseSignatures through the final wire blob.
@@ -435,7 +458,7 @@ func TestFDCProveEncodedDataProviderSignatures(t *testing.T) {
 	sigs := make([]hexutil.Bytes, 0, len(order))
 	signers := make([]common.Address, 0, len(order))
 	for _, i := range order {
-		sig, sigErr := utils.Sign(msgHash[:], setup.privKeys[i])
+		sig, sigErr := utils.Sign(dpSigningHash[:], setup.privKeys[i])
 		require.NoError(t, sigErr)
 		sigs = append(sigs, sig)
 		signers = append(signers, setup.signers[i])
@@ -455,20 +478,21 @@ func TestFDCProveDataProviderSignaturesAreSorted(t *testing.T) {
 	setup := setupFDCProveTest(t)
 
 	request := setup.buildFDCRequest(utils.ToHash("TestAttestation"), utils.ToHash("XRP"), 5000, setup.defaultRequestBody)
-	msgHash, _, _, _, err := fdc.HashMessage(request, setup.defaultResponseBody, setup.cosigners[:3], 2, setup.defaultTimestamp)
+	msgHash, _, err := fdc.HashMessage(uint64(31337), request, setup.defaultResponseBody, setup.cosigners[:3], 2, setup.defaultTimestamp)
 	require.NoError(t, err)
+	dpSigningHash := fdc.RelayPrefixedHash(msgHash)
 
 	order := []int{10, 2, 25, 7, 0, 18, 3}
 	sigs := make([]hexutil.Bytes, 0, len(order))
 	signers := make([]common.Address, 0, len(order))
 	for _, i := range order {
-		sig, se := utils.Sign(msgHash[:], setup.privKeys[i])
+		sig, se := utils.Sign(dpSigningHash[:], setup.privKeys[i])
 		require.NoError(t, se)
 		sigs = append(sigs, sig)
 		signers = append(signers, setup.signers[i])
 	}
 
-	dpSigs, _, err := checkResponseSignatures(msgHash, sigs, signers, setup.policy.Voters, setup.cosigners[:3])
+	dpSigs, _, err := checkResponseSignatures(dpSigningHash, sigs, signers, setup.policy.Voters, setup.cosigners[:3])
 	require.NoError(t, err)
 
 	for i := 1; i < len(dpSigs); i++ {
@@ -481,12 +505,15 @@ func TestFDCProvePolicyWindowLastTwoEpochs(t *testing.T) {
 	setup := setupFDCProveTest(t)
 	proc := setup.setupInstructionProcessor()
 
+	chainID, err := setup.testNode.ChainID()
+	require.NoError(t, err)
+
 	// Create policies for epoch+1 and epoch+2 (advance active policy twice)
 	epoch2 := setup.epochID + 1
 	epoch3 := setup.epochID + 2
 
 	policy2 := testutils.GenerateRandomPolicyData(t, epoch2, setup.signers, 2222)
-	err := setup.pStorage.SetActiveSigningPolicy(policy2)
+	err = setup.pStorage.SetActiveSigningPolicy(policy2)
 	require.NoError(t, err)
 
 	policy3 := testutils.GenerateRandomPolicyData(t, epoch3, setup.signers, 3333)
@@ -499,7 +526,7 @@ func TestFDCProvePolicyWindowLastTwoEpochs(t *testing.T) {
 	run := func(epoch uint32, expectOK bool) {
 		instr := setup.buildInstruction(t, request, setup.defaultResponseBody, []common.Address{}, 0, setup.defaultTimestamp)
 		instr.RewardEpochID = epoch
-		action := setup.buildActionWithPolicySigners(t, instr, request, setup.defaultResponseBody, []common.Address{}, 0, setup.privKeys)
+		action := setup.buildActionWithPolicySigners(t, instr, request, setup.defaultResponseBody, []common.Address{}, 0, setup.privKeys, chainID)
 		res := proc.Process(context.Background(), action)
 		if expectOK {
 			require.Equal(t, uint8(1), res.Status, fmt.Sprintf("expected success for epoch %d, log=%s", epoch, res.Log))

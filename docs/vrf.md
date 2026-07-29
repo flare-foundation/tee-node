@@ -29,9 +29,10 @@ ABI encoding uses `vrfstruct.ITeeVrfVrfInstructionMessage` from [go-flare-common
 
 1. Decode and validate the instruction payload via `types.ParseVRFInstruction`
 2. Load the wallet from storage and verify `SigningAlgo == VRFAlgo`
-3. Convert the wallet private key to an ECDSA key
-4. Call `vrf.VerifiableRandomness(key, nonce)` to generate the proof with pre-computed witness points
-5. Return `ProveRandomnessResponse` (JSON) containing wallet metadata, nonce, and the VRF proof
+3. Validate that the cosigners declared in the instruction match the stored wallet's configured cosigner set and threshold (`processorutils.CheckMatchingCosigners`), mirroring the XRP signing path
+4. Convert the wallet private key to an ECDSA key
+5. Call `vrf.VerifiableRandomness(key, nonce)` to generate the proof with pre-computed witness points
+6. Return `ProveRandomnessResponse` (JSON) containing wallet metadata, nonce, and the VRF proof
 
 ### End Phase
 

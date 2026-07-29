@@ -8,9 +8,9 @@ import (
 
 	"github.com/flare-foundation/go-flare-common/pkg/tee/instruction"
 	"github.com/flare-foundation/tee-node/internal/extension"
+	"github.com/flare-foundation/tee-node/internal/node"
+	"github.com/flare-foundation/tee-node/internal/policy"
 	"github.com/flare-foundation/tee-node/internal/settings"
-	"github.com/flare-foundation/tee-node/pkg/node"
-	"github.com/flare-foundation/tee-node/pkg/policy"
 	"github.com/flare-foundation/tee-node/pkg/processorutils"
 	"github.com/flare-foundation/tee-node/pkg/types"
 )
@@ -39,7 +39,12 @@ func (p DefaultProcessor) Process(_ context.Context, a *types.Action) types.Acti
 		return processorutils.Invalid(a, err)
 	}
 
-	signers, _, err := preprocess(a, data, p.pStorage, p.iSAndD.TeeID())
+	chainID, err := p.iSAndD.ChainID()
+	if err != nil {
+		return processorutils.Invalid(a, err)
+	}
+
+	signers, _, err := preprocess(a, data, p.pStorage, p.iSAndD.TeeID(), chainID)
 	if err != nil {
 		return processorutils.Invalid(a, err)
 	}
@@ -48,7 +53,7 @@ func (p DefaultProcessor) Process(_ context.Context, a *types.Action) types.Acti
 	case types.Threshold:
 		result, err := extension.PostActionToExtension(fmt.Sprintf("http://localhost:%d/action", p.extensionPort), a)
 		if err != nil {
-			if errors.Is(err, os.ErrDeadlineExceeded) {
+			if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, os.ErrDeadlineExceeded) {
 				return processorutils.DeadlineExceeded(a, err)
 			}
 			return processorutils.Invalid(a, fmt.Errorf("extension error: %v", err))

@@ -9,12 +9,13 @@ import (
 	"testing"
 	"time"
 
+	csigning "github.com/flare-foundation/go-flare-common/pkg/signing"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/structs"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/structs/wallet"
+	"github.com/flare-foundation/tee-node/internal/node"
+	"github.com/flare-foundation/tee-node/internal/policy"
 	"github.com/flare-foundation/tee-node/internal/settings"
 	"github.com/flare-foundation/tee-node/internal/testutils"
-	"github.com/flare-foundation/tee-node/pkg/node"
-	"github.com/flare-foundation/tee-node/pkg/policy"
 	"github.com/flare-foundation/tee-node/pkg/types"
 	"github.com/flare-foundation/tee-node/pkg/utils"
 	pwallets "github.com/flare-foundation/tee-node/pkg/wallets"
@@ -89,14 +90,14 @@ func TestKeysProofSize100(t *testing.T) {
 	sk, err := crypto.GenerateKey()
 	require.NoError(t, err)
 
-	adminKeys := make([]*ecdsa.PublicKey, 10)
+	adminKeys := make([]*ecdsa.PublicKey, settings.MaxAdminsPerWalletKey)
 	for j := range adminKeys {
 		k, err := crypto.GenerateKey()
 		require.NoError(t, err)
 		adminKeys[j] = &k.PublicKey
 	}
 
-	cosigners := make([]common.Address, 10)
+	cosigners := make([]common.Address, settings.MaxCosignersPerWalletKey)
 	for j := range cosigners {
 		k, err := crypto.GenerateKey()
 		require.NoError(t, err)
@@ -114,9 +115,9 @@ func TestKeysProofSize100(t *testing.T) {
 			KeyType:            pwallets.XRPType,
 			SigningAlgo:        pwallets.XRPSignAlgo,
 			AdminPublicKeys:    adminKeys,
-			AdminsThreshold:    5,
+			AdminsThreshold:    uint64(len(adminKeys)),
 			Cosigners:          cosigners,
-			CosignersThreshold: 5,
+			CosignersThreshold: uint64(len(cosigners)),
 			Status:             &pwallets.WalletStatus{},
 		}
 		require.NoError(t, wStorage.Store(w))
@@ -136,7 +137,7 @@ func TestKeysProofSize100(t *testing.T) {
 	require.NoError(t, json.Unmarshal(res, &proofs))
 	require.Len(t, proofs, n)
 
-	require.Less(t, len(res), 1024*1024, "KEY_PROOF response for %d keys should be under 1 MiB, got %d bytes", n, len(res))
+	require.Less(t, len(res), 1_500_000, "KEY_PROOF response for %d keys should be under 1.5 MB, got %d bytes", n, len(res))
 }
 
 func TestKeysProof(t *testing.T) {
@@ -174,10 +175,14 @@ func TestKeysProof(t *testing.T) {
 		require.Len(t, existenceProofs, len(requested))
 
 		for i, proof := range existenceProofs {
-			err = utils.VerifySignature(crypto.Keccak256(proof.KeyExistence), proof.Signature, testNode.TeeID())
+			walletExistenceProof, err := structs.Decode[wallet.IWalletKeyManagerKeyExistence](wallet.KeyExistenceStructArg, proof.KeyExistence)
 			require.NoError(t, err)
 
-			walletExistenceProof, err := structs.Decode[wallet.IWalletKeyManagerKeyExistence](wallet.KeyExistenceStructArg, proof.KeyExistence)
+			dataHash, err := types.KeyExistenceDataHash(&walletExistenceProof)
+			require.NoError(t, err)
+			signingHash, err := csigning.NewPayload(csigning.TEEKeyExistence, testNode.Info().ChainID, dataHash).Hash()
+			require.NoError(t, err)
+			err = utils.VerifySignature(signingHash[:], proof.Signature, testNode.TeeID())
 			require.NoError(t, err)
 
 			require.Equal(t, requested[i].WalletID, common.Hash(walletExistenceProof.WalletId))
@@ -250,7 +255,9 @@ func TestTEEInfo(t *testing.T) {
 		require.Equal(t, teeInfo.MachineData.InitialOwner, testNode.Info().InitialOwner)
 
 		// Signature
-		mdHash, err := teeInfo.MachineData.Hash()
+		mdDataHash, err := teeInfo.MachineData.DataHash()
+		require.NoError(t, err)
+		mdHash, err := csigning.NewPayload(csigning.TEEMachineRegister, testNode.Info().ChainID, mdDataHash).Hash()
 		require.NoError(t, err)
 		err = utils.VerifySignature(mdHash[:], teeInfo.DataSignature, testNode.Info().TeeID)
 		require.NoError(t, err)

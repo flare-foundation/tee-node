@@ -6,9 +6,9 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/attestation/googlecloud"
+	"github.com/flare-foundation/tee-node/internal/node"
 	"github.com/flare-foundation/tee-node/internal/settings"
 	"github.com/flare-foundation/tee-node/pkg/attestation"
-	"github.com/flare-foundation/tee-node/pkg/node"
 	"github.com/flare-foundation/tee-node/pkg/types"
 )
 
@@ -26,8 +26,11 @@ func ConstructTEEInfoResponse(challenge common.Hash, nodeInfo *node.Info, initia
 		InitialSigningPolicyHash: initialHash,
 		LastSigningPolicyID:      activeID,
 		LastSigningPolicyHash:    activeHash,
+		ChainID:                  nodeInfo.ChainID,
 		State:                    state,
 		TeeTimestamp:             uint64(time.Now().Unix()),
+		MachinePathListNonce:     nodeInfo.MachinePathListNonce,
+		MachinePathListHash:      nodeInfo.MachinePathListHash,
 	}
 
 	h, err := teeInfo.Hash()
@@ -62,11 +65,12 @@ func ConstructTEEInfoResponse(challenge common.Hash, nodeInfo *node.Info, initia
 	}
 
 	mData := types.MachineData{
-		ExtensionID:  nodeInfo.ExtensionID,
-		InitialOwner: nodeInfo.InitialOwner,
-		CodeHash:     cHash,
-		Platform:     platform,
-		PublicKey:    nodeInfo.PublicKey,
+		ExtensionID:    nodeInfo.ExtensionID,
+		InitialOwner:   nodeInfo.InitialOwner,
+		CodeHash:       cHash,
+		Platform:       platform,
+		PublicKey:      nodeInfo.PublicKey,
+		GovernanceHash: nodeInfo.Governance.Hash,
 	}
 
 	teeInfoResponse := types.TeeInfoResponse{

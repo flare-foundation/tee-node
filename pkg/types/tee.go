@@ -1,6 +1,10 @@
 package types
 
 import (
+	"errors"
+	"math/big"
+
+	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/crypto"
@@ -9,7 +13,25 @@ import (
 	"github.com/flare-foundation/go-flare-common/pkg/tee/structs/machine"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/structs/tee"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/structs/verification"
+	"github.com/flare-foundation/go-flare-common/pkg/tee/structs/wallet"
 )
+
+// KeyExistenceDataHash returns keccak256(abi.encode(proof)), the inner
+// dataHash WalletKeyManagerFacet.confirmKey wraps with
+// SignedPayload.messageHash(TEE_KEY_EXISTENCE, ...). Callers wrap this
+// value with signing.Payload{csigning.TEEKeyExistence, chainID, dataHash}.Hash()
+// before signing or comparing.
+func KeyExistenceDataHash(proof *wallet.IWalletKeyManagerKeyExistence) (common.Hash, error) {
+	if proof == nil {
+		return common.Hash{}, errors.New("key existence data hash requires a non-nil proof")
+	}
+
+	innerEnc, err := abi.Arguments{wallet.KeyExistenceStructArg}.Pack(*proof)
+	if err != nil {
+		return common.Hash{}, err
+	}
+	return crypto.Keccak256Hash(innerEnc), nil
+}
 
 type TeeInfoRequest struct {
 	Challenge common.Hash
@@ -22,8 +44,11 @@ type TeeInfo struct {
 	InitialSigningPolicyHash common.Hash `json:"initialSigningPolicyHash"`
 	LastSigningPolicyID      uint32      `json:"lastSigningPolicyId"`
 	LastSigningPolicyHash    common.Hash `json:"lastSigningPolicyHash"`
+	ChainID                  uint64      `json:"chainId"`
 	State                    TeeState    `json:"state"`
 	TeeTimestamp             uint64      `json:"teeTimestamp"`
+	MachinePathListNonce     uint64      `json:"machinePathListNonce"`
+	MachinePathListHash      common.Hash `json:"machinePathListHash"`
 }
 
 // Hash encodes and hashes the TEE attestation payload.
@@ -38,6 +63,7 @@ func (ti *TeeInfo) Hash() ([]byte, error) {
 
 func (ti *TeeInfo) prepareForEncoding() tee.TeeStructsAttestation {
 	return tee.TeeStructsAttestation{
+		ChainId:   new(big.Int).SetUint64(ti.ChainID),
 		Challenge: ti.Challenge,
 		PublicKey: tee.PublicKey{
 			X: ti.PublicKey.X,
@@ -53,7 +79,9 @@ func (ti *TeeInfo) prepareForEncoding() tee.TeeStructsAttestation {
 			State:              ti.State.State,
 			StateVersion:       ti.State.StateVersion,
 		},
-		TeeTimestamp: ti.TeeTimestamp,
+		TeeTimestamp:         ti.TeeTimestamp,
+		MachinePathListNonce: new(big.Int).SetUint64(ti.MachinePathListNonce),
+		MachinePathListHash:  ti.MachinePathListHash,
 	}
 }
 
@@ -77,22 +105,25 @@ type TeeInfoResponse struct {
 }
 
 type MachineData struct {
-	ExtensionID  common.Hash    `json:"extensionId"`
-	InitialOwner common.Address `json:"initialOwner"`
-	CodeHash     common.Hash    `json:"codeHash"`
-	Platform     common.Hash    `json:"platform"`
-	PublicKey    PublicKey      `json:"publicKey"`
+	ExtensionID    common.Hash    `json:"extensionId"`
+	InitialOwner   common.Address `json:"initialOwner"`
+	CodeHash       common.Hash    `json:"codeHash"`
+	Platform       common.Hash    `json:"platform"`
+	PublicKey      PublicKey      `json:"publicKey"`
+	GovernanceHash common.Hash    `json:"governanceHash"`
 }
 
-func (md *MachineData) Hash() (common.Hash, error) {
-	encoded := md.prepareForEncoding()
-	enc, err := structs.Encode(machine.TeeMachineDataStructArg, encoded)
+// DataHash returns keccak256(abi.encode(teeMachineData)) — the inner
+// dataHash MachineManagerFacet.register wraps with
+// SignedPayload.messageHash(TEE_MACHINE_REGISTER, ...). Callers wrap
+// this value with signing.Payload{TeeMachineRegisterTag, chainID,
+// dataHash}.Hash() before signing or comparing.
+func (md *MachineData) DataHash() (common.Hash, error) {
+	innerEnc, err := abi.Arguments{machine.TeeMachineDataStructArg}.Pack(md.prepareForEncoding())
 	if err != nil {
 		return common.Hash{}, err
 	}
-
-	hash := crypto.Keccak256Hash(enc)
-	return hash, nil
+	return crypto.Keccak256Hash(innerEnc), nil
 }
 
 func (md *MachineData) prepareForEncoding() machine.IMachineManagerTeeMachineData {
@@ -105,6 +136,7 @@ func (md *MachineData) prepareForEncoding() machine.IMachineManagerTeeMachineDat
 			X: md.PublicKey.X,
 			Y: md.PublicKey.Y,
 		},
+		GovernanceHash: md.GovernanceHash,
 	}
 }
 
@@ -145,4 +177,81 @@ type ConfigureInitialOwnerRequest struct {
 
 type ConfigureExtensionIDRequest struct {
 	ExtensionID *common.Hash `json:"extensionId"`
+}
+
+type ConfigureChainIDRequest struct {
+	ChainID *uint64 `json:"chainId"`
+}
+
+// Governance is the governance signer-set known to the node. Two flavors
+// exist, discriminated by Safe:
+//   - plain: Hash is keccak256(abi.encode(Signers, Threshold)) and Safe is
+//     the zero address;
+//   - Safe-backed: Signers/Threshold are the snapshot of the Safe multisig's
+//     owners and threshold recorded on-chain at registration, and Hash is
+//     keccak256(abi.encode(TeeManager, Safe, Signers, Threshold)).
+//
+// Both match the value stored on-chain as governanceHash.
+type Governance struct {
+	Signers    []common.Address `json:"signers"`
+	Threshold  uint64           `json:"threshold"`
+	Hash       common.Hash      `json:"hash"`
+	Safe       common.Address   `json:"safe"`
+	TeeManager common.Address   `json:"teeManager"`
+}
+
+type ConfigureGovernanceRequest struct {
+	Signers   *[]common.Address `json:"signers"`
+	Threshold *uint64           `json:"threshold"`
+	// Safe and TeeManager configure Safe-backed governance; both must be set
+	// together, and omitting them configures plain governance.
+	Safe       *common.Address `json:"safe,omitempty"`
+	TeeManager *common.Address `json:"teeManager,omitempty"`
+}
+
+// GovernanceHash returns keccak256(abi.encode(address[], uint256)) for the
+// given (signers, threshold) tuple — the same value the on-chain contract
+// stores as `bytes32 governanceHash`.
+func GovernanceHash(signers []common.Address, threshold uint64) (common.Hash, error) {
+	addressArrayTy, err := abi.NewType("address[]", "", nil)
+	if err != nil {
+		return common.Hash{}, err
+	}
+	uint256Ty, err := abi.NewType("uint256", "", nil)
+	if err != nil {
+		return common.Hash{}, err
+	}
+	args := abi.Arguments{{Type: addressArrayTy}, {Type: uint256Ty}}
+	enc, err := args.Pack(signers, new(big.Int).SetUint64(threshold))
+	if err != nil {
+		return common.Hash{}, err
+	}
+	return crypto.Keccak256Hash(enc), nil
+}
+
+// GovernanceHashSafe returns keccak256(abi.encode(teeManager, safe, owners,
+// threshold)) — the governance hash the ExtensionGovernanceFacet stores for
+// Safe-backed governance registered via setNewTeeGovernanceSafe. teeManager is
+// the FlareTeeManager diamond address (address(this) in the facet) and owners
+// and threshold are the Safe's owner set and threshold snapshotted at
+// registration.
+func GovernanceHashSafe(teeManager, safe common.Address, owners []common.Address, threshold uint64) (common.Hash, error) {
+	addressTy, err := abi.NewType("address", "", nil)
+	if err != nil {
+		return common.Hash{}, err
+	}
+	addressArrayTy, err := abi.NewType("address[]", "", nil)
+	if err != nil {
+		return common.Hash{}, err
+	}
+	uint64Ty, err := abi.NewType("uint64", "", nil)
+	if err != nil {
+		return common.Hash{}, err
+	}
+	args := abi.Arguments{{Type: addressTy}, {Type: addressTy}, {Type: addressArrayTy}, {Type: uint64Ty}}
+	enc, err := args.Pack(teeManager, safe, owners, threshold)
+	if err != nil {
+		return common.Hash{}, err
+	}
+	return crypto.Keccak256Hash(enc), nil
 }

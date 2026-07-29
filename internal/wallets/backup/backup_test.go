@@ -2,8 +2,11 @@ package backup_test
 
 import (
 	"crypto/ecdsa"
+	"encoding/json"
+	"math"
 	"testing"
 
+	"github.com/flare-foundation/tee-node/internal/settings"
 	"github.com/flare-foundation/tee-node/internal/testutils"
 	"github.com/flare-foundation/tee-node/internal/wallets/backup"
 	"github.com/flare-foundation/tee-node/pkg/utils"
@@ -22,6 +25,7 @@ var mockKeyID = uint64(1)
 
 func TestBackupAndRecover(t *testing.T) {
 	testNode, _, _ := testutils.Setup(t)
+	chainID, _ := testNode.ChainID()
 
 	idPair := wallets.KeyIDPair{WalletID: mockWalletID, KeyID: mockKeyID}
 	sk, err := crypto.GenerateKey()
@@ -61,7 +65,7 @@ func TestBackupAndRecover(t *testing.T) {
 	t.Run("Unsupported signing algorithm should fail", func(t *testing.T) {
 		unsupportedAlgoWallet := *baseWallet
 		unsupportedAlgoWallet.SigningAlgo = utils.ToHash("BLS-12-381")
-		_, err = backup.BackupWallet(&unsupportedAlgoWallet, providerPubKeys, weights, rewardEpochID, testNode.TeeID(), uint16(normalizationParam), dataProvidersBackupThreshold)
+		_, err = backup.BackupWallet(&unsupportedAlgoWallet, providerPubKeys, weights, rewardEpochID, testNode.TeeID(), chainID, uint16(normalizationParam), dataProvidersBackupThreshold)
 		assert.Error(t, err)
 	})
 
@@ -82,21 +86,21 @@ func TestBackupAndRecover(t *testing.T) {
 			givenWallet.SigningAlgo = tc.signingAlgo
 
 			// Backup the wallet
-			walletBackup, err := backup.BackupWallet(&givenWallet, providerPubKeys, weights, rewardEpochID, testNode.TeeID(), uint16(normalizationParam), dataProvidersBackupThreshold)
+			walletBackup, err := backup.BackupWallet(&givenWallet, providerPubKeys, weights, rewardEpochID, testNode.TeeID(), chainID, uint16(normalizationParam), dataProvidersBackupThreshold)
 			assert.NoError(t, err)
 			assert.NotNil(t, walletBackup)
 
 			// Add TEE signature (normally done by the TEE processor)
-			backupHash, err := walletBackup.HashForSigning()
+			signHash, err := walletBackup.TEESignHash(chainID)
 			assert.NoError(t, err)
-			walletBackup.TEESignature, err = testNode.Sign(backupHash[:])
+			walletBackup.TEESignature, err = testNode.Sign(signHash[:])
 			assert.NoError(t, err)
 
-			err = walletBackup.Check()
+			err = walletBackup.Check(chainID)
 			assert.NoError(t, err)
 
 			// Decrypt admin and provider shares
-			adminKeyShares, providerKeyShares := decryptAllShares(t, walletBackup.AdminEncryptedParts, walletBackup.ProviderEncryptedParts, adminKeys, providerKeys)
+			adminKeyShares, providerKeyShares := decryptAllShares(t, walletBackup.AdminEncryptedParts, walletBackup.ProviderEncryptedParts, adminKeys, providerKeys, chainID)
 
 			// Recover the wallet
 			recoveredWallet, err := backup.RecoverWallet(
@@ -106,6 +110,96 @@ func TestBackupAndRecover(t *testing.T) {
 			assert.NoError(t, err)
 			givenWallet.Restored = true
 			assert.Equal(t, &givenWallet, recoveredWallet)
+		})
+	}
+}
+
+// maxActionResponseSize is the budget every action response must stay under.
+const maxActionResponseSize = 1_500_000 // 1.5 MB
+
+// TestBackupSizes guards the serialized size of wallet backups with the
+// maximum supported numbers of admins and cosigners, 100 providers, and the
+// production normalization and provider threshold. The TEEBackupResponse
+// envelope becomes the action result's data, and every action response must
+// stay under 1.5 MB.
+func TestBackupSizes(t *testing.T) {
+	testNode, _, _ := testutils.Setup(t)
+	chainID, err := testNode.ChainID()
+	require.NoError(t, err)
+
+	sk, err := crypto.GenerateKey()
+	require.NoError(t, err)
+
+	adminKeys, providerKeys := generateTestKeys(t, settings.MaxAdminsPerWalletKey, 100)
+	adminPubKeys := privateKeysToPublicKeys(t, adminKeys)
+	providerPubKeys := privateKeysToPublicKeys(t, providerKeys)
+	cosigners := make([]common.Address, settings.MaxCosignersPerWalletKey)
+	for i := range cosigners {
+		cosigners[i] = common.BytesToAddress([]byte{byte(i + 1)})
+	}
+
+	weights := make([]uint16, len(providerKeys))
+	for i := range weights {
+		weights[i] = 10
+	}
+
+	baseWallet := &wallets.Wallet{
+		WalletID:    mockWalletID,
+		KeyID:       mockKeyID,
+		PrivateKey:  common.BigToHash(sk.D).Bytes(),
+		KeyType:     wallets.XRPType,
+		SigningAlgo: wallets.XRPSignAlgo,
+
+		AdminPublicKeys:    adminPubKeys,
+		AdminsThreshold:    uint64(len(adminPubKeys)),
+		Cosigners:          cosigners,
+		CosignersThreshold: uint64(len(cosigners)),
+
+		Status: &wallets.WalletStatus{},
+
+		SettingsVersion: common.Hash{},
+		Settings:        hexutil.Bytes{},
+	}
+
+	cases := []struct {
+		name        string
+		keyType     common.Hash
+		signingAlgo common.Hash
+	}{
+		{"ECDSA", wallets.XRPType, wallets.XRPSignAlgo},
+		{"VRF", wallets.EVMType, wallets.VRFAlgo},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			givenWallet := *baseWallet
+			givenWallet.KeyType = tc.keyType
+			givenWallet.SigningAlgo = tc.signingAlgo
+
+			walletBackup, err := backup.BackupWallet(
+				&givenWallet, providerPubKeys, weights, uint32(100), testNode.TeeID(),
+				chainID, backup.NormalizationConstant, backup.DataProvidersThreshold,
+			)
+			require.NoError(t, err)
+
+			signHash, err := walletBackup.TEESignHash(chainID)
+			require.NoError(t, err)
+			walletBackup.TEESignature, err = testNode.Sign(signHash[:])
+			require.NoError(t, err)
+
+			encoded, err := json.Marshal(walletBackup)
+			require.NoError(t, err)
+
+			response, err := json.Marshal(wallets.TEEBackupResponse{
+				BackupID:     walletBackup.WalletBackupID,
+				WalletBackup: encoded,
+			})
+			require.NoError(t, err)
+
+			t.Logf("%s wallet backup JSON: %d bytes (%.0f KB), TEEBackupResponse: %d bytes (%.0f KB)",
+				tc.name, len(encoded), float64(len(encoded))/1024, len(response), float64(len(response))/1024)
+			require.Less(t, len(response), maxActionResponseSize,
+				"%s backup response exceeds the 1.5 MB action-response budget; check the format and refresh docs/backup-restore.md", tc.name)
 		})
 	}
 }
@@ -122,13 +216,14 @@ func TestSplitAndEncrypt(t *testing.T) {
 	signer := &wallets.Wallet{PrivateKey: common.BigToHash(privateKey.D).Bytes(), SigningAlgo: wallets.EVMSignAlgo}
 
 	// Split and encrypt the key
-	encryptedShares, err := backup.SplitAndEncrypt(privateKey, encryptionPubKeys, 2, utils.ConstantSlice(uint16(1), 2), wallets.WalletBackupID{}, signer, false)
+	encryptedShares, err := backup.SplitAndEncrypt(privateKey, encryptionPubKeys, 2, utils.ConstantSlice(uint16(1), 2), wallets.WalletBackupID{}, signer, false, uint64(31337))
 	assert.NoError(t, err)
 	assert.NotNil(t, encryptedShares)
 }
 
 func TestRecoverWithMissingShares(t *testing.T) {
 	testNode, _, _ := testutils.Setup(t)
+	chainID, _ := testNode.ChainID()
 
 	idPair := wallets.KeyIDPair{WalletID: mockWalletID, KeyID: mockKeyID}
 	sk, err := crypto.GenerateKey()
@@ -167,21 +262,21 @@ func TestRecoverWithMissingShares(t *testing.T) {
 	rewardEpochID := uint32(100)
 
 	// Backup the wallet
-	walletBackup, err := backup.BackupWallet(givenWallet, providerPubKeys, weights, rewardEpochID, testNode.TeeID(), uint16(normalizationParam), dataProvidersBackupThreshold)
+	walletBackup, err := backup.BackupWallet(givenWallet, providerPubKeys, weights, rewardEpochID, testNode.TeeID(), chainID, uint16(normalizationParam), dataProvidersBackupThreshold)
 	assert.NoError(t, err)
 	assert.NotNil(t, walletBackup)
 
 	// Add TEE signature (normally done by the TEE processor)
-	backupHash, err := walletBackup.HashForSigning()
+	signHash, err := walletBackup.TEESignHash(chainID)
 	assert.NoError(t, err)
-	walletBackup.TEESignature, err = testNode.Sign(backupHash[:])
+	walletBackup.TEESignature, err = testNode.Sign(signHash[:])
 	assert.NoError(t, err)
 
-	err = walletBackup.Check()
+	err = walletBackup.Check(chainID)
 	assert.NoError(t, err)
 
 	// Decrypt admin and provider shares
-	adminKeyShares, providerKeyShares := decryptAllShares(t, walletBackup.AdminEncryptedParts, walletBackup.ProviderEncryptedParts, adminKeys, providerKeys)
+	adminKeyShares, providerKeyShares := decryptAllShares(t, walletBackup.AdminEncryptedParts, walletBackup.ProviderEncryptedParts, adminKeys, providerKeys, chainID)
 
 	t.Run("Recovery with missing provider share should fail", func(t *testing.T) {
 		recoveredWallet, err := backup.RecoverWallet(
@@ -327,20 +422,38 @@ func privateKeysToPublicKeys(t *testing.T, privateKeys []*ecdsa.PrivateKey) []*e
 	return publicKeys
 }
 
-func decryptAllShares(t *testing.T, adminEncryptedParts, providerEncryptedParts *pbackup.EncryptedShares, adminKeys, providerKeys []*ecdsa.PrivateKey) ([]*pbackup.KeySplit, []*pbackup.KeySplit) {
+func decryptAllShares(t *testing.T, adminEncryptedParts, providerEncryptedParts *pbackup.EncryptedShares, adminKeys, providerKeys []*ecdsa.PrivateKey, chainID uint64) ([]*pbackup.KeySplit, []*pbackup.KeySplit) {
 	t.Helper()
 	adminKeyShares := make([]*pbackup.KeySplit, len(adminKeys))
 	providerKeyShares := make([]*pbackup.KeySplit, len(providerKeys))
 	for i, k := range adminKeys {
-		share, err := pbackup.DecryptSplit(adminEncryptedParts.Splits[i], k)
+		share, err := pbackup.DecryptSplit(adminEncryptedParts.Splits[i], k, chainID)
 		assert.NoError(t, err)
 		adminKeyShares[i] = share
 	}
 
 	for i, k := range providerKeys {
-		share, err := pbackup.DecryptSplit(providerEncryptedParts.Splits[i], k)
+		share, err := pbackup.DecryptSplit(providerEncryptedParts.Splits[i], k, chainID)
 		assert.NoError(t, err)
 		providerKeyShares[i] = share
 	}
 	return adminKeyShares, providerKeyShares
+}
+
+// TestJoinKeySharesHugeThresholdDoesNotAllocate is the regression for X-1: a
+// huge (attacker-controlled) threshold must not drive an eager allocation.
+// JoinKeyShares should fail the share-count check, not panic or OOM. Before the
+// fix, make([]ShamirShare, 0, threshold) panicked "makeslice: cap out of range"
+// for MaxUint64 (and would OOM for in-range-but-multi-GB values).
+func TestJoinKeySharesHugeThresholdDoesNotAllocate(t *testing.T) {
+	var (
+		key *ecdsa.PrivateKey
+		err error
+	)
+	require.NotPanics(t, func() {
+		key, err = backup.JoinKeyShares(nil, math.MaxUint64)
+	})
+	require.Error(t, err)
+	require.Nil(t, key)
+	require.Contains(t, err.Error(), "threshold of shares is not reached")
 }

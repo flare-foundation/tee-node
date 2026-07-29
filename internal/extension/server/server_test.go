@@ -16,10 +16,12 @@ import (
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/structs/wallet"
 	"github.com/flare-foundation/go-flare-common/pkg/xrpl/hash"
+	"github.com/flare-foundation/tee-node/internal/node"
 	"github.com/flare-foundation/tee-node/internal/settings"
-	"github.com/flare-foundation/tee-node/pkg/node"
+	walletstorage "github.com/flare-foundation/tee-node/internal/wallets"
 	"github.com/flare-foundation/tee-node/pkg/types"
-	"github.com/flare-foundation/tee-node/pkg/wallets"
+	"github.com/flare-foundation/tee-node/pkg/utils"
+	wallets "github.com/flare-foundation/tee-node/pkg/wallets"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
@@ -32,8 +34,9 @@ func setupTestServer(t *testing.T, proxyPort int, port int) *SignServer {
 
 	testNode, err := node.Initialize(node.ZeroState{})
 	require.NoError(t, err)
+	require.NoError(t, testNode.SetChainID(31337))
 
-	wStorage := wallets.InitializeStorage()
+	wStorage := walletstorage.InitializeStorage()
 
 	proxyURL := settings.ProxyURLMutex{
 		URL: "http://localhost:" + strconv.Itoa(proxyPort),
@@ -45,7 +48,16 @@ func setupTestServer(t *testing.T, proxyPort int, port int) *SignServer {
 	return server
 }
 
-func setupTestWallet(t *testing.T, ws *wallets.Storage, signingAlgo common.Hash) *wallets.Wallet {
+func TestSignServerBindsLoopback(t *testing.T) {
+	// The sign/decrypt API is unauthenticated and must not listen on all
+	// interfaces; it always binds to loopback.
+	require.Equal(t, "127.0.0.1", settings.SignHost)
+
+	server := setupTestServer(t, 5599, 8899)
+	require.Equal(t, "127.0.0.1:8899", server.server.Addr)
+}
+
+func setupTestWallet(t *testing.T, ws *walletstorage.Storage, signingAlgo common.Hash) *wallets.Wallet {
 	t.Helper()
 
 	// Generate a test private key
@@ -219,7 +231,7 @@ func TestDecryptWithKey(t *testing.T) {
 	// Create test encrypted message (this is a dummy encrypted message for testing)
 	message := []byte("encrypted test message")
 
-	encryptedMessage, err := encrypt(message, &wallets.ToECDSAUnsafe(wallet.PrivateKey).PublicKey)
+	encryptedMessage, err := utils.Encrypt(message, &wallets.ToECDSAUnsafe(wallet.PrivateKey).PublicKey)
 	require.NoError(t, err)
 
 	// Create request body
@@ -251,7 +263,7 @@ func TestDecryptWithTee(t *testing.T) {
 
 	teePubKey, err := types.ParsePubKey(server.node.Info().PublicKey)
 	require.NoError(t, err)
-	encryptedMessage, err := encrypt(message, teePubKey)
+	encryptedMessage, err := utils.Encrypt(message, teePubKey)
 	require.NoError(t, err)
 
 	// Create request body

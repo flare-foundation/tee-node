@@ -13,12 +13,13 @@ import (
 	"slices"
 	"testing"
 
+	"github.com/flare-foundation/tee-node/internal/node"
+	"github.com/flare-foundation/tee-node/internal/policy"
 	"github.com/flare-foundation/tee-node/internal/processors/instructions/walletutils"
-	"github.com/flare-foundation/tee-node/pkg/node"
-	"github.com/flare-foundation/tee-node/pkg/policy"
+	walletstorage "github.com/flare-foundation/tee-node/internal/wallets"
 	"github.com/flare-foundation/tee-node/pkg/types"
 	"github.com/flare-foundation/tee-node/pkg/utils"
-	"github.com/flare-foundation/tee-node/pkg/wallets"
+	wallets "github.com/flare-foundation/tee-node/pkg/wallets"
 
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
@@ -37,9 +38,9 @@ import (
 // instruction and returns its existence proof, for tests purposes.
 func CreateMockWallet(
 	t *testing.T,
-	iSndD node.IdentifierSignerAndDecrypter,
+	iSndD node.WalletNode,
 	ps *policy.Storage,
-	ws *wallets.Storage,
+	ws *walletstorage.Storage,
 	walletID common.Hash,
 	keyID uint64,
 	rewardEpochID uint32,
@@ -100,7 +101,7 @@ func CreateMockWallet(
 	walletProofBytes, _, err := proc.KeyGenerate(context.Background(), types.Threshold, &instructionDataFixed, nil, nil, nil)
 	require.NoError(t, err)
 
-	walletExistenceProof, err := wallets.ExtractKeyExistence(walletProofBytes, iSndD.TeeID())
+	walletExistenceProof, err := wallets.ExtractKeyExistence(walletProofBytes, iSndD.TeeID(), uint64(31337))
 	require.NoError(t, err)
 
 	require.NoError(t, err)
@@ -135,8 +136,6 @@ func BuildMockPaymentOriginalMessage(
 		FeeSchedule:      feeSchedule,
 		PaymentReference: [32]byte{},
 		Nonce:            uint64(0),
-		SubNonce:         uint64(0),
-		BatchEndTs:       uint64(0),
 	}
 
 	originalMessageEncoded, err := abi.Arguments{payments.MessageArguments[op.Pay]}.Pack(originalMessage)
@@ -153,6 +152,7 @@ func BuildMockInstructionAction(
 	opCommand op.Command,
 	originalMessage []byte,
 	privKeys []*ecdsa.PrivateKey,
+	chainID uint64,
 	teeID common.Address,
 	rewardEpochID uint32,
 	additionalFixedMessageRaw any,
@@ -161,6 +161,7 @@ func BuildMockInstructionAction(
 	cosignersThreshold uint64,
 	submissionTag types.SubmissionTag,
 	timestamp uint64,
+
 ) *types.Action {
 	t.Helper()
 
@@ -212,7 +213,7 @@ func BuildMockInstructionAction(
 			instructionData.AdditionalVariableMessage = variableMessages[i]
 			additionalVariableMessages[i] = instructionData.AdditionalVariableMessage
 		}
-		signatures[i], err = sign(&instructionData, privKey)
+		signatures[i], err = sign(&instructionData, privKey, chainID)
 		require.NoError(t, err)
 	}
 
@@ -280,8 +281,8 @@ func BuildMockDirectAction(t *testing.T, opType op.Type, opCommand op.Command, m
 	return &action
 }
 
-func sign(r *instruction.Data, privKey *ecdsa.PrivateKey) ([]byte, error) {
-	hash, err := r.HashForSigning()
+func sign(r *instruction.Data, privKey *ecdsa.PrivateKey, chainID uint64) ([]byte, error) {
+	hash, err := r.HashForSigning(chainID)
 	if err != nil {
 		return nil, err
 	}

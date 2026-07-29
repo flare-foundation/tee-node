@@ -4,27 +4,29 @@ import (
 	"context"
 	"encoding/json"
 
-	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/common"
+	csigning "github.com/flare-foundation/go-flare-common/pkg/signing"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/structs"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/structs/wallet"
 	"github.com/flare-foundation/tee-node/internal/attestation"
+	"github.com/flare-foundation/tee-node/internal/node"
+	"github.com/flare-foundation/tee-node/internal/policy"
 	"github.com/flare-foundation/tee-node/internal/wallets/backup"
-	"github.com/flare-foundation/tee-node/pkg/node"
-	"github.com/flare-foundation/tee-node/pkg/policy"
 	"github.com/flare-foundation/tee-node/pkg/types"
 
-	"github.com/flare-foundation/tee-node/pkg/wallets"
+	walletstorage "github.com/flare-foundation/tee-node/internal/wallets"
+	wallets "github.com/flare-foundation/tee-node/pkg/wallets"
 )
 
 type Processor struct {
 	node.InformerAndSigner
 	pStorage *policy.Storage
-	wStorage *wallets.Storage
+	wStorage *walletstorage.Storage
 }
 
 // NewProcessor builds a direct processor that serves TEE metadata and wallet
 // information.
-func NewProcessor(aAndS node.InformerAndSigner, policyStorage *policy.Storage, walletsStorage *wallets.Storage) Processor {
+func NewProcessor(aAndS node.InformerAndSigner, policyStorage *policy.Storage, walletsStorage *walletstorage.Storage) Processor {
 	return Processor{
 		InformerAndSigner: aAndS,
 		pStorage:          policyStorage,
@@ -40,6 +42,7 @@ func (p *Processor) TEEInfo(_ context.Context, i *types.DirectInstruction) ([]by
 		return nil, err
 	}
 
+	// return even if not all is set
 	info := p.Info()
 
 	p.pStorage.RLock()
@@ -51,7 +54,11 @@ func (p *Processor) TEEInfo(_ context.Context, i *types.DirectInstruction) ([]by
 		return nil, err
 	}
 
-	mdHash, err := response.MachineData.Hash()
+	mdDataHash, err := response.MachineData.DataHash()
+	if err != nil {
+		return nil, err
+	}
+	mdHash, err := csigning.NewPayload(csigning.TEEMachineRegister, info.ChainID, mdDataHash).Hash()
 	if err != nil {
 		return nil, err
 	}
@@ -95,37 +102,65 @@ func (p *Processor) KeysInfo(_ context.Context, _ *types.DirectInstruction) ([]b
 
 // KeysProof returns signed key existence proofs for the requested (walletID, keyID) pairs.
 // Proofs are returned in the same order as the requested pairs.
-func (p *Processor) KeysProof(_ context.Context, i *types.DirectInstruction) ([]byte, error) {
+func (p *Processor) KeysProof(ctx context.Context, i *types.DirectInstruction) ([]byte, error) {
 	var requested []wallets.KeyIDPair
 	if err := json.Unmarshal(i.Message, &requested); err != nil {
 		return nil, err
 	}
 
-	teeID := p.Info().TeeID
+	info := p.Info()
+	teeID := info.TeeID
+	chainID := info.ChainID
+
+	// Build the proof payloads (encoding and hashing read wallet state) under
+	// the read lock, then release it before the per-element ECDSA signing,
+	// since signing is the dominant cost.
+	type pendingProof struct {
+		encoded []byte
+		hash    common.Hash
+	}
+	pending := make([]pendingProof, len(requested))
 
 	p.wStorage.RLock()
-	defer p.wStorage.RUnlock()
-
-	signedProofs := make([]wallets.SignedKeyExistenceProof, len(requested))
-	for i, idPair := range requested {
+	for idx, idPair := range requested {
 		storedWallet, err := p.wStorage.Get(idPair)
 		if err != nil {
+			p.wStorage.RUnlock()
 			return nil, err
 		}
 
 		ep := storedWallet.KeyExistenceProof(teeID)
 		epEncoded, err := structs.Encode(wallet.KeyExistenceStructArg, ep)
 		if err != nil {
+			p.wStorage.RUnlock()
 			return nil, err
 		}
-		hash := crypto.Keccak256(epEncoded)
-		signature, err := p.Sign(hash)
+		dataHash, err := types.KeyExistenceDataHash(ep)
 		if err != nil {
+			p.wStorage.RUnlock()
+			return nil, err
+		}
+		hash, err := csigning.NewPayload(csigning.TEEKeyExistence, chainID, dataHash).Hash()
+		if err != nil {
+			p.wStorage.RUnlock()
 			return nil, err
 		}
 
-		signedProofs[i] = wallets.SignedKeyExistenceProof{
-			KeyExistence: epEncoded,
+		pending[idx] = pendingProof{encoded: epEncoded, hash: hash}
+	}
+	p.wStorage.RUnlock()
+
+	signedProofs := make([]wallets.SignedKeyExistenceProof, len(requested))
+	for idx, pp := range pending {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+		signature, err := p.Sign(pp.hash.Bytes())
+		if err != nil {
+			return nil, err
+		}
+		signedProofs[idx] = wallets.SignedKeyExistenceProof{
+			KeyExistence: pp.encoded,
 			Signature:    signature,
 		}
 	}
@@ -145,7 +180,9 @@ func (p *Processor) TEEBackup(_ context.Context, i *types.DirectInstruction) ([]
 	if err != nil {
 		return nil, err
 	}
-	teeID := p.Info().TeeID
+	info := p.Info()
+	teeID := info.TeeID
+	chainID := info.ChainID
 
 	p.wStorage.RLock()
 	defer p.wStorage.RUnlock()
@@ -178,17 +215,18 @@ func (p *Processor) TEEBackup(_ context.Context, i *types.DirectInstruction) ([]
 		weights,
 		activePolicy.RewardEpochID,
 		teeID,
+		chainID,
 		backup.NormalizationConstant,
 		backup.DataProvidersThreshold,
 	)
 	if err != nil {
 		return nil, err
 	}
-	hash, err := walletBackup.HashForSigning()
+	signHash, err := walletBackup.TEESignHash(chainID)
 	if err != nil {
 		return nil, err
 	}
-	walletBackup.TEESignature, err = p.Sign(hash[:])
+	walletBackup.TEESignature, err = p.Sign(signHash[:])
 	if err != nil {
 		return nil, err
 	}

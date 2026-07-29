@@ -19,6 +19,19 @@ func Sum[T Number](numbers []T) T {
 	return total
 }
 
+// SumUint64 returns the sum of the slice elements accumulated in uint64. Unlike
+// Sum, which accumulates in the element type and can wrap for narrow types
+// (e.g. a []uint16 whose total exceeds 65535), this widens each element so the
+// total cannot overflow for any realistic input.
+func SumUint64[T constraints.Unsigned](numbers []T) uint64 {
+	var total uint64
+	for _, num := range numbers {
+		total += uint64(num)
+	}
+
+	return total
+}
+
 // ConstantSlice crates a slice of length n with all the entries equal to val.
 func ConstantSlice[T any](val T, n int) []T {
 	res := make([]T, n)

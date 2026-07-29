@@ -39,7 +39,7 @@ func (p DefaultProcessor) Process(_ context.Context, a *types.Action) types.Acti
 
 	result, err := extension.PostActionToExtension(fmt.Sprintf("http://localhost:%d/action", p.extensionPort), a)
 	if err != nil {
-		if errors.Is(err, os.ErrDeadlineExceeded) {
+		if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, os.ErrDeadlineExceeded) {
 			return processorutils.DeadlineExceeded(a, err)
 		}
 		return processorutils.Invalid(a, fmt.Errorf("extension error: %v", err))

@@ -75,10 +75,23 @@ func validateSignatureInputs(sigs []hexutil.Bytes, signers []common.Address) err
 	return nil
 }
 
+// directSigningMessagePrefix is the 6-byte Mode-2 message header the on-chain
+// Relay fallback (Relay.sol) reads between the signing policy and the merkle
+// root: 1B protocolId | 4B votingRoundId | 1B isSecureRandom. For FDC2
+// direct-message signing — the path used for TEE availability checks and
+// every other custom FDC2 proof — protocolId is 1 and votingRoundId /
+// isSecureRandom must both be zero (Relay reverts "Wrong message format"
+// otherwise). Without these 6 bytes the Relay reads the first byte of the
+// merkle root as protocolId, the byte count lands inside the first
+// signature, and the fallback reverts "Not enough signatures" because the
+// declared sig count exceeds the calldata.
+var directSigningMessagePrefix = []byte{0x01, 0x00, 0x00, 0x00, 0x00, 0x00}
+
 func prepareFinalizationTxInput(signingPolicyBytes []byte, msg []byte, sigs []encoding.IndexedSignature) ([]byte, error) {
 	buffer := bytes.NewBuffer(nil)
 	buffer.Write(relayFunctionSelector)
 	buffer.Write(signingPolicyBytes)
+	buffer.Write(directSigningMessagePrefix)
 	buffer.Write(msg)
 
 	encodedSignatures, err := encoding.EncodeSignatures(sigs)

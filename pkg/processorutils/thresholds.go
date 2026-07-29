@@ -9,8 +9,8 @@ import (
 	"github.com/flare-foundation/go-flare-common/pkg/tee/instruction"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/op"
 
+	"github.com/flare-foundation/tee-node/internal/policy"
 	"github.com/flare-foundation/tee-node/pkg/fdc"
-	"github.com/flare-foundation/tee-node/pkg/policy"
 	"github.com/flare-foundation/tee-node/pkg/utils"
 )
 
@@ -35,7 +35,7 @@ func CheckThresholds(data *instruction.DataFixed, signers []common.Address, sPol
 	}
 
 	weight := policy.WeightOfSigners(signers, sPolicy)
-	if weight <= dpThreshold {
+	if dpThreshold > 0 && weight <= dpThreshold { // a zero threshold disables the weight check
 		return errors.New("data providers threshold not reached")
 	}
 
@@ -75,12 +75,6 @@ func dataProvidersThreshold(data *instruction.DataFixed, totalWeight uint16) (ui
 	var threshold uint16
 	p := pair{op.HashToOPType(data.OPType), op.HashToOPCommand(data.OPCommand)}
 	switch p {
-	case pair{op.Wallet, op.KeyDataProviderRestore}:
-		// No voting weight threshold for restore — provider participation is
-		// enforced cryptographically via Shamir secret sharing (ProvidersThreshold)
-		// during key reconstruction, not through voting weight.
-		threshold = 0
-
 	case pair{op.FDC2, op.Prove}:
 		request, err := fdc.DecodeRequest(data.OriginalMessage)
 		if err != nil {

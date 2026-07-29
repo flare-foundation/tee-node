@@ -2,6 +2,7 @@ package router
 
 import (
 	"github.com/flare-foundation/go-flare-common/pkg/tee/op"
+	"github.com/flare-foundation/tee-node/internal/policy"
 	"github.com/flare-foundation/tee-node/internal/processors/direct"
 	"github.com/flare-foundation/tee-node/internal/processors/direct/getutils"
 	"github.com/flare-foundation/tee-node/internal/processors/direct/policyutils"
@@ -12,10 +13,9 @@ import (
 	"github.com/flare-foundation/tee-node/internal/processors/instructions/vrfutils"
 	"github.com/flare-foundation/tee-node/internal/processors/instructions/walletutils"
 	"github.com/flare-foundation/tee-node/internal/settings"
-	"github.com/flare-foundation/tee-node/pkg/policy"
-	"github.com/flare-foundation/tee-node/pkg/wallets"
+	"github.com/flare-foundation/tee-node/internal/wallets"
 
-	pnode "github.com/flare-foundation/tee-node/pkg/node"
+	pnode "github.com/flare-foundation/tee-node/internal/node"
 )
 
 // NewPMWRouter wires direct and instruction processors for the Protocol Managed
@@ -29,15 +29,18 @@ func NewPMWRouter(teeNode *pnode.Node, wStorage *wallets.Storage, pStorage *poli
 	r.RegisterDirectProcessor(op.Get, op.TEEInfo, gp.TEEInfo)
 	r.RegisterDirectProcessor(op.Get, op.TEEBackup, gp.TEEBackup)
 
-	pp := policyutils.NewProcessor(pStorage)
+	pp := policyutils.NewProcessor(teeNode, pStorage)
 	r.RegisterDirectProcessor(op.Policy, op.InitializePolicy, pp.InitializePolicy)
 	r.RegisterDirectProcessor(op.Policy, op.UpdatePolicy, pp.UpdatePolicy)
+	r.RegisterDirectProcessor(op.Governance, op.SetMachinePathList, pp.SetMachinePathList)
 
 	wp := walletutils.NewProcessor(teeNode, pStorage, wStorage)
 
 	r.RegisterInstructionProcessor(op.Wallet, op.KeyGenerate, instructions.NewProcessor(wp.KeyGenerate, teeNode, pStorage, true))
 	r.RegisterInstructionProcessor(op.Wallet, op.KeyDelete, instructions.NewProcessor(wp.KeyDelete, teeNode, pStorage, true))
 	r.RegisterInstructionProcessor(op.Wallet, op.KeyDataProviderRestore, instructions.NewProcessor(wp.KeyDataProviderRestore, teeNode, pStorage, true))
+	r.RegisterInstructionProcessor(op.Wallet, op.KeyDirectBackup, instructions.NewProcessor(wp.KeyDirectBackup, teeNode, pStorage, true))
+	r.RegisterInstructionProcessor(op.Wallet, op.KeyDirectRestore, instructions.NewProcessor(wp.KeyDirectRestore, teeNode, pStorage, true))
 
 	rp := regutils.NewProcessor(teeNode, pStorage)
 	r.RegisterInstructionProcessor(op.Reg, op.TEEAttestation, instructions.NewProcessor(rp.TEEAttestation, teeNode, pStorage, true))
@@ -66,14 +69,17 @@ func NewForwardRouter(teeNode *pnode.Node, wStorage *wallets.Storage, pStorage *
 	r.RegisterDirectProcessor(op.Get, op.TEEInfo, gp.TEEInfo)
 	r.RegisterDirectProcessor(op.Get, op.TEEBackup, gp.TEEBackup)
 
-	pp := policyutils.NewProcessor(pStorage)
+	pp := policyutils.NewProcessor(teeNode, pStorage)
 	r.RegisterDirectProcessor(op.Policy, op.InitializePolicy, pp.InitializePolicy)
 	r.RegisterDirectProcessor(op.Policy, op.UpdatePolicy, pp.UpdatePolicy)
+	r.RegisterDirectProcessor(op.Governance, op.SetMachinePathList, pp.SetMachinePathList)
 
 	wp := walletutils.NewProcessor(teeNode, pStorage, wStorage)
 	r.RegisterInstructionProcessor(op.Wallet, op.KeyGenerate, instructions.NewProcessor(wp.KeyGenerate, teeNode, pStorage, true))
 	r.RegisterInstructionProcessor(op.Wallet, op.KeyDelete, instructions.NewProcessor(wp.KeyDelete, teeNode, pStorage, true))
 	r.RegisterInstructionProcessor(op.Wallet, op.KeyDataProviderRestore, instructions.NewProcessor(wp.KeyDataProviderRestore, teeNode, pStorage, true))
+	r.RegisterInstructionProcessor(op.Wallet, op.KeyDirectBackup, instructions.NewProcessor(wp.KeyDirectBackup, teeNode, pStorage, true))
+	r.RegisterInstructionProcessor(op.Wallet, op.KeyDirectRestore, instructions.NewProcessor(wp.KeyDirectRestore, teeNode, pStorage, true))
 
 	rp := regutils.NewProcessor(teeNode, pStorage)
 	r.RegisterInstructionProcessor(op.Reg, op.TEEAttestation, instructions.NewProcessor(rp.TEEAttestation, teeNode, pStorage, true))

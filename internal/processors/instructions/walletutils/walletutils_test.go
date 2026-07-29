@@ -9,14 +9,15 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/flare-foundation/tee-node/internal/node"
+	"github.com/flare-foundation/tee-node/internal/policy"
 	"github.com/flare-foundation/tee-node/internal/processors/instructions/walletutils"
 	"github.com/flare-foundation/tee-node/internal/testutils"
+	walletstorage "github.com/flare-foundation/tee-node/internal/wallets"
 	"github.com/flare-foundation/tee-node/internal/wallets/backup"
-	"github.com/flare-foundation/tee-node/pkg/node"
-	"github.com/flare-foundation/tee-node/pkg/policy"
 	"github.com/flare-foundation/tee-node/pkg/types"
 	"github.com/flare-foundation/tee-node/pkg/utils"
-	"github.com/flare-foundation/tee-node/pkg/wallets"
+	wallets "github.com/flare-foundation/tee-node/pkg/wallets"
 	pkgbackup "github.com/flare-foundation/tee-node/pkg/wallets/backup"
 
 	"github.com/ethereum/go-ethereum/accounts/abi"
@@ -27,11 +28,20 @@ import (
 	"github.com/ethereum/go-ethereum/crypto/secp256k1"
 	commonpolicy "github.com/flare-foundation/go-flare-common/pkg/policy"
 	"github.com/flare-foundation/go-flare-common/pkg/random"
+	csigning "github.com/flare-foundation/go-flare-common/pkg/signing"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/instruction"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/op"
+	"github.com/flare-foundation/go-flare-common/pkg/tee/structs/machinepath"
 	cwallet "github.com/flare-foundation/go-flare-common/pkg/tee/structs/wallet"
 	"github.com/stretchr/testify/require"
 )
+
+// walletPubKey converts an ECDSA public key to the cwallet.PublicKey
+// tuple carried in KEY_DIRECT_BACKUP requests.
+func walletPubKey(pub *ecdsa.PublicKey) cwallet.PublicKey {
+	s := types.PubKeyToStruct(pub)
+	return cwallet.PublicKey{X: s.X, Y: s.Y}
+}
 
 // * ========================== KEY GENERATE ========================== *
 
@@ -39,7 +49,7 @@ import (
 type keyGenerateTestSetup struct {
 	testNode              *node.Node
 	pStorage              *policy.Storage
-	wStorage              *wallets.Storage
+	wStorage              *walletstorage.Storage
 	walletID              common.Hash
 	keyID                 uint64
 	teeID                 common.Address
@@ -153,7 +163,7 @@ func TestKeyGenerate(t *testing.T) {
 	response, _, err := setup.processor.KeyGenerate(context.Background(), types.Threshold, instruction, nil, nil, nil)
 	require.NoError(t, err)
 
-	walletExistenceProof, err := wallets.ExtractKeyExistence(response, setup.teeID)
+	walletExistenceProof, err := wallets.ExtractKeyExistence(response, setup.teeID, uint64(31337))
 	require.NoError(t, err)
 
 	require.Equal(t, setup.teeID, walletExistenceProof.TeeId)
@@ -338,7 +348,7 @@ func TestParseKeyGenerateInvalidData(t *testing.T) {
 type keyDeleteTestSetup struct {
 	testNode     *node.Node
 	pStorage     *policy.Storage
-	wStorage     *wallets.Storage
+	wStorage     *walletstorage.Storage
 	walletID     common.Hash
 	keyID        uint64
 	teeID        common.Address
@@ -434,7 +444,7 @@ func TestKeyDelete(t *testing.T) {
 	require.False(t, setup.wStorage.WalletExists(idPair))
 	_, err = setup.wStorage.Get(idPair)
 	require.Error(t, err)
-	require.Equal(t, wallets.ErrWalletNonExistent, err)
+	require.Equal(t, walletstorage.ErrWalletNonExistent, err)
 
 	// check that the nonce is updated (the wallet status is persisted)
 	nonce, err = setup.wStorage.Nonce(idPair)
@@ -531,6 +541,25 @@ func TestKeyDeleteInvalidNonce(t *testing.T) {
 	require.True(t, setup.wStorage.WalletExists(idPair))
 }
 
+func TestKeyDeleteTeeIDMismatch(t *testing.T) {
+	setup := setupKeyDeleteTest(t)
+
+	msg := setup.defaultKeyDeleteMessage(1)
+	msg.TeeId = common.HexToAddress("0x1234567890abcdef1234567890abcdef12345678")
+	deleteInstruction := setup.buildKeyDeleteInstruction(t, msg)
+
+	_, _, err := setup.processor.KeyDelete(context.Background(), types.Threshold, deleteInstruction, nil, nil, nil)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "does not match this TEE")
+
+	// Verify wallet still exists and nonce is unchanged
+	idPair := wallets.KeyIDPair{WalletID: setup.walletID, KeyID: setup.keyID}
+	require.True(t, setup.wStorage.WalletExists(idPair))
+	nonce, err := setup.wStorage.Nonce(idPair)
+	require.NoError(t, err)
+	require.Equal(t, uint64(0), nonce)
+}
+
 func TestKeyDeleteNonceTooSmall(t *testing.T) {
 	setup := setupKeyDeleteTest(t)
 
@@ -571,7 +600,7 @@ func TestKeyDeleteNonceTooSmall(t *testing.T) {
 type keyDataProviderRestoreTestSetup struct {
 	testNode        *node.Node
 	pStorage        *policy.Storage
-	wStorage        *wallets.Storage
+	wStorage        *walletstorage.Storage
 	walletID        common.Hash
 	keyID           uint64
 	teeID           common.Address
@@ -637,7 +666,7 @@ func setupKeyDataProviderRestoreTestWithAdminsAndProviders(
 	voterPrivKeys []*ecdsa.PrivateKey,
 	testNode *node.Node,
 	pStorage *policy.Storage,
-	wStorage *wallets.Storage,
+	wStorage *walletstorage.Storage,
 	epochID uint32,
 	initialPolicy *commonpolicy.SigningPolicy,
 ) *keyDataProviderRestoreTestSetup {
@@ -670,6 +699,7 @@ func setupKeyDataProviderRestoreTestWithAdminsAndProviders(
 		weights,
 		initialPolicy.RewardEpochID,
 		testNode.TeeID(),
+		uint64(31337),
 		backup.NormalizationConstant,
 		backup.DataProvidersThreshold,
 	)
@@ -738,7 +768,7 @@ func (s *keyDataProviderRestoreTestSetup) buildVariableMessagesWithAdmins(
 		if isAdminAndProvider[i] {
 			continue
 		}
-		share, err := pkgbackup.DecryptSplit(s.walletBackup.ProviderEncryptedParts.Splits[i], s.voterPrivKeys[i])
+		share, err := pkgbackup.DecryptSplit(s.walletBackup.ProviderEncryptedParts.Splits[i], s.voterPrivKeys[i], uint64(31337))
 		require.NoError(t, err)
 
 		var shareBytes []byte
@@ -755,7 +785,7 @@ func (s *keyDataProviderRestoreTestSetup) buildVariableMessagesWithAdmins(
 		if isAdminAndProvider[i] {
 			continue
 		}
-		adminShare, err := pkgbackup.DecryptSplit(s.walletBackup.AdminEncryptedParts.Splits[i], s.adminPrivKeys[i])
+		adminShare, err := pkgbackup.DecryptSplit(s.walletBackup.AdminEncryptedParts.Splits[i], s.adminPrivKeys[i], uint64(31337))
 		require.NoError(t, err)
 		adminShareBytes, err := json.Marshal(adminShare)
 		require.NoError(t, err)
@@ -770,9 +800,9 @@ func (s *keyDataProviderRestoreTestSetup) buildVariableMessagesWithAdmins(
 			continue
 		}
 
-		adminShare, err := pkgbackup.DecryptSplit(s.walletBackup.AdminEncryptedParts.Splits[i], s.adminPrivKeys[i])
+		adminShare, err := pkgbackup.DecryptSplit(s.walletBackup.AdminEncryptedParts.Splits[i], s.adminPrivKeys[i], uint64(31337))
 		require.NoError(t, err)
-		providerShare, err := pkgbackup.DecryptSplit(s.walletBackup.ProviderEncryptedParts.Splits[i], s.voterPrivKeys[i])
+		providerShare, err := pkgbackup.DecryptSplit(s.walletBackup.ProviderEncryptedParts.Splits[i], s.voterPrivKeys[i], uint64(31337))
 		require.NoError(t, err)
 
 		bothShares, err := json.Marshal([2]*pkgbackup.KeySplit{adminShare, providerShare})
@@ -859,12 +889,12 @@ func (s *keyDataProviderRestoreTestSetup) buildVariableMessagesWithInvalidSignat
 
 		if invalidIndex < numProviders {
 			var err error
-			share, err = pkgbackup.DecryptSplit(s.walletBackup.ProviderEncryptedParts.Splits[invalidIndex], s.voterPrivKeys[invalidIndex])
+			share, err = pkgbackup.DecryptSplit(s.walletBackup.ProviderEncryptedParts.Splits[invalidIndex], s.voterPrivKeys[invalidIndex], uint64(31337))
 			require.NoError(t, err)
 		} else {
 			adminIndex := invalidIndex - numProviders
 			var err error
-			share, err = pkgbackup.DecryptSplit(s.walletBackup.AdminEncryptedParts.Splits[adminIndex], s.adminPrivKeys[adminIndex])
+			share, err = pkgbackup.DecryptSplit(s.walletBackup.AdminEncryptedParts.Splits[adminIndex], s.adminPrivKeys[adminIndex], uint64(31337))
 			require.NoError(t, err)
 		}
 
@@ -895,7 +925,7 @@ func TestKeyDataProviderRestore(t *testing.T) {
 	require.NotNil(t, resp)
 	require.NotNil(t, status)
 
-	proof, err := wallets.ExtractKeyExistence(resp, setup.teeID)
+	proof, err := wallets.ExtractKeyExistence(resp, setup.teeID, uint64(31337))
 	require.NoError(t, err)
 	require.Equal(t, [32]byte(setup.walletID), proof.WalletId)
 	require.Equal(t, setup.keyID, proof.KeyId)
@@ -930,7 +960,7 @@ func TestKeyDataProviderRestoreAdminThresholdNotMet(t *testing.T) {
 
 	_, _, err := setup.processor.KeyDataProviderRestore(context.Background(), types.Threshold, restoreInstruction, variableMessages, signers, nil)
 	require.Error(t, err)
-	require.True(t, err.Error() == "admin threshold not reached")
+	require.Contains(t, err.Error(), "threshold of shares is not reached")
 }
 
 func TestKeyDataProviderRestoreProviderThresholdNotMet(t *testing.T) {
@@ -1186,41 +1216,32 @@ func TestKeyDataProviderRestoreDecryptionFailure(t *testing.T) {
 	require.Contains(t, restoreStatus.ErrorPositions, 0)
 }
 
-func TestKeyDataProviderRestoreUnauthorizedSigner(t *testing.T) {
+// TestKeyDataProviderRestoreGarbageMessagesFailClosed verifies that messages
+// which are not valid re-encrypted key splits contribute nothing: without any
+// valid shares the restore fails at reconstruction. Signer-set membership is
+// enforced by the instruction pipeline, not by this processor.
+func TestKeyDataProviderRestoreGarbageMessagesFailClosed(t *testing.T) {
 	setup := setupKeyDataProviderRestoreTest(t)
 
-	// Build normal admin messages
-	_, adminSigners := setup.buildVariableMessages(t, 0, len(setup.adminPrivKeys))
-
-	// Create unauthorized signers (not in voter set and not admins)
-	unauthorizedPrivKeys := make([]*ecdsa.PrivateKey, 3)
-	unauthorizedSigners := make([]common.Address, 3, 3+len(adminSigners))
-	variableMessages := make([]hexutil.Bytes, 3, 3+len(adminSigners))
-
+	signers := make([]common.Address, 3)
+	variableMessages := make([]hexutil.Bytes, 3)
 	for i := range 3 {
-		var err error
-		unauthorizedPrivKeys[i], err = crypto.GenerateKey()
+		privKey, err := crypto.GenerateKey()
 		require.NoError(t, err)
-		unauthorizedSigners[i] = crypto.PubkeyToAddress(unauthorizedPrivKeys[i].PublicKey)
+		signers[i] = crypto.PubkeyToAddress(privKey.PublicKey)
 
-		// Create some dummy encrypted message
-		dummyData := []byte("unauthorized data")
-		cipher, err := ecies.Encrypt(rand.Reader, setup.eciesPub, dummyData, nil, nil)
+		cipher, err := ecies.Encrypt(rand.Reader, setup.eciesPub, []byte("unauthorized data"), nil, nil)
 		require.NoError(t, err)
 		variableMessages[i] = cipher
 	}
 
-	// Add admin signers
-	variableMessages = append(variableMessages, make([]hexutil.Bytes, len(adminSigners))...)
-	copy(variableMessages[3:], make([]hexutil.Bytes, len(adminSigners)))
-	unauthorizedSigners = append(unauthorizedSigners, adminSigners...)
-
 	restoreReq := setup.buildDefaultRestoreRequest(big.NewInt(int64(setup.nonce)))
 	restoreInstruction := setup.buildRestoreInstruction(t, restoreReq)
 
-	_, _, err := setup.processor.KeyDataProviderRestore(context.Background(), types.Threshold, restoreInstruction, variableMessages, unauthorizedSigners, nil)
+	_, _, err := setup.processor.KeyDataProviderRestore(context.Background(), types.Threshold, restoreInstruction, variableMessages, signers, nil)
 	require.Error(t, err)
-	require.Equal(t, err.Error(), "signed by an entity that is nether a provider nor an admin")
+	require.Contains(t, err.Error(), "shares should not be empty")
+	require.False(t, setup.wStorage.WalletExists(wallets.KeyIDPair{WalletID: setup.walletID, KeyID: setup.keyID}))
 }
 
 func TestKeyDataProviderRestoreInvalidBackupIdTeeID(t *testing.T) {
@@ -1318,7 +1339,7 @@ func TestKeyDataProviderRestoreWithProviderAsAdmin(t *testing.T) {
 	require.NotNil(t, resp)
 	require.NotNil(t, status)
 
-	proof, err := wallets.ExtractKeyExistence(resp, setup.teeID)
+	proof, err := wallets.ExtractKeyExistence(resp, setup.teeID, uint64(31337))
 	require.NoError(t, err)
 	require.Equal(t, [32]byte(setup.walletID), proof.WalletId)
 	require.Equal(t, setup.keyID, proof.KeyId)
@@ -1342,4 +1363,991 @@ func TestKeyDataProviderRestoreWithProviderAsAdmin(t *testing.T) {
 	require.NoError(t, err)
 	require.Nil(t, resp)
 	require.Equal(t, status, endStatus)
+}
+
+// TestKeyDataProviderRestoreWithoutBackupEpochPolicy verifies that a node that
+// never held the signing policy of the backup's reward epoch (e.g. it joined
+// later) can still restore: provider participation is enforced by the
+// wallet-signed key splits and the Shamir thresholds, not by historical policy
+// membership.
+func TestKeyDataProviderRestoreWithoutBackupEpochPolicy(t *testing.T) {
+	setup := setupKeyDataProviderRestoreTest(t)
+
+	variableMessages, signers := setup.buildVariableMessages(t, len(setup.voterPrivKeys), len(setup.adminPrivKeys))
+	restoreInstruction := setup.buildRestoreInstruction(t, setup.buildDefaultRestoreRequest(big.NewInt(int64(setup.nonce))))
+
+	restoreProcessor := walletutils.NewProcessor(setup.testNode, policy.InitializeStorage(), setup.wStorage)
+
+	resp, status, err := restoreProcessor.KeyDataProviderRestore(context.Background(), types.Threshold, restoreInstruction, variableMessages, signers, nil)
+	require.NoError(t, err)
+	require.NotNil(t, resp)
+	require.NotNil(t, status)
+
+	var restoreStatus wallets.KeyDataProviderRestoreResultStatus
+	require.NoError(t, json.Unmarshal(status, &restoreStatus))
+	require.Empty(t, restoreStatus.ErrorLogs)
+
+	restoredWallet, err := setup.wStorage.Get(wallets.KeyIDPair{WalletID: setup.walletID, KeyID: setup.keyID})
+	require.NoError(t, err)
+	require.True(t, restoredWallet.Restored)
+}
+
+// TestKeyDataProviderRestoreCourierSubmission verifies the courier model:
+// valid re-encrypted shares are the restore credential, regardless of which
+// signer addresses carry them. Signer-set membership is the pipeline's job.
+func TestKeyDataProviderRestoreCourierSubmission(t *testing.T) {
+	setup := setupKeyDataProviderRestoreTest(t)
+
+	variableMessages, _ := setup.buildVariableMessages(t, len(setup.voterPrivKeys), len(setup.adminPrivKeys))
+
+	foreignSigners := make([]common.Address, len(variableMessages))
+	for i := range foreignSigners {
+		privKey, err := crypto.GenerateKey()
+		require.NoError(t, err)
+		foreignSigners[i] = crypto.PubkeyToAddress(privKey.PublicKey)
+	}
+
+	restoreInstruction := setup.buildRestoreInstruction(t, setup.buildDefaultRestoreRequest(big.NewInt(int64(setup.nonce))))
+
+	resp, _, err := setup.processor.KeyDataProviderRestore(context.Background(), types.Threshold, restoreInstruction, variableMessages, foreignSigners, nil)
+	require.NoError(t, err)
+	require.NotNil(t, resp)
+
+	restoredWallet, err := setup.wStorage.Get(wallets.KeyIDPair{WalletID: setup.walletID, KeyID: setup.keyID})
+	require.NoError(t, err)
+	require.True(t, restoredWallet.Restored)
+}
+
+// TestKeyDataProviderRestoreTamperedIsAdminFlag verifies that the IsAdmin flag
+// used to classify splits is covered by the wallet-key signature: a flipped
+// flag invalidates the split, which is logged and skipped.
+func TestKeyDataProviderRestoreTamperedIsAdminFlag(t *testing.T) {
+	setup := setupKeyDataProviderRestoreTest(t)
+
+	variableMessages, signers := setup.buildVariableMessages(t, len(setup.voterPrivKeys), len(setup.adminPrivKeys))
+
+	share, err := pkgbackup.DecryptSplit(setup.walletBackup.ProviderEncryptedParts.Splits[0], setup.voterPrivKeys[0], uint64(31337))
+	require.NoError(t, err)
+	share.IsAdmin = true
+	shareBytes, err := json.Marshal(share)
+	require.NoError(t, err)
+	cipher, err := ecies.Encrypt(rand.Reader, setup.eciesPub, shareBytes, nil, nil)
+	require.NoError(t, err)
+	variableMessages[0] = cipher
+
+	restoreInstruction := setup.buildRestoreInstruction(t, setup.buildDefaultRestoreRequest(big.NewInt(int64(setup.nonce))))
+
+	_, status, err := setup.processor.KeyDataProviderRestore(context.Background(), types.Threshold, restoreInstruction, variableMessages, signers, nil)
+	require.NoError(t, err)
+
+	var restoreStatus wallets.KeyDataProviderRestoreResultStatus
+	require.NoError(t, json.Unmarshal(status, &restoreStatus))
+	require.Len(t, restoreStatus.ErrorPositions, 1)
+	require.Contains(t, restoreStatus.ErrorPositions, 0)
+
+	// The remaining shares still meet the thresholds.
+	restoredWallet, err := setup.wStorage.Get(wallets.KeyIDPair{WalletID: setup.walletID, KeyID: setup.keyID})
+	require.NoError(t, err)
+	require.True(t, restoredWallet.Restored)
+}
+
+// TestKeyDataProviderRestoreCosignerBinding pins the cosigner-to-admin binding
+// that the instruction pipeline's cosigner-threshold check relies on: with the
+// backup-epoch signer check removed, this binding is what enforces the admin
+// threshold on the signer set.
+func TestKeyDataProviderRestoreCosignerBinding(t *testing.T) {
+	t.Run("missing cosigner", func(t *testing.T) {
+		setup := setupKeyDataProviderRestoreTest(t)
+		variableMessages, signers := setup.buildVariableMessages(t, len(setup.voterPrivKeys), len(setup.adminPrivKeys))
+		restoreInstruction := setup.buildRestoreInstruction(t, setup.buildDefaultRestoreRequest(big.NewInt(int64(setup.nonce))))
+		restoreInstruction.Cosigners = restoreInstruction.Cosigners[:len(restoreInstruction.Cosigners)-1]
+
+		_, _, err := setup.processor.KeyDataProviderRestore(context.Background(), types.Threshold, restoreInstruction, variableMessages, signers, nil)
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "number of provided cosigners does not match")
+	})
+
+	t.Run("mismatched threshold", func(t *testing.T) {
+		setup := setupKeyDataProviderRestoreTest(t)
+		variableMessages, signers := setup.buildVariableMessages(t, len(setup.voterPrivKeys), len(setup.adminPrivKeys))
+		restoreInstruction := setup.buildRestoreInstruction(t, setup.buildDefaultRestoreRequest(big.NewInt(int64(setup.nonce))))
+		restoreInstruction.CosignersThreshold--
+
+		_, _, err := setup.processor.KeyDataProviderRestore(context.Background(), types.Threshold, restoreInstruction, variableMessages, signers, nil)
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "threshold of provided cosigners does not match")
+	})
+}
+
+// TestKeyDataProviderRestoreSingleSplitInArrayForm verifies that a single
+// split wrapped in a JSON array is accepted alongside the bare-object form.
+func TestKeyDataProviderRestoreSingleSplitInArrayForm(t *testing.T) {
+	setup := setupKeyDataProviderRestoreTest(t)
+
+	variableMessages, signers := setup.buildVariableMessages(t, len(setup.voterPrivKeys), len(setup.adminPrivKeys))
+
+	share, err := pkgbackup.DecryptSplit(setup.walletBackup.ProviderEncryptedParts.Splits[0], setup.voterPrivKeys[0], uint64(31337))
+	require.NoError(t, err)
+	arrayBytes, err := json.Marshal([]*pkgbackup.KeySplit{share})
+	require.NoError(t, err)
+	cipher, err := ecies.Encrypt(rand.Reader, setup.eciesPub, arrayBytes, nil, nil)
+	require.NoError(t, err)
+	variableMessages[0] = cipher
+
+	restoreInstruction := setup.buildRestoreInstruction(t, setup.buildDefaultRestoreRequest(big.NewInt(int64(setup.nonce))))
+
+	_, status, err := setup.processor.KeyDataProviderRestore(context.Background(), types.Threshold, restoreInstruction, variableMessages, signers, nil)
+	require.NoError(t, err)
+
+	var restoreStatus wallets.KeyDataProviderRestoreResultStatus
+	require.NoError(t, json.Unmarshal(status, &restoreStatus))
+	require.Empty(t, restoreStatus.ErrorLogs)
+
+	restoredWallet, err := setup.wStorage.Get(wallets.KeyIDPair{WalletID: setup.walletID, KeyID: setup.keyID})
+	require.NoError(t, err)
+	require.True(t, restoredWallet.Restored)
+}
+
+// TestKeyDataProviderRestoreTooManySplitsInMessage verifies the per-message
+// split cap: a message carrying more than maxKeySplitsPerMessage splits is
+// rejected as a whole (logged and skipped).
+func TestKeyDataProviderRestoreTooManySplitsInMessage(t *testing.T) {
+	setup := setupKeyDataProviderRestoreTest(t)
+
+	variableMessages, signers := setup.buildVariableMessages(t, len(setup.voterPrivKeys), len(setup.adminPrivKeys))
+
+	oversized := make([]*pkgbackup.KeySplit, 3)
+	for i := range oversized {
+		var err error
+		oversized[i], err = pkgbackup.DecryptSplit(setup.walletBackup.ProviderEncryptedParts.Splits[i], setup.voterPrivKeys[i], uint64(31337))
+		require.NoError(t, err)
+	}
+	oversizedBytes, err := json.Marshal(oversized)
+	require.NoError(t, err)
+	cipher, err := ecies.Encrypt(rand.Reader, setup.eciesPub, oversizedBytes, nil, nil)
+	require.NoError(t, err)
+	variableMessages = append(variableMessages, cipher)
+	signers = append(signers, signers[0])
+
+	restoreInstruction := setup.buildRestoreInstruction(t, setup.buildDefaultRestoreRequest(big.NewInt(int64(setup.nonce))))
+
+	_, status, err := setup.processor.KeyDataProviderRestore(context.Background(), types.Threshold, restoreInstruction, variableMessages, signers, nil)
+	require.NoError(t, err)
+
+	var restoreStatus wallets.KeyDataProviderRestoreResultStatus
+	require.NoError(t, json.Unmarshal(status, &restoreStatus))
+	require.Len(t, restoreStatus.ErrorPositions, 1)
+	require.Contains(t, restoreStatus.ErrorPositions, len(variableMessages)-1)
+
+	restoredWallet, err := setup.wStorage.Get(wallets.KeyIDPair{WalletID: setup.walletID, KeyID: setup.keyID})
+	require.NoError(t, err)
+	require.True(t, restoredWallet.Restored)
+}
+
+// TestKeyDataProviderRestoreFutureBackupEpoch verifies the sanity bound on the
+// backup's reward epoch: more than one epoch ahead of the instruction's
+// (quorum-signed) reward epoch is rejected, while exactly one epoch ahead —
+// a backup taken under a newer policy than the instruction's epoch — is
+// accepted. There is no lower bound: old backups stay restorable.
+func TestKeyDataProviderRestoreFutureBackupEpoch(t *testing.T) {
+	t.Run("more than one epoch ahead rejected", func(t *testing.T) {
+		setup := setupKeyDataProviderRestoreTest(t)
+
+		// Stamp the backup id two epochs ahead of the instruction's epoch. The
+		// bound fires before share processing, so no messages are needed.
+		setup.walletBackup.RewardEpochID = setup.epochID + 2
+
+		restoreInstruction := setup.buildRestoreInstruction(t, setup.buildDefaultRestoreRequest(big.NewInt(int64(setup.nonce))))
+
+		_, _, err := setup.processor.KeyDataProviderRestore(context.Background(), types.Threshold, restoreInstruction, nil, nil, nil)
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "is in the future of instruction reward epoch")
+	})
+
+	t.Run("one epoch ahead accepted", func(t *testing.T) {
+		setup := setupKeyDataProviderRestoreTest(t)
+
+		futureBackup, err := backup.BackupWallet(
+			setup.storedWallet,
+			setup.providerPubKeys,
+			setup.weights,
+			setup.epochID+1,
+			setup.testNode.TeeID(),
+			uint64(31337),
+			backup.NormalizationConstant,
+			backup.DataProvidersThreshold,
+		)
+		require.NoError(t, err)
+		setup.walletBackup = futureBackup
+
+		variableMessages, signers := setup.buildVariableMessages(t, len(setup.voterPrivKeys), len(setup.adminPrivKeys))
+		restoreInstruction := setup.buildRestoreInstruction(t, setup.buildDefaultRestoreRequest(big.NewInt(int64(setup.nonce))))
+
+		resp, _, err := setup.processor.KeyDataProviderRestore(context.Background(), types.Threshold, restoreInstruction, variableMessages, signers, nil)
+		require.NoError(t, err)
+		require.NotNil(t, resp)
+
+		restoredWallet, err := setup.wStorage.Get(wallets.KeyIDPair{WalletID: setup.walletID, KeyID: setup.keyID})
+		require.NoError(t, err)
+		require.True(t, restoredWallet.Restored)
+	})
+}
+
+// * ========================== KEY DIRECT BACKUP ========================== *
+
+// installSingleMachinePath stores a single (source -> destinations) machine
+// path on n at the given nonce.
+func installSingleMachinePath(t *testing.T, n *node.Node, source common.Address, destinations []common.Address, nonce uint64) {
+	t.Helper()
+	require.NoError(t, n.SetMachinePathList([]machinepath.IMachinePathManagerMachinePath{{
+		SourceTeeIds:      []common.Address{source},
+		DestinationTeeIds: destinations,
+	}}, nonce))
+}
+
+// buildKeyDirectBackupInstruction encodes a KEY_DIRECT_BACKUP request and
+// wraps it in an instruction.DataFixed. machinePathListNonce is
+// parameterised so tests can drive freshness checks.
+func (s *keyGenerateTestSetup) buildKeyDirectBackupInstruction(
+	t *testing.T,
+	destinationPubKey *ecdsa.PublicKey,
+	machinePathListNonce uint64,
+) *instruction.DataFixed {
+	t.Helper()
+
+	req := cwallet.IWalletBackupManagerKeyDirectBackup{
+		SourceTeeId:             s.teeID,
+		WalletId:                s.walletID,
+		KeyId:                   s.keyID,
+		DestinationTeePublicKey: walletPubKey(destinationPubKey),
+		MachinePathListNonce:    new(big.Int).SetUint64(machinePathListNonce),
+	}
+
+	encoded, err := abi.Arguments{cwallet.MessageArguments[op.KeyDirectBackup]}.Pack(req)
+	require.NoError(t, err)
+
+	instructionID, err := random.Hash()
+	require.NoError(t, err)
+
+	return &instruction.DataFixed{
+		InstructionID:          instructionID,
+		TeeID:                  s.teeID,
+		RewardEpochID:          s.epochID,
+		OPType:                 op.Wallet.Hash(),
+		OPCommand:              op.KeyDirectBackup.Hash(),
+		OriginalMessage:        encoded,
+		AdditionalFixedMessage: nil,
+	}
+}
+
+// generateAndStoreKey provisions a wallet via KeyGenerate and returns its
+// KeyIDPair.
+func (s *keyGenerateTestSetup) generateAndStoreKey(t *testing.T, signingAlgo, keyType common.Hash) wallets.KeyIDPair {
+	t.Helper()
+
+	msg := s.defaultKeyGenerateMessage()
+	msg.SigningAlgo = signingAlgo
+	msg.KeyType = keyType
+	inst := s.buildKeyGenerateInstruction(t, msg)
+	_, _, err := s.processor.KeyGenerate(context.Background(), types.Threshold, inst, nil, nil, nil)
+	require.NoError(t, err)
+	return wallets.KeyIDPair{WalletID: s.walletID, KeyID: s.keyID}
+}
+
+func TestKeyDirectBackupHappyPath(t *testing.T) {
+	setup := setupKeyGenerateTest(t)
+	id := setup.generateAndStoreKey(t, wallets.EVMSignAlgo, wallets.EVMType)
+
+	destinationPriv, err := crypto.GenerateKey()
+	require.NoError(t, err)
+	destinationAddr := crypto.PubkeyToAddress(destinationPriv.PublicKey)
+
+	installSingleMachinePath(t, setup.testNode, setup.testNode.TeeID(), []common.Address{destinationAddr}, 1)
+
+	inst := setup.buildKeyDirectBackupInstruction(t, &destinationPriv.PublicKey, 1)
+	envelopeBytes, status, err := setup.processor.KeyDirectBackup(context.Background(), types.Threshold, inst, nil, nil, nil)
+	require.NoError(t, err)
+	require.Nil(t, status)
+	require.NotEmpty(t, envelopeBytes)
+
+	// The envelope is plaintext, so parse it directly.
+	var envelope types.SignedKeyDirectBackup
+	require.NoError(t, json.Unmarshal(envelopeBytes, &envelope))
+	envelopeSignHash, err := csigning.NewPayload(csigning.TEEKeyDirectBackup, 31337, crypto.Keccak256Hash(envelope.Payload)).Hash()
+	require.NoError(t, err)
+	require.NoError(t, utils.VerifySignature(envelopeSignHash[:], envelope.TEESignature, setup.teeID))
+
+	var payload pkgbackup.KeyDirectBackupPayload
+	require.NoError(t, json.Unmarshal(envelope.Payload, &payload))
+	require.Equal(t, setup.teeID, payload.BackupID.TeeID)
+	require.Equal(t, id.WalletID, payload.BackupID.WalletID)
+	require.Equal(t, id.KeyID, payload.BackupID.KeyID)
+	require.Equal(t, wallets.EVMSignAlgo, payload.BackupID.SigningAlgo)
+	require.Equal(t, wallets.EVMType, payload.BackupID.KeyType)
+	require.NotEmpty(t, payload.BackupID.PublicKey)
+	require.NotEqual(t, common.Hash{}, payload.BackupID.RandomNonce)
+	require.NotEmpty(t, payload.EncryptedPrivateKey)
+
+	// Only EncryptedPrivateKey is encrypted; decrypting it with the
+	// destination's ECIES key must yield the source wallet's private key.
+	destinationECIES, err := utils.ECDSAPrivKeyToECIES(destinationPriv)
+	require.NoError(t, err)
+	decryptedKey, err := destinationECIES.Decrypt(payload.EncryptedPrivateKey, nil, nil)
+	require.NoError(t, err)
+
+	setup.wStorage.RLock()
+	stored, err := setup.wStorage.Get(id)
+	setup.wStorage.RUnlock()
+	require.NoError(t, err)
+	require.Equal(t, stored.PrivateKey, decryptedKey)
+}
+
+func TestKeyDirectBackupSelfNotOnSourceList(t *testing.T) {
+	setup := setupKeyGenerateTest(t)
+	setup.generateAndStoreKey(t, wallets.EVMSignAlgo, wallets.EVMType)
+
+	destinationPriv, err := crypto.GenerateKey()
+	require.NoError(t, err)
+
+	// Some unrelated TEE is on the source list — this node is not.
+	other := common.HexToAddress("0xdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef")
+	installSingleMachinePath(t, setup.testNode, other, nil, 1)
+
+	inst := setup.buildKeyDirectBackupInstruction(t, &destinationPriv.PublicKey, 1)
+	_, _, err = setup.processor.KeyDirectBackup(context.Background(), types.Threshold, inst, nil, nil, nil)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "no machine path authorizes")
+}
+
+func TestKeyDirectBackupSourceListEmpty(t *testing.T) {
+	setup := setupKeyGenerateTest(t)
+	setup.generateAndStoreKey(t, wallets.EVMSignAlgo, wallets.EVMType)
+
+	destinationPriv, err := crypto.GenerateKey()
+	require.NoError(t, err)
+
+	inst := setup.buildKeyDirectBackupInstruction(t, &destinationPriv.PublicKey, 0)
+	_, _, err = setup.processor.KeyDirectBackup(context.Background(), types.Threshold, inst, nil, nil, nil)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "no machine path authorizes")
+}
+
+func TestKeyDirectBackupDestinationNotOnDestinationList(t *testing.T) {
+	setup := setupKeyGenerateTest(t)
+	setup.generateAndStoreKey(t, wallets.EVMSignAlgo, wallets.EVMType)
+
+	destinationPriv, err := crypto.GenerateKey()
+	require.NoError(t, err)
+
+	// Source list contains self, but destination list does NOT contain
+	// the destination — some unrelated address sits there instead.
+	other := common.HexToAddress("0xdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef")
+	installSingleMachinePath(t, setup.testNode, setup.testNode.TeeID(), []common.Address{other}, 1)
+
+	inst := setup.buildKeyDirectBackupInstruction(t, &destinationPriv.PublicKey, 1)
+	_, _, err = setup.processor.KeyDirectBackup(context.Background(), types.Threshold, inst, nil, nil, nil)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "no machine path authorizes")
+}
+
+func TestKeyDirectBackupWrongSourceTeeId(t *testing.T) {
+	setup := setupKeyGenerateTest(t)
+	setup.generateAndStoreKey(t, wallets.EVMSignAlgo, wallets.EVMType)
+
+	destinationPriv, err := crypto.GenerateKey()
+	require.NoError(t, err)
+	installSingleMachinePath(t, setup.testNode, setup.testNode.TeeID(),
+		[]common.Address{crypto.PubkeyToAddress(destinationPriv.PublicKey)}, 1)
+
+	wrongTee := common.HexToAddress("0x1234567890123456789012345678901234567890")
+	req := cwallet.IWalletBackupManagerKeyDirectBackup{
+		SourceTeeId:             wrongTee,
+		WalletId:                setup.walletID,
+		KeyId:                   setup.keyID,
+		DestinationTeePublicKey: walletPubKey(&destinationPriv.PublicKey),
+		MachinePathListNonce:    big.NewInt(1),
+	}
+	encoded, err := abi.Arguments{cwallet.MessageArguments[op.KeyDirectBackup]}.Pack(req)
+	require.NoError(t, err)
+	instructionID, err := random.Hash()
+	require.NoError(t, err)
+	inst := &instruction.DataFixed{
+		InstructionID:   instructionID,
+		TeeID:           wrongTee,
+		RewardEpochID:   setup.epochID,
+		OPType:          op.Wallet.Hash(),
+		OPCommand:       op.KeyDirectBackup.Hash(),
+		OriginalMessage: encoded,
+	}
+
+	_, _, err = setup.processor.KeyDirectBackup(context.Background(), types.Threshold, inst, nil, nil, nil)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "requested sourceTeeId does not match")
+}
+
+func TestKeyDirectBackupMachinePathListNonceMismatch(t *testing.T) {
+	setup := setupKeyGenerateTest(t)
+	setup.generateAndStoreKey(t, wallets.EVMSignAlgo, wallets.EVMType)
+
+	destinationPriv, err := crypto.GenerateKey()
+	require.NoError(t, err)
+	installSingleMachinePath(t, setup.testNode, setup.testNode.TeeID(),
+		[]common.Address{crypto.PubkeyToAddress(destinationPriv.PublicKey)}, 5)
+
+	// Instruction claims path-list nonce 3 but node currently holds 5.
+	inst := setup.buildKeyDirectBackupInstruction(t, &destinationPriv.PublicKey, 3)
+	_, _, err = setup.processor.KeyDirectBackup(context.Background(), types.Threshold, inst, nil, nil, nil)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "machine-path-list nonce mismatch")
+}
+
+func TestKeyDirectBackupWalletMissing(t *testing.T) {
+	setup := setupKeyGenerateTest(t)
+
+	destinationPriv, err := crypto.GenerateKey()
+	require.NoError(t, err)
+	installSingleMachinePath(t, setup.testNode, setup.testNode.TeeID(),
+		[]common.Address{crypto.PubkeyToAddress(destinationPriv.PublicKey)}, 1)
+
+	inst := setup.buildKeyDirectBackupInstruction(t, &destinationPriv.PublicKey, 1)
+	_, _, err = setup.processor.KeyDirectBackup(context.Background(), types.Threshold, inst, nil, nil, nil)
+	require.Error(t, err)
+}
+
+func TestKeyDirectBackupInvalidPubKey(t *testing.T) {
+	setup := setupKeyGenerateTest(t)
+	setup.generateAndStoreKey(t, wallets.EVMSignAlgo, wallets.EVMType)
+	installSingleMachinePath(t, setup.testNode, setup.testNode.TeeID(), nil, 1)
+
+	req := cwallet.IWalletBackupManagerKeyDirectBackup{
+		SourceTeeId: setup.teeID,
+		WalletId:    setup.walletID,
+		KeyId:       setup.keyID,
+		DestinationTeePublicKey: cwallet.PublicKey{
+			X: [32]byte{0x01},
+			Y: [32]byte{0x02},
+		},
+		MachinePathListNonce: big.NewInt(1),
+	}
+	encoded, err := abi.Arguments{cwallet.MessageArguments[op.KeyDirectBackup]}.Pack(req)
+	require.NoError(t, err)
+
+	instructionID, err := random.Hash()
+	require.NoError(t, err)
+	inst := &instruction.DataFixed{
+		InstructionID:   instructionID,
+		TeeID:           setup.teeID,
+		RewardEpochID:   setup.epochID,
+		OPType:          op.Wallet.Hash(),
+		OPCommand:       op.KeyDirectBackup.Hash(),
+		OriginalMessage: encoded,
+	}
+
+	_, _, err = setup.processor.KeyDirectBackup(context.Background(), types.Threshold, inst, nil, nil, nil)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "invalid public key bytes")
+}
+
+func TestKeyDirectBackupUnsupportedSigningAlgo(t *testing.T) {
+	setup := setupKeyGenerateTest(t)
+
+	destinationPriv, err := crypto.GenerateKey()
+	require.NoError(t, err)
+	destinationAddr := crypto.PubkeyToAddress(destinationPriv.PublicKey)
+	installSingleMachinePath(t, setup.testNode, setup.testNode.TeeID(),
+		[]common.Address{destinationAddr}, 1)
+
+	// Inject a wallet whose SigningAlgo is not in wallets.Algos so the
+	// handler's algorithm check (and the helper's secp256k1 invariant)
+	// fires. We bypass KeyGenerate to avoid its own algo validation.
+	badAlgo := utils.ToHash("test-non-secp256k1-algo")
+	badWalletID := common.HexToHash("0xbad1")
+	badKeyID := uint64(7)
+	setup.wStorage.Lock()
+	require.NoError(t, setup.wStorage.Store(&wallets.Wallet{
+		WalletID:    badWalletID,
+		KeyID:       badKeyID,
+		PrivateKey:  make([]byte, 32),
+		KeyType:     wallets.EVMType,
+		SigningAlgo: badAlgo,
+		Status:      &wallets.WalletStatus{Nonce: 0},
+	}))
+	setup.wStorage.Unlock()
+
+	req := cwallet.IWalletBackupManagerKeyDirectBackup{
+		SourceTeeId:             setup.teeID,
+		WalletId:                badWalletID,
+		KeyId:                   badKeyID,
+		DestinationTeePublicKey: walletPubKey(&destinationPriv.PublicKey),
+		MachinePathListNonce:    big.NewInt(1),
+	}
+	encoded, err := abi.Arguments{cwallet.MessageArguments[op.KeyDirectBackup]}.Pack(req)
+	require.NoError(t, err)
+	instructionID, err := random.Hash()
+	require.NoError(t, err)
+	inst := &instruction.DataFixed{
+		InstructionID:   instructionID,
+		TeeID:           setup.teeID,
+		RewardEpochID:   setup.epochID,
+		OPType:          op.Wallet.Hash(),
+		OPCommand:       op.KeyDirectBackup.Hash(),
+		OriginalMessage: encoded,
+	}
+
+	_, _, err = setup.processor.KeyDirectBackup(context.Background(), types.Threshold, inst, nil, nil, nil)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "unsupported signing algorithm")
+}
+
+// * ========================== KEY DIRECT RESTORE ========================== *
+
+// stubWalletNode is a test implementation of node.WalletNode backed by an
+// explicit ECDSA key, giving tests control over both the private and
+// public halves of the destination's identity.
+type stubWalletNode struct {
+	privKey *ecdsa.PrivateKey
+	addr    common.Address
+	paths   []machinepath.IMachinePathManagerMachinePath
+	nonce   uint64
+}
+
+func newStubWalletNode(t *testing.T) *stubWalletNode {
+	t.Helper()
+
+	pk, err := crypto.GenerateKey()
+	require.NoError(t, err)
+	return &stubWalletNode{
+		privKey: pk,
+		addr:    crypto.PubkeyToAddress(pk.PublicKey),
+	}
+}
+
+func (s *stubWalletNode) TeeID() common.Address { return s.addr }
+
+func (s *stubWalletNode) Info() node.Info {
+	return node.Info{
+		TeeID:   s.addr,
+		ChainID: 31337,
+	}
+}
+
+func (s *stubWalletNode) ChainID() (uint64, error) {
+	return 31337, nil
+}
+
+func (s *stubWalletNode) Sign(hash []byte) ([]byte, error) {
+	return utils.Sign(hash, s.privKey)
+}
+
+func (s *stubWalletNode) Decrypt(ciphertext []byte) ([]byte, error) {
+	priv, err := utils.ECDSAPrivKeyToECIES(s.privKey)
+	if err != nil {
+		return nil, err
+	}
+	return priv.Decrypt(ciphertext, nil, nil)
+}
+
+func (s *stubWalletNode) MachinePaths() ([]machinepath.IMachinePathManagerMachinePath, uint64) {
+	out := make([]machinepath.IMachinePathManagerMachinePath, len(s.paths))
+	for i, p := range s.paths {
+		out[i] = machinepath.IMachinePathManagerMachinePath{
+			SourceTeeIds:      append([]common.Address(nil), p.SourceTeeIds...),
+			DestinationTeeIds: append([]common.Address(nil), p.DestinationTeeIds...),
+		}
+	}
+	return out, s.nonce
+}
+
+// directRestoreFixture bundles the source-side state and a destination
+// processor primed to consume the envelope produced by the source.
+type directRestoreFixture struct {
+	sourceSetup     *keyGenerateTestSetup
+	destination     *stubWalletNode
+	destStorage     *walletstorage.Storage
+	destProc        walletutils.Processor
+	envelope        []byte
+	payloadBackupID wallets.WalletBackupID
+	id              wallets.KeyIDPair
+}
+
+// setupDirectRestoreFixture provisions a source TEE with a wallet, runs
+// KEY_DIRECT_BACKUP for a freshly-generated destination stub, and
+// returns the resulting fixture.
+func setupDirectRestoreFixture(t *testing.T) *directRestoreFixture {
+	t.Helper()
+
+	sourceSetup := setupKeyGenerateTest(t)
+	sourceSetup.generateAndStoreKey(t, wallets.EVMSignAlgo, wallets.EVMType)
+
+	destination := newStubWalletNode(t)
+
+	// Source's list: itself as source, the destination as destination.
+	installSingleMachinePath(t, sourceSetup.testNode, sourceSetup.testNode.TeeID(),
+		[]common.Address{destination.addr}, 1)
+
+	// Destination's path list mirrors the source's so the destination
+	// also authorizes the direction.
+	destination.paths = []machinepath.IMachinePathManagerMachinePath{{
+		SourceTeeIds:      []common.Address{sourceSetup.testNode.TeeID()},
+		DestinationTeeIds: []common.Address{destination.addr},
+	}}
+	destination.nonce = 1
+
+	backupInst := sourceSetup.buildKeyDirectBackupInstruction(t, &destination.privKey.PublicKey, 1)
+	envelopeBytes, _, err := sourceSetup.processor.KeyDirectBackup(context.Background(), types.Threshold, backupInst, nil, nil, nil)
+	require.NoError(t, err)
+	require.NotEmpty(t, envelopeBytes)
+
+	// Parse the envelope so the restore helper can mirror its BackupID
+	// verbatim into the instruction (otherwise the
+	// matchesInstructionBackupId cross-check rejects).
+	var env types.SignedKeyDirectBackup
+	require.NoError(t, json.Unmarshal(envelopeBytes, &env))
+	var payload pkgbackup.KeyDirectBackupPayload
+	require.NoError(t, json.Unmarshal(env.Payload, &payload))
+
+	destStorage := walletstorage.InitializeStorage()
+	destProc := walletutils.NewProcessor(destination, sourceSetup.pStorage, destStorage)
+
+	return &directRestoreFixture{
+		sourceSetup:     sourceSetup,
+		destination:     destination,
+		destStorage:     destStorage,
+		destProc:        destProc,
+		envelope:        envelopeBytes,
+		payloadBackupID: payload.BackupID,
+		id:              wallets.KeyIDPair{WalletID: sourceSetup.walletID, KeyID: sourceSetup.keyID},
+	}
+}
+
+// walletBackupIDToABI converts a WalletBackupID to the
+// IWalletBackupManagerBackupId ABI tuple used by the restore request.
+func walletBackupIDToABI(id wallets.WalletBackupID) cwallet.IWalletBackupManagerBackupId {
+	return cwallet.IWalletBackupManagerBackupId{
+		TeeId:         id.TeeID,
+		WalletId:      id.WalletID,
+		KeyId:         id.KeyID,
+		KeyType:       id.KeyType,
+		SigningAlgo:   id.SigningAlgo,
+		PublicKey:     append([]byte(nil), id.PublicKey...),
+		RewardEpochId: id.RewardEpochID,
+		RandomNonce:   id.RandomNonce,
+	}
+}
+
+// restoreInstructionOpts collects the fields a restore instruction
+// builder may override per test.
+type restoreInstructionOpts struct {
+	destinationTeeID     common.Address
+	sourceTeeID          common.Address
+	backupID             cwallet.IWalletBackupManagerBackupId
+	destinationNonce     uint64
+	machinePathListNonce uint64
+	epochID              uint32
+	envelope             []byte
+}
+
+// buildKeyDirectRestoreInstruction encodes a KEY_DIRECT_RESTORE request
+// with the supplied options and attaches the envelope as
+// AdditionalFixedMessage.
+func buildKeyDirectRestoreInstruction(t *testing.T, opts restoreInstructionOpts) *instruction.DataFixed {
+	t.Helper()
+
+	instructionID, err := random.Hash()
+	require.NoError(t, err)
+
+	req := cwallet.IWalletBackupManagerKeyDirectRestore{
+		SourceTeeId:          opts.sourceTeeID,
+		SourceProxyUrl:       "test-proxy",
+		BackupId:             opts.backupID,
+		BackupInstructionId:  instructionID,
+		DestinationNonce:     new(big.Int).SetUint64(opts.destinationNonce),
+		MachinePathListNonce: new(big.Int).SetUint64(opts.machinePathListNonce),
+	}
+	encoded, err := abi.Arguments{cwallet.MessageArguments[op.KeyDirectRestore]}.Pack(req)
+	require.NoError(t, err)
+
+	return &instruction.DataFixed{
+		InstructionID:          instructionID,
+		TeeID:                  opts.destinationTeeID,
+		RewardEpochID:          opts.epochID,
+		OPType:                 op.Wallet.Hash(),
+		OPCommand:              op.KeyDirectRestore.Hash(),
+		OriginalMessage:        encoded,
+		AdditionalFixedMessage: opts.envelope,
+	}
+}
+
+// defaultRestoreOpts returns options preconfigured to match the fixture's
+// happy-path values. Tests override individual fields to drive negative
+// cases.
+func (fx *directRestoreFixture) defaultRestoreOpts() restoreInstructionOpts {
+	return restoreInstructionOpts{
+		destinationTeeID:     fx.destination.addr,
+		sourceTeeID:          fx.sourceSetup.testNode.TeeID(),
+		backupID:             walletBackupIDToABI(fx.payloadBackupID),
+		destinationNonce:     1,
+		machinePathListNonce: 1,
+		epochID:              fx.sourceSetup.epochID,
+		envelope:             fx.envelope,
+	}
+}
+
+func TestKeyDirectRestoreHappyPath(t *testing.T) {
+	fx := setupDirectRestoreFixture(t)
+
+	inst := buildKeyDirectRestoreInstruction(t, fx.defaultRestoreOpts())
+
+	resp, status, err := fx.destProc.KeyDirectRestore(context.Background(), types.Threshold, inst, nil, nil, nil)
+	require.NoError(t, err)
+	require.Nil(t, status)
+	require.NotNil(t, resp)
+
+	proof, err := wallets.ExtractKeyExistence(resp, fx.destination.addr, uint64(31337))
+	require.NoError(t, err)
+	require.Equal(t, [32]byte(fx.id.WalletID), proof.WalletId)
+	require.Equal(t, fx.id.KeyID, proof.KeyId)
+	require.True(t, proof.Restored)
+
+	fx.destStorage.RLock()
+	stored, err := fx.destStorage.Get(fx.id)
+	fx.destStorage.RUnlock()
+	require.NoError(t, err)
+	require.True(t, stored.Restored)
+
+	fx.sourceSetup.wStorage.RLock()
+	sourceWallet, err := fx.sourceSetup.wStorage.Get(fx.id)
+	fx.sourceSetup.wStorage.RUnlock()
+	require.NoError(t, err)
+	require.Equal(t, sourceWallet.PrivateKey, stored.PrivateKey)
+
+	gotNonce, err := fx.destStorage.Nonce(fx.id)
+	require.NoError(t, err)
+	require.Equal(t, uint64(1), gotNonce)
+}
+
+func TestKeyDirectRestoreSignatureMismatch(t *testing.T) {
+	fx := setupDirectRestoreFixture(t)
+
+	// Flip a byte in the TEE signature and re-marshal; restore must
+	// reject before reaching Decrypt.
+	var envelope types.SignedKeyDirectBackup
+	require.NoError(t, json.Unmarshal(fx.envelope, &envelope))
+	envelope.TEESignature[0] ^= 0x01
+	tampered, err := json.Marshal(envelope)
+	require.NoError(t, err)
+
+	opts := fx.defaultRestoreOpts()
+	opts.envelope = tampered
+	inst := buildKeyDirectRestoreInstruction(t, opts)
+
+	_, _, err = fx.destProc.KeyDirectRestore(context.Background(), types.Threshold, inst, nil, nil, nil)
+	require.Error(t, err)
+}
+
+func TestKeyDirectRestoreIdentityMismatch(t *testing.T) {
+	fx := setupDirectRestoreFixture(t)
+
+	// Instruction's BackupId.WalletId is altered, so it no longer matches
+	// the BackupID encoded inside the source-signed payload. The handler
+	// must reject before storing the wallet.
+	opts := fx.defaultRestoreOpts()
+	opts.backupID.WalletId = common.HexToHash("0xdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef")
+	inst := buildKeyDirectRestoreInstruction(t, opts)
+
+	_, _, err := fx.destProc.KeyDirectRestore(context.Background(), types.Threshold, inst, nil, nil, nil)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "payload BackupID does not match instruction BackupId")
+}
+
+func TestKeyDirectRestoreBackupIdSourceMismatch(t *testing.T) {
+	fx := setupDirectRestoreFixture(t)
+
+	// Instruction's BackupId.teeId no longer matches the top-level
+	// sourceTeeId — the early identity check rejects.
+	opts := fx.defaultRestoreOpts()
+	opts.backupID.TeeId = common.HexToAddress("0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
+	inst := buildKeyDirectRestoreInstruction(t, opts)
+
+	_, _, err := fx.destProc.KeyDirectRestore(context.Background(), types.Threshold, inst, nil, nil, nil)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "BackupId.teeId does not match sourceTeeId")
+}
+
+func TestKeyDirectRestoreSourceNotOnSourceList(t *testing.T) {
+	fx := setupDirectRestoreFixture(t)
+
+	// No path contains the source TEE on its source side.
+	fx.destination.paths = []machinepath.IMachinePathManagerMachinePath{{
+		SourceTeeIds:      []common.Address{common.HexToAddress("0xdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef")},
+		DestinationTeeIds: []common.Address{fx.destination.addr},
+	}}
+
+	inst := buildKeyDirectRestoreInstruction(t, fx.defaultRestoreOpts())
+
+	_, _, err := fx.destProc.KeyDirectRestore(context.Background(), types.Threshold, inst, nil, nil, nil)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "no machine path authorizes")
+}
+
+func TestKeyDirectRestoreMissingEnvelope(t *testing.T) {
+	fx := setupDirectRestoreFixture(t)
+
+	opts := fx.defaultRestoreOpts()
+	opts.envelope = nil
+	inst := buildKeyDirectRestoreInstruction(t, opts)
+
+	_, _, err := fx.destProc.KeyDirectRestore(context.Background(), types.Threshold, inst, nil, nil, nil)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "backup envelope missing")
+}
+
+func TestKeyDirectRestoreSelfNotOnDestinationList(t *testing.T) {
+	fx := setupDirectRestoreFixture(t)
+
+	// No path contains this TEE on its destination side.
+	fx.destination.paths = []machinepath.IMachinePathManagerMachinePath{{
+		SourceTeeIds:      []common.Address{fx.sourceSetup.testNode.TeeID()},
+		DestinationTeeIds: []common.Address{common.HexToAddress("0xdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef")},
+	}}
+
+	inst := buildKeyDirectRestoreInstruction(t, fx.defaultRestoreOpts())
+
+	_, _, err := fx.destProc.KeyDirectRestore(context.Background(), types.Threshold, inst, nil, nil, nil)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "no machine path authorizes")
+}
+
+func TestKeyDirectRestoreCannotDecrypt(t *testing.T) {
+	fx := setupDirectRestoreFixture(t)
+
+	// Mint a second envelope by driving the source backup handler with a
+	// stranger's public key as the destination. The source TEE signs it
+	// legitimately, but EncryptedPrivateKey is bound to the stranger's
+	// key — so the real destination's Decrypt step must fail.
+	stranger, err := crypto.GenerateKey()
+	require.NoError(t, err)
+	strangerAddr := crypto.PubkeyToAddress(stranger.PublicKey)
+
+	// Add the stranger to the source's destination list (bump path-list
+	// nonce to 2), and mirror the bump on the destination so the
+	// freshness check still passes.
+	installSingleMachinePath(t, fx.sourceSetup.testNode, fx.sourceSetup.testNode.TeeID(),
+		[]common.Address{strangerAddr}, 2)
+	fx.destination.paths = []machinepath.IMachinePathManagerMachinePath{{
+		SourceTeeIds:      []common.Address{fx.sourceSetup.testNode.TeeID()},
+		DestinationTeeIds: []common.Address{fx.destination.addr, strangerAddr},
+	}}
+	fx.destination.nonce = 2
+
+	// Build the backup instruction by hand so we can drive the
+	// destination-targeted-at-stranger scenario directly.
+	misdirectedReq := cwallet.IWalletBackupManagerKeyDirectBackup{
+		SourceTeeId:             fx.sourceSetup.teeID,
+		WalletId:                fx.sourceSetup.walletID,
+		KeyId:                   fx.sourceSetup.keyID,
+		DestinationTeePublicKey: walletPubKey(&stranger.PublicKey),
+		MachinePathListNonce:    big.NewInt(2),
+	}
+	encoded, err := abi.Arguments{cwallet.MessageArguments[op.KeyDirectBackup]}.Pack(misdirectedReq)
+	require.NoError(t, err)
+	instructionID, err := random.Hash()
+	require.NoError(t, err)
+	misdirectedInst := &instruction.DataFixed{
+		InstructionID:   instructionID,
+		TeeID:           fx.sourceSetup.teeID,
+		RewardEpochID:   fx.sourceSetup.epochID,
+		OPType:          op.Wallet.Hash(),
+		OPCommand:       op.KeyDirectBackup.Hash(),
+		OriginalMessage: encoded,
+	}
+	misdirected, _, err := fx.sourceSetup.processor.KeyDirectBackup(context.Background(), types.Threshold, misdirectedInst, nil, nil, nil)
+	require.NoError(t, err)
+
+	// Pull the BackupID actually minted by the source so the restore
+	// instruction's BackupId matches.
+	var env types.SignedKeyDirectBackup
+	require.NoError(t, json.Unmarshal(misdirected, &env))
+	var payload pkgbackup.KeyDirectBackupPayload
+	require.NoError(t, json.Unmarshal(env.Payload, &payload))
+
+	opts := fx.defaultRestoreOpts()
+	opts.envelope = misdirected
+	opts.backupID = walletBackupIDToABI(payload.BackupID)
+	opts.machinePathListNonce = 2
+	inst := buildKeyDirectRestoreInstruction(t, opts)
+
+	_, _, err = fx.destProc.KeyDirectRestore(context.Background(), types.Threshold, inst, nil, nil, nil)
+	require.Error(t, err)
+}
+
+func TestKeyDirectRestoreReplayRejected(t *testing.T) {
+	fx := setupDirectRestoreFixture(t)
+
+	inst := buildKeyDirectRestoreInstruction(t, fx.defaultRestoreOpts())
+	_, _, err := fx.destProc.KeyDirectRestore(context.Background(), types.Threshold, inst, nil, nil, nil)
+	require.NoError(t, err)
+
+	fx.destStorage.Lock()
+	fx.destStorage.Remove(fx.id)
+	fx.destStorage.Unlock()
+
+	replay := buildKeyDirectRestoreInstruction(t, fx.defaultRestoreOpts())
+	_, _, err = fx.destProc.KeyDirectRestore(context.Background(), types.Threshold, replay, nil, nil, nil)
+	require.Error(t, err)
+}
+
+func TestKeyDirectRestoreStaleMachinePathListNonce(t *testing.T) {
+	fx := setupDirectRestoreFixture(t)
+
+	// The destination's view of the machine-path-list nonce is rolled
+	// back below the value carried in the instruction. The handler must
+	// reject before storing.
+	fx.destination.nonce = 0
+
+	inst := buildKeyDirectRestoreInstruction(t, fx.defaultRestoreOpts())
+
+	_, _, err := fx.destProc.KeyDirectRestore(context.Background(), types.Threshold, inst, nil, nil, nil)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "stale node state: instruction machine-path-list nonce")
+}
+
+func TestKeyDirectRestoreStaleRewardEpoch(t *testing.T) {
+	fx := setupDirectRestoreFixture(t)
+
+	// Advance the destination's active signing policy two epochs past
+	// the one the payload was minted under (the handler accepts
+	// payload.epoch and payload.epoch+1 only).
+	nextEpochID := fx.sourceSetup.epochID + 2
+	nextPolicy := testutils.GenerateRandomPolicyData(t, nextEpochID, fx.sourceSetup.cosigners, int64(99))
+	require.NoError(t, fx.sourceSetup.pStorage.SetActiveSigningPolicy(nextPolicy))
+
+	opts := fx.defaultRestoreOpts()
+	opts.epochID = nextEpochID
+	inst := buildKeyDirectRestoreInstruction(t, opts)
+
+	_, _, err := fx.destProc.KeyDirectRestore(context.Background(), types.Threshold, inst, nil, nil, nil)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "stale backup: restore reward epoch")
+}
+
+func TestKeyDirectRestoreEndSubmissionTag(t *testing.T) {
+	fx := setupDirectRestoreFixture(t)
+
+	inst := buildKeyDirectRestoreInstruction(t, fx.defaultRestoreOpts())
+
+	_, _, err := fx.destProc.KeyDirectRestore(context.Background(), types.Threshold, inst, nil, nil, nil)
+	require.NoError(t, err)
+
+	resp, status, err := fx.destProc.KeyDirectRestore(context.Background(), types.End, inst, nil, nil, nil)
+	require.NoError(t, err)
+	require.Nil(t, resp)
+	require.Nil(t, status)
+
+	fx.destStorage.Lock()
+	fx.destStorage.Remove(fx.id)
+	fx.destStorage.Unlock()
+
+	_, _, err = fx.destProc.KeyDirectRestore(context.Background(), types.End, inst, nil, nil, nil)
+	require.Error(t, err)
 }

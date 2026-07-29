@@ -33,6 +33,12 @@ func init() {
 
 const EncodingVersion = "1.0.0"
 
+// SignHost is the interface the sign/decrypt server binds to. It is fixed to
+// loopback so the unauthenticated sign/decrypt API is reachable only from
+// within the TEE instance, per the security model. It is intentionally not
+// configurable.
+const SignHost = "127.0.0.1"
+
 // Processor configuration
 var QueuedActionsSleepTime = 2 * time.Second
 var QueuedActionsPauseTime = 100 * time.Millisecond
@@ -68,6 +74,8 @@ const (
 
 	MaxWallets                = 200_000          // Maximum number of wallets that can be stored in memory. This is a safety limit to prevent OOM errors.
 	MaxPermanentWalletsStatus = 1_000_000        // Maximum number of wallets that can be stored in permanent storage. This is a safety limit to prevent OOM errors.
+	MaxAdminsPerWalletKey     = 50               // Maximum number of admins that can be associated with a wallet key.
+	MaxCosignersPerWalletKey  = 50               // Maximum number of cosigners that can be associated with a wallet key.
 	MaxSignGoroutines         = 3000             // Maximum number of concurrent XRP sign schedule goroutines. Prevents OOM from accumulated sleeping goroutines.
 	MaxFeeEntries             = 50               // Maximum number of fee schedule entries per XRP sign instruction.
 	MaxFeeScheduleTime        = 10 * time.Minute // Maximum delay allowed in a fee schedule entry.
@@ -82,6 +90,17 @@ const (
 
 	SetExtensionIDEndpoint = "/extension-id"
 	ExtensionIDEnvVar      = "EXTENSION_ID"
+
+	SetChainIDEndpoint = "/chain-id"
+	ChainIDEnvVar      = "CHAIN_ID"
+
+	SetGovernanceEndpoint     = "/governance"
+	GovernanceSignersEnvVar   = "GOVERNANCE_SIGNERS"
+	GovernanceThresholdEnvVar = "GOVERNANCE_THRESHOLD"
+	// GovernanceSafeEnvVar and GovernanceTeeManagerEnvVar are
+	// extra fields that configure Safe-backed governance
+	GovernanceSafeEnvVar       = "GOVERNANCE_SAFE"
+	GovernanceTeeManagerEnvVar = "GOVERNANCE_TEE_MANAGER"
 )
 
 var (
@@ -98,5 +117,6 @@ var (
 	TestPlatform, _ = convert.StringToCommonHash("TEST_PLATFORM")
 	TestCodeHash    = common.HexToHash("194844cf417dde867073e5ab7199fa4d21fd82b5dbe2bdea8b3d7fc18d10fdc2")
 
-	DefaultExtensionID = common.MaxHash
+	DefaultExtensionID    = common.MaxHash
+	DefaultGovernanceHash = common.MaxHash
 )

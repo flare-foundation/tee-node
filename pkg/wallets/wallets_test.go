@@ -11,10 +11,12 @@ import (
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/crypto/ecies"
+	csigning "github.com/flare-foundation/go-flare-common/pkg/signing"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/instruction"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/op"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/structs"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/structs/wallet"
+	"github.com/flare-foundation/tee-node/internal/settings"
 	"github.com/flare-foundation/tee-node/pkg/types"
 	"github.com/flare-foundation/tee-node/pkg/utils"
 	"github.com/stretchr/testify/require"
@@ -290,6 +292,14 @@ func TestCheckKeyGenerate(t *testing.T) {
 		X: [32]byte{1},
 		Y: [32]byte{2},
 	}
+	maxAdmins := make([]wallet.PublicKey, settings.MaxAdminsPerWalletKey)
+	for i := range maxAdmins {
+		maxAdmins[i].X[31] = byte(i + 1)
+	}
+	maxCosigners := make([]common.Address, settings.MaxCosignersPerWalletKey)
+	for i := range maxCosigners {
+		maxCosigners[i] = common.BigToAddress(big.NewInt(int64(i + 1)))
+	}
 
 	baseReq := createKeyGenerateRequest(
 		teeID,
@@ -304,6 +314,29 @@ func TestCheckKeyGenerate(t *testing.T) {
 	t.Run("ok", func(t *testing.T) {
 		err := CheckKeyGenerate(baseReq, teeID)
 		require.NoError(t, err)
+	})
+
+	t.Run("maximum number of admins and cosigners", func(t *testing.T) {
+		req := baseReq
+		req.ConfigConstants.AdminsPublicKeys = maxAdmins
+		req.ConfigConstants.Cosigners = maxCosigners
+		err := CheckKeyGenerate(req, teeID)
+		require.NoError(t, err)
+	})
+
+	t.Run("too many admins", func(t *testing.T) {
+		req := baseReq
+		extraAdmin := wallet.PublicKey{X: [32]byte{settings.MaxAdminsPerWalletKey + 1}}
+		req.ConfigConstants.AdminsPublicKeys = append(maxAdmins, extraAdmin)
+		err := CheckKeyGenerate(req, teeID)
+		require.EqualError(t, err, "wallet key cannot have more than 50 admins")
+	})
+
+	t.Run("too many cosigners", func(t *testing.T) {
+		req := baseReq
+		req.ConfigConstants.Cosigners = append(maxCosigners, common.BigToAddress(big.NewInt(settings.MaxCosignersPerWalletKey+1)))
+		err := CheckKeyGenerate(req, teeID)
+		require.EqualError(t, err, "wallet key cannot have more than 50 cosigners")
 	})
 
 	t.Run("teeID mismatch", func(t *testing.T) {
@@ -431,9 +464,13 @@ func TestExtractKeyExistence(t *testing.T) {
 		keyExistenceBytes, err := structs.Encode(wallet.KeyExistenceStructArg, keyExistence)
 		require.NoError(t, err)
 
-		// Sign the hash
-		hash := crypto.Keccak256(keyExistenceBytes)
-		signature, err := utils.Sign(hash, teePrivKey)
+		// Sign the canonical chain-bound preimage matching what
+		// WalletKeyManagerFacet.confirmKey recovers against.
+		dataHash, err := types.KeyExistenceDataHash(keyExistence)
+		require.NoError(t, err)
+		hash, err := csigning.NewPayload(csigning.TEEKeyExistence, 31337, dataHash).Hash()
+		require.NoError(t, err)
+		signature, err := utils.Sign(hash[:], teePrivKey)
 		require.NoError(t, err)
 
 		// Build SignedKeyExistenceProof struct and encode it
@@ -447,7 +484,7 @@ func TestExtractKeyExistence(t *testing.T) {
 		proofJSON, err := json.Marshal(signedProof)
 		require.NoError(t, err)
 
-		ret, err := ExtractKeyExistence(proofJSON, teeID)
+		ret, err := ExtractKeyExistence(proofJSON, teeID, uint64(31337))
 		require.NoError(t, err)
 		require.NotNil(t, ret)
 		require.Equal(t, keyExistence.WalletId, ret.WalletId)
@@ -464,13 +501,13 @@ func TestExtractKeyExistence(t *testing.T) {
 	})
 
 	t.Run("fails on malformed json", func(t *testing.T) {
-		_, err := ExtractKeyExistence([]byte("not a json"), teeID)
+		_, err := ExtractKeyExistence([]byte("not a json"), teeID, uint64(31337))
 		require.Error(t, err)
 	})
 
 	t.Run("fails on missing expected fields in json", func(t *testing.T) {
 		bad := []byte(`{}`)
-		_, err := ExtractKeyExistence(bad, teeID)
+		_, err := ExtractKeyExistence(bad, teeID, uint64(31337))
 		require.Error(t, err)
 	})
 }

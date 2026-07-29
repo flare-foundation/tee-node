@@ -9,18 +9,19 @@ import (
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/flare-foundation/go-flare-common/pkg/policy"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/instruction"
+	"github.com/flare-foundation/tee-node/internal/node"
 	"github.com/flare-foundation/tee-node/pkg/fdc"
-	"github.com/flare-foundation/tee-node/pkg/node"
 	"github.com/flare-foundation/tee-node/pkg/types"
 )
 
 type Processor struct {
-	node.Signer
+	node.InformerAndSigner
 }
 
-// NewProcessor creates an FDC proof processor backed by the provided signer.
-func NewProcessor(sig node.Signer) Processor {
-	return Processor{Signer: sig}
+// NewProcessor creates an FDC proof processor backed by the provided node, which
+// supplies both the signing key and the chain ID bound into the proof.
+func NewProcessor(infoAndSig node.InformerAndSigner) Processor {
+	return Processor{InformerAndSigner: infoAndSig}
 }
 
 // Prove verifies the FDC request, aggregates the data provider and cosigner
@@ -38,24 +39,27 @@ func (p *Processor) Prove(
 		return nil, nil, fmt.Errorf("failed to decode FDC prove request: %w", err)
 	}
 
-	hashToBeSigned, msgHash, msgPrepended, encResHeader, err := fdc.HashMessage(req, dataFixed.AdditionalFixedMessage, dataFixed.Cosigners, dataFixed.CosignersThreshold, dataFixed.Timestamp)
+	messageHash, encResHeader, err := fdc.HashMessage(p.Info().ChainID, req, dataFixed.AdditionalFixedMessage, dataFixed.Cosigners, dataFixed.CosignersThreshold, dataFixed.Timestamp)
 	if err != nil {
 		return nil, nil, err
 	}
 
+	// Data-provider (signing-policy) signatures and cosigner signatures both
+	// recover against the prefixed hash. The TEE's own signature uses messageHash directly.
+	relayPrefixedHash := fdc.RelayPrefixedHash(messageHash)
 	dpSigs, cosignerSigs, err := checkResponseSignatures(
-		hashToBeSigned, variableMessages, signers, signingPolicy.Voters, dataFixed.Cosigners,
+		relayPrefixedHash, variableMessages, signers, signingPolicy.Voters, dataFixed.Cosigners,
 	)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	dpSigsEncoded, err := prepareFinalizationTxInput(signingPolicy.RawBytes(), msgPrepended, dpSigs)
+	dpSigsEncoded, err := prepareFinalizationTxInput(signingPolicy.RawBytes(), messageHash.Bytes(), dpSigs)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	teeSignature, err := p.Sign(msgHash.Bytes())
+	teeSignature, err := p.Sign(messageHash.Bytes())
 	if err != nil {
 		return nil, nil, err
 	}

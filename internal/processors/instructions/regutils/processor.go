@@ -8,11 +8,12 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	cpolicy "github.com/flare-foundation/go-flare-common/pkg/policy"
+	csigning "github.com/flare-foundation/go-flare-common/pkg/signing"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/instruction"
 
 	"github.com/flare-foundation/tee-node/internal/attestation"
-	"github.com/flare-foundation/tee-node/pkg/node"
-	"github.com/flare-foundation/tee-node/pkg/policy"
+	"github.com/flare-foundation/tee-node/internal/node"
+	"github.com/flare-foundation/tee-node/internal/policy"
 	"github.com/flare-foundation/tee-node/pkg/types"
 )
 
@@ -60,7 +61,11 @@ func (p *Processor) TEEAttestation(
 			return nil, nil, err
 		}
 
-		mdHash, err := teeInfoResponse.MachineData.Hash()
+		mdDataHash, err := teeInfoResponse.MachineData.DataHash()
+		if err != nil {
+			return nil, nil, err
+		}
+		mdHash, err := csigning.NewPayload(csigning.TEEMachineRegister, nodeInfo.ChainID, mdDataHash).Hash()
 		if err != nil {
 			return nil, nil, err
 		}

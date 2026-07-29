@@ -13,15 +13,16 @@ import (
 	"github.com/flare-foundation/go-flare-common/pkg/tee/op"
 	vrfstruct "github.com/flare-foundation/go-flare-common/pkg/tee/structs/vrf"
 	"github.com/flare-foundation/tee-node/internal/testutils"
+	walletstorage "github.com/flare-foundation/tee-node/internal/wallets"
 	"github.com/flare-foundation/tee-node/pkg/types"
-	"github.com/flare-foundation/tee-node/pkg/wallets"
+	wallets "github.com/flare-foundation/tee-node/pkg/wallets"
 	"github.com/flare-foundation/tee-node/pkg/wallets/vrf"
 	"github.com/stretchr/testify/require"
 )
 
 type proveRandomnessSetup struct {
 	processor Processor
-	wStorage  *wallets.Storage
+	wStorage  *walletstorage.Storage
 	walletID  common.Hash
 	keyID     uint64
 }
@@ -117,7 +118,7 @@ func TestProveRandomnessWalletNotFound(t *testing.T) {
 
 	_, _, err := setup.processor.ProveRandomness(context.Background(), types.Threshold, data, nil, nil, nil)
 	require.Error(t, err)
-	require.Equal(t, wallets.ErrWalletNonExistent, err)
+	require.Equal(t, walletstorage.ErrWalletNonExistent, err)
 }
 
 func TestProveRandomnessInvalidRequestEncoding(t *testing.T) {

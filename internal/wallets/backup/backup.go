@@ -2,7 +2,6 @@ package backup
 
 import (
 	"crypto/ecdsa"
-	"crypto/rand"
 	"encoding/json"
 	"errors"
 	"slices"
@@ -17,7 +16,6 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/crypto/ecies"
 )
 
 const NormalizationConstant = 1000
@@ -26,7 +24,7 @@ const DataProvidersThreshold = uint64(666)
 // BackupWallet packages the wallet state and encrypted key shares for admins
 // and providers so it can be reconstructed later. The result is signed with the
 // key that is split, but remains to be signed by the TEE.
-func BackupWallet(wallet *wallets.Wallet, providerPubKeys []*ecdsa.PublicKey, signingPolicyWeights []uint16, rewardEpochID uint32, teeID common.Address, normalizationParam uint16, dataProviderThreshold uint64) (*backup.WalletBackup, error) {
+func BackupWallet(wallet *wallets.Wallet, providerPubKeys []*ecdsa.PublicKey, signingPolicyWeights []uint16, rewardEpochID uint32, teeID common.Address, chainID uint64, normalizationParam uint16, dataProviderThreshold uint64) (*backup.WalletBackup, error) {
 	switch wallet.SigningAlgo {
 	case wallets.XRPSignAlgo, wallets.EVMSignAlgo, wallets.VRFAlgo:
 		// continue
@@ -74,12 +72,12 @@ func BackupWallet(wallet *wallets.Wallet, providerPubKeys []*ecdsa.PublicKey, si
 	}
 
 	weightsOne := utils.ConstantSlice(uint16(1), len(wallet.AdminPublicKeys))
-	adminEncryptedParts, err := SplitAndEncrypt(splitKey[0], wallet.AdminPublicKeys, wallet.AdminsThreshold, weightsOne, metaData.WalletBackupID, wallet, true)
+	adminEncryptedParts, err := SplitAndEncrypt(splitKey[0], wallet.AdminPublicKeys, wallet.AdminsThreshold, weightsOne, metaData.WalletBackupID, wallet, true, chainID)
 	if err != nil {
 		return nil, err
 	}
 
-	providerEncryptedParts, err := SplitAndEncrypt(splitKey[1], providerPubKeys, dataProviderThreshold, normalizedWeights, metaData.WalletBackupID, wallet, false)
+	providerEncryptedParts, err := SplitAndEncrypt(splitKey[1], providerPubKeys, dataProviderThreshold, normalizedWeights, metaData.WalletBackupID, wallet, false, chainID)
 	if err != nil {
 		return nil, err
 	}
@@ -90,11 +88,11 @@ func BackupWallet(wallet *wallets.Wallet, providerPubKeys []*ecdsa.PublicKey, si
 		ProviderEncryptedParts: providerEncryptedParts,
 	}
 
-	hash, err := walletBackup.HashForSigning()
+	ownerSignHash, err := walletBackup.OwnerSignHash(chainID)
 	if err != nil {
 		return nil, err
 	}
-	walletBackup.Signature, err = wallet.Sign(backup.PadForSigning(hash))
+	walletBackup.Signature, err = wallet.Sign(ownerSignHash[:])
 	if err != nil {
 		return nil, err
 	}
@@ -145,6 +143,7 @@ func SplitAndEncrypt(
 	backupID wallets.WalletBackupID,
 	signer wallets.Signer,
 	isAdmin bool,
+	chainID uint64,
 ) (*backup.EncryptedShares, error) {
 	if len(encryptionPubKeys) != len(weights) {
 		return nil, errors.New("number of encryption keys and weights do not match")
@@ -165,7 +164,7 @@ func SplitAndEncrypt(
 	}
 	copy(encryptedShares.Weights, weights)
 
-	numShares := uint64(utils.Sum(weights))
+	numShares := utils.SumUint64(weights)
 	shamirShares, err := SplitToShamirShares(key.D, numShares, threshold)
 	if err != nil {
 		return nil, err
@@ -181,7 +180,7 @@ func SplitAndEncrypt(
 			PartialWalletBackupID: partialBackupID,
 			OwnerPublicKey:        types.PubKeyToStruct(encryptionPubKeys[i]),
 		}
-		sig, err := keySplitData.Sign(signer)
+		sig, err := keySplitData.Sign(signer, chainID)
 		if err != nil {
 			return nil, err
 		}
@@ -193,12 +192,7 @@ func SplitAndEncrypt(
 			return nil, err
 		}
 
-		pubKey, err := utils.ECDSAPubKeyToECIES(encryptionPubKeys[i])
-		if err != nil {
-			return nil, err
-		}
-
-		cipher, err := ecies.Encrypt(rand.Reader, pubKey, plaintext, nil, nil)
+		cipher, err := utils.Encrypt(plaintext, encryptionPubKeys[i])
 		if err != nil {
 			return nil, err
 		}
@@ -318,7 +312,8 @@ func JoinKeyShares(splits []*backup.KeySplit, threshold uint64) (*ecdsa.PrivateK
 		return nil, errors.New("threshold should be positive")
 	}
 
-	shares := make([]backup.ShamirShare, 0, threshold)
+	// we do not pre-locate the slice to avoid possible OOM attacks
+	shares := make([]backup.ShamirShare, 0)
 	for _, split := range splits {
 		shares = append(shares, split.Shares...)
 	}

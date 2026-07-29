@@ -12,13 +12,14 @@ import (
 	"github.com/flare-foundation/go-flare-common/pkg/xrpl/signing"
 	"github.com/flare-foundation/go-flare-common/pkg/xrpl/signing/secp256k1"
 	"github.com/flare-foundation/go-flare-common/pkg/xrpl/signing/signer"
+	walletstorage "github.com/flare-foundation/tee-node/internal/wallets"
 	"github.com/flare-foundation/tee-node/pkg/processorutils"
-	"github.com/flare-foundation/tee-node/pkg/wallets"
+	wallets "github.com/flare-foundation/tee-node/pkg/wallets"
 )
 
 // loadPrivateKeys fetches and validates private keys for the given keyIDs.
 // Must be called with the storage read lock held.
-func loadPrivateKeys(storage *wallets.Storage, walletID [32]byte, keyIDs []uint64, dataFixed *instruction.DataFixed) ([]*ecdsa.PrivateKey, error) {
+func loadPrivateKeys(storage *walletstorage.Storage, walletID [32]byte, keyIDs []uint64, dataFixed *instruction.DataFixed) ([]*ecdsa.PrivateKey, error) {
 	privateKeys := make([]*ecdsa.PrivateKey, 0, len(keyIDs))
 	for _, keyID := range keyIDs {
 		idPair := wallets.KeyIDPair{WalletID: common.Hash(walletID), KeyID: keyID}
@@ -74,5 +75,5 @@ func buildSignedTx(inst payments.ITeePaymentsPaymentInstructionMessage, privateK
 		return nil, errors.New("invalid signer item") // cannot happen
 	}
 
-	return signing.JoinMultisigJSON(tx, signerItems), nil
+	return signing.JoinMultisigJSON(tx, signerItems)
 }
