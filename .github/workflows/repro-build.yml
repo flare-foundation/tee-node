@@ -51,11 +51,18 @@ jobs:
         password: ${{ secrets.GITHUB_TOKEN }}
 
     - name: Reproducibly build and push image
+      id: build
       uses: freedomofpress/repro-build@9987861aa56cdd7d75baa5dbdb7d7b6d719f1653  # 2.0.0
       with:
         tags: ${{ env.ALL_TAGS }}
         source_date_epoch: ${{ env.SOURCE_DATE_EPOCH }}
         push: true
+
+    - name: Verify image reproducibility
+      uses: freedomofpress/repro-build/verify@9987861aa56cdd7d75baa5dbdb7d7b6d719f1653  # 2.0.0
+      with:
+        expected_digest: ${{ steps.build.outputs.digest }}
+        source_date_epoch: ${{ env.SOURCE_DATE_EPOCH }}
 
   get-release-tags:
     name: Get latest release tags
