@@ -1,0 +1,60 @@
+name: verify-repro-container-images
+
+on:
+  schedule:
+    - cron: '0 * * * *'
+  workflow_dispatch:
+
+jobs:
+  get-release-tags:
+    name: Get latest release tags
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      tags: ${{ steps.tags.outputs.tags }}
+    steps:
+    - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7
+      with:
+        fetch-depth: 0
+    - id: tags
+      run: |
+        TAGS=$(git tag --sort=-version:refname | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | head -2 | jq -R . | jq -s -c .)
+        echo "tags=$TAGS" >>$GITHUB_OUTPUT
+
+  verify-releases:
+    name: Verify release (${{ matrix.tag }})
+    needs: get-release-tags
+    if: needs.get-release-tags.outputs.tags != '[]'
+    strategy:
+      matrix:
+        tag: ${{ fromJson(needs.get-release-tags.outputs.tags) }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
+    steps:
+    - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7
+      with:
+        ref: ${{ matrix.tag }}
+        fetch-depth: 0
+
+    - name: Set build metadata
+      env:
+        REPOSITORY: '${{ github.repository }}'
+      run: |
+        echo "IMAGE_TAG=ghcr.io/${REPOSITORY,,}:${{ matrix.tag }}" >>$GITHUB_ENV
+        echo "SOURCE_DATE_EPOCH=$(git log -1 --format=%ct)" >>$GITHUB_ENV
+
+    - name: Login to ghcr.io
+      uses: docker/login-action@af1e73f918a031802d376d3c8bbc3fe56130a9b0  # v4
+      with:
+        registry: ghcr.io
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Verify image reproducibility
+      uses: freedomofpress/repro-build/verify@9987861aa56cdd7d75baa5dbdb7d7b6d719f1653  # 2.0.0
+      with:
+        target_image: ${{ env.IMAGE_TAG }}
+        source_date_epoch: ${{ env.SOURCE_DATE_EPOCH }}
