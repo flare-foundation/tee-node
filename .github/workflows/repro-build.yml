@@ -77,6 +77,7 @@ jobs:
   verify-releases:
     name: Verify release (${{ matrix.tag }})
     needs: get-release-tags
+    if: needs.get-release-tags.outputs.tags != '[]'
     strategy:
       matrix:
         tag: ${{ fromJson(needs.get-release-tags.outputs.tags) }}
