@@ -17,6 +17,7 @@ A secure server running inside a Trusted Execution Environment (TEE) on GCP Conf
 The TEE node runs behind a proxy service — external clients communicate exclusively through the proxy.
 
 [![API Reference](https://pkg.go.dev/badge/github.com/flare-foundation/tee-node)](https://pkg.go.dev/github.com/flare-foundation/tee-node?tab=doc)
+[![Reproducible Build](https://github.com/flare-foundation/tee-node/actions/workflows/repro-build.yml/badge.svg)](https://github.com/flare-foundation/tee-node/actions/workflows/repro-build.yml)
 
 ## Documentation
 
