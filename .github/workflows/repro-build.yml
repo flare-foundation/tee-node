@@ -4,7 +4,7 @@ on:
   push:
     branches: [ "ci" ]
   schedule:
-    - cron: '0 0 * * *'
+    - cron: '0 * * * *'
 
 jobs:
   build-repro:
@@ -68,7 +68,7 @@ jobs:
         password: ${{ secrets.GITHUB_TOKEN }}
 
     - name: Verify image reproducibility
-      uses: freedomofpress/repro-build/verify@e3539de5c53c198f897fe6053ec2662f8f0e9bf3  # 1.1.0
+      uses: freedomofpress/repro-build/verify@9987861aa56cdd7d75baa5dbdb7d7b6d719f1653  # 2.0.0
       with:
         target_image: ${{ env.IMAGE_TAG }}
         source_date_epoch: ${{ env.SOURCE_DATE_EPOCH }}
