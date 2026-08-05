@@ -2,7 +2,8 @@ name: repro-container-images
 
 on:
   push:
-    branches: [ "ci" ]
+    branches: [ "main" ]
+    tags: [ "v*" ]
   schedule:
     - cron: '0 * * * *'
 
@@ -23,7 +24,23 @@ jobs:
       env:
         REPOSITORY: '${{ github.repository }}'
       run: |
-        echo "IMAGE_TAG=ghcr.io/${REPOSITORY,,}:ci" >>$GITHUB_ENV
+        if [[ "${{ github.ref_name }}" == "main" ]]; then
+          image_tags=("main")
+        elif [[ "${{ github.ref }}" == refs/tags/v* ]]; then
+          image_tags=("${{ github.ref_name }}")
+          if [[ "${{ github.ref_name }}" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
+            image_tags+=("latest")
+          fi
+        fi
+
+        lc_repo=${REPOSITORY,,}
+        image_paths=()
+        for tag in ${image_tags[@]}; do
+          image_paths+=("ghcr.io/$lc_repo:$tag")
+        done
+
+        ALL_TAGS=$(printf ',%s' "${image_paths[@]}")
+        echo "ALL_TAGS=${ALL_TAGS:1}" >>$GITHUB_ENV
         echo "SOURCE_DATE_EPOCH=$(git log -1 --format=%ct)" >>$GITHUB_ENV
 
     - name: Login to ghcr.io
@@ -34,15 +51,35 @@ jobs:
         password: ${{ secrets.GITHUB_TOKEN }}
 
     - name: Reproducibly build and push image
-      uses: freedomofpress/repro-build@e3539de5c53c198f897fe6053ec2662f8f0e9bf3  # 1.1.0
+      uses: freedomofpress/repro-build@9987861aa56cdd7d75baa5dbdb7d7b6d719f1653  # 2.0.0
       with:
-        tags: ${{ env.IMAGE_TAG }}
+        tags: ${{ env.ALL_TAGS }}
         source_date_epoch: ${{ env.SOURCE_DATE_EPOCH }}
         push: true
 
-  verify-repro:
-    name: Verify digest (daily)
+  get-release-tags:
+    name: Get latest release tags
     if: github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      tags: ${{ steps.tags.outputs.tags }}
+    steps:
+    - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7
+      with:
+        fetch-depth: 0
+    - id: tags
+      run: |
+        TAGS=$(git tag --sort=-version:refname | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | head -2 | jq -R . | jq -s -c .)
+        echo "tags=$TAGS" >>$GITHUB_OUTPUT
+
+  verify-releases:
+    name: Verify release (${{ matrix.tag }})
+    needs: get-release-tags
+    strategy:
+      matrix:
+        tag: ${{ fromJson(needs.get-release-tags.outputs.tags) }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -50,14 +87,14 @@ jobs:
     steps:
     - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7
       with:
-        ref: ci
+        ref: ${{ matrix.tag }}
         fetch-depth: 0
 
     - name: Set build metadata
       env:
         REPOSITORY: '${{ github.repository }}'
       run: |
-        echo "IMAGE_TAG=ghcr.io/${REPOSITORY,,}:ci" >>$GITHUB_ENV
+        echo "IMAGE_TAG=ghcr.io/${REPOSITORY,,}:${{ matrix.tag }}" >>$GITHUB_ENV
         echo "SOURCE_DATE_EPOCH=$(git log -1 --format=%ct)" >>$GITHUB_ENV
 
     - name: Login to ghcr.io
