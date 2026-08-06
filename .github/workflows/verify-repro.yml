@@ -2,7 +2,7 @@ name: verify-repro-container-images
 
 on:
   schedule:
-    - cron: '0 * * * *'
+    - cron: '0 9 * * *'
   workflow_dispatch:
 
 jobs:
