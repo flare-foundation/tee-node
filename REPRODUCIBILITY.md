@@ -32,13 +32,13 @@ The default Docker builder does not properly support `rewrite-timestamp`
 ([moby/buildkit#4230](https://github.com/moby/buildkit/issues/4230)). You need
 a BuildKit builder using the `docker-container` driver.
 
-Create the builder (one-time setup):
+Create the builder (one-time setup, pinned version should match repro-build pinned version):
 
 ```sh
 docker buildx create \
   --driver=docker-container \
   --name=moby-buildkit \
-  --driver-opt image=moby/buildkit \
+  --driver-opt image=moby/buildkit:v0.31.0@sha256:a095b3d11ce1a9a05b6064ef515dfca0291ec5bcf2ea8178da8f6461924294e1 \
   --bootstrap
 ```
 
