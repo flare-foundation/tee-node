@@ -2,10 +2,10 @@ package vrf
 
 import (
 	"crypto/ecdsa"
-	"crypto/rand"
 	"errors"
 	"math/big"
 
+	dcrsecp256k1 "github.com/decred/dcrd/dcrec/secp256k1/v4"
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
@@ -21,6 +21,11 @@ var (
 		{Type: uint256Ty}, {Type: uint256Ty}, {Type: uint256Ty},
 		{Type: uint256Ty}, {Type: uint256Ty}, {Type: uint256Ty}}
 )
+
+// nonceIterationLimit bounds how many RFC 6979 nonces are tried before proof
+// generation is abandoned. Each iteration fails only on a zero ZInv denominator,
+// which occurs with probability ≈ 1/P.
+const nonceIterationLimit = 8
 
 type Point struct {
 	X *big.Int
@@ -188,7 +193,7 @@ func VerifiableRandomness(key *ecdsa.PrivateKey, nonce []byte) (*Proof, error) {
 		return nil, err
 	}
 
-	h := HashToCurve(nonce)
+	h := HashToCurve(&key.PublicKey, nonce)
 	if h == nil {
 		return nil, errors.New("failed to hash to curve")
 	}
@@ -197,54 +202,56 @@ func VerifiableRandomness(key *ecdsa.PrivateKey, nonce []byte) (*Proof, error) {
 		return nil, err
 	}
 
-	k, err := rand.Int(rand.Reader, s256Curve.N)
-	if err != nil {
-		return nil, err
+	for iteration := range uint32(nonceIterationLimit) {
+		k := nonceRFC6979(key.D, h, iteration)
+
+		u, err := ScalarBaseMult(k) // u = k·G  (equals c·pk + s·G after c,s are fixed)
+		if err != nil {
+			return nil, err
+		}
+		v, err := ScalarMult(h, k) // v = k·h  (equals c·gamma + s·h after c,s are fixed)
+		if err != nil {
+			return nil, err
+		}
+
+		toHash, err := arguments.Pack(
+			s256Curve.Gx, s256Curve.Gy,
+			h.X, h.Y,
+			key.X, key.Y,
+			gamma.X, gamma.Y,
+			u.X, u.Y,
+			v.X, v.Y,
+		)
+		if err != nil {
+			return nil, err
+		}
+
+		c := HashToZn(toHash)
+
+		s := new(big.Int).Mul(key.D, c)
+		s.Neg(s)
+		s.Add(k, s)
+		s.Mod(s, s256Curve.N)
+
+		cGamma, err := ScalarMult(gamma, c)
+		if err != nil {
+			return nil, err
+		}
+
+		// ZInv = modInv(cGamma.X − v.X, P). A zero denominator (probability ≈ 1/P)
+		// yields a proof the contract rejects, so the nonce generator is advanced
+		// rather than reused.
+		denom := new(big.Int).Sub(cGamma.X, v.X)
+		denom.Mod(denom, s256Curve.P)
+		if denom.Sign() == 0 {
+			continue
+		}
+		zInv := new(big.Int).ModInverse(denom, s256Curve.P)
+
+		return &Proof{Gamma: gamma, C: c, S: s, U: u, CGamma: cGamma, V: v, ZInv: zInv}, nil
 	}
 
-	u, err := ScalarBaseMult(k) // u = k·G  (equals c·pk + s·G after c,s are fixed)
-	if err != nil {
-		return nil, err
-	}
-	v, err := ScalarMult(h, k) // v = k·h  (equals c·gamma + s·h after c,s are fixed)
-	if err != nil {
-		return nil, err
-	}
-
-	toHash, err := arguments.Pack(
-		s256Curve.Gx, s256Curve.Gy,
-		h.X, h.Y,
-		key.X, key.Y,
-		gamma.X, gamma.Y,
-		u.X, u.Y,
-		v.X, v.Y,
-	)
-	if err != nil {
-		return nil, err
-	}
-
-	c := HashToZn(toHash)
-
-	s := new(big.Int).Mul(key.D, c)
-	s.Neg(s)
-	s.Add(k, s)
-	s.Mod(s, s256Curve.N)
-
-	cGamma, err := ScalarMult(gamma, c)
-	if err != nil {
-		return nil, err
-	}
-
-	// ZInv = modInv(cGamma.X − v.X, P).  Skip if denominator is zero.
-	denom := new(big.Int).Sub(cGamma.X, v.X)
-	denom.Mod(denom, s256Curve.P)
-	if denom.Sign() == 0 {
-		// This is an extremely unlikely edge case (probability ≈ 1/P) where the proof would be rejected by the contract
-		return nil, errors.New("proof generation failed: invalid ZInv denominator")
-	}
-	zInv := new(big.Int).ModInverse(denom, s256Curve.P)
-
-	return &Proof{Gamma: gamma, C: c, S: s, U: u, CGamma: cGamma, V: v, ZInv: zInv}, nil
+	return nil, errors.New("proof generation failed: nonce iteration limit reached")
 }
 
 // VerifyRandomness verifies that the provided randomness corresponds to the
@@ -264,7 +271,7 @@ func VerifyRandomness(proof *Proof, pk *ecdsa.PublicKey, nonce []byte) error {
 		return err
 	}
 
-	h := HashToCurve(nonce)
+	h := HashToCurve(pk, nonce)
 	if h == nil {
 		return errors.New("failed to hash to curve")
 	}
@@ -350,6 +357,34 @@ func (proof *Proof) RandomnessFromProof() (common.Hash, error) {
 	return common.BytesToHash(sum), nil
 }
 
+// encodePointCoordinates serializes a pair of field elements as two 32-byte
+// big-endian values, matching abi.encodePacked(uint256,uint256) on-chain.
+func encodePointCoordinates(x, y *big.Int) []byte {
+	buf := make([]byte, 64)
+	x.FillBytes(buf[:32])
+	y.FillBytes(buf[32:])
+
+	return buf
+}
+
+// nonceRFC6979 deterministically derives the proof nonce k from the secret
+// scalar and the hash-to-curve point, following RFC 6979 with HMAC-SHA256. The
+// returned scalar lies in [1, N-1] and is a function of its inputs alone, so
+// proof generation does not depend on the RNG at call time.
+func nonceRFC6979(secret *big.Int, h *Point, iteration uint32) *big.Int {
+	secretBytes := make([]byte, 32)
+	secret.FillBytes(secretBytes)
+	defer clear(secretBytes)
+
+	digest := crypto.Keccak256(encodePointCoordinates(h.X, h.Y))
+
+	k := dcrsecp256k1.NonceRFC6979(secretBytes, digest, nil, nil, iteration)
+	kBytes := k.Bytes()
+	k.Zero()
+
+	return new(big.Int).SetBytes(kBytes[:])
+}
+
 // HashToZn hashes an arbitrary message to a scalar in Z_N (the secp256k1 group order).
 func HashToZn(msg []byte) *big.Int {
 	buf := crypto.Keccak256(msg)
@@ -359,9 +394,11 @@ func HashToZn(msg []byte) *big.Int {
 	return c
 }
 
-// HashToCurve hashes an arbitrary message to a point in an elliptic group.
-func HashToCurve(msg []byte) *Point {
-	buf := crypto.Keccak256(msg)
+// HashToCurve hashes a message to a point in the secp256k1 group, salted with
+// the public key so that each key is bound to an independent hash-to-curve
+// function. Returns nil if no point is found within the iteration bound.
+func HashToCurve(pk *ecdsa.PublicKey, msg []byte) *Point {
+	buf := crypto.Keccak256(encodePointCoordinates(pk.X, pk.Y), msg)
 	x := new(big.Int).SetBytes(buf)
 	x.Mod(x, s256Curve.P) // since P and 2^256 are close, this is a good enough way to hash to the curve
 
