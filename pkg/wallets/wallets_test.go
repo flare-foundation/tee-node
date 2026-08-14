@@ -89,7 +89,8 @@ func TestWallet(t *testing.T) {
 	w := createTestWallet(t, kg)
 
 	t.Run("key existence proof", func(t *testing.T) {
-		proof := w.KeyExistenceProof(teeID)
+		proof, err := w.KeyExistenceProof(teeID)
+		require.NoError(t, err)
 		require.NotNil(t, proof)
 		require.Equal(t, kg.WalletId, proof.WalletId)
 		require.Equal(t, kg.KeyId, proof.KeyId)
@@ -460,7 +461,8 @@ func TestExtractKeyExistence(t *testing.T) {
 
 		w := createTestWallet(t, kg)
 		// Construct key existence proof
-		keyExistence := w.KeyExistenceProof(teeID)
+		keyExistence, err := w.KeyExistenceProof(teeID)
+		require.NoError(t, err)
 		keyExistenceBytes, err := structs.Encode(wallet.KeyExistenceStructArg, keyExistence)
 		require.NoError(t, err)
 

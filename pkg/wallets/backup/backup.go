@@ -5,8 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"math/big"
-	"slices"
+	"strconv"
 
 	csigning "github.com/flare-foundation/go-flare-common/pkg/signing"
 	"github.com/flare-foundation/tee-node/pkg/types"
@@ -29,6 +28,11 @@ type WalletBackup struct {
 type WalletBackupMetaData struct {
 	wallets.WalletBackupID
 
+	// FieldID identifies the prime field the key was shared over. It is
+	// recorded rather than re-derived at restore so that a backup stays
+	// readable if the mapping from key metadata to field ever changes.
+	FieldID common.Hash
+
 	AdminsPublicKeys   []types.PublicKey
 	AdminsThreshold    uint64
 	ProvidersThreshold uint64
@@ -40,18 +44,21 @@ type EncryptedShares struct {
 	Splits           []hexutil.Bytes
 	OwnersPublicKeys []types.PublicKey
 	Threshold        uint64
-	PublicKey        hexutil.Bytes
 	Weights          []uint16
 }
 
+// ShamirShare is one point on the sharing polynomial. X is the evaluation
+// index, which is public and assigned sequentially. Y is the field element at
+// that index, serialized to the field's fixed width so that a share's encoded
+// length never reveals anything about its value.
 type ShamirShare struct {
-	X *big.Int
-	Y *big.Int
+	X uint64
+	Y []byte
 }
 
 // ID returns the string identifier for the Shamir share.
 func (s *ShamirShare) ID() string {
-	return s.X.String()
+	return strconv.FormatUint(s.X, 10)
 }
 
 type KeySplit struct {
@@ -65,15 +72,16 @@ type KeySplitData struct {
 	OwnerPublicKey types.PublicKey
 }
 
+// PartialWalletBackupID identifies one of the two additive parts of a backed-up
+// key. IsAdmin selects the part, so a share can only be reconstructed against
+// the group it was issued to.
 type PartialWalletBackupID struct {
 	wallets.WalletBackupID
-	PartialPubKey hexutil.Bytes
-	IsAdmin       bool
+	IsAdmin bool
 }
 
 func (pwid *PartialWalletBackupID) Equal(w *PartialWalletBackupID) bool {
 	return pwid.WalletBackupID.Equal(&w.WalletBackupID) == nil &&
-		slices.Compare(pwid.PartialPubKey, w.PartialPubKey) == 0 &&
 		pwid.IsAdmin == w.IsAdmin
 }
 

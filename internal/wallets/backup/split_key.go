@@ -1,55 +1,67 @@
 package backup
 
 import (
-	"crypto/ecdsa"
-	"crypto/rand"
 	"errors"
-	"math/big"
+	"fmt"
 
-	"github.com/ethereum/go-ethereum/crypto"
+	"filippo.io/bigmod"
+
+	"github.com/flare-foundation/tee-node/pkg/wallets/backup"
 )
 
-// SplitPrivateKey splits the private key into n additive shares in the curve
-// field.
-func SplitPrivateKey(privateKey *ecdsa.PrivateKey, n int) ([]*ecdsa.PrivateKey, error) {
+// SplitSecret splits a secret into n additive parts over the field, such that
+// the parts sum to the secret. Each part is returned in the field's fixed-width
+// encoding. The secret must be smaller than the field modulus.
+//
+// Every part is uniformly distributed, so any proper subset reveals nothing
+// about the secret.
+func SplitSecret(field *backup.Field, secret []byte, n int) ([][]byte, error) {
 	if n < 2 {
 		return nil, errors.New("number of splits too low")
 	}
 
-	keySplits := make([]*big.Int, n)
-	var err error
-	sum := big.NewInt(0)
+	secretElem, err := field.Element(secret)
+	if err != nil {
+		return nil, fmt.Errorf("secret does not fit the sharing field: %w", err)
+	}
+
+	parts := make([][]byte, n)
+	sum := bigmod.NewNat().ExpandFor(field.Modulus)
+
 	for i := range n - 1 {
-		keySplits[i], err = rand.Int(rand.Reader, P)
+		part, err := field.Random()
 		if err != nil {
 			return nil, err
 		}
-		sum.Add(sum, keySplits[i])
-		sum.Mod(sum, P)
-	}
-	keySplits[n-1] = new(big.Int).Sub(privateKey.D, sum)
-	keySplits[n-1].Mod(keySplits[n-1], P)
 
-	privateKeys := make([]*ecdsa.PrivateKey, n)
-	for i := range n {
-		privateKeys[i] = crypto.ToECDSAUnsafe(keySplits[i].Bytes())
+		parts[i] = field.Bytes(part)
+		sum.Add(part, field.Modulus)
 	}
 
-	return privateKeys, nil
+	// The final part absorbs the difference so the parts sum to the secret.
+	last := bigmod.NewNat().ExpandFor(field.Modulus)
+	last.Add(secretElem, field.Modulus)
+	last.Sub(sum, field.Modulus)
+	parts[n-1] = field.Bytes(last)
+
+	return parts, nil
 }
 
-// JoinPrivateKeys recombines additive key shares back into a single key.
-func JoinPrivateKeys(privateKeys ...*ecdsa.PrivateKey) (*ecdsa.PrivateKey, error) {
-	if len(privateKeys) == 0 {
-		return nil, errors.New("no private keys")
+// JoinSecret recombines additive parts into the secret they were split from,
+// returned in the field's fixed-width encoding.
+func JoinSecret(field *backup.Field, parts ...[]byte) ([]byte, error) {
+	if len(parts) == 0 {
+		return nil, errors.New("no parts")
 	}
 
-	sum := big.NewInt(0)
-	for _, key := range privateKeys {
-		sum.Add(sum, key.D)
-		sum.Mod(sum, P)
+	sum := bigmod.NewNat().ExpandFor(field.Modulus)
+	for i, part := range parts {
+		elem, err := field.Element(part)
+		if err != nil {
+			return nil, fmt.Errorf("part %d: %w", i, err)
+		}
+		sum.Add(elem, field.Modulus)
 	}
-	privateKey := crypto.ToECDSAUnsafe(sum.Bytes())
 
-	return privateKey, nil
+	return field.Bytes(sum), nil
 }

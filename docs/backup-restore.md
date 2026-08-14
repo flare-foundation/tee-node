@@ -75,14 +75,19 @@ WalletBackup
 
 ### Backup Sizes
 
-Measured with the test suite (3 admins, 100 providers):
+Measured with the test suite at the supported maximums (50 admins, 50 cosigners,
+100 providers, `NormalizationConstant` 1000):
 
 | Wallet Type | WalletBackup JSON | TEEBackupResponse |
 |-------------|-------------------|-------------------|
-| ECDSA (XRP/EVM) | ~420 KB | ~560 KB |
-| VRF | ~660 KB | ~880 KB |
+| ECDSA (XRP/EVM) | ~440 KB | ~587 KB |
+| VRF | ~783 KB | ~1045 KB |
 
 VRF backups are larger because VRF signatures are ~939 bytes vs 65 bytes for ECDSA.
+
+Every action response must stay under a 1.5 MB budget; `TestBackupSizes` enforces
+that bound, so consumers fetching a backup should size their limits against the
+VRF row rather than the ECDSA one.
 
 ## Data-Provider Restore (Shamir)
 

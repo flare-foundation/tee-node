@@ -3,6 +3,7 @@ package wallets
 import (
 	"crypto/ecdsa"
 	"errors"
+	"fmt"
 	"math/big"
 
 	"github.com/flare-foundation/tee-node/pkg/types"
@@ -105,8 +106,15 @@ func (w *Wallet) Copy() *Wallet {
 	return walletCopy
 }
 
-// KeyExistenceProof builds a key existence proof for the wallet.
-func (w *Wallet) KeyExistenceProof(teeID common.Address) *wallet.IWalletKeyManagerKeyExistence {
+// KeyExistenceProof builds a key existence proof for the wallet. It fails if
+// the wallet's public key cannot be derived, so a proof is never produced with
+// an unset key.
+func (w *Wallet) KeyExistenceProof(teeID common.Address) (*wallet.IWalletKeyManagerKeyExistence, error) {
+	walletPubKey, err := w.PubKey()
+	if err != nil {
+		return nil, err
+	}
+
 	adminPubKeys := make([]wallet.PublicKey, len(w.AdminPublicKeys))
 	for i, pubKey := range w.AdminPublicKeys {
 		pkt := types.PubKeyToStruct(pubKey)
@@ -123,7 +131,7 @@ func (w *Wallet) KeyExistenceProof(teeID common.Address) *wallet.IWalletKeyManag
 		KeyId:       w.KeyID,
 		KeyType:     w.KeyType,
 		SigningAlgo: w.SigningAlgo,
-		PublicKey:   w.pubKey(),
+		PublicKey:   walletPubKey,
 		Nonce:       new(big.Int).SetUint64(w.Status.Nonce),
 		Restored:    w.Restored,
 		ConfigConstants: wallet.IWalletKeyManagerKeyConfigConstants{
@@ -134,7 +142,7 @@ func (w *Wallet) KeyExistenceProof(teeID common.Address) *wallet.IWalletKeyManag
 		},
 		SettingsVersion: w.SettingsVersion,
 		Settings:        w.Settings,
-	}
+	}, nil
 }
 
 // Sign returns a cryptographic signature of the message using the wallet's signing algorithm.
@@ -179,13 +187,19 @@ func (w *Wallet) Decrypt(cipher []byte) ([]byte, error) {
 	}
 }
 
-func (w *Wallet) pubKey() []byte {
+// PubKey derives the wallet's public key from its secret according to the
+// signing algorithm. The secret is validated rather than assumed well-formed.
+func (w *Wallet) PubKey() ([]byte, error) {
 	switch w.SigningAlgo {
 	case XRPSignAlgo, EVMSignAlgo, VRFAlgo:
-		prv := ToECDSAUnsafe(w.PrivateKey)
-		return types.PubKeyToBytes(&prv.PublicKey)
+		prv, err := crypto.ToECDSA(w.PrivateKey)
+		if err != nil {
+			return nil, fmt.Errorf("secret is not a valid secp256k1 scalar: %w", err)
+		}
+
+		return types.PubKeyToBytes(&prv.PublicKey), nil
 	default:
-		return []byte{}
+		return nil, errors.New("unsupported signing algorithm")
 	}
 }
 
