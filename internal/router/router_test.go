@@ -5,8 +5,10 @@ import (
 	"crypto/ecdsa"
 	"encoding/json"
 	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -553,6 +555,72 @@ func timeoutTestAction() *types.Action {
 			}(),
 		},
 	}
+}
+
+// per-instance timings — writes to package globals race leaked ServeQueue goroutines
+func retryTestRouter(fetchTimeout time.Duration) *Router {
+	return &Router{
+		fetchTimeout:    fetchTimeout,
+		fetchRetries:    settings.QueueFetchRetries,
+		fetchRetryDelay: 10 * time.Millisecond,
+	}
+}
+
+func TestFetchActionWithRetry_TimeoutThenSuccess(t *testing.T) {
+	r := retryTestRouter(100 * time.Millisecond)
+
+	actionJSON, err := json.Marshal(timeoutTestAction())
+	require.NoError(t, err)
+
+	var calls atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		if calls.Add(1) == 1 {
+			time.Sleep(4 * r.fetchTimeout) // outlive the client timeout
+			return
+		}
+		_, _ = w.Write(actionJSON)
+	}))
+	defer server.Close()
+
+	action, err := r.fetchActionWithRetry(server.URL)
+	require.NoError(t, err)
+	require.Equal(t, timeoutTestAction().Data.ID, action.Data.ID)
+	require.Equal(t, int32(2), calls.Load())
+}
+
+func TestFetchActionWithRetry_NoRetryOnServerError(t *testing.T) {
+	// production defaults — this test must never hit a timeout
+	r := New(&settings.ProxyURLMutex{})
+
+	var calls atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		calls.Add(1)
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer server.Close()
+
+	_, err := r.fetchActionWithRetry(server.URL)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "unexpected status code: 500")
+	require.Equal(t, int32(1), calls.Load())
+}
+
+func TestFetchActionWithRetry_Exhausted(t *testing.T) {
+	r := retryTestRouter(100 * time.Millisecond)
+
+	var calls atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		calls.Add(1)
+		time.Sleep(4 * r.fetchTimeout)
+	}))
+	defer server.Close()
+
+	_, err := r.fetchActionWithRetry(server.URL)
+	require.Error(t, err)
+	var netErr net.Error
+	require.ErrorAs(t, err, &netErr)
+	require.True(t, netErr.Timeout())
+	require.Equal(t, int32(r.fetchRetries+1), calls.Load())
 }
 
 // TestProcessWithTimeout_CooperativeProcessor verifies that when a processor

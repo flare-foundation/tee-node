@@ -45,6 +45,11 @@ var QueuedActionsPauseTime = 100 * time.Millisecond
 
 const ProxyTimeout = 2 * time.Second
 
+// extra fetch attempts after a timed-out poll; only timeouts are retried
+const QueueFetchRetries = 2
+
+const QueueFetchRetryDelay = 300 * time.Millisecond
+
 // ActionProcessTimeout bounds the synchronous per-action processing time.
 // When exceeded the action's context is cancelled so cancellation-aware
 // processors short-circuit before committing state.

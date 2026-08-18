@@ -46,10 +46,13 @@
 
 ### Timing
 
-| Constant                 | Value  | Description                                   |
-| ------------------------ | ------ | --------------------------------------------- |
-| `ProxyTimeout`           | 2 s    | HTTP timeout for proxy communication          |
-| `QueuedActionsSleepTime` | 100 ms | Sleep between queue poll iterations when idle |
+| Constant                 | Value  | Description                                       |
+| ------------------------ | ------ | ------------------------------------------------- |
+| `ProxyTimeout`           | 2 s    | HTTP timeout for proxy communication              |
+| `QueueFetchRetries`      | 2      | Extra queue poll attempts after a fetch timeout   |
+| `QueueFetchRetryDelay`   | 300 ms | Pause between queue fetch retry attempts          |
+| `QueuedActionsSleepTime` | 2 s    | Sleep after a failed poll or missing proxy URL    |
+| `QueuedActionsPauseTime` | 100 ms | Pause between queue poll iterations when idle     |
 
 ## Config Server Endpoints
 
