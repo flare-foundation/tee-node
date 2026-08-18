@@ -7,15 +7,16 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"time"
 
 	"github.com/flare-foundation/tee-node/internal/settings"
 	"github.com/flare-foundation/tee-node/pkg/types"
 )
 
 // FetchAction sends an empty POST request to the url and expect an action as a response.
-func FetchAction(url string) (*types.Action, error) {
+func FetchAction(url string, timeout time.Duration) (*types.Action, error) {
 	client := http.Client{
-		Timeout: settings.ProxyTimeout,
+		Timeout: timeout,
 	}
 	res, err := client.Post(url, "", nil)
 	if err != nil {

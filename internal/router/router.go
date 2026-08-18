@@ -3,7 +3,9 @@ package router
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"net"
 	"time"
 
 	"github.com/flare-foundation/go-flare-common/pkg/logger"
@@ -42,14 +44,21 @@ type Router struct {
 
 	sleepTime time.Duration
 	pauseTime time.Duration
+
+	fetchTimeout    time.Duration
+	fetchRetries    int
+	fetchRetryDelay time.Duration
 }
 
 // New creates a router associated with the provided proxy URL mutex.
 func New(proxyURL *settings.ProxyURLMutex) Router {
 	return Router{
-		proxyURL:  proxyURL,
-		sleepTime: settings.QueuedActionsSleepTime,
-		pauseTime: settings.QueuedActionsPauseTime,
+		proxyURL:        proxyURL,
+		sleepTime:       settings.QueuedActionsSleepTime,
+		pauseTime:       settings.QueuedActionsPauseTime,
+		fetchTimeout:    settings.ProxyTimeout,
+		fetchRetries:    settings.QueueFetchRetries,
+		fetchRetryDelay: settings.QueueFetchRetryDelay,
 	}
 }
 
@@ -94,7 +103,7 @@ func (r *Router) serveQueueIteration(id processorutils.QueueID, signer node.Iden
 	}
 
 	var err error
-	action, err = queue.FetchAction(fmt.Sprintf("%s/queue/%s", proxyURL, id))
+	action, err = r.fetchActionWithRetry(fmt.Sprintf("%s/queue/%s", proxyURL, id))
 	if err != nil {
 		logger.Errorf("%s queue: error getting action: %v", id, err)
 		result := r.errorResult(action, fmt.Sprintf("error fetching action: %v", err))
@@ -115,6 +124,21 @@ func (r *Router) serveQueueIteration(id processorutils.QueueID, signer node.Iden
 	r.signAndPost(id, &result, signer)
 
 	return time.Duration(0)
+}
+
+// fetchActionWithRetry retries transport timeouts only — other errors must surface immediately.
+func (r *Router) fetchActionWithRetry(url string) (*types.Action, error) {
+	for attempt := 0; ; attempt++ {
+		action, err := queue.FetchAction(url, r.fetchTimeout)
+		if err == nil {
+			return action, nil
+		}
+		var netErr net.Error
+		if attempt >= r.fetchRetries || !errors.As(err, &netErr) || !netErr.Timeout() {
+			return nil, err
+		}
+		time.Sleep(r.fetchRetryDelay)
+	}
 }
 
 // errorResult constructs a Status-0 ActionResult. If action is non-nil, its ID

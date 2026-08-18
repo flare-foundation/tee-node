@@ -10,6 +10,8 @@ Proxy Queue -> Fetch -> Validate -> Route -> Process -> Sign -> Post Response
 
 The TEE polls each queue endpoint (`POST /queue/{main|direct|backup}`) with a timeout controlled by `ProxyTimeout` (default 2 s). The response size is bounded by `MaxFetchResponseSize` (default 10 MB) via `io.LimitReader`.
 
+A poll that fails with a transport timeout is retried up to `QueueFetchRetries` times (default 2), `QueueFetchRetryDelay` (default 300 ms) apart. Only timeouts are retried; any other error — and a timeout that persists through the retries — surfaces immediately on the normal error path (error log, delivery-failure result posted to the proxy). Retrying a fetch is safe: the proxy requeues an action whose delivery provably failed, and the node never processes a response it did not fully read.
+
 ### 2. Validate (CheckAndAdapt)
 
 Before routing, every action is validated:

@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/flare-foundation/tee-node/internal/router/queue"
+	"github.com/flare-foundation/tee-node/internal/settings"
 	"github.com/flare-foundation/tee-node/pkg/types"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -96,7 +97,7 @@ func TestFetchAction_Success(t *testing.T) {
 		_, _ = w.Write(actionJSON)
 	})
 
-	action, err := queue.FetchAction(setup.url)
+	action, err := queue.FetchAction(setup.url, settings.ProxyTimeout)
 	require.NoError(t, err)
 	require.NotNil(t, action)
 	require.Equal(t, mockAction.Data.ID, action.Data.ID)
@@ -107,7 +108,7 @@ func TestFetchAction_Success(t *testing.T) {
 // TestFetchAction_HTTPError tests HTTP connection errors
 func TestFetchAction_HTTPError(t *testing.T) {
 	// Use invalid URL to trigger connection error
-	_, err := queue.FetchAction("http://invalid-url-that-does-not-exist:9999")
+	_, err := queue.FetchAction("http://invalid-url-that-does-not-exist:9999", settings.ProxyTimeout)
 	require.Error(t, err)
 	// resolver error wording varies by platform; assert the failure type instead
 	var dnsErr *net.DNSError
@@ -125,7 +126,7 @@ func TestFetchAction_NonOKStatus(t *testing.T) {
 		_, _ = w.Write([]byte("Internal Server Error"))
 	})
 
-	_, err := queue.FetchAction(setup.url)
+	_, err := queue.FetchAction(setup.url, settings.ProxyTimeout)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "unexpected status code: 500")
 	require.Contains(t, err.Error(), "Internal Server Error")
@@ -142,7 +143,7 @@ func TestFetchAction_InvalidJSON(t *testing.T) {
 		_, _ = w.Write([]byte("invalid json response"))
 	})
 
-	_, err := queue.FetchAction(setup.url)
+	_, err := queue.FetchAction(setup.url, settings.ProxyTimeout)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "invalid character")
 }
@@ -158,7 +159,7 @@ func TestFetchAction_EmptyResponse(t *testing.T) {
 		_, _ = w.Write([]byte(""))
 	})
 
-	_, err := queue.FetchAction(setup.url)
+	_, err := queue.FetchAction(setup.url, settings.ProxyTimeout)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "unexpected end of JSON input")
 }
@@ -170,12 +171,12 @@ func TestFetchAction_Timeout(t *testing.T) {
 
 	// Override server handler to delay response beyond timeout
 	setup.server.Config.Handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		time.Sleep(3 * time.Second) // Longer than ProxyTimeout
+		time.Sleep(400 * time.Millisecond) // longer than the client timeout below
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte("{}"))
 	})
 
-	_, err := queue.FetchAction(setup.url)
+	_, err := queue.FetchAction(setup.url, 100*time.Millisecond)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "context deadline exceeded")
 }
@@ -298,7 +299,7 @@ func TestQueueIntegration_FetchAndPost(t *testing.T) {
 	})
 
 	// Test fetch action
-	action, err := queue.FetchAction(setup.url)
+	action, err := queue.FetchAction(setup.url, settings.ProxyTimeout)
 	require.NoError(t, err)
 	require.NotNil(t, action)
 
@@ -324,7 +325,7 @@ func TestQueueIntegration_ServerUnavailable(t *testing.T) {
 	setup.teardownQueueTest() // Close server immediately
 
 	// Test fetch action with closed server
-	_, err := queue.FetchAction(setup.url)
+	_, err := queue.FetchAction(setup.url, settings.ProxyTimeout)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "connection refused")
 
