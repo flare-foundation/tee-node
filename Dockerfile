@@ -1,3 +1,4 @@
+#checkov:skip=CKV_DOCKER_2:HEALTHCHECK not applicable, container runs in GCP Confidential Space behind a proxy
 # pin base image by digest so every build starts from the same bytes
 FROM golang:1.25.1-trixie@sha256:ff83f3762390c2cccb53618ccc18af23e556aff9b1db4428637e9f63287c8171 AS builder
 
@@ -10,6 +11,7 @@ WORKDIR /app
 # apt normally resolves to whatever package versions the mirror serves at build time, so two builds days apart install different bytes
 # redirect apt at snapshot.debian.org keyed on SOURCE_DATE_EPOCH so every build installs the exact package set that existed at that instant
 # NOTE:(@janezicmatej) taken verbatim from https://github.com/reproducible-containers/repro-sources-list.sh/blob/master/alternative/Dockerfile.debian-13
+# hadolint ignore=DL3008
 RUN \
   --mount=type=cache,target=/var/cache/apt,sharing=locked \
   --mount=type=cache,target=/var/lib/apt,sharing=locked \
@@ -21,15 +23,16 @@ RUN \
   rm -f /etc/apt/apt.conf.d/docker-clean && \
   echo 'Binary::apt::APT::Keep-Downloaded-Packages "true";' >/etc/apt/apt.conf.d/keep-cache && \
   : "Fetching the snapshot and installing ca-certificates in one command" && \
-  apt-get install --update --snapshot "${snapshot}" -o Acquire::Check-Valid-Until=false -o Acquire::https::Verify-Peer=false -y ca-certificates && \
+  apt-get install --no-install-recommends --update --snapshot "${snapshot}" -o Acquire::Check-Valid-Until=false -o Acquire::https::Verify-Peer=false -y ca-certificates && \
   : "Installing the cgo toolchain (gcc + libc6-dev) pinned to the same snapshot, now with tls verification" && \
-  apt-get install --snapshot "${snapshot}" -y gcc libc6-dev && \
+  apt-get install --no-install-recommends --snapshot "${snapshot}" -y gcc libc6-dev && \
   : "Clean up for improving reproducibility (optional)" && \
   rm -rf /var/log/* /var/cache/ldconfig/aux-cache
 
 # explicit chmod/chown on COPY so file metadata does not depend on host umask or ownership
 COPY --chmod=644 --chown=0:0 go.mod go.sum ./
 RUN go mod download
+# hadolint ignore=DL3059
 RUN go mod verify
 
 COPY --chmod=644 --chown=0:0 . .
@@ -49,6 +52,7 @@ RUN CGO_ENABLED=1 GOOS=linux GOARCH=amd64 GOFLAGS="-buildvcs=false" \
 # NOTE:(@janezicmatej) buildkit's rewrite-timestamp only clamps mtimes down to SOURCE_DATE_EPOCH (moby/buildkit#3180)
 # files older than SOURCE_DATE_EPOCH are left at their original non-deterministic mtime
 # touch every path to SOURCE_DATE_EPOCH explicitly so timestamps are normalized in both directions
+# hadolint ignore=DL3059
 RUN find /app -exec touch -h -d @${SOURCE_DATE_EPOCH} {} +
 
 # minimal base pinned by digest so every build starts from the same bytes
@@ -73,6 +77,7 @@ ENV MODE=0
 # workload cannot chmod a socket the launcher created on the host side; the container is not
 # the trust boundary in confidential space anyway, the attested vm is, so dropping privileges
 # inside the container does not change what the launch policy attests to
+# hadolint ignore=DL3002
 USER 0:0
 
 # confidential space launch policy label: allow the operator to override these env vars at workload launch
