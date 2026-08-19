@@ -2351,3 +2351,42 @@ func TestKeyDirectRestoreEndSubmissionTag(t *testing.T) {
 	_, _, err = fx.destProc.KeyDirectRestore(context.Background(), types.End, inst, nil, nil, nil)
 	require.Error(t, err)
 }
+
+// TestKeyDataProviderRestoreDuplicateCosigners covers a backup whose metadata
+// carries a cosigner list with a repeated address. The list is installed
+// verbatim on the restored wallet, and a duplicate makes the key unusable
+// because CheckThresholds rejects duplicate cosigner lists on every later
+// signing instruction.
+func TestKeyDataProviderRestoreDuplicateCosigners(t *testing.T) {
+	setup := setupKeyDataProviderRestoreTest(t)
+
+	variableMessages, signers := setup.buildVariableMessages(t, len(setup.voterPrivKeys), len(setup.adminPrivKeys))
+
+	dup := common.HexToAddress("0xaa")
+	setup.walletBackup.Cosigners = []common.Address{dup, dup}
+	setup.walletBackup.CosignersThreshold = 1
+
+	restoreInstruction := setup.buildRestoreInstruction(t, setup.buildDefaultRestoreRequest(big.NewInt(int64(setup.nonce))))
+
+	_, _, err := setup.processor.KeyDataProviderRestore(context.Background(), types.Threshold, restoreInstruction, variableMessages, signers, nil)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "duplicate cosigner addresses")
+}
+
+// TestKeyDataProviderRestoreUnreachableCosignersThreshold covers a backup whose
+// metadata demands more cosigner signatures than it lists cosigners. Restoring
+// it would produce a key whose cosigner gate can never be satisfied.
+func TestKeyDataProviderRestoreUnreachableCosignersThreshold(t *testing.T) {
+	setup := setupKeyDataProviderRestoreTest(t)
+
+	variableMessages, signers := setup.buildVariableMessages(t, len(setup.voterPrivKeys), len(setup.adminPrivKeys))
+
+	setup.walletBackup.CosignersThreshold =
+		uint64(len(setup.walletBackup.Cosigners)) + 1
+
+	restoreInstruction := setup.buildRestoreInstruction(t, setup.buildDefaultRestoreRequest(big.NewInt(int64(setup.nonce))))
+
+	_, _, err := setup.processor.KeyDataProviderRestore(context.Background(), types.Threshold, restoreInstruction, variableMessages, signers, nil)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "cosigners threshold is greater than the number of cosigners")
+}
