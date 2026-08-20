@@ -18,7 +18,7 @@ import (
 func TestDefaultInstructionProcessor(t *testing.T) {
 	testNode, pStorage, _ := testutils.Setup(t)
 	numVoters, randSeed, epochID := 100, int64(12345), uint32(1)
-	_, signers, privKeys := testutils.GenerateAndSetInitialPolicy(t, pStorage, numVoters, randSeed, epochID)
+	_, signers, privKeys := testutils.GenerateAndSetInitialPolicy(t, testutils.DefaultTestChainID, pStorage, numVoters, randSeed, epochID)
 	variableMessages := make([][]byte, len(privKeys))
 
 	chainID, err := testNode.ChainID()
@@ -95,7 +95,7 @@ func TestDefaultInstructionProcessor(t *testing.T) {
 func TestDefaultInstructionProcessorWrongChainID(t *testing.T) {
 	testNode, pStorage, _ := testutils.Setup(t)
 	numVoters, randSeed, epochID := 100, int64(12345), uint32(1)
-	_, _, privKeys := testutils.GenerateAndSetInitialPolicy(t, pStorage, numVoters, randSeed, epochID)
+	_, _, privKeys := testutils.GenerateAndSetInitialPolicy(t, testutils.DefaultTestChainID, pStorage, numVoters, randSeed, epochID)
 	variableMessages := make([][]byte, len(privKeys))
 
 	chainID, err := testNode.ChainID()

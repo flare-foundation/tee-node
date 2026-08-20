@@ -3,9 +3,10 @@ module github.com/flare-foundation/tee-node
 go 1.25.1
 
 require (
+	filippo.io/bigmod v0.1.0
 	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.4.0
 	github.com/ethereum/go-ethereum v1.17.2
-	github.com/flare-foundation/go-flare-common v1.2.2-0.20260812145523-f0af1d95e467
+	github.com/flare-foundation/go-flare-common v1.2.2-0.20260820114858-51165807a89f
 	github.com/golang-jwt/jwt/v5 v5.3.0
 	github.com/pkg/errors v0.9.1
 	github.com/stretchr/testify v1.11.1
@@ -13,7 +14,6 @@ require (
 )
 
 require (
-	filippo.io/bigmod v0.1.0 // indirect
 	filippo.io/edwards25519 v1.1.0 // indirect
 	github.com/DataDog/zstd v1.4.5 // indirect
 	github.com/Microsoft/go-winio v0.6.2 // indirect

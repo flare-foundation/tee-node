@@ -60,7 +60,12 @@ func (p *Processor) InitializePolicy(ctx context.Context, i *types.DirectInstruc
 		return nil, err
 	}
 
-	if err := p.SetInitialPolicy(initialPolicy, pubKeysMap); err != nil {
+	chainID, err := p.node.ChainID()
+	if err != nil {
+		return nil, err
+	}
+
+	if err := p.SetInitialPolicy(chainID, initialPolicy, pubKeysMap); err != nil {
 		p.DestroyState()
 		return nil, err
 	}
@@ -262,7 +267,16 @@ func (p *Processor) processUpdatePolicyRequest(signedPolicy types.MultiSignedPol
 		return nil, errors.New("policy is not active")
 	}
 
-	hash := commonpolicy.Hash(signedPolicy.PolicyBytes)
+	chainID, err := p.node.ChainID()
+	if err != nil {
+		return nil, err
+	}
+
+	// Data providers sign relay.toSigningPolicyHash(epoch), which is source-bound
+	// from the new Relay's initialRewardEpochId on. The fleet is replaced at that
+	// boundary, so no pre-boundary epoch ever reaches here and the legacy fold is
+	// never computed.
+	hash := commonpolicy.ChainBoundHash(chainID, signedPolicy.PolicyBytes)
 
 	signers := make([]common.Address, len(signedPolicy.Signatures))
 	for i, sig := range signedPolicy.Signatures {

@@ -41,15 +41,15 @@ func GenerateRandomValidPolicyAndSigners(t *testing.T, epochId uint32, randSeed 
 }
 
 // BuildMultiSignedPolicy signs the provided policy bytes with all given voter
-// keys and returns the multisigned wrapper.
-func BuildMultiSignedPolicy(t *testing.T, policyBytes []byte, voterPrivKeys []*ecdsa.PrivateKey) types.MultiSignedPolicy {
+// keys and returns the multisigned wrapper. It signs the source-bound hash for
+// chainID, matching what data providers put on chain.
+func BuildMultiSignedPolicy(t *testing.T, chainID uint64, policyBytes []byte, voterPrivKeys []*ecdsa.PrivateKey) types.MultiSignedPolicy {
 	t.Helper()
 
 	sigs := make([][]byte, 0, len(voterPrivKeys))
 
-	hash := commonpolicy.Hash(policyBytes)
+	hash := commonpolicy.ChainBoundHash(chainID, policyBytes)
 	for _, voterPrivKey := range voterPrivKeys {
-		// sig, err := policy.SignNewSigningPolicy(policy.SigningPolicyHash(policyBytes), voterPrivKeys[i])
 		sig, err := utils.Sign(hash, voterPrivKey)
 		require.NoError(t, err)
 
@@ -150,7 +150,7 @@ func randomNormalizedArray(n int, seed int64) []float64 {
 
 // GenerateAndSetInitialPolicy creates a mock policy, stores it in the provided
 // storage, and returns the policy with its voters and keys.
-func GenerateAndSetInitialPolicy(t *testing.T, ps *ppolicy.Storage, numVoters int, randSeed int64, epochID uint32) (*commonpolicy.SigningPolicy, []common.Address, []*ecdsa.PrivateKey) {
+func GenerateAndSetInitialPolicy(t *testing.T, chainID uint64, ps *ppolicy.Storage, numVoters int, randSeed int64, epochID uint32) (*commonpolicy.SigningPolicy, []common.Address, []*ecdsa.PrivateKey) {
 	t.Helper()
 
 	// Generate random voters and corresponding private keys
@@ -159,7 +159,7 @@ func GenerateAndSetInitialPolicy(t *testing.T, ps *ppolicy.Storage, numVoters in
 	// Generate a random initial policy
 	initialPolicy := GenerateRandomPolicyData(t, epochID, voters, randSeed)
 
-	err := ps.SetInitialPolicy(initialPolicy, pubKeys)
+	err := ps.SetInitialPolicy(chainID, initialPolicy, pubKeys)
 	require.NoError(t, err)
 
 	return initialPolicy, voters, privKeys
@@ -258,6 +258,7 @@ func encodeSigningPolicy(policy *relay.RelaySigningPolicyInitialized) ([]byte, e
 // total, per encodeSigningPolicy.
 func VerifyEncodedDataProviderSignatures(
 	t *testing.T,
+	chainID uint64,
 	blob []byte,
 	msgHash common.Hash,
 	voterAddresses []common.Address,
@@ -291,8 +292,8 @@ func VerifyEncodedDataProviderSignatures(
 		copy(rsv, vrs[1:33])
 		copy(rsv[32:], vrs[33:65])
 		rsv[64] = vrs[0] - 27
-		// DP signatures are over the Relay Mode-2 prefixed hash, not msgHash itself.
-		dpSigningHash := fdc.RelayPrefixedHash(msgHash)
+		// DP signatures are over the chain-bound Relay Mode-2 prefixed hash, not msgHash itself.
+		dpSigningHash := fdc.ChainBoundRelayPrefixedHash(chainID, msgHash)
 		err := utils.VerifySignature(dpSigningHash.Bytes(), rsv, voterAddresses[idx])
 		require.NoError(t, err, "DP signature %d (voter index %d) failed verification", i, idx)
 		prevIndex = idx
