@@ -7,10 +7,32 @@ import (
 	"testing"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/flare-foundation/tee-node/pkg/wallets/vrf"
 	"github.com/stretchr/testify/require"
 )
+
+// TestHashToCurveMatchesContractVector pins the hash-to-curve output for a fixed
+// key and message. The expected point is cross-validated against
+// VrfVerifier._hashToCurve, so a change to the preimage encoding that would
+// silently desynchronise proof generation from on-chain verification fails here
+// without needing a simulated chain.
+func TestHashToCurveMatchesContractVector(t *testing.T) {
+	key, err := crypto.ToECDSA(hexutil.MustDecode(
+		"0x0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20"))
+	require.NoError(t, err)
+
+	h := vrf.HashToCurve(&key.PublicKey, hexutil.MustDecode("0xdeadbeefcafe"))
+	require.NotNil(t, h)
+
+	require.Equal(t,
+		"4beed689e0207e1aa873f54ec0eb1c8f8886bac5f71867c3363367e207c8d858",
+		h.X.Text(16))
+	require.Equal(t,
+		"49a96c28502c2c71cb85ca3147e24be706c5824e037b08aa3ebd19e86f3d1709",
+		h.Y.Text(16))
+}
 
 func TestVrfHappyPath(t *testing.T) {
 	key, err := crypto.GenerateKey()
@@ -306,12 +328,78 @@ func TestVerifyRandomnessErrorsWhenProofNil(t *testing.T) {
 func TestHashToG1DeterministicAndOnCurve(t *testing.T) {
 	nonce := randomNonce(t)
 
-	p1 := vrf.HashToCurve(nonce)
-	p2 := vrf.HashToCurve(nonce)
+	key, err := crypto.GenerateKey()
+	require.NoError(t, err)
+
+	p1 := vrf.HashToCurve(&key.PublicKey, nonce)
+	p2 := vrf.HashToCurve(&key.PublicKey, nonce)
 
 	require.Equal(t, 0, p1.X.Cmp(p2.X))
 	require.Equal(t, 0, p1.Y.Cmp(p2.Y))
 	require.True(t, p1.IsOnCurve())
+}
+
+// TestHashToCurveIsPublicKeySalted checks that the hash-to-curve point is bound
+// to the public key, so precomputation against one key does not carry to another.
+func TestHashToCurveIsPublicKeySalted(t *testing.T) {
+	nonce := randomNonce(t)
+
+	keyA, err := crypto.GenerateKey()
+	require.NoError(t, err)
+	keyB, err := crypto.GenerateKey()
+	require.NoError(t, err)
+
+	pA := vrf.HashToCurve(&keyA.PublicKey, nonce)
+	pB := vrf.HashToCurve(&keyB.PublicKey, nonce)
+
+	require.NotEqual(t, 0, pA.X.Cmp(pB.X), "same message under different keys must not map to the same point")
+	require.True(t, pA.IsOnCurve())
+	require.True(t, pB.IsOnCurve())
+}
+
+// TestVerifiableRandomnessIsDeterministic checks that proof generation does not
+// depend on the RNG: the same key and message must yield a byte-identical proof.
+func TestVerifiableRandomnessIsDeterministic(t *testing.T) {
+	key, err := crypto.GenerateKey()
+	require.NoError(t, err)
+	nonce := randomNonce(t)
+
+	first, err := vrf.VerifiableRandomness(key, nonce)
+	require.NoError(t, err)
+	second, err := vrf.VerifiableRandomness(key, nonce)
+	require.NoError(t, err)
+
+	require.Equal(t, 0, first.C.Cmp(second.C))
+	require.Equal(t, 0, first.S.Cmp(second.S))
+	require.Equal(t, 0, first.Gamma.X.Cmp(second.Gamma.X))
+	require.Equal(t, 0, first.Gamma.Y.Cmp(second.Gamma.Y))
+	require.Equal(t, 0, first.U.X.Cmp(second.U.X))
+	require.Equal(t, 0, first.V.X.Cmp(second.V.X))
+	require.Equal(t, 0, first.ZInv.Cmp(second.ZInv))
+}
+
+// TestVerifiableRandomnessNonceVariesPerKeyAndMessage checks that the deterministic
+// nonce is not reused across keys or messages, since a repeated nonce under
+// distinct challenges would expose the secret scalar.
+func TestVerifiableRandomnessNonceVariesPerKeyAndMessage(t *testing.T) {
+	keyA, err := crypto.GenerateKey()
+	require.NoError(t, err)
+	keyB, err := crypto.GenerateKey()
+	require.NoError(t, err)
+
+	nonce1 := randomNonce(t)
+	nonce2 := randomNonce(t)
+
+	// u = k·G, so distinct u values imply distinct nonces.
+	a1, err := vrf.VerifiableRandomness(keyA, nonce1)
+	require.NoError(t, err)
+	a2, err := vrf.VerifiableRandomness(keyA, nonce2)
+	require.NoError(t, err)
+	b1, err := vrf.VerifiableRandomness(keyB, nonce1)
+	require.NoError(t, err)
+
+	require.NotEqual(t, 0, a1.U.X.Cmp(a2.U.X), "same key, different message must not reuse the nonce")
+	require.NotEqual(t, 0, a1.U.X.Cmp(b1.U.X), "different key, same message must not reuse the nonce")
 }
 
 func TestAddMatchesScalarBaseMult(t *testing.T) {

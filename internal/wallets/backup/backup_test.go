@@ -215,8 +215,12 @@ func TestSplitAndEncrypt(t *testing.T) {
 
 	signer := &wallets.Wallet{PrivateKey: common.BigToHash(privateKey.D).Bytes(), SigningAlgo: wallets.EVMSignAlgo}
 
+	field, err := pbackup.FieldFor(wallets.EVMType, wallets.EVMSignAlgo)
+	require.NoError(t, err)
+
 	// Split and encrypt the key
-	encryptedShares, err := backup.SplitAndEncrypt(privateKey, encryptionPubKeys, 2, utils.ConstantSlice(uint16(1), 2), wallets.WalletBackupID{}, signer, false, uint64(31337))
+	secret := common.BigToHash(privateKey.D).Bytes()
+	encryptedShares, err := backup.SplitAndEncrypt(field, secret, encryptionPubKeys, 2, utils.ConstantSlice(uint16(1), 2), wallets.WalletBackupID{}, signer, false, uint64(31337))
 	assert.NoError(t, err)
 	assert.NotNil(t, encryptedShares)
 }
@@ -446,12 +450,15 @@ func decryptAllShares(t *testing.T, adminEncryptedParts, providerEncryptedParts 
 // fix, make([]ShamirShare, 0, threshold) panicked "makeslice: cap out of range"
 // for MaxUint64 (and would OOM for in-range-but-multi-GB values).
 func TestJoinKeySharesHugeThresholdDoesNotAllocate(t *testing.T) {
+	field, fieldErr := pbackup.FieldFor(wallets.EVMType, wallets.EVMSignAlgo)
+	require.NoError(t, fieldErr)
+
 	var (
-		key *ecdsa.PrivateKey
+		key []byte
 		err error
 	)
 	require.NotPanics(t, func() {
-		key, err = backup.JoinKeyShares(nil, math.MaxUint64)
+		key, err = backup.JoinKeyShares(field, nil, math.MaxUint64)
 	})
 	require.Error(t, err)
 	require.Nil(t, key)

@@ -3,8 +3,9 @@ module github.com/flare-foundation/tee-node
 go 1.25.1
 
 require (
+	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.4.0
 	github.com/ethereum/go-ethereum v1.17.2
-	github.com/flare-foundation/go-flare-common v1.2.2-0.20260727094511-09a10067e6a4
+	github.com/flare-foundation/go-flare-common v1.2.2-0.20260812145523-f0af1d95e467
 	github.com/golang-jwt/jwt/v5 v5.3.0
 	github.com/pkg/errors v0.9.1
 	github.com/stretchr/testify v1.11.1
@@ -12,6 +13,7 @@ require (
 )
 
 require (
+	filippo.io/bigmod v0.1.0 // indirect
 	filippo.io/edwards25519 v1.1.0 // indirect
 	github.com/DataDog/zstd v1.4.5 // indirect
 	github.com/Microsoft/go-winio v0.6.2 // indirect
@@ -34,7 +36,6 @@ require (
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/dchest/siphash v1.2.3 // indirect
 	github.com/deckarep/golang-set/v2 v2.8.0 // indirect
-	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.4.0 // indirect
 	github.com/emicklei/dot v1.6.2 // indirect
 	github.com/ethereum/c-kzg-4844/v2 v2.1.6 // indirect
 	github.com/ethereum/go-bigmodexpfix v0.0.0-20250911101455-f9e208c548ab // indirect

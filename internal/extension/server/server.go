@@ -119,7 +119,11 @@ func (s *SignServer) getKeyInfoHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	walletInfo := wallet.KeyExistenceProof(s.node.TeeID())
+	walletInfo, err := wallet.KeyExistenceProof(s.node.TeeID())
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
 
 	response, err := json.Marshal(walletInfo)
 	if err != nil {

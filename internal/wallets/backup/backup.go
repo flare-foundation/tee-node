@@ -15,7 +15,6 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/ethereum/go-ethereum/crypto"
 )
 
 const NormalizationConstant = 1000
@@ -32,6 +31,11 @@ func BackupWallet(wallet *wallets.Wallet, providerPubKeys []*ecdsa.PublicKey, si
 		return nil, errors.New("unsupported signing algorithm")
 	}
 
+	field, err := backup.FieldFor(wallet.KeyType, wallet.SigningAlgo)
+	if err != nil {
+		return nil, err
+	}
+
 	adminPubKeys := make([]types.PublicKey, len(wallet.AdminPublicKeys))
 	for i, pubKey := range wallet.AdminPublicKeys {
 		adminPubKeys[i] = types.PubKeyToStruct(pubKey)
@@ -45,19 +49,23 @@ func BackupWallet(wallet *wallets.Wallet, providerPubKeys []*ecdsa.PublicKey, si
 		return nil, err
 	}
 
-	sk := wallets.ToECDSAUnsafe(wallet.PrivateKey)
+	walletPubKey, err := wallet.PubKey()
+	if err != nil {
+		return nil, err
+	}
 
 	metaData := backup.WalletBackupMetaData{
 		WalletBackupID: wallets.WalletBackupID{
 			TeeID:         teeID,
 			WalletID:      wallet.WalletID,
 			KeyID:         wallet.KeyID,
-			PublicKey:     types.PubKeyToBytes(&sk.PublicKey),
+			PublicKey:     walletPubKey,
 			KeyType:       wallet.KeyType,
 			SigningAlgo:   wallet.SigningAlgo,
 			RewardEpochID: rewardEpochID,
 			RandomNonce:   randomNonce,
 		},
+		FieldID:            field.ID,
 		AdminsPublicKeys:   adminPubKeys,
 		AdminsThreshold:    wallet.AdminsThreshold,
 		ProvidersThreshold: dataProviderThreshold,
@@ -66,18 +74,18 @@ func BackupWallet(wallet *wallets.Wallet, providerPubKeys []*ecdsa.PublicKey, si
 	}
 	copy(metaData.Cosigners, wallet.Cosigners)
 
-	splitKey, err := SplitPrivateKey(sk, 2)
+	splitKey, err := SplitSecret(field, wallet.PrivateKey, 2)
 	if err != nil {
 		return nil, err
 	}
 
 	weightsOne := utils.ConstantSlice(uint16(1), len(wallet.AdminPublicKeys))
-	adminEncryptedParts, err := SplitAndEncrypt(splitKey[0], wallet.AdminPublicKeys, wallet.AdminsThreshold, weightsOne, metaData.WalletBackupID, wallet, true, chainID)
+	adminEncryptedParts, err := SplitAndEncrypt(field, splitKey[0], wallet.AdminPublicKeys, wallet.AdminsThreshold, weightsOne, metaData.WalletBackupID, wallet, true, chainID)
 	if err != nil {
 		return nil, err
 	}
 
-	providerEncryptedParts, err := SplitAndEncrypt(splitKey[1], providerPubKeys, dataProviderThreshold, normalizedWeights, metaData.WalletBackupID, wallet, false, chainID)
+	providerEncryptedParts, err := SplitAndEncrypt(field, splitKey[1], providerPubKeys, dataProviderThreshold, normalizedWeights, metaData.WalletBackupID, wallet, false, chainID)
 	if err != nil {
 		return nil, err
 	}
@@ -133,10 +141,11 @@ func weightsNormalization(weights []uint16, total uint16) ([]uint16, error) {
 	return normalizedWeights, nil
 }
 
-// SplitAndEncrypt shards the provided private key, encrypts each share for its
-// owner, and returns the encoded share bundle.
+// SplitAndEncrypt shards the provided secret over the given field, encrypts
+// each share for its owner, and returns the encoded share bundle.
 func SplitAndEncrypt(
-	key *ecdsa.PrivateKey,
+	field *backup.Field,
+	secret []byte,
 	encryptionPubKeys []*ecdsa.PublicKey,
 	threshold uint64,
 	weights []uint16,
@@ -159,20 +168,19 @@ func SplitAndEncrypt(
 		Splits:           make([]hexutil.Bytes, numSplits),
 		OwnersPublicKeys: encryptionPubKeysApi,
 		Threshold:        threshold,
-		PublicKey:        types.PubKeyToBytes(&key.PublicKey),
 		Weights:          make([]uint16, numSplits),
 	}
 	copy(encryptedShares.Weights, weights)
 
 	numShares := utils.SumUint64(weights)
-	shamirShares, err := SplitToShamirShares(key.D, numShares, threshold)
+	shamirShares, err := SplitToShamirShares(field, secret, numShares, threshold)
 	if err != nil {
 		return nil, err
 	}
 
 	weightCounter := 0
 	partialBackupID := backup.PartialWalletBackupID{
-		WalletBackupID: backupID, PartialPubKey: encryptedShares.PublicKey, IsAdmin: isAdmin,
+		WalletBackupID: backupID, IsAdmin: isAdmin,
 	}
 	for i := range numSplits {
 		keySplitData := backup.KeySplitData{
@@ -219,11 +227,19 @@ func RecoverWallet(
 		}
 	}
 
-	err := CheckKeyShares(adminKeyShares, backupMetaData)
+	// The field is taken from the backup rather than re-derived from the key
+	// metadata, so a backup remains readable independently of the current
+	// mapping from signing algorithm to field.
+	field, err := backup.FieldForID(backupMetaData.FieldID)
 	if err != nil {
 		return nil, err
 	}
-	adminKey, err := JoinKeyShares(adminKeyShares, backupMetaData.AdminsThreshold)
+
+	err = CheckKeyShares(adminKeyShares, backupMetaData)
+	if err != nil {
+		return nil, err
+	}
+	adminKey, err := JoinKeyShares(field, adminKeyShares, backupMetaData.AdminsThreshold)
 	if err != nil {
 		return nil, err
 	}
@@ -232,18 +248,14 @@ func RecoverWallet(
 	if err != nil {
 		return nil, err
 	}
-	providerKey, err := JoinKeyShares(providerKeyShares, backupMetaData.ProvidersThreshold)
+	providerKey, err := JoinKeyShares(field, providerKeyShares, backupMetaData.ProvidersThreshold)
 	if err != nil {
 		return nil, err
 	}
 
-	key, err := JoinPrivateKeys(adminKey, providerKey)
+	secret, err := JoinSecret(field, adminKey, providerKey)
 	if err != nil {
 		return nil, err
-	}
-
-	if slices.Compare(types.PubKeyToBytes(&key.PublicKey), backupMetaData.PublicKey) != 0 {
-		return nil, errors.New("private key reconstruction error: final result does not match address")
 	}
 
 	adminsPubKeys := make([]*ecdsa.PublicKey, len(backupMetaData.AdminsPublicKeys))
@@ -254,10 +266,10 @@ func RecoverWallet(
 		}
 	}
 
-	return &wallets.Wallet{
+	recovered := &wallets.Wallet{
 		WalletID:    backupMetaData.WalletID,
 		KeyID:       backupMetaData.KeyID,
-		PrivateKey:  common.BigToHash(key.D).Bytes(),
+		PrivateKey:  secret,
 		KeyType:     backupMetaData.KeyType,
 		SigningAlgo: backupMetaData.SigningAlgo,
 		Restored:    true,
@@ -276,7 +288,19 @@ func RecoverWallet(
 		// metadata must preserve and restore them, or Store() must re-apply them
 		// from permanent storage.
 		Status: &wallets.WalletStatus{Nonce: 0, StatusCode: 0},
-	}, nil
+	}
+
+	// Deriving the public key through the wallet keeps the check tied to the
+	// signing algorithm rather than assuming the secret is a curve scalar.
+	recoveredPubKey, err := recovered.PubKey()
+	if err != nil {
+		return nil, err
+	}
+	if slices.Compare(recoveredPubKey, backupMetaData.PublicKey) != 0 {
+		return nil, errors.New("private key reconstruction error: final result does not match address")
+	}
+
+	return recovered, nil
 }
 
 // CheckKeyShares validates that the provided key shares belong to the expected
@@ -307,8 +331,8 @@ func CheckKeyShares(splits []*backup.KeySplit, backupMetaData *backup.WalletBack
 
 // JoinKeyShares joins key shares in a private key. It assumes that all the
 // splits have the same backup id and the signatures have been verified.
-func JoinKeyShares(splits []*backup.KeySplit, threshold uint64) (*ecdsa.PrivateKey, error) {
-	if threshold <= 0 {
+func JoinKeyShares(field *backup.Field, splits []*backup.KeySplit, threshold uint64) ([]byte, error) {
+	if threshold == 0 {
 		return nil, errors.New("threshold should be positive")
 	}
 
@@ -323,15 +347,11 @@ func JoinKeyShares(splits []*backup.KeySplit, threshold uint64) (*ecdsa.PrivateK
 	}
 	shares = shares[:threshold]
 
-	privateKeyBigInt, err := CombineShamirShares(shares)
-	if err != nil {
-		return nil, err
-	}
-	privateKey := crypto.ToECDSAUnsafe(privateKeyBigInt.Bytes())
-	expectedPartialPublicKey := splits[0].PartialPubKey // at this point splits is checked to not be empty
-	if !slices.Equal(types.PubKeyToBytes(&privateKey.PublicKey), expectedPartialPublicKey) {
-		return nil, errors.New("private key reconstruction error: partial result does not match expected public key")
-	}
-
-	return privateKey, nil
+	// The reconstructed part carries no commitment of its own; a wrong
+	// reconstruction is caught once the parts are combined, by comparing the
+	// assembled key against the public key in the backup metadata. Individual
+	// shares are authenticated by the wallet-key signature on each KeySplitData,
+	// so a share that does not belong to this part is rejected before it
+	// reaches interpolation.
+	return CombineShamirShares(field, shares)
 }

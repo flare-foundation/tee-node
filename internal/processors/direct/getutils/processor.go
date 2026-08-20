@@ -129,7 +129,11 @@ func (p *Processor) KeysProof(ctx context.Context, i *types.DirectInstruction) (
 			return nil, err
 		}
 
-		ep := storedWallet.KeyExistenceProof(teeID)
+		ep, err := storedWallet.KeyExistenceProof(teeID)
+		if err != nil {
+			p.wStorage.RUnlock()
+			return nil, err
+		}
 		epEncoded, err := structs.Encode(wallet.KeyExistenceStructArg, ep)
 		if err != nil {
 			p.wStorage.RUnlock()

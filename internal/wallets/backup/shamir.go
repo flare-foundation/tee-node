@@ -1,36 +1,41 @@
 package backup
 
 import (
-	"crypto/rand"
 	"errors"
 	"fmt"
-	"math/big"
+
+	"filippo.io/bigmod"
 
 	"github.com/flare-foundation/tee-node/pkg/wallets/backup"
-
-	"github.com/ethereum/go-ethereum/crypto/secp256k1"
 )
 
-var P = secp256k1.S256().N
-var Zero = big.NewInt(0)
-
-// SplitToShamirShares generates Shamir secret shares for the provided value.
-func SplitToShamirShares(val *big.Int, numShares uint64, threshold uint64) ([]backup.ShamirShare, error) {
+// SplitToShamirShares generates Shamir secret shares for the provided value
+// over the given field. The value must be smaller than the field modulus, which
+// is what makes sharing injective; callers select the field from the key's
+// metadata so this holds by construction.
+//
+// Polynomial evaluation uses constant-time modular arithmetic, so neither the
+// secret nor the sampled coefficients influence execution time.
+func SplitToShamirShares(field *backup.Field, val []byte, numShares uint64, threshold uint64) ([]backup.ShamirShare, error) {
 	// Verify minimum isn't greater than shares; there is no way to recreate
 	// the original polynomial in our current setup, therefore it doesn't make
 	// sense to generate fewer shares than are needed to reconstruct the secret.
 	if threshold > numShares {
 		return nil, errors.New("num shares smaller than threshold")
 	}
-	if threshold <= 0 {
+	if threshold == 0 {
 		return nil, errors.New("threshold should be positive")
 	}
 
-	polynomial := make([]*big.Int, threshold)
-	polynomial[0] = new(big.Int).Set(val)
-	var err error
+	secret, err := field.Element(val)
+	if err != nil {
+		return nil, fmt.Errorf("secret does not fit the sharing field: %w", err)
+	}
+
+	polynomial := make([]*bigmod.Nat, threshold)
+	polynomial[0] = secret
 	for i := uint64(1); i < threshold; i++ {
-		polynomial[i], err = rand.Int(rand.Reader, P)
+		polynomial[i], err = field.Random()
 		if err != nil {
 			return nil, err
 		}
@@ -38,60 +43,85 @@ func SplitToShamirShares(val *big.Int, numShares uint64, threshold uint64) ([]ba
 
 	shamirShares := make([]backup.ShamirShare, numShares)
 	for i := range numShares {
+		x := i + 1
 		shamirShares[i] = backup.ShamirShare{
-			X: big.NewInt(int64(i + 1)),
-			Y: evalPolynomial(polynomial, big.NewInt(int64(i+1))),
+			X: x,
+			Y: field.Bytes(evalPolynomial(field, polynomial, x)),
 		}
 	}
 
 	return shamirShares, nil
 }
 
-func evalPolynomial(polynomial []*big.Int, value *big.Int) *big.Int {
-	// the function is used only on polynomials whose slice representation has length at least one
-	degree := len(polynomial) - 1
-	result := new(big.Int).Set(polynomial[degree])
+// evalPolynomial evaluates the polynomial at x by Horner's method. The
+// polynomial must have at least one coefficient.
+func evalPolynomial(field *backup.Field, polynomial []*bigmod.Nat, x uint64) *bigmod.Nat {
+	xElem := field.ElementFromUint64(x)
 
-	for s := degree - 1; s >= 0; s-- {
-		result = result.Mul(result, value)
-		result = result.Add(result, polynomial[s])
-		result = result.Mod(result, P)
+	// Starting from zero folds the leading coefficient in on the first
+	// iteration, so no separate copy of it is needed.
+	result := bigmod.NewNat().ExpandFor(field.Modulus)
+	for s := len(polynomial) - 1; s >= 0; s-- {
+		result.Mul(xElem, field.Modulus)
+		result.Add(polynomial[s], field.Modulus)
 	}
 
 	return result
 }
 
 // CombineShamirShares joins shares assuming that the threshold is at
-// exactly the length of the input.
-func CombineShamirShares(shamirShares []backup.ShamirShare) (*big.Int, error) {
+// exactly the length of the input. The share values are secret and are combined
+// with constant-time arithmetic; the evaluation indices are public, so the
+// Lagrange denominators are inverted in variable time.
+func CombineShamirShares(field *backup.Field, shamirShares []backup.ShamirShare) ([]byte, error) {
+	result := bigmod.NewNat().ExpandFor(field.Modulus)
+
+	// The evaluation indices are reused across every basis polynomial, so they
+	// are converted once rather than per inner iteration.
+	xs := make([]*bigmod.Nat, len(shamirShares))
 	for i, share := range shamirShares {
-		if share.X == nil || share.Y == nil {
-			return nil, fmt.Errorf("share %d has nil coordinate", i)
-		}
+		xs[i] = field.ElementFromUint64(share.X)
 	}
 
-	result := big.NewInt(0)
-
-	// Lagrange interpolation
+	// Lagrange interpolation. The numerator and denominator of each basis
+	// polynomial are accumulated as products and divided once, so the number of
+	// modular inversions is linear in the share count rather than quadratic.
 	for i, share := range shamirShares {
-		prod := new(big.Int).Set(share.Y)
+		y, err := field.Element(share.Y)
+		if err != nil {
+			return nil, fmt.Errorf("share %d: %w", i, err)
+		}
+
+		numerator := bigmod.NewNat().SetUint(1).ExpandFor(field.Modulus)
+		denominator := bigmod.NewNat().SetUint(1).ExpandFor(field.Modulus)
+
 		for j, shareJ := range shamirShares {
 			if i == j {
 				continue
 			}
-			prod.Mul(prod, shareJ.X)
-			denom := new(big.Int).Sub(shareJ.X, share.X)
-			if denom.Cmp(Zero) == 0 {
-				return nil, errors.New("double share error") // this should never happen, duplication tests should catch this before we get here
+			if shareJ.X == share.X {
+				// Duplicate detection upstream should reject this first; a
+				// repeated index makes the denominator zero and the
+				// interpolation undefined.
+				return nil, errors.New("double share error")
 			}
-			denom.ModInverse(denom, P)
-			prod.Mul(prod, denom)
-			prod.Mod(prod, P)
+
+			numerator.Mul(xs[j], field.Modulus)
+
+			difference := field.ElementFromUint64(shareJ.X)
+			difference.Sub(xs[i], field.Modulus)
+			denominator.Mul(difference, field.Modulus)
 		}
 
-		result.Add(result, prod)
-		result.Mod(result, P)
+		// Inverting in variable time is safe here because the denominator is
+		// derived only from the evaluation indices, which are public.
+		inverse, ok := bigmod.NewNat().InverseVarTime(denominator, field.Modulus)
+		if !ok {
+			return nil, errors.New("double share error")
+		}
+
+		result.Add(y.Mul(numerator, field.Modulus).Mul(inverse, field.Modulus), field.Modulus)
 	}
 
-	return result, nil
+	return field.Bytes(result), nil
 }
