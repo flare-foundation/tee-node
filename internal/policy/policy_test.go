@@ -44,16 +44,16 @@ func setupTestStorage(t *testing.T) (*policy.Storage, common.Hash) {
 	initialPolicy := testutils.GenerateRandomPolicyData(t, testEpochID1, voters, testSeed)
 
 	// Set initial policy
-	err := storage.SetInitialPolicy(initialPolicy, pubKeysMap)
+	err := storage.SetInitialPolicy(testutils.DefaultTestChainID, initialPolicy, pubKeysMap)
 	require.NoError(t, err)
 
-	return storage, common.Hash(initialPolicy.Hash())
+	return storage, common.Hash(initialPolicy.ChainBoundHash(testutils.DefaultTestChainID))
 }
 
 func TestInitializeStorage(t *testing.T) {
 	storage := policy.InitializeStorage()
 
-	initialID, initialHash, activeID, activeHash := storage.Info()
+	initialID, initialHash, activeID, activeHash := storage.Info(testutils.DefaultTestChainID)
 
 	assert.NotNil(t, storage)
 	assert.Equal(t, uint32(0), initialID)
@@ -70,16 +70,16 @@ func TestSetInitialPolicy_Success(t *testing.T) {
 	initialPolicy := testutils.GenerateRandomPolicyData(t, testEpochID1, voters, testSeed)
 
 	// Set initial policy
-	err := storage.SetInitialPolicy(initialPolicy, pubKeysMap)
+	err := storage.SetInitialPolicy(testutils.DefaultTestChainID, initialPolicy, pubKeysMap)
 	require.NoError(t, err)
 
-	initialID, initialHash, activeID, activeHash := storage.Info()
+	initialID, initialHash, activeID, activeHash := storage.Info(testutils.DefaultTestChainID)
 
 	// Verify state
 	assert.Equal(t, testEpochID1, initialID)
-	assert.Equal(t, common.Hash(initialPolicy.Hash()), initialHash)
+	assert.Equal(t, common.Hash(initialPolicy.ChainBoundHash(testutils.DefaultTestChainID)), initialHash)
 	assert.Equal(t, testEpochID1, activeID)
-	assert.Equal(t, common.Hash(initialPolicy.Hash()), activeHash)
+	assert.Equal(t, common.Hash(initialPolicy.ChainBoundHash(testutils.DefaultTestChainID)), activeHash)
 }
 
 func TestSetInitialPolicy_DoubleInitialization(t *testing.T) {
@@ -89,7 +89,7 @@ func TestSetInitialPolicy_DoubleInitialization(t *testing.T) {
 	voters, _, pubKeysMap := testutils.GenerateRandomKeys(t, numVoters)
 	secondPolicy := testutils.GenerateRandomPolicyData(t, testEpochID2, voters, testSeed+1)
 
-	err := storage.SetInitialPolicy(secondPolicy, pubKeysMap)
+	err := storage.SetInitialPolicy(testutils.DefaultTestChainID, secondPolicy, pubKeysMap)
 	assert.Error(t, err)
 	assert.Equal(t, "signing policy already initialized", err.Error())
 }
@@ -102,7 +102,7 @@ func TestActiveSigningPolicy_Success(t *testing.T) {
 
 	assert.NotNil(t, policy)
 	assert.Equal(t, testEpochID1, policy.RewardEpochID)
-	assert.Equal(t, initialHash, common.Hash(policy.Hash()))
+	assert.Equal(t, initialHash, common.Hash(policy.ChainBoundHash(testutils.DefaultTestChainID)))
 }
 
 func TestActiveSigningPolicy_NotInitialized(t *testing.T) {
@@ -131,7 +131,7 @@ func TestSigningPolicy_Success(t *testing.T) {
 
 	assert.NotNil(t, policy)
 	assert.Equal(t, testEpochID1, policy.RewardEpochID)
-	assert.Equal(t, initialHash, common.Hash(policy.Hash()))
+	assert.Equal(t, initialHash, common.Hash(policy.ChainBoundHash(testutils.DefaultTestChainID)))
 }
 
 func TestSigningPolicy_NotFound(t *testing.T) {
@@ -157,13 +157,13 @@ func TestSetActiveSigningPolicy_Success(t *testing.T) {
 	activePolicy, err := storage.ActiveSigningPolicy()
 	require.NoError(t, err)
 	assert.Equal(t, testEpochID2, activePolicy.RewardEpochID)
-	assert.Equal(t, common.Hash(newPolicy.Hash()), common.Hash(activePolicy.Hash()))
+	assert.Equal(t, common.Hash(newPolicy.ChainBoundHash(testutils.DefaultTestChainID)), common.Hash(activePolicy.ChainBoundHash(testutils.DefaultTestChainID)))
 
 	// Verify the new policy is stored in signingPolicies
 	epcoh2Policy, err := storage.SigningPolicy(testEpochID2)
 	require.NoError(t, err)
 	assert.Equal(t, testEpochID2, epcoh2Policy.RewardEpochID)
-	assert.Equal(t, common.Hash(newPolicy.Hash()), common.Hash(epcoh2Policy.Hash()))
+	assert.Equal(t, common.Hash(newPolicy.ChainBoundHash(testutils.DefaultTestChainID)), common.Hash(epcoh2Policy.ChainBoundHash(testutils.DefaultTestChainID)))
 }
 
 func TestSetActiveSigningPolicy_NotInitialized(t *testing.T) {
@@ -271,7 +271,7 @@ func TestDestroyState(t *testing.T) {
 	// Destroy state
 	storage.DestroyState()
 
-	initialID, initialHash, activeID, activeHash := storage.Info()
+	initialID, initialHash, activeID, activeHash := storage.Info(testutils.DefaultTestChainID)
 
 	assert.NotNil(t, storage)
 	assert.Equal(t, uint32(0), initialID)
@@ -300,7 +300,7 @@ func TestConcurrentAccess(t *testing.T) {
 			_, err = storage.ActiveSigningPolicyPublicKeys()
 			assert.NoError(t, err)
 
-			storage.Info()
+			storage.Info(testutils.DefaultTestChainID)
 		})
 	}
 
@@ -314,14 +314,14 @@ func TestPolicyLifecycle_CompleteFlow(t *testing.T) {
 	voters1, _, pubKeysMap1 := testutils.GenerateRandomKeys(t, numVoters)
 	policy1 := testutils.GenerateRandomPolicyData(t, testEpochID1, voters1, testSeed)
 
-	err := storage.SetInitialPolicy(policy1, pubKeysMap1)
+	err := storage.SetInitialPolicy(testutils.DefaultTestChainID, policy1, pubKeysMap1)
 	require.NoError(t, err)
 
 	// Verify initial state
 	activePolicy, err := storage.ActiveSigningPolicy()
 	require.NoError(t, err)
 	assert.Equal(t, testEpochID1, activePolicy.RewardEpochID)
-	assert.Equal(t, common.Hash(policy1.Hash()), common.Hash(activePolicy.Hash()))
+	assert.Equal(t, common.Hash(policy1.ChainBoundHash(testutils.DefaultTestChainID)), common.Hash(activePolicy.ChainBoundHash(testutils.DefaultTestChainID)))
 
 	// Step 2: Update to second policy
 	voters2, _, pubKeysMap2 := testutils.GenerateRandomKeys(t, numVoters)
@@ -337,7 +337,7 @@ func TestPolicyLifecycle_CompleteFlow(t *testing.T) {
 	activePolicy, err = storage.ActiveSigningPolicy()
 	require.NoError(t, err)
 	assert.Equal(t, testEpochID2, activePolicy.RewardEpochID)
-	assert.Equal(t, common.Hash(policy2.Hash()), common.Hash(activePolicy.Hash()))
+	assert.Equal(t, common.Hash(policy2.ChainBoundHash(testutils.DefaultTestChainID)), common.Hash(activePolicy.ChainBoundHash(testutils.DefaultTestChainID)))
 
 	// Step 3: Verify both policies are stored
 	_, err = storage.SigningPolicy(testEpochID1)
@@ -346,9 +346,9 @@ func TestPolicyLifecycle_CompleteFlow(t *testing.T) {
 	require.NoError(t, err)
 
 	// Step 4: Verify info reflects current state
-	initialID, initialHash, activeID, activeHash := storage.Info()
+	initialID, initialHash, activeID, activeHash := storage.Info(testutils.DefaultTestChainID)
 	assert.Equal(t, testEpochID1, initialID)
 	assert.Equal(t, testEpochID2, activeID)
 	assert.NotEqual(t, initialHash, activeHash)
-	assert.Equal(t, common.Hash(policy2.Hash()), activeHash)
+	assert.Equal(t, common.Hash(policy2.ChainBoundHash(testutils.DefaultTestChainID)), activeHash)
 }

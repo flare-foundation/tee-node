@@ -106,16 +106,16 @@ func dataProvidersThreshold(data *instruction.DataFixed, totalWeight uint16) (ui
 	return threshold, nil
 }
 
-// computeThreshold matches the computation of the threshold for signing policy.
+// computeThreshold matches the on-chain threshold override, Relay.sol's
+// div(mul(totalWeight, overrideBIPS), THRESHOLD_BIPS).
 // It is assumed that 0 <= bips <= 10000.
+//
+// Floor, not ceiling: the acceptance test is strict on both sides (weight >
+// threshold), so rounding up here would demand one extra weight unit and reject
+// signature sets the Relay accepts.
 func computeThreshold(total uint16, bips uint16) uint16 {
 	t64 := uint64(total)
 	b64 := uint64(bips)
-	t := t64 * b64 / maxBIPS
 
-	if (t64*b64)%maxBIPS != 0 {
-		t++
-	}
-
-	return uint16(t) //nolint:gosec
+	return uint16(t64 * b64 / maxBIPS) //nolint:gosec
 }

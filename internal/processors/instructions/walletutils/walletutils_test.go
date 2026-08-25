@@ -96,7 +96,7 @@ func setupKeyGenerateTest(t *testing.T) *keyGenerateTestSetup {
 	}
 
 	numVoters, randSeed, epochID := 100, int64(12345), uint32(1)
-	testutils.GenerateAndSetInitialPolicy(t, pStorage, numVoters, randSeed, epochID)
+	testutils.GenerateAndSetInitialPolicy(t, testutils.DefaultTestChainID, pStorage, numVoters, randSeed, epochID)
 	require.NoError(t, err)
 
 	return &keyGenerateTestSetup{
@@ -364,7 +364,7 @@ func setupKeyDeleteTest(t *testing.T) *keyDeleteTestSetup {
 	testNode, pStorage, wStorage := testutils.Setup(t)
 
 	numVoters, randSeed, epochID := 50, int64(6789), uint32(3)
-	testutils.GenerateAndSetInitialPolicy(t, pStorage, numVoters, randSeed, epochID)
+	testutils.GenerateAndSetInitialPolicy(t, testutils.DefaultTestChainID, pStorage, numVoters, randSeed, epochID)
 
 	adminPrivKey, err := crypto.GenerateKey()
 	require.NoError(t, err)
@@ -630,7 +630,7 @@ func setupAdminsAndProviders(
 ) (*commonpolicy.SigningPolicy, []*ecdsa.PrivateKey, []*ecdsa.PrivateKey) {
 	t.Helper()
 
-	initialPolicy, _, voterPrivKeys := testutils.GenerateAndSetInitialPolicy(t, pStorage, numVoters, randSeed, epochID)
+	initialPolicy, _, voterPrivKeys := testutils.GenerateAndSetInitialPolicy(t, testutils.DefaultTestChainID, pStorage, numVoters, randSeed, epochID)
 	adminPrivKeys := make([]*ecdsa.PrivateKey, numAdmins)
 	var err error
 	for i := range adminPrivKeys {

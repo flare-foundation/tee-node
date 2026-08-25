@@ -31,7 +31,7 @@ func setupProveRandomnessTest(t *testing.T) *proveRandomnessSetup {
 	t.Helper()
 
 	testNode, pStorage, wStorage := testutils.Setup(t)
-	testutils.GenerateAndSetInitialPolicy(t, pStorage, 10, 12345, 1)
+	testutils.GenerateAndSetInitialPolicy(t, testutils.DefaultTestChainID, pStorage, 10, 12345, 1)
 
 	sk, err := crypto.GenerateKey()
 	require.NoError(t, err)

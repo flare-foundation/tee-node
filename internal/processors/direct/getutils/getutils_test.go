@@ -30,7 +30,7 @@ func TestKeyInfo(t *testing.T) {
 	testNode, pStorage, wStorage := testutils.Setup(t)
 
 	numVoters, randSeed, epochID := 100, int64(12345), uint32(1)
-	_, _, privKeys := testutils.GenerateAndSetInitialPolicy(t, pStorage, numVoters, randSeed, epochID)
+	_, _, privKeys := testutils.GenerateAndSetInitialPolicy(t, testutils.DefaultTestChainID, pStorage, numVoters, randSeed, epochID)
 
 	mockWalletID1 := common.HexToHash("0xabcdef")
 	mockKeyID1 := uint64(1)
@@ -145,7 +145,7 @@ func TestKeysProof(t *testing.T) {
 		testNode, pStorage, wStorage := testutils.Setup(t)
 
 		numVoters, randSeed, epochID := 100, int64(12345), uint32(1)
-		_, _, privKeys := testutils.GenerateAndSetInitialPolicy(t, pStorage, numVoters, randSeed, epochID)
+		_, _, privKeys := testutils.GenerateAndSetInitialPolicy(t, testutils.DefaultTestChainID, pStorage, numVoters, randSeed, epochID)
 
 		mockWalletID1 := common.HexToHash("0xabcdef")
 		mockKeyID1 := uint64(1)
@@ -278,7 +278,7 @@ func TestTEEBackup(t *testing.T) {
 	t.Run("TEEBackup success", func(t *testing.T) {
 		testNode, pStorage, wStorage := testutils.Setup(t)
 		numVoters, randSeed, epochID := 3, int64(99991), uint32(2)
-		_, _, privKeys := testutils.GenerateAndSetInitialPolicy(t, pStorage, numVoters, randSeed, epochID)
+		_, _, privKeys := testutils.GenerateAndSetInitialPolicy(t, testutils.DefaultTestChainID, pStorage, numVoters, randSeed, epochID)
 		walletID := common.HexToHash("0xaaaaa")
 		keyID := uint64(111)
 		testutils.CreateMockWallet(t, testNode, pStorage, wStorage, walletID, keyID, epochID, []*ecdsa.PrivateKey{privKeys[0]}, nil)
@@ -339,7 +339,7 @@ func TestTEEBackup(t *testing.T) {
 	t.Run("TEEBackup signing fails when Sign returns an error", func(t *testing.T) {
 		testNode, pStorage, wStorage := testutils.Setup(t)
 		numVoters, randSeed, epochID := 1, int64(3232), uint32(3)
-		_, _, privKeys := testutils.GenerateAndSetInitialPolicy(t, pStorage, numVoters, randSeed, epochID)
+		_, _, privKeys := testutils.GenerateAndSetInitialPolicy(t, testutils.DefaultTestChainID, pStorage, numVoters, randSeed, epochID)
 		walletID := common.HexToHash("0x7744")
 		keyID := uint64(123)
 		testutils.CreateMockWallet(t, testNode, pStorage, wStorage, walletID, keyID, epochID, []*ecdsa.PrivateKey{privKeys[0]}, nil)

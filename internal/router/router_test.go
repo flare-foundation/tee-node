@@ -79,7 +79,7 @@ func TestRouterInstructionActionRoutingThreshold(t *testing.T) {
 	teeNode, ps, ws := testutils.Setup(t)
 
 	numVoters, randSeed, epochID := 100, int64(12345), uint32(1)
-	_, _, providerPrivKeys := testutils.GenerateAndSetInitialPolicy(t, ps, numVoters, randSeed, epochID)
+	_, _, providerPrivKeys := testutils.GenerateAndSetInitialPolicy(t, testutils.DefaultTestChainID, ps, numVoters, randSeed, epochID)
 
 	r := NewPMWRouter(teeNode, ws, ps, &settings.ProxyURLMutex{})
 

@@ -19,8 +19,13 @@ import (
 func TestComputeThreshold(t *testing.T) {
 	// exact division
 	assert.Equal(t, uint16(50), computeThreshold(100, maxBIPS/2))
-	// rounds up on remainder
-	assert.Equal(t, uint16(2), computeThreshold(3, maxBIPS/2))
+	// floors on remainder, matching Relay.sol's div(mul(total, bips), 10000);
+	// acceptance is strict (weight > threshold), so 2 of 3 still passes
+	assert.Equal(t, uint16(1), computeThreshold(3, maxBIPS/2))
+	assert.Equal(t, uint16(50), computeThreshold(101, maxBIPS/2))
+	// 9999 BIPS with all weight must remain reachable — a ceiling would make it
+	// impossible, which is why the contract floors
+	assert.Equal(t, uint16(99), computeThreshold(100, maxBIPS-1))
 	// zero bips
 	assert.Equal(t, uint16(0), computeThreshold(42, 0))
 }

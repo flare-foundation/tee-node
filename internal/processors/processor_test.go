@@ -231,7 +231,7 @@ func updatePolicy(t *testing.T,
 
 	// Sign the new policy with every provider from the active policy. The
 	// processor only needs > threshold, so all signing is well over the bar.
-	signed := testutils.BuildMultiSignedPolicy(t, newPolicy.RawBytes(), privKeys)
+	signed := testutils.BuildMultiSignedPolicy(t, testutils.DefaultTestChainID, newPolicy.RawBytes(), privKeys)
 
 	pubKeys := make([]types.PublicKey, len(privKeys))
 	for i, voter := range privKeys {
@@ -1251,9 +1251,9 @@ func fdcProve(
 	messageHash, _, err := fdc.HashMessage(chainID, originalMessage, additionalFixedMessageEncoded, cosignerAddresses, cosignersThreshold, timestamp)
 	require.NoError(t, err)
 	// Data providers and cosigners sign the Relay Mode-2 prefixed hash, not
-	// messageHash directly — see fdc.RelayPrefixedHash docs and the
+	// messageHash directly — see fdc.ChainBoundRelayPrefixedHash docs and the
 	// Verification.toCosignersMessageHash on-chain helper.
-	dpSigningHash := fdc.RelayPrefixedHash(messageHash)
+	dpSigningHash := fdc.ChainBoundRelayPrefixedHash(testutils.DefaultTestChainID, messageHash)
 
 	variableMessages := make([][]byte, 0, len(providerPrivKeys)+len(cosignerPrivKeys))
 	privKeys := make([]*ecdsa.PrivateKey, 0, len(providerPrivKeys)+len(cosignerPrivKeys))
@@ -1308,7 +1308,7 @@ func fdcProve(
 		providerAddresses[i] = crypto.PubkeyToAddress(k.PublicKey)
 	}
 	testutils.VerifyEncodedDataProviderSignatures(
-		t, fdcResponse.DataProviderSignatures, messageHash, providerAddresses, len(providerPrivKeys),
+		t, testutils.DefaultTestChainID, fdcResponse.DataProviderSignatures, messageHash, providerAddresses, len(providerPrivKeys),
 	)
 
 	// generate action sent when voting closed

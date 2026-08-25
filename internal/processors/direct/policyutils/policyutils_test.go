@@ -46,6 +46,8 @@ func setupPolicyTest(t *testing.T) *policyTestSetup {
 	pStorage := policy.InitializeStorage()
 	teeNode, err := node.Initialize(node.ZeroState{})
 	require.NoError(t, err)
+	// the policy hash is chain-bound, so the policy path needs a chain id
+	require.NoError(t, teeNode.SetChainID(testutils.DefaultTestChainID))
 	processor := NewProcessor(teeNode, pStorage)
 
 	epochID := uint32(1)
@@ -80,7 +82,7 @@ func setupPolicyTestWithInitializedPolicy(t *testing.T) *policyTestSetup {
 
 	setup := setupPolicyTest(t)
 
-	err := setup.pStorage.SetInitialPolicy(setup.initialPolicy, setup.pubKeysMap)
+	err := setup.pStorage.SetInitialPolicy(testutils.DefaultTestChainID, setup.initialPolicy, setup.pubKeysMap)
 	require.NoError(t, err)
 
 	return setup
@@ -134,7 +136,7 @@ func TestInitializePolicyBasicFlow(t *testing.T) {
 	activePolicy, err := setup.pStorage.ActiveSigningPolicy()
 	require.NoError(t, err)
 	require.Equal(t, setup.initialPolicy.RewardEpochID, activePolicy.RewardEpochID)
-	require.Equal(t, setup.initialPolicy.Hash(), activePolicy.Hash())
+	require.Equal(t, setup.initialPolicy.ChainBoundHash(testutils.DefaultTestChainID), activePolicy.ChainBoundHash(testutils.DefaultTestChainID))
 }
 
 func TestInitializePolicyAlreadyInitialized(t *testing.T) {
@@ -286,7 +288,7 @@ func TestInitializePolicyPreservesLivePolicyOnError(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			setup := setupPolicyTestWithInitializedPolicy(t)
 			wantEpoch := setup.initialPolicy.RewardEpochID
-			wantHash := setup.initialPolicy.Hash()
+			wantHash := setup.initialPolicy.ChainBoundHash(testutils.DefaultTestChainID)
 
 			var message []byte
 			switch name {
@@ -311,7 +313,7 @@ func TestInitializePolicyPreservesLivePolicyOnError(t *testing.T) {
 			active, err := setup.pStorage.ActiveSigningPolicy()
 			require.NoError(t, err, "live policy must not be destroyed by a failed re-initialization")
 			require.Equal(t, wantEpoch, active.RewardEpochID)
-			require.Equal(t, wantHash, active.Hash())
+			require.Equal(t, wantHash, active.ChainBoundHash(testutils.DefaultTestChainID))
 		})
 	}
 }
@@ -330,7 +332,7 @@ func TestUpdatePolicyBasicFlow(t *testing.T) {
 	nextPolicy, pubKeys := setup.generateNextPolicy(t, 1)
 
 	req := &types.UpdatePolicyRequest{
-		NewPolicy:  testutils.BuildMultiSignedPolicy(t, nextPolicy.RawBytes(), setup.privKeys),
+		NewPolicy:  testutils.BuildMultiSignedPolicy(t, testutils.DefaultTestChainID, nextPolicy.RawBytes(), setup.privKeys),
 		PublicKeys: pubKeys,
 	}
 	_, err := setup.executeUpdatePolicy(t, req)
@@ -340,7 +342,7 @@ func TestUpdatePolicyBasicFlow(t *testing.T) {
 	activePolicy, err := setup.pStorage.ActiveSigningPolicy()
 	require.NoError(t, err)
 	require.Equal(t, nextPolicy.RewardEpochID, activePolicy.RewardEpochID)
-	require.Equal(t, nextPolicy.Hash(), activePolicy.Hash())
+	require.Equal(t, nextPolicy.ChainBoundHash(testutils.DefaultTestChainID), activePolicy.ChainBoundHash(testutils.DefaultTestChainID))
 }
 
 func TestUpdatePolicyNotInitialized(t *testing.T) {
@@ -349,7 +351,7 @@ func TestUpdatePolicyNotInitialized(t *testing.T) {
 	// Try to update without initializing first
 	nextPolicy, pubKeys := setup.generateNextPolicy(t, 1)
 	req := &types.UpdatePolicyRequest{
-		NewPolicy:  testutils.BuildMultiSignedPolicy(t, nextPolicy.RawBytes(), setup.privKeys),
+		NewPolicy:  testutils.BuildMultiSignedPolicy(t, testutils.DefaultTestChainID, nextPolicy.RawBytes(), setup.privKeys),
 		PublicKeys: pubKeys,
 	}
 
@@ -407,7 +409,7 @@ func TestUpdatePolicyWrongEpochID(t *testing.T) {
 	wrongPolicy := testutils.GenerateRandomPolicyData(t, wrongEpochID, setup.voters, setup.randSeed+2)
 
 	req := &types.UpdatePolicyRequest{
-		NewPolicy:  testutils.BuildMultiSignedPolicy(t, wrongPolicy.RawBytes(), setup.privKeys),
+		NewPolicy:  testutils.BuildMultiSignedPolicy(t, testutils.DefaultTestChainID, wrongPolicy.RawBytes(), setup.privKeys),
 		PublicKeys: setup.pubKeys,
 	}
 	_, err := setup.executeUpdatePolicy(t, req)
@@ -422,7 +424,7 @@ func TestUpdatePolicySameEpochID(t *testing.T) {
 	sameEpochPolicy := testutils.GenerateRandomPolicyData(t, setup.initialPolicy.RewardEpochID, setup.voters, setup.randSeed+100)
 
 	req := &types.UpdatePolicyRequest{
-		NewPolicy:  testutils.BuildMultiSignedPolicy(t, sameEpochPolicy.RawBytes(), setup.privKeys),
+		NewPolicy:  testutils.BuildMultiSignedPolicy(t, testutils.DefaultTestChainID, sameEpochPolicy.RawBytes(), setup.privKeys),
 		PublicKeys: setup.pubKeys,
 	}
 	_, err := setup.executeUpdatePolicy(t, req)
@@ -439,7 +441,7 @@ func TestUpdatePolicyInsufficientSignatures(t *testing.T) {
 	insufficientSigners := setup.privKeys[:(len(setup.privKeys) / 10)]
 
 	req := &types.UpdatePolicyRequest{
-		NewPolicy:  testutils.BuildMultiSignedPolicy(t, nextPolicy.RawBytes(), insufficientSigners),
+		NewPolicy:  testutils.BuildMultiSignedPolicy(t, testutils.DefaultTestChainID, nextPolicy.RawBytes(), insufficientSigners),
 		PublicKeys: pubKeys,
 	}
 	_, err := setup.executeUpdatePolicy(t, req)
@@ -472,7 +474,7 @@ func TestUpdatePolicyInvalidSignatureLength(t *testing.T) {
 
 	// Build request with valid signatures
 	req := &types.UpdatePolicyRequest{
-		NewPolicy:  testutils.BuildMultiSignedPolicy(t, nextPolicy.RawBytes(), setup.privKeys),
+		NewPolicy:  testutils.BuildMultiSignedPolicy(t, testutils.DefaultTestChainID, nextPolicy.RawBytes(), setup.privKeys),
 		PublicKeys: pubKeys,
 	}
 
@@ -491,7 +493,7 @@ func TestUpdatePolicyInvalidSignature(t *testing.T) {
 
 	// Build request with valid signatures from all voters
 	req := &types.UpdatePolicyRequest{
-		NewPolicy:  testutils.BuildMultiSignedPolicy(t, nextPolicy.RawBytes(), setup.privKeys),
+		NewPolicy:  testutils.BuildMultiSignedPolicy(t, testutils.DefaultTestChainID, nextPolicy.RawBytes(), setup.privKeys),
 		PublicKeys: pubKeys,
 	}
 
@@ -502,7 +504,7 @@ func TestUpdatePolicyInvalidSignature(t *testing.T) {
 	require.NoError(t, err)
 
 	// Sign the policy with the non-voter's key
-	nonVoterSignedPolicy := testutils.BuildMultiSignedPolicy(t, nextPolicy.RawBytes(), []*ecdsa.PrivateKey{nonVoterPrivKey})
+	nonVoterSignedPolicy := testutils.BuildMultiSignedPolicy(t, testutils.DefaultTestChainID, nextPolicy.RawBytes(), []*ecdsa.PrivateKey{nonVoterPrivKey})
 	nonVoterSig := nonVoterSignedPolicy.Signatures[0]
 
 	// Replace one valid signature with the non-voter's signature
@@ -520,7 +522,7 @@ func TestUpdatePolicyMismatchedPublicKeysCount(t *testing.T) {
 
 	// Provide fewer public keys than voters
 	req := &types.UpdatePolicyRequest{
-		NewPolicy:  testutils.BuildMultiSignedPolicy(t, nextPolicy.RawBytes(), setup.privKeys),
+		NewPolicy:  testutils.BuildMultiSignedPolicy(t, testutils.DefaultTestChainID, nextPolicy.RawBytes(), setup.privKeys),
 		PublicKeys: setup.pubKeys[:numVoters/2],
 	}
 	_, err := setup.executeUpdatePolicy(t, req)
@@ -534,7 +536,7 @@ func TestUpdatePolicyMultipleUpdates(t *testing.T) {
 	// First update
 	nextPolicy1, pubKeys1 := setup.generateNextPolicy(t, 1)
 	req1 := &types.UpdatePolicyRequest{
-		NewPolicy:  testutils.BuildMultiSignedPolicy(t, nextPolicy1.RawBytes(), setup.privKeys),
+		NewPolicy:  testutils.BuildMultiSignedPolicy(t, testutils.DefaultTestChainID, nextPolicy1.RawBytes(), setup.privKeys),
 		PublicKeys: pubKeys1,
 	}
 	_, err := setup.executeUpdatePolicy(t, req1)
@@ -543,7 +545,7 @@ func TestUpdatePolicyMultipleUpdates(t *testing.T) {
 	// Second update
 	nextPolicy2, pubKeys2 := setup.generateNextPolicy(t, 2)
 	req2 := &types.UpdatePolicyRequest{
-		NewPolicy:  testutils.BuildMultiSignedPolicy(t, nextPolicy2.RawBytes(), setup.privKeys),
+		NewPolicy:  testutils.BuildMultiSignedPolicy(t, testutils.DefaultTestChainID, nextPolicy2.RawBytes(), setup.privKeys),
 		PublicKeys: pubKeys2,
 	}
 	_, err = setup.executeUpdatePolicy(t, req2)
@@ -556,8 +558,8 @@ func TestUpdatePolicyMultipleUpdates(t *testing.T) {
 }
 
 // testChainID is the chain ID used by every governance-signed test in
-// this file. It is fixed so signature checks are deterministic.
-const testChainID uint64 = 31337
+// this file. setupPolicyTest sets it on the node, so the two cannot drift.
+const testChainID uint64 = testutils.DefaultTestChainID
 
 // executeSetMachinePathList runs SetMachinePathList with the given request.
 func (s *policyTestSetup) executeSetMachinePathList(t *testing.T, req *types.SetMachinePathListRequest) ([]byte, error) {
@@ -588,7 +590,6 @@ func configureGovernance(t *testing.T, n *node.Node) []*ecdsa.PrivateKey {
 		addrs[i] = crypto.PubkeyToAddress(pk.PublicKey)
 	}
 	require.NoError(t, n.SetGovernance(addrs, threshold, common.Address{}, common.Address{}))
-	require.NoError(t, n.SetChainID(testChainID))
 	return privKeys
 }
 
@@ -869,7 +870,6 @@ func configureSafeGovernance(t *testing.T, n *node.Node) []*ecdsa.PrivateKey {
 		addrs[i] = crypto.PubkeyToAddress(pk.PublicKey)
 	}
 	require.NoError(t, n.SetGovernance(addrs, threshold, testSafeAddress, testTeeManagerAddress))
-	require.NoError(t, n.SetChainID(testChainID))
 	return privKeys
 }
 

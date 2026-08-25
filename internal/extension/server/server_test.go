@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"net"
 	"net/http"
 	"strconv"
 	"testing"
@@ -104,13 +105,11 @@ func TestGetKeyInfo(t *testing.T) {
 	extServer := setupTestServer(t, proxyPort, port)
 	go extServer.Serve()                        //nolint:errcheck
 	defer extServer.Close(context.Background()) //nolint:errcheck
+	awaitListener(t, extServer.server.Addr)
 
 	testWallet := setupTestWallet(t, extServer.wStorage, wallets.XRPSignAlgo)
 	wID, kID := testWallet.WalletID, testWallet.KeyID
 	url := fmt.Sprintf("http://localhost:%d/key-info/%s/%d", port, wID.Hex(), kID)
-
-	// wait for server to start
-	time.Sleep(500 * time.Millisecond)
 
 	resp, err := http.Get(url)
 	require.NoError(t, err)
@@ -140,6 +139,7 @@ func TestSignWithKey(t *testing.T) {
 	server := setupTestServer(t, proxyPort, port)
 	go server.Serve()                        //nolint:errcheck
 	defer server.Close(context.Background()) //nolint:errcheck
+	awaitListener(t, server.server.Addr)
 
 	wallet := setupTestWallet(t, server.wStorage, wallets.XRPSignAlgo)
 	wID, kID := wallet.WalletID, wallet.KeyID
@@ -151,9 +151,6 @@ func TestSignWithKey(t *testing.T) {
 	requestBody := types.SignRequest{
 		Message: message,
 	}
-
-	// wait for server to start
-	time.Sleep(500 * time.Millisecond)
 
 	url := fmt.Sprintf("http://localhost:%d/sign/%s/%d", port, wID.Hex(), kID)
 	body, err := post(url, requestBody)
@@ -183,6 +180,7 @@ func TestSignWithTee(t *testing.T) {
 	server := setupTestServer(t, proxyPort, port)
 	go server.Serve()                        //nolint:errcheck
 	defer server.Close(context.Background()) //nolint:errcheck
+	awaitListener(t, server.server.Addr)
 
 	// Create test message
 	message := []byte("test message to sign with TEE")
@@ -224,6 +222,7 @@ func TestDecryptWithKey(t *testing.T) {
 	server := setupTestServer(t, proxyPort, port)
 	go server.Serve()                        //nolint:errcheck
 	defer server.Close(context.Background()) //nolint:errcheck
+	awaitListener(t, server.server.Addr)
 
 	wallet := setupTestWallet(t, server.wStorage, wallets.XRPSignAlgo)
 	walletID, keyID := wallet.WalletID, wallet.KeyID
@@ -257,6 +256,7 @@ func TestDecryptWithTee(t *testing.T) {
 	server := setupTestServer(t, proxyPort, port)
 	go server.Serve()                        //nolint:errcheck
 	defer server.Close(context.Background()) //nolint:errcheck
+	awaitListener(t, server.server.Addr)
 
 	// Create test encrypted message (this is a dummy encrypted message for testing)
 	message := []byte("encrypted test message")
@@ -289,9 +289,11 @@ func TestPostResult(t *testing.T) {
 	server := setupTestServer(t, proxyPort, port)
 	go server.Serve()                        //nolint:errcheck
 	defer server.Close(context.Background()) //nolint:errcheck
+	awaitListener(t, server.server.Addr)
 
 	actionResponseChan := make(chan *types.ActionResponse, 1)
 	go mockProxyResult(t, proxyPort, actionResponseChan)
+	awaitListener(t, fmt.Sprintf("127.0.0.1:%d", proxyPort))
 
 	actionResult := types.ActionResult{
 		ID:            common.HexToHash("0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef"),
@@ -331,6 +333,25 @@ func mockProxyResult(t *testing.T, proxyPort int, actionResponseChan chan *types
 	})
 
 	log.Fatal(http.ListenAndServe(fmt.Sprintf(":%d", proxyPort), router))
+}
+
+// awaitListener blocks until addr accepts connections. Serve logs before it
+// binds, so the log line is not a readiness signal.
+func awaitListener(t *testing.T, addr string) {
+	t.Helper()
+
+	for deadline := time.Now().Add(5 * time.Second); time.Now().Before(deadline); {
+		conn, err := net.DialTimeout("tcp", addr, 50*time.Millisecond)
+		if err == nil {
+			require.NoError(t, conn.Close())
+
+			return
+		}
+
+		time.Sleep(5 * time.Millisecond)
+	}
+
+	t.Fatalf("nothing listening on %s", addr)
 }
 
 func post(url string, req any) ([]byte, error) {

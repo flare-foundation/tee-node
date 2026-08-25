@@ -45,8 +45,9 @@ func (p *Processor) Prove(
 	}
 
 	// Data-provider (signing-policy) signatures and cosigner signatures both
-	// recover against the prefixed hash. The TEE's own signature uses messageHash directly.
-	relayPrefixedHash := fdc.RelayPrefixedHash(messageHash)
+	// recover against the chain-bound prefixed hash. The TEE's own signature uses
+	// messageHash directly.
+	relayPrefixedHash := fdc.ChainBoundRelayPrefixedHash(p.Info().ChainID, messageHash)
 	dpSigs, cosignerSigs, err := checkResponseSignatures(
 		relayPrefixedHash, variableMessages, signers, signingPolicy.Voters, dataFixed.Cosigners,
 	)
