@@ -5,7 +5,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
+	"testing"
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -13,34 +15,60 @@ import (
 	"github.com/flare-foundation/go-flare-common/pkg/logger"
 	"github.com/flare-foundation/tee-node/pkg/processorutils"
 	"github.com/flare-foundation/tee-node/pkg/types"
+	"github.com/stretchr/testify/require"
 )
 
 type DummyExtensionServer struct {
-	server   *http.Server
-	port     int
-	signPort int
-	version  string
+	server  *http.Server
+	port    int
+	signURL string
+	version string
 }
 
 // NewDummyExtensionServer spins up a mock signing server that exercises the
 // TEE-node interface for local development.
 func NewDummyExtensionServer(port, signPort int) *DummyExtensionServer {
-	addr := fmt.Sprintf(":%d", port)
+	e := newDummyExtensionServer(fmt.Sprintf("http://localhost:%d", signPort))
+	e.server.Addr = fmt.Sprintf(":%d", port)
+	e.port = port
 
-	server := &http.Server{
-		Addr: addr,
-	}
+	return e
+}
 
+func newDummyExtensionServer(signURL string) *DummyExtensionServer {
 	e := DummyExtensionServer{
-		server:   server,
-		port:     port,
-		signPort: signPort,
-		version:  "0.0.0-test",
+		server:  &http.Server{},
+		signURL: signURL,
+		version: "0.0.0-test",
 	}
 
 	e.registerRoutes()
 
 	return &e
+}
+
+// StartDummyExtensionServer serves a dummy extension on an ephemeral loopback port until the test
+// ends and returns that port. Results are posted to signURL/result.
+func StartDummyExtensionServer(t *testing.T, signURL string) int {
+	t.Helper()
+
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+
+	d := newDummyExtensionServer(signURL)
+
+	served := make(chan error, 1)
+	go func() { served <- d.server.Serve(ln) }()
+
+	t.Cleanup(func() {
+		require.NoError(t, d.Close())
+		require.ErrorIs(t, <-served, http.ErrServerClosed)
+	})
+
+	addr, ok := ln.Addr().(*net.TCPAddr)
+	require.True(t, ok)
+
+	return addr.Port
 }
 
 // registerRoutes registers the /action endpoint.
@@ -158,10 +186,10 @@ func (d *DummyExtensionServer) processAction(action *types.Action) error {
 	return nil
 }
 
-// mockPostActionResult sleeps and posts a mock action result to localhost:teePort/result.
+// mockPostActionResult sleeps and posts a mock action result to signURL/result.
 func (d *DummyExtensionServer) mockPostActionResult(action *types.Action) {
 	time.Sleep(50 * time.Millisecond)
-	url := fmt.Sprintf("http://localhost:%d/result", d.signPort)
+	url := d.signURL + "/result"
 
 	result := d.mockActionResult(action)
 
@@ -173,6 +201,7 @@ func (d *DummyExtensionServer) mockPostActionResult(action *types.Action) {
 	res, err := http.Post(url, "application/json", bytes.NewReader(encRes))
 	if err != nil {
 		logger.Errorf("Failed to send post request: %s", err.Error())
+		return
 	}
 
 	defer res.Body.Close() //nolint:errcheck
