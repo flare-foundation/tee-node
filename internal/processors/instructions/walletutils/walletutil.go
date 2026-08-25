@@ -36,8 +36,9 @@ import (
 //
 // The signing policy of the backup's reward epoch is deliberately not
 // consulted, so backups stay restorable on nodes that never held that policy.
-// The instruction pipeline separately requires a majority of the current
-// policy's data-provider weight among signers (processorutils.CheckThresholds).
+// The instruction pipeline separately requires signers to exceed the threshold
+// of the instruction's reward-epoch policy in data-provider weight
+// (processorutils.CheckThresholds).
 // Provider participation is enforced cryptographically at reconstruction:
 // each key split is signed by the wallet key and was ECIES-encrypted to its
 // holder, so possession of a decrypted split is the credential, regardless of

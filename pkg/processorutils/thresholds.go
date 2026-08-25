@@ -29,13 +29,13 @@ func CheckThresholds(data *instruction.DataFixed, signers []common.Address, sPol
 		return err
 	}
 
-	dpThreshold, err := dataProvidersThreshold(data, sPolicy.Voters.TotalWeight)
+	dpThreshold, err := dataProvidersThreshold(data, sPolicy)
 	if err != nil {
 		return err
 	}
 
 	weight := policy.WeightOfSigners(signers, sPolicy)
-	if dpThreshold > 0 && weight <= dpThreshold { // a zero threshold disables the weight check
+	if weight <= dpThreshold {
 		return errors.New("data providers threshold not reached")
 	}
 
@@ -71,8 +71,13 @@ type pair struct {
 	Command op.Command
 }
 
-func dataProvidersThreshold(data *instruction.DataFixed, totalWeight uint16) (uint16, error) {
-	var threshold uint16
+// dataProvidersThreshold returns the weight that the signing data providers must
+// strictly exceed.
+//
+// The signing policy's own threshold governs every instruction, matching what the
+// Relay enforces. The one exception is an FDC2 request that names a non-zero
+// thresholdBIPS, which the Relay likewise overrides with a share of total weight.
+func dataProvidersThreshold(data *instruction.DataFixed, sPolicy *cpolicy.SigningPolicy) (uint16, error) {
 	p := pair{op.HashToOPType(data.OPType), op.HashToOPCommand(data.OPCommand)}
 	switch p {
 	case pair{op.FDC2, op.Prove}:
@@ -83,8 +88,7 @@ func dataProvidersThreshold(data *instruction.DataFixed, totalWeight uint16) (ui
 		rh := request.Header
 
 		if rh.ThresholdBIPS == 0 {
-			threshold = computeThreshold(totalWeight, maxBIPS/2)
-			break
+			return policyThreshold(sPolicy)
 		}
 
 		if rh.ThresholdBIPS < fdcMinimumThresholdBIPS {
@@ -97,13 +101,24 @@ func dataProvidersThreshold(data *instruction.DataFixed, totalWeight uint16) (ui
 			return 0, errors.New("data providers threshold too high")
 		}
 
-		threshold = computeThreshold(totalWeight, rh.ThresholdBIPS)
+		return computeThreshold(sPolicy.Voters.TotalWeight, rh.ThresholdBIPS), nil
 
 	default:
-		threshold = computeThreshold(totalWeight, maxBIPS/2)
+		return policyThreshold(sPolicy)
+	}
+}
+
+// policyThreshold reads the threshold off the signing policy.
+//
+// Zero is rejected rather than passed on: nothing bounds the field on an
+// operator-supplied initial policy, and acceptance is strict, so a zero would
+// admit any single data provider.
+func policyThreshold(sPolicy *cpolicy.SigningPolicy) (uint16, error) {
+	if sPolicy.Threshold == 0 {
+		return 0, errors.New("signing policy threshold is zero")
 	}
 
-	return threshold, nil
+	return sPolicy.Threshold, nil
 }
 
 // computeThreshold matches the on-chain threshold override, Relay.sol's
