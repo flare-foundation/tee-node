@@ -24,16 +24,9 @@ func TestDefaultInstructionProcessor(t *testing.T) {
 	chainID, err := testNode.ChainID()
 	require.NoError(t, err)
 
-	signPort := 8612
-	extensionPort := 8613
-
-	signServer := testutils.NewDummyExtensionServer(extensionPort, signPort)
-	go signServer.Serve()    //nolint:errcheck
-	defer signServer.Close() //nolint:errcheck
-
 	actionResponseChan := make(chan *types.ActionResult, 1)
-	go testutils.MockSignServerResult(t, signPort, actionResponseChan)
-	time.Sleep(500 * time.Millisecond)
+	signURL := testutils.StartMockSignServer(t, actionResponseChan)
+	extensionPort := testutils.StartDummyExtensionServer(t, signURL)
 
 	proc := NewDefaultProcessor(extensionPort, pStorage, testNode)
 

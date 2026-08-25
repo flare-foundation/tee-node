@@ -6,12 +6,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
 	"net"
 	"net/http"
-	"strconv"
+	"net/http/httptest"
 	"testing"
-	"time"
 
 	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -30,7 +28,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func setupTestServer(t *testing.T, proxyPort int, port int) *SignServer {
+// unusedProxyURL is for tests that never reach the proxy.
+const unusedProxyURL = "http://127.0.0.1:0"
+
+func setupTestServer(t *testing.T, proxyURL string, port int) *SignServer {
 	t.Helper()
 
 	testNode, err := node.Initialize(node.ZeroState{})
@@ -39,14 +40,26 @@ func setupTestServer(t *testing.T, proxyPort int, port int) *SignServer {
 
 	wStorage := walletstorage.InitializeStorage()
 
-	proxyURL := settings.ProxyURLMutex{
-		URL: "http://localhost:" + strconv.Itoa(proxyPort),
-	}
+	return NewSignServer(port, testNode, wStorage, &settings.ProxyURLMutex{URL: proxyURL})
+}
 
-	// Create test server
-	server := NewSignServer(port, testNode, wStorage, &proxyURL)
+// startTestServer serves s on an ephemeral loopback port until the test ends and returns its base URL.
+// Fixed ports collide across concurrently running test binaries.
+func startTestServer(t *testing.T, s *SignServer) string {
+	t.Helper()
 
-	return server
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+
+	served := make(chan error, 1)
+	go func() { served <- s.server.Serve(ln) }()
+
+	t.Cleanup(func() {
+		require.NoError(t, s.Close(context.Background()))
+		require.ErrorIs(t, <-served, http.ErrServerClosed)
+	})
+
+	return "http://" + ln.Addr().String()
 }
 
 func TestSignServerBindsLoopback(t *testing.T) {
@@ -54,7 +67,7 @@ func TestSignServerBindsLoopback(t *testing.T) {
 	// interfaces; it always binds to loopback.
 	require.Equal(t, "127.0.0.1", settings.SignHost)
 
-	server := setupTestServer(t, 5599, 8899)
+	server := setupTestServer(t, unusedProxyURL, 8899)
 	require.Equal(t, "127.0.0.1:8899", server.server.Addr)
 }
 
@@ -100,16 +113,12 @@ func setupTestWallet(t *testing.T, ws *walletstorage.Storage, signingAlgo common
 }
 
 func TestGetKeyInfo(t *testing.T) {
-	port := 8880
-	proxyPort := 5507
-	extServer := setupTestServer(t, proxyPort, port)
-	go extServer.Serve()                        //nolint:errcheck
-	defer extServer.Close(context.Background()) //nolint:errcheck
-	awaitListener(t, extServer.server.Addr)
+	extServer := setupTestServer(t, unusedProxyURL, 0)
+	base := startTestServer(t, extServer)
 
 	testWallet := setupTestWallet(t, extServer.wStorage, wallets.XRPSignAlgo)
 	wID, kID := testWallet.WalletID, testWallet.KeyID
-	url := fmt.Sprintf("http://localhost:%d/key-info/%s/%d", port, wID.Hex(), kID)
+	url := fmt.Sprintf("%s/key-info/%s/%d", base, wID.Hex(), kID)
 
 	resp, err := http.Get(url)
 	require.NoError(t, err)
@@ -134,12 +143,8 @@ func TestGetKeyInfo(t *testing.T) {
 }
 
 func TestSignWithKey(t *testing.T) {
-	port := 8881
-	proxyPort := 5503
-	server := setupTestServer(t, proxyPort, port)
-	go server.Serve()                        //nolint:errcheck
-	defer server.Close(context.Background()) //nolint:errcheck
-	awaitListener(t, server.server.Addr)
+	server := setupTestServer(t, unusedProxyURL, 0)
+	base := startTestServer(t, server)
 
 	wallet := setupTestWallet(t, server.wStorage, wallets.XRPSignAlgo)
 	wID, kID := wallet.WalletID, wallet.KeyID
@@ -152,7 +157,7 @@ func TestSignWithKey(t *testing.T) {
 		Message: message,
 	}
 
-	url := fmt.Sprintf("http://localhost:%d/sign/%s/%d", port, wID.Hex(), kID)
+	url := fmt.Sprintf("%s/sign/%s/%d", base, wID.Hex(), kID)
 	body, err := post(url, requestBody)
 	require.NoError(t, err)
 
@@ -175,12 +180,8 @@ func TestSignWithKey(t *testing.T) {
 }
 
 func TestSignWithTee(t *testing.T) {
-	port := 8882
-	proxyPort := 5504
-	server := setupTestServer(t, proxyPort, port)
-	go server.Serve()                        //nolint:errcheck
-	defer server.Close(context.Background()) //nolint:errcheck
-	awaitListener(t, server.server.Addr)
+	server := setupTestServer(t, unusedProxyURL, 0)
+	base := startTestServer(t, server)
 
 	// Create test message
 	message := []byte("test message to sign with TEE")
@@ -191,7 +192,7 @@ func TestSignWithTee(t *testing.T) {
 	}
 
 	// Create request
-	url := fmt.Sprintf("http://localhost:%d/sign", port)
+	url := base + "/sign"
 	body, err := post(url, requestBody)
 	require.NoError(t, err)
 
@@ -217,12 +218,8 @@ func TestSignWithTee(t *testing.T) {
 }
 
 func TestDecryptWithKey(t *testing.T) {
-	port := 8883
-	proxyPort := 5505
-	server := setupTestServer(t, proxyPort, port)
-	go server.Serve()                        //nolint:errcheck
-	defer server.Close(context.Background()) //nolint:errcheck
-	awaitListener(t, server.server.Addr)
+	server := setupTestServer(t, unusedProxyURL, 0)
+	base := startTestServer(t, server)
 
 	wallet := setupTestWallet(t, server.wStorage, wallets.XRPSignAlgo)
 	walletID, keyID := wallet.WalletID, wallet.KeyID
@@ -237,7 +234,7 @@ func TestDecryptWithKey(t *testing.T) {
 	requestBody := types.DecryptRequest{
 		EncryptedMessage: encryptedMessage,
 	}
-	url := fmt.Sprintf("http://localhost:%d/decrypt/%s/%d", port, walletID.Hex(), keyID)
+	url := fmt.Sprintf("%s/decrypt/%s/%d", base, walletID.Hex(), keyID)
 	body, err := post(url, requestBody)
 	require.NoError(t, err)
 
@@ -251,12 +248,8 @@ func TestDecryptWithKey(t *testing.T) {
 }
 
 func TestDecryptWithTee(t *testing.T) {
-	port := 8884
-	proxyPort := 5506
-	server := setupTestServer(t, proxyPort, port)
-	go server.Serve()                        //nolint:errcheck
-	defer server.Close(context.Background()) //nolint:errcheck
-	awaitListener(t, server.server.Addr)
+	server := setupTestServer(t, unusedProxyURL, 0)
+	base := startTestServer(t, server)
 
 	// Create test encrypted message (this is a dummy encrypted message for testing)
 	message := []byte("encrypted test message")
@@ -270,7 +263,7 @@ func TestDecryptWithTee(t *testing.T) {
 	requestBody := types.DecryptRequest{
 		EncryptedMessage: encryptedMessage,
 	}
-	url := fmt.Sprintf("http://localhost:%d/decrypt", port)
+	url := base + "/decrypt"
 	body, err := post(url, requestBody)
 	require.NoError(t, err)
 
@@ -284,16 +277,10 @@ func TestDecryptWithTee(t *testing.T) {
 }
 
 func TestPostResult(t *testing.T) {
-	port := 8885
-	proxyPort := 5503
-	server := setupTestServer(t, proxyPort, port)
-	go server.Serve()                        //nolint:errcheck
-	defer server.Close(context.Background()) //nolint:errcheck
-	awaitListener(t, server.server.Addr)
-
 	actionResponseChan := make(chan *types.ActionResponse, 1)
-	go mockProxyResult(t, proxyPort, actionResponseChan)
-	awaitListener(t, fmt.Sprintf("127.0.0.1:%d", proxyPort))
+	proxy := mockProxyResult(t, actionResponseChan)
+	server := setupTestServer(t, proxy.URL, 0)
+	base := startTestServer(t, server)
 
 	actionResult := types.ActionResult{
 		ID:            common.HexToHash("0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef"),
@@ -306,7 +293,7 @@ func TestPostResult(t *testing.T) {
 		Data:                   hexutil.Bytes{},
 	}
 
-	url := fmt.Sprintf("http://localhost:%d/result", port)
+	url := base + "/result"
 	_, err := post(url, actionResult)
 	require.NoError(t, err)
 
@@ -314,7 +301,7 @@ func TestPostResult(t *testing.T) {
 	require.Equal(t, actionResult, actionResponse2.Result)
 }
 
-func mockProxyResult(t *testing.T, proxyPort int, actionResponseChan chan *types.ActionResponse) {
+func mockProxyResult(t *testing.T, actionResponseChan chan *types.ActionResponse) *httptest.Server {
 	t.Helper()
 
 	router := http.NewServeMux()
@@ -332,26 +319,10 @@ func mockProxyResult(t *testing.T, proxyPort int, actionResponseChan chan *types
 		require.NoError(t, err)
 	})
 
-	log.Fatal(http.ListenAndServe(fmt.Sprintf(":%d", proxyPort), router))
-}
+	proxy := httptest.NewServer(router)
+	t.Cleanup(proxy.Close)
 
-// awaitListener blocks until addr accepts connections. Serve logs before it
-// binds, so the log line is not a readiness signal.
-func awaitListener(t *testing.T, addr string) {
-	t.Helper()
-
-	for deadline := time.Now().Add(5 * time.Second); time.Now().Before(deadline); {
-		conn, err := net.DialTimeout("tcp", addr, 50*time.Millisecond)
-		if err == nil {
-			require.NoError(t, conn.Close())
-
-			return
-		}
-
-		time.Sleep(5 * time.Millisecond)
-	}
-
-	t.Fatalf("nothing listening on %s", addr)
+	return proxy
 }
 
 func post(url string, req any) ([]byte, error) {
