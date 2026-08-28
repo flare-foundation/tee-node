@@ -374,7 +374,7 @@ func TestFDCProveThresholdsThroughProcessorProcess(t *testing.T) {
 	require.Equal(t, uint8(0), res.Status)
 	require.Contains(t, res.Log, "one threshold should be above 50%")
 
-	// Case 3: Zero BIPS (default 50%) should pass
+	// Case 3: Zero BIPS (signing policy threshold) should pass
 	request = setup.buildFDCRequest(utils.ToHash("TestAttestation"), utils.ToHash("XRP"), 0, setup.defaultRequestBody)
 	instr = setup.buildInstruction(t, request, setup.defaultResponseBody, []common.Address{}, 0, setup.defaultTimestamp)
 	action = setup.buildActionWithPolicySigners(t, instr, request, setup.defaultResponseBody, []common.Address{}, 0, setup.privKeys, chainID)
@@ -412,11 +412,11 @@ func TestFDCProveSignatureEdgeCases(t *testing.T) {
 	chainID, err := setup.testNode.ChainID()
 	require.NoError(t, err)
 
-	// Base request: default 50% DP threshold (BIPS=0), no cosigners
+	// Base request: signing policy DP threshold (BIPS=0), no cosigners
 	request := setup.buildFDCRequest(utils.ToHash("TestAttestation"), utils.ToHash("XRP"), 0, setup.defaultRequestBody)
 	instr := setup.buildInstruction(t, request, setup.defaultResponseBody, []common.Address{}, 0, setup.defaultTimestamp)
 
-	// 1) Not enough provider signatures (10% < 50%)
+	// 1) Not enough provider signatures (10% of weight is below the policy threshold)
 	pks1 := setup.privKeys[:10]
 	action := setup.buildActionWithPolicySigners(t, instr, request, setup.defaultResponseBody, []common.Address{}, 0, pks1, chainID)
 	res := proc.Process(context.Background(), action)

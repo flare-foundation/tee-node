@@ -8,7 +8,8 @@ The TEE node supports two independent mechanisms for moving a wallet's private k
 
 2. **Direct backup & restore** (TEE-to-TEE) — a source TEE encrypts the *whole* private key directly under a single destination TEE's public key (ECIES) and signs it. The destination TEE decrypts and stores it. Both ends must be authorized by a governance-approved **machine-path list**. See [Direct Backup & Restore (TEE-to-TEE)](#direct-backup--restore-tee-to-tee).
 
-Both mechanisms run through the standard instruction pipeline, so the usual signature, threshold, and replay checks described in [Action Processing](actions.md) apply before any key material moves. All of these flows require a `>50%` data-provider voting-weight quorum with respect to the **current** signing policy; data-provider restore additionally enforces the admin threshold and provider participation cryptographically through Shamir reconstruction.
+Both mechanisms run through the standard instruction pipeline, so the usual signature, threshold, and replay checks described in [Action Processing](actions.md) apply before any key material moves.
+All of these flows require data-provider voting weight strictly exceeding the `threshold` of the signing policy named by the instruction's reward epoch; data-provider restore additionally enforces the admin threshold and provider participation cryptographically through Shamir reconstruction.
 
 ## Data-Provider Backup (Shamir)
 

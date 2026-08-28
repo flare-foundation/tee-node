@@ -20,7 +20,7 @@ The FDC request is ABI-encoded in the instruction's `OriginalMessage` field and 
 
 FDC has custom threshold logic:
 
-- If `ThresholdBIPS == 0`: defaults to 50% of total voting weight
+- If `ThresholdBIPS == 0`: no override — the signing policy's own `threshold` applies, as on chain
 - Minimum threshold: 4000 BIPS (40%)
 - Maximum threshold: < 10000 BIPS (100%)
 - If DP threshold < 50%, then cosigner threshold must be > 50% (one-above-50 rule)

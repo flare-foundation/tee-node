@@ -69,7 +69,7 @@ The governance set is itself one-shot and committed into the attested `Governanc
 
 ### Layered Authorization for Key Transfer
 
-The machine-path list is **not** the only gate on direct backup/restore. Because both commands are instructions, they first pass the standard pipeline checks — including a `>50%` data-provider voting-weight quorum and cosigner thresholds. The machine-path list _narrows_ which TEE pairs may participate on top of that quorum; it cannot by itself authorize a transfer. Consequently, an actor who controls only governance (and thus the machine-path list) on a node still cannot cause a key to move without a quorum-signed instruction.
+The machine-path list is **not** the only gate on direct backup/restore. Because both commands are instructions, they first pass the standard pipeline checks — including data-provider voting weight strictly exceeding the signing policy's `threshold`, and cosigner thresholds. The machine-path list _narrows_ which TEE pairs may participate on top of that quorum; it cannot by itself authorize a transfer. Consequently, an actor who controls only governance (and thus the machine-path list) on a node still cannot cause a key to move without a quorum-signed instruction.
 
 ### Integrity & Confidentiality of Direct Backup
 
