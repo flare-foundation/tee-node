@@ -33,6 +33,11 @@ type Field struct {
 
 	// Size is the width in bytes of every field element in serialized form.
 	Size int
+
+	// SecretSize is the width in bytes of the secrets the field shares. It can
+	// be smaller than Size: holding every 32-byte value injectively takes a
+	// modulus above 2^256, whose elements need one byte more than the secrets.
+	SecretSize int
 }
 
 // Field identifiers. These are recorded in backups and must not change value
@@ -60,8 +65,8 @@ func init() {
 	primeAbove256 := new(big.Int).Lsh(big.NewInt(1), 256)
 	primeAbove256.Add(primeAbove256, big.NewInt(297))
 
-	fieldSecp256k1Order = mustPrimeField(FieldSecp256k1OrderID, secp256k1.S256().N)
-	fieldPrimeAbove256 = mustPrimeField(FieldPrimeAbove256ID, primeAbove256)
+	fieldSecp256k1Order = mustPrimeField(FieldSecp256k1OrderID, secp256k1.S256().N, 32)
+	fieldPrimeAbove256 = mustPrimeField(FieldPrimeAbove256ID, primeAbove256, 32)
 
 	fieldsByID = map[common.Hash]*Field{
 		FieldSecp256k1OrderID: fieldSecp256k1Order,
@@ -72,7 +77,7 @@ func init() {
 // mustPrimeField builds a Field and panics if the modulus is unusable. Fields
 // are package constants, so a failure here is a programming error rather than
 // an input error.
-func mustPrimeField(id common.Hash, modulus *big.Int) *Field {
+func mustPrimeField(id common.Hash, modulus *big.Int, secretSize int) *Field {
 	if modulus.Bit(0) == 0 {
 		panic(fmt.Sprintf("backup: field modulus for %s is even", id))
 	}
@@ -81,6 +86,9 @@ func mustPrimeField(id common.Hash, modulus *big.Int) *Field {
 	}
 
 	size := (modulus.BitLen() + 7) / 8
+	if secretSize < 1 || secretSize > size {
+		panic(fmt.Sprintf("backup: %d-byte secrets do not fit the %d-byte field %s", secretSize, size, id))
+	}
 	m, err := bigmod.NewModulus(modulus.FillBytes(make([]byte, size)))
 	if err != nil {
 		panic(fmt.Sprintf("backup: invalid field modulus for %s: %v", id, err))
@@ -91,6 +99,7 @@ func mustPrimeField(id common.Hash, modulus *big.Int) *Field {
 		Modulus:    m,
 		modulusInt: new(big.Int).Set(modulus),
 		Size:       size,
+		SecretSize: secretSize,
 	}
 }
 
@@ -160,6 +169,25 @@ func (f *Field) ElementFromUint64(v uint64) *bigmod.Nat {
 // encoded length never depends on its value.
 func (f *Field) Bytes(n *bigmod.Nat) []byte {
 	return n.Bytes(f.Modulus)
+}
+
+// SecretBytes serializes a reconstructed secret to SecretSize bytes.
+//
+// For any value shared from a secret of that width the bytes above it are
+// zero, so a value where they are not came from inconsistent shares. They are
+// OR-accumulated, so the check does not branch on the secret byte by byte.
+func (f *Field) SecretBytes(n *bigmod.Nat) ([]byte, error) {
+	b := f.Bytes(n)
+	lead := len(b) - f.SecretSize
+	var high byte
+	for _, x := range b[:lead] {
+		high |= x
+	}
+	if high != 0 {
+		clear(b)
+		return nil, errors.New("reconstructed value is wider than the field's secrets")
+	}
+	return b[lead:], nil
 }
 
 // Random returns a uniformly distributed field element.
