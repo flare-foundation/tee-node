@@ -1,70 +1,26 @@
-variables:
-  GOLANG_VERSION: "1.25.1"
-  GOLINT_VERSION: "v2.7.0"
-  COVERAGE_FILE: "coverage.out"
-  COBERTURA_FILE: "coverage.xml"
-  FLARE_CI_DISABLE_LGTM: true
-  FLARE_CI_DISABLE_TEST_GO: true
-  FLARE_CI_DISABLE_LINT_GO: true
+stages:
+  - test
+  - sbom
 
 default:
   tags:
     - flarenetwork
-
-.gocache:
-  variables:
-    GOPATH: ${CI_PROJECT_DIR}/.go
-  before_script:
-    - mkdir -p ${GOPATH}
-  cache:
-    paths:
-      - ${GOPATH}/pkg/mod/
-      - ${GOPATH}/bin
-
-build:
-  stage: build
-  image: golang:${GOLANG_VERSION}
-  extends: .gocache
-  needs: []
-  script:
-    - go mod download
-    - go build ./cmd/main.go
-
-lint:
-  stage: test
-  needs: [build]
-  image: golangci/golangci-lint:${GOLINT_VERSION}
-  extends: .gocache
-  script:
-    - "! gofmt -l . | grep -q ."
-    - golangci-lint run --timeout 10m0s
-
-test:
-  stage: test
-  image: golang:${GOLANG_VERSION}
-  needs: [build]
-  extends: .gocache
-  before_script:
-    - go get github.com/boumenot/gocover-cobertura
-  script:
-    - go test -v -coverpkg=github.com/flare-foundation/tee-node/... -coverprofile=${COVERAGE_FILE} -covermode count ./internal/... ./pkg/...
-    - go tool cover -func=${COVERAGE_FILE}
-    - go run github.com/boumenot/gocover-cobertura < ${COVERAGE_FILE} > ${COBERTURA_FILE}
   artifacts:
-    paths:
-      - ${COVERAGE_FILE}
-    reports:
-      coverage_report:
-        coverage_format: cobertura
-        path: ${COBERTURA_FILE}
-  coverage: '/total:\s+\(statements\)\s+(\d+\.\d+)%/'
-
-stages:
-  - build
-  - test
+    expire_in: 3 days
 
 include:
-  - component: gitlab.com/flarenetwork/ci-components-private/component@2
+  - component: gitlab.com/flarenetwork/ci-components-private/lgtm@2
+  - component: gitlab.com/flarenetwork/ci-components-private/dependency-track@2
+  - template: Jobs/Secret-Detection.latest.gitlab-ci.yml
+  - component: gitlab.com/flarenetwork/ci-components-private/lint-dockerfile@2
+  - component: gitlab.com/flarenetwork/ci-components-private/lint-go@2
     inputs:
-      image_name: "tee-node"
-      runner_tags: ["flarenetwork-md"]
+      go_version: "1.25.1"
+      golangci_version: "v2.7.0"
+      golangci_config_file: ".golangci.yml"
+      tags: ["flarenetwork-lg"]
+  - component: gitlab.com/flarenetwork/ci-components-private/test-go@2
+    inputs:
+      go_version: "1.25.1"
+      go_test_command: "go test -race -timeout 20m -covermode=atomic -coverprofile=coverage.out -coverpkg=github.com/flare-foundation/tee-node/... ./..."
+      tags: ["flarenetwork-lg"]

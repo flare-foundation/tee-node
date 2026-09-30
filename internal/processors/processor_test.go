@@ -56,6 +56,21 @@ func actionResultSignHash(t *testing.T, ar types.ActionResult) []byte {
 	return h[:]
 }
 
+// submitAction queues action and returns its response, requiring status 1.
+func submitAction(t *testing.T, actions chan<- *types.Action, responses <-chan *types.ActionResponse, action *types.Action) *types.ActionResponse {
+	t.Helper()
+	actions <- action
+	select {
+	case r := <-responses:
+		require.Equal(t, uint8(1), r.Result.Status, r.Result.Log)
+		return r
+	// router answers within process+drain timeouts, even on failure
+	case <-time.After(settings.ActionProcessTimeout + settings.ActionDrainTimeout + 30*time.Second):
+		t.Fatalf("no response to action %x", action.Data.ID)
+		return nil
+	}
+}
+
 // voteSignHash recomputes the domain-separated preimage the TEE signs over an
 // end-phase vote hash: signing.Payload{TEEVoteHashTag, chainID, voteHash}.Hash().
 func voteSignHash(t *testing.T, voteHash common.Hash) []byte {
@@ -139,6 +154,16 @@ func TestProcessorsEndToEnd(t *testing.T) {
 		proxyURL.URL = ""
 		proxyURL.Unlock()
 	})
+
+	// production-size backup/restore can exceed the default under -race on slow runners
+	origProcessTimeout := settings.ActionProcessTimeout
+	settings.ActionProcessTimeout = 10 * time.Minute
+	t.Cleanup(func() { settings.ActionProcessTimeout = origProcessTimeout })
+
+	// shorter empty-queue pause; read once by the router constructor
+	origPauseTime := settings.QueuedActionsPauseTime
+	settings.QueuedActionsPauseTime = 10 * time.Millisecond
+	t.Cleanup(func() { settings.QueuedActionsPauseTime = origPauseTime })
 
 	r := router.NewPMWRouter(testNode, wStorage, pStorage, proxyURL)
 	go r.Run(testNode)
@@ -240,10 +265,7 @@ func updatePolicy(t *testing.T,
 	}
 
 	action := testutils.BuildMockDirectAction(t, op.Policy, op.UpdatePolicy, req)
-	actionInfoChan <- action
-
-	actionResponse := <-actionResponseChan
-	require.Equal(t, uint8(1), actionResponse.Result.Status, actionResponse.Result.Log)
+	submitAction(t, actionInfoChan, actionResponseChan, action)
 
 	// Confirm the new policy is what got installed by hashing a round-trip
 	// through the commonpolicy codec.
@@ -288,10 +310,7 @@ func setMachinePathList(
 	}
 
 	action := testutils.BuildMockDirectAction(t, op.Governance, op.SetMachinePathList, req)
-	actionInfoChan <- action
-
-	response := <-actionResponseChan
-	require.Equal(t, uint8(1), response.Result.Status, response.Result.Log)
+	response := submitAction(t, actionInfoChan, actionResponseChan, action)
 	err = utils.VerifySignature(actionResultSignHash(t, response.Result), response.Signature, teeID)
 	require.NoError(t, err)
 }
@@ -330,10 +349,7 @@ func keyDirectBackup(
 		providerPrivKeys, chainID, teeID, rewardEpochID,
 		nil, nil, nil, 0, types.Threshold, uint64(time.Now().Unix()),
 	)
-	actionInfoChan <- action
-
-	response := <-actionResponseChan
-	require.Equal(t, uint8(1), response.Result.Status, response.Result.Log)
+	response := submitAction(t, actionInfoChan, actionResponseChan, action)
 	err = utils.VerifySignature(actionResultSignHash(t, response.Result), response.Signature, teeID)
 	require.NoError(t, err)
 
@@ -345,10 +361,7 @@ func keyDirectBackup(
 		providerPrivKeys, chainID, teeID, rewardEpochID,
 		nil, nil, nil, 0, types.End, uint64(time.Now().Unix()),
 	)
-	actionInfoChan <- action
-
-	response = <-actionResponseChan
-	require.Equal(t, uint8(1), response.Result.Status, response.Result.Log)
+	response = submitAction(t, actionInfoChan, actionResponseChan, action)
 	err = utils.VerifySignature(actionResultSignHash(t, response.Result), response.Signature, teeID)
 	require.NoError(t, err)
 
@@ -417,10 +430,7 @@ func keyDirectRestore(
 		providerPrivKeys, chainID, teeID, rewardEpochID,
 		envelopeBytes, nil, nil, 0, types.Threshold, uint64(time.Now().Unix()),
 	)
-	actionInfoChan <- action
-
-	response := <-actionResponseChan
-	require.Equal(t, uint8(1), response.Result.Status, response.Result.Log)
+	response := submitAction(t, actionInfoChan, actionResponseChan, action)
 	err = utils.VerifySignature(actionResultSignHash(t, response.Result), response.Signature, teeID)
 	require.NoError(t, err)
 
@@ -436,10 +446,7 @@ func keyDirectRestore(
 		providerPrivKeys, chainID, teeID, rewardEpochID,
 		envelopeBytes, nil, nil, 0, types.End, uint64(time.Now().Unix()),
 	)
-	actionInfoChan <- action
-
-	response = <-actionResponseChan
-	require.Equal(t, uint8(1), response.Result.Status, response.Result.Log)
+	response = submitAction(t, actionInfoChan, actionResponseChan, action)
 	err = utils.VerifySignature(actionResultSignHash(t, response.Result), response.Signature, teeID)
 	require.NoError(t, err)
 
@@ -477,10 +484,7 @@ func initializePolicy(t *testing.T,
 
 	action := testutils.BuildMockDirectAction(t, op.Policy, op.InitializePolicy, req)
 
-	actionInfoChan <- action
-
-	actionResponse := <-actionResponseChan
-	require.Equal(t, uint8(1), actionResponse.Result.Status, actionResponse.Result.Log)
+	submitAction(t, actionInfoChan, actionResponseChan, action)
 }
 
 func getTeeInfo(
@@ -497,11 +501,7 @@ func getTeeInfo(
 	}
 	action := testutils.BuildMockDirectAction(t, op.Get, op.TEEInfo, req)
 
-	actionInfoChan <- action
-
-	actionResponse := <-actionResponseChan
-
-	require.Equal(t, uint8(1), actionResponse.Result.Status)
+	actionResponse := submitAction(t, actionInfoChan, actionResponseChan, action)
 
 	var teeInfoResponse types.TeeInfoResponse
 	err = json.Unmarshal(actionResponse.Result.Data, &teeInfoResponse)
@@ -561,11 +561,7 @@ func generateWallet(
 	action := testutils.BuildMockInstructionAction(
 		t, op.Wallet, op.KeyGenerate, originalMessageEncoded, privKeys, chainID, teeID, rewardEpochID, nil, nil, nil, 0, types.Threshold, uint64(time.Now().Unix()),
 	)
-	actionInfoChan <- action
-
-	response := <-actionResponseChan
-	t.Log(response.Result.Log)
-	require.Equal(t, uint8(1), response.Result.Status)
+	response := submitAction(t, actionInfoChan, actionResponseChan, action)
 	err = utils.VerifySignature(actionResultSignHash(t, response.Result), response.Signature, teeID)
 	require.NoError(t, err)
 
@@ -582,12 +578,7 @@ func generateWallet(
 	action = testutils.BuildMockInstructionAction(
 		t, op.Wallet, op.KeyGenerate, originalMessageEncoded, privKeys, chainID, teeID, rewardEpochID, nil, nil, nil, 0, types.End, uint64(time.Now().Unix()),
 	)
-	actionInfoChan <- action
-
-	response = <-actionResponseChan
-
-	t.Log(response.Result.Log)
-	require.Equal(t, uint8(1), response.Result.Status)
+	response = submitAction(t, actionInfoChan, actionResponseChan, action)
 
 	err = utils.VerifySignature(actionResultSignHash(t, response.Result), response.Signature, teeID)
 	require.NoError(t, err)
@@ -634,10 +625,7 @@ func proveVRFRandomness(
 	action := testutils.BuildMockInstructionAction(
 		t, op.Wallet, op.Command("VRF"), originalMessageEncoded, privKeys, chainID, teeID, rewardEpochID, nil, nil, nil, 0, types.Threshold, uint64(time.Now().Unix()),
 	)
-	actionInfoChan <- action
-
-	actionResponse := <-actionResponseChan
-	require.Equal(t, uint8(1), actionResponse.Result.Status, actionResponse.Result.Log)
+	actionResponse := submitAction(t, actionInfoChan, actionResponseChan, action)
 	err = utils.VerifySignature(actionResultSignHash(t, actionResponse.Result), actionResponse.Signature, teeID)
 	require.NoError(t, err)
 
@@ -657,10 +645,7 @@ func proveVRFRandomness(
 	action = testutils.BuildMockInstructionAction(
 		t, op.Wallet, op.Command("VRF"), originalMessageEncoded, privKeys, chainID, teeID, rewardEpochID, nil, nil, nil, 0, types.End, uint64(time.Now().Unix()),
 	)
-	actionInfoChan <- action
-
-	actionResponse = <-actionResponseChan
-	require.Equal(t, uint8(1), actionResponse.Result.Status, actionResponse.Result.Log)
+	actionResponse = submitAction(t, actionInfoChan, actionResponseChan, action)
 	err = utils.VerifySignature(actionResultSignHash(t, actionResponse.Result), actionResponse.Signature, teeID)
 	require.NoError(t, err)
 
@@ -745,10 +730,7 @@ func signTransaction(
 	action = testutils.BuildMockInstructionAction(
 		t, op.XRP, op.Pay, originalMessageEncoded, signingKeys, chainID, teeID, rewardEpochID, []byte{}, nil, cosignerAddresses, cosignersThreshold, types.End, uint64(time.Now().Unix()),
 	)
-	actionInfoChan <- action
-
-	actionResponse = <-actionResponseChan
-	require.Equal(t, uint8(1), actionResponse.Result.Status)
+	actionResponse = submitAction(t, actionInfoChan, actionResponseChan, action)
 	err = utils.VerifySignature(actionResultSignHash(t, actionResponse.Result), actionResponse.Signature, teeID)
 	require.NoError(t, err)
 
@@ -887,10 +869,7 @@ func deleteWallet(
 	action := testutils.BuildMockInstructionAction(
 		t, op.Wallet, op.KeyDelete, originalMessageEncoded, privKeys, chainID, teeID, rewardEpochID, nil, nil, nil, 0, types.Threshold, uint64(time.Now().Unix()),
 	)
-	actionInfoChan <- action
-
-	actionResponse := <-actionResponseChan
-	require.Equal(t, uint8(1), actionResponse.Result.Status)
+	submitAction(t, actionInfoChan, actionResponseChan, action)
 
 	_, err = wStorage.Get(wallets.KeyIDPair{WalletID: walletID, KeyID: keyID})
 	require.Error(t, err)
@@ -899,10 +878,7 @@ func deleteWallet(
 	action = testutils.BuildMockInstructionAction(
 		t, op.Wallet, op.KeyDelete, originalMessageEncoded, privKeys, chainID, teeID, rewardEpochID, nil, nil, nil, 0, types.End, uint64(time.Now().Unix()),
 	)
-	actionInfoChan <- action
-
-	actionResponse = <-actionResponseChan
-	require.Equal(t, uint8(1), actionResponse.Result.Status)
+	actionResponse := submitAction(t, actionInfoChan, actionResponseChan, action)
 	err = utils.VerifySignature(actionResultSignHash(t, actionResponse.Result), actionResponse.Signature, teeID)
 	require.NoError(t, err)
 
@@ -931,10 +907,7 @@ func getBackup(
 
 	action := testutils.BuildMockDirectAction(t, op.Get, op.TEEBackup, message)
 
-	actionInfoChan <- action
-
-	actionResponse := <-actionResponseChan
-	require.Equal(t, uint8(1), actionResponse.Result.Status)
+	actionResponse := submitAction(t, actionInfoChan, actionResponseChan, action)
 	err := utils.VerifySignature(actionResultSignHash(t, actionResponse.Result), actionResponse.Signature, teeID)
 	require.NoError(t, err)
 
@@ -1063,10 +1036,7 @@ func recoverWallet(
 		rewardEpochID, additionalFixedMessage, additionalVariableMessages, adminAddresses, adminsThreshold,
 		types.Threshold, uint64(time.Now().Unix()),
 	)
-	actionInfoChan <- action
-
-	response := <-actionResponseChan
-	require.Equal(t, uint8(1), response.Result.Status)
+	response := submitAction(t, actionInfoChan, actionResponseChan, action)
 	err = utils.VerifySignature(actionResultSignHash(t, response.Result), response.Signature, teeID)
 	require.NoError(t, err)
 
@@ -1085,10 +1055,7 @@ func recoverWallet(
 		rewardEpochID, additionalFixedMessage, additionalVariableMessages, adminAddresses, adminsThreshold,
 		types.End, uint64(time.Now().Unix()),
 	)
-	actionInfoChan <- action
-
-	response = <-actionResponseChan
-	require.Equal(t, uint8(1), response.Result.Status)
+	response = submitAction(t, actionInfoChan, actionResponseChan, action)
 	err = utils.VerifySignature(actionResultSignHash(t, response.Result), response.Signature, teeID)
 	require.NoError(t, err)
 
@@ -1134,10 +1101,7 @@ func getTeeAttestation(
 	action := testutils.BuildMockInstructionAction(
 		t, op.Reg, op.TEEAttestation, originalMessageEncoded, privKeys, chainID, teeID, rewardEpochId, nil, nil, nil, 0, types.Threshold, uint64(time.Now().Unix()),
 	)
-	actionInfoChan <- action
-
-	actionResponse := <-actionResponseChan
-	require.Equal(t, uint8(1), actionResponse.Result.Status)
+	actionResponse := submitAction(t, actionInfoChan, actionResponseChan, action)
 	err = utils.VerifySignature(actionResultSignHash(t, actionResponse.Result), actionResponse.Signature, teeID)
 	require.NoError(t, err)
 
@@ -1155,10 +1119,7 @@ func getTeeAttestation(
 	action = testutils.BuildMockInstructionAction(
 		t, op.Reg, op.TEEAttestation, originalMessageEncoded, privKeys, chainID, teeID, rewardEpochId, nil, nil, nil, 0, types.End, uint64(time.Now().Unix()),
 	)
-	actionInfoChan <- action
-
-	actionResponse = <-actionResponseChan
-	require.Equal(t, uint8(1), actionResponse.Result.Status)
+	actionResponse = submitAction(t, actionInfoChan, actionResponseChan, action)
 	err = utils.VerifySignature(actionResultSignHash(t, actionResponse.Result), actionResponse.Signature, teeID)
 	require.NoError(t, err)
 
@@ -1254,10 +1215,7 @@ func fdcProve(
 		additionalFixedMessageEncoded, variableMessages, cosignerAddresses, cosignersThreshold,
 		types.Threshold, timestamp,
 	)
-	actionInfoChan <- action
-
-	actionResponse := <-actionResponseChan
-	require.Equal(t, uint8(1), actionResponse.Result.Status)
+	actionResponse := submitAction(t, actionInfoChan, actionResponseChan, action)
 	err = utils.VerifySignature(actionResultSignHash(t, actionResponse.Result), actionResponse.Signature, teeID)
 	require.NoError(t, err)
 
@@ -1291,10 +1249,7 @@ func fdcProve(
 		additionalFixedMessageEncoded, variableMessages, cosignerAddresses, cosignersThreshold,
 		types.End, timestamp,
 	)
-	actionInfoChan <- action
-
-	actionResponse = <-actionResponseChan
-	require.Equal(t, uint8(1), actionResponse.Result.Status)
+	actionResponse = submitAction(t, actionInfoChan, actionResponseChan, action)
 	err = utils.VerifySignature(actionResultSignHash(t, actionResponse.Result), actionResponse.Signature, teeID)
 	require.NoError(t, err)
 
