@@ -620,6 +620,12 @@ type keyDataProviderRestoreTestSetup struct {
 	providerPubKeys []*ecdsa.PublicKey
 }
 
+// Scaled-down backup parameters: a production-size Shamir split is too slow under -race.
+const (
+	testNormalizationConstant  = 100
+	testDataProvidersThreshold = uint64(67)
+)
+
 func setupAdminsAndProviders(
 	t *testing.T,
 	numAdmins int,
@@ -700,8 +706,8 @@ func setupKeyDataProviderRestoreTestWithAdminsAndProviders(
 		initialPolicy.RewardEpochID,
 		testNode.TeeID(),
 		uint64(31337),
-		backup.NormalizationConstant,
-		backup.DataProvidersThreshold,
+		testNormalizationConstant,
+		testDataProvidersThreshold,
 	)
 	require.NoError(t, err)
 
@@ -966,17 +972,17 @@ func TestKeyDataProviderRestoreAdminThresholdNotMet(t *testing.T) {
 func TestKeyDataProviderRestoreProviderThresholdNotMet(t *testing.T) {
 	setup := setupKeyDataProviderRestoreTest(t)
 
-	weightAccum := 0
+	// longest provider prefix whose normalized weight stays below the threshold
+	providerParts := setup.walletBackup.ProviderEncryptedParts
+	weightAccum := uint64(0)
 	numProvidersUnderThreshold := 0
-	for i := range setup.weights {
-		weightAccum += int(setup.weights[i])
-		numProvidersUnderThreshold++
-		if weightAccum >= int(backup.DataProvidersThreshold) {
+	for _, w := range providerParts.Weights {
+		if weightAccum+uint64(w) >= providerParts.Threshold {
 			break
 		}
+		weightAccum += uint64(w)
+		numProvidersUnderThreshold++
 	}
-
-	// ? What if numProvidersUnderThreshold == 0 ?
 
 	variableMessages, signers := setup.buildVariableMessages(t, numProvidersUnderThreshold, len(setup.adminPrivKeys))
 
@@ -1050,22 +1056,20 @@ func TestKeyDataProviderRestoreInvalidSignatureOnKeySplitEnoughValidShares(t *te
 func TestKeyDataProviderRestoreInvalidSignatureOnKeySplitNotEnoughValidShares(t *testing.T) {
 	setup := setupKeyDataProviderRestoreTest(t)
 
-	weightAccum := 0
+	providerParts := setup.walletBackup.ProviderEncryptedParts
+	weightAccum := uint64(0)
 	minProvidersNeeded := 0
-	for i := range setup.weights {
-		weightAccum += int(setup.weights[i])
+	for _, w := range providerParts.Weights {
+		weightAccum += uint64(w)
 		minProvidersNeeded++
-		if weightAccum >= int(backup.DataProvidersThreshold) {
+		if weightAccum >= providerParts.Threshold {
 			break
 		}
 	}
 
-	// Use minimum + 1 providers and all admins, then invalidate the LAST provider's signature
-	// This ensures after removing the invalid one, we have SOME shares but NOT enough to meet threshold
-	numProvidersToUse := min(minProvidersNeeded+1, len(setup.voterPrivKeys))
-
-	// Invalidate the last provider (so we still have minProvidersNeeded-1 valid providers, which is below threshold)
-	variableMessages, signers := setup.buildVariableMessagesWithInvalidSignature(t, numProvidersToUse, len(setup.adminPrivKeys), numProvidersToUse-1)
+	// Use the minimum providers and all admins, then invalidate the LAST provider's signature,
+	// leaving minProvidersNeeded-1 valid providers, which is below threshold
+	variableMessages, signers := setup.buildVariableMessagesWithInvalidSignature(t, minProvidersNeeded, len(setup.adminPrivKeys), minProvidersNeeded-1)
 
 	restoreInstruction := setup.buildRestoreInstruction(t, setup.buildDefaultRestoreRequest(big.NewInt(int64(setup.nonce))))
 
@@ -1574,8 +1578,8 @@ func TestKeyDataProviderRestoreFutureBackupEpoch(t *testing.T) {
 			setup.epochID+1,
 			setup.testNode.TeeID(),
 			uint64(31337),
-			backup.NormalizationConstant,
-			backup.DataProvidersThreshold,
+			testNormalizationConstant,
+			testDataProvidersThreshold,
 		)
 		require.NoError(t, err)
 		setup.walletBackup = futureBackup

@@ -22,5 +22,5 @@ include:
   - component: gitlab.com/flarenetwork/ci-components-private/test-go@2
     inputs:
       go_version: "1.25.1"
-      go_test_command: "go test -race -covermode=atomic -coverprofile=coverage.out -coverpkg=./... ./..."
+      go_test_command: "go test -race -timeout 20m -covermode=atomic -coverprofile=coverage.out -coverpkg=github.com/flare-foundation/tee-node/... ./..."
       tags: ["flarenetwork-lg"]
