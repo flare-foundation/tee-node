@@ -1,6 +1,6 @@
 version: "2"
 run:
-  go: "1.25.1"
+  go: "1.26.8"
   modules-download-mode: readonly
 linters:
   default: standard
@@ -32,6 +32,13 @@ linters:
       default-signifies-exhaustive: true
     nolintlint:
       require-specific: true
+  exclusions:
+    rules:
+      # stdlib replacements (PublicKey.Bytes, ParseRawPrivateKey, ...) only support NIST curves, not secp256k1
+      - linters:
+          - staticcheck
+        # matches the crypto/ecdsa X/Y/D deprecation text, which staticcheck versions quote differently
+        text: 'SA1019: .*modifying the raw (coordinates|value) can produce invalid keys'
 exclusions:
   generated: lax
   paths:
