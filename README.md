@@ -29,7 +29,7 @@ Docker images are built reproducibly so that the image digest can be independent
 
 ## Requirements
 
-- Go 1.25.1 or higher
+- Go 1.26.8 or higher
 - Docker with BuildKit support
 - GCP account (for production deployment)
 

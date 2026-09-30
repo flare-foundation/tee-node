@@ -1,6 +1,6 @@
 #checkov:skip=CKV_DOCKER_2:HEALTHCHECK not applicable, container runs in GCP Confidential Space behind a proxy
 # pin base image by digest so every build starts from the same bytes
-FROM golang:1.25.1-trixie@sha256:ff83f3762390c2cccb53618ccc18af23e556aff9b1db4428637e9f63287c8171 AS builder
+FROM golang:1.26.8-trixie@sha256:eae2aaa6add2936cbf350dd0d2628b363461542f0c4b3c0b558957e0f2997379 AS builder
 
 # commit timestamp, propagated through the build to clamp file mtimes and normalize embedded dates
 ARG SOURCE_DATE_EPOCH
