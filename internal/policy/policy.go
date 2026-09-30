@@ -29,13 +29,17 @@ func InitializeStorage() *Storage {
 }
 
 // SetInitialPolicy stores the first signing policy and associated public keys.
-func (s *Storage) SetInitialPolicy(policy *policy.SigningPolicy, addressesToPublicKeys map[common.Address]*ecdsa.PublicKey) error {
+//
+// chainID binds the stored hash to the source chain; it must be the node's
+// configured chain id, since go-verifier-api compares this value against the
+// Relay's toSigningPolicyHash.
+func (s *Storage) SetInitialPolicy(chainID uint64, policy *policy.SigningPolicy, addressesToPublicKeys map[common.Address]*ecdsa.PublicKey) error {
 	if s.active != nil {
 		return errors.New("signing policy already initialized")
 	}
 
 	s.initialPolicyID = policy.RewardEpochID
-	s.initialPolicyHash = common.Hash(policy.Hash())
+	s.initialPolicyHash = common.Hash(policy.ChainBoundHash(chainID))
 
 	err := s.SetActiveSigningPolicy(policy)
 	if err != nil {
@@ -67,14 +71,17 @@ func (s *Storage) ActiveSigningPolicy() (*policy.SigningPolicy, error) {
 }
 
 // Info returns ids and hashes of initial and active signing policies.
-func (s *Storage) Info() (uint32, common.Hash, uint32, common.Hash) {
+//
+// chainID must match the one SetInitialPolicy was given — the two hashes are
+// compared against the same Relay.
+func (s *Storage) Info(chainID uint64) (uint32, common.Hash, uint32, common.Hash) {
 	initialID, initialHash := s.InitialPolicyIDAndHash()
 	actPolicy, err := s.ActiveSigningPolicy()
 
 	if err != nil {
 		return initialID, initialHash, initialID, initialHash
 	} else {
-		return initialID, initialHash, actPolicy.RewardEpochID, common.Hash(actPolicy.Hash())
+		return initialID, initialHash, actPolicy.RewardEpochID, common.Hash(actPolicy.ChainBoundHash(chainID))
 	}
 }
 

@@ -4,12 +4,12 @@ import (
 	"bytes"
 	"context"
 	"encoding/hex"
+	"net"
 	"net/http"
 	"os"
 	"strconv"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/flare-foundation/tee-node/internal/node"
@@ -56,20 +56,34 @@ var (
 	a2 = common.HexToAddress(h2)
 )
 
-// setup returns pointers to a test config server and node.
-func setup() (*settings.ConfigServer, *node.Node) {
-	n, _ := node.Initialize(node.ZeroState{})
-	server := settings.NewConfigServer(3000, n)
-	go server.Serve() //nolint:errcheck
-	time.Sleep(100 * time.Millisecond)
-	return server, n
+// setup serves a config server on an ephemeral loopback port until the test ends and returns it,
+// its node, and its base URL.
+func setup(t *testing.T) (*settings.ConfigServer, *node.Node, string) {
+	t.Helper()
+
+	n, err := node.Initialize(node.ZeroState{})
+	require.NoError(t, err)
+	server := settings.NewConfigServer(0, n)
+
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+
+	served := make(chan error, 1)
+	go func() { served <- server.ServeListener(ln) }()
+
+	t.Cleanup(func() {
+		require.NoError(t, server.Close(context.Background()))
+		require.ErrorIs(t, <-served, http.ErrServerClosed)
+	})
+
+	return server, n, "http://" + ln.Addr().String()
 }
 
 // postAndCheckCode posts a request to the test config server and checks the responded status code.
-func postAndCheckCode(t *testing.T, endpoint string, requestBody string, expectedStatusCode int) {
+func postAndCheckCode(t *testing.T, base, endpoint string, requestBody string, expectedStatusCode int) {
 	t.Helper()
 
-	resp, err := http.Post("http://localhost:3000"+endpoint, "application/json", bytes.NewBufferString(requestBody))
+	resp, err := http.Post(base+endpoint, "application/json", bytes.NewBufferString(requestBody))
 	require.NoError(t, err)
 
 	require.Equal(t, expectedStatusCode, resp.StatusCode)
@@ -180,8 +194,7 @@ func TestDefaults(t *testing.T) {
 	t.Run("with unset environment variables", func(t *testing.T) {
 		unsetEnvVars(t)
 
-		server, n := setup()
-		defer server.Close(context.Background()) //nolint:errcheck
+		server, n, _ := setup(t)
 
 		checkProxyURL(t, server, defaultProxyURL)
 		checkExtensionID(t, n, defaultExtensionID)
@@ -193,8 +206,7 @@ func TestDefaults(t *testing.T) {
 		setEnvVars(t)
 		defer unsetEnvVars(t)
 
-		server, n := setup()
-		defer server.Close(context.Background()) //nolint:errcheck
+		server, n, _ := setup(t)
 
 		checkProxyURL(t, server, proxyURL)
 		checkExtensionID(t, n, h)
@@ -233,40 +245,49 @@ func TestEndpointProxy(t *testing.T) {
 			body:     `{"url": "` + strings.Repeat("a", 128*1024) + `"}`,
 			expected: http.StatusBadRequest,
 		},
+		{
+			name:     "URL addressing the node's own config port",
+			body:     `{"url": "http://localhost:` + strconv.Itoa(settings.ConfigPort) + `"}`,
+			expected: http.StatusBadRequest,
+		},
+		{
+			name:     "URL addressing the node's own sign port",
+			body:     `{"url": "http://127.0.0.1:` + strconv.Itoa(settings.SignPort()) + `"}`,
+			expected: http.StatusBadRequest,
+		},
 	}
 
 	for _, setProxyURL := range [2]bool{false, true} {
 		func() {
-			server, _ := setup()
-			defer server.Close(context.Background()) //nolint:errcheck
+			server, _, base := setup(t)
 
 			if setProxyURL {
 				t.Run("set proxy URL", func(t *testing.T) {
-					postAndCheckCode(t, settings.SetProxyURLEndpoint, `{"url": "`+proxyURL+`"}`, http.StatusOK)
+					postAndCheckCode(t, base, settings.SetProxyURLEndpoint, `{"url": "`+proxyURL+`"}`, http.StatusOK)
 					checkProxyURL(t, server, proxyURL)
 				})
 
 				for _, r := range requests {
 					t.Run(r.name, func(t *testing.T) {
-						postAndCheckCode(t, settings.SetProxyURLEndpoint, r.body, r.expected)
+						postAndCheckCode(t, base, settings.SetProxyURLEndpoint, r.body, r.expected)
 						checkProxyURL(t, server, proxyURL)
 					})
 				}
 
 				t.Run("set proxy URL again", func(t *testing.T) {
-					postAndCheckCode(t, settings.SetProxyURLEndpoint, `{"url": "`+proxyURL2+`"}`, http.StatusOK)
+					postAndCheckCode(t, base, settings.SetProxyURLEndpoint, `{"url": "`+proxyURL2+`"}`, http.StatusOK)
 					checkProxyURL(t, server, proxyURL2)
 				})
 			} else {
 				for _, r := range requests {
 					t.Run(r.name, func(t *testing.T) {
-						postAndCheckCode(t, settings.SetProxyURLEndpoint, r.body, r.expected)
+						postAndCheckCode(t, base, settings.SetProxyURLEndpoint, r.body, r.expected)
 						checkProxyURL(t, server, defaultProxyURL)
 					})
 				}
 
 				t.Run("set proxy URL 2", func(t *testing.T) {
-					postAndCheckCode(t, settings.SetProxyURLEndpoint, `{"url": "`+proxyURL+`"}`, http.StatusOK)
+					postAndCheckCode(t, base, settings.SetProxyURLEndpoint, `{"url": "`+proxyURL+`"}`, http.StatusOK)
 					checkProxyURL(t, server, proxyURL)
 				})
 			}
@@ -301,12 +322,11 @@ func TestEndpointExtensionID(t *testing.T) {
 
 	for _, SetExtensionID := range [2]bool{false, true} {
 		func() {
-			server, n := setup()
-			defer server.Close(context.Background()) //nolint:errcheck
+			_, n, base := setup(t)
 
 			if SetExtensionID {
 				t.Run("set extension ID", func(t *testing.T) {
-					postAndCheckCode(t, settings.SetExtensionIDEndpoint, `{"extensionId": "`+h+`"}`, http.StatusOK)
+					postAndCheckCode(t, base, settings.SetExtensionIDEndpoint, `{"extensionId": "`+h+`"}`, http.StatusOK)
 					checkExtensionID(t, n, h)
 				})
 
@@ -318,20 +338,20 @@ func TestEndpointExtensionID(t *testing.T) {
 
 				for _, r := range requests {
 					t.Run(r.name, func(t *testing.T) {
-						postAndCheckCode(t, settings.SetExtensionIDEndpoint, r.body, r.expected)
+						postAndCheckCode(t, base, settings.SetExtensionIDEndpoint, r.body, r.expected)
 						checkExtensionID(t, n, h)
 					})
 				}
 			} else {
 				for _, r := range requests {
 					t.Run(r.name, func(t *testing.T) {
-						postAndCheckCode(t, settings.SetExtensionIDEndpoint, r.body, r.expected)
+						postAndCheckCode(t, base, settings.SetExtensionIDEndpoint, r.body, r.expected)
 						checkExtensionID(t, n, defaultExtensionID)
 					})
 				}
 
 				t.Run("set extension ID 2", func(t *testing.T) {
-					postAndCheckCode(t, settings.SetExtensionIDEndpoint, `{"extensionId": "`+h+`"}`, http.StatusOK)
+					postAndCheckCode(t, base, settings.SetExtensionIDEndpoint, `{"extensionId": "`+h+`"}`, http.StatusOK)
 					checkExtensionID(t, n, h)
 				})
 			}
@@ -371,12 +391,11 @@ func TestEndpointInitialOwner(t *testing.T) {
 
 	for _, setInitialOwner := range [2]bool{false, true} {
 		func() {
-			server, n := setup()
-			defer server.Close(context.Background()) //nolint:errcheck
+			_, n, base := setup(t)
 
 			if setInitialOwner {
 				t.Run("set initial owner", func(t *testing.T) {
-					postAndCheckCode(t, settings.SetInitialOwnerEndpoint, `{"owner": "`+a.String()+`"}`, http.StatusOK)
+					postAndCheckCode(t, base, settings.SetInitialOwnerEndpoint, `{"owner": "`+a.String()+`"}`, http.StatusOK)
 					checkInitialOwner(t, n, a)
 				})
 
@@ -388,20 +407,20 @@ func TestEndpointInitialOwner(t *testing.T) {
 
 				for _, r := range requests {
 					t.Run(r.name, func(t *testing.T) {
-						postAndCheckCode(t, settings.SetInitialOwnerEndpoint, r.body, r.expected)
+						postAndCheckCode(t, base, settings.SetInitialOwnerEndpoint, r.body, r.expected)
 						checkInitialOwner(t, n, a)
 					})
 				}
 			} else {
 				for _, r := range requests {
 					t.Run(r.name, func(t *testing.T) {
-						postAndCheckCode(t, settings.SetInitialOwnerEndpoint, r.body, r.expected)
+						postAndCheckCode(t, base, settings.SetInitialOwnerEndpoint, r.body, r.expected)
 						checkInitialOwner(t, n, defaultInitialOwner)
 					})
 				}
 
 				t.Run("set initial owner 2", func(t *testing.T) {
-					postAndCheckCode(t, settings.SetInitialOwnerEndpoint, `{"owner": "`+a.String()+`"}`, http.StatusOK)
+					postAndCheckCode(t, base, settings.SetInitialOwnerEndpoint, `{"owner": "`+a.String()+`"}`, http.StatusOK)
 					checkInitialOwner(t, n, a)
 				})
 			}
@@ -454,12 +473,11 @@ func TestEndpointGovernance(t *testing.T) {
 	for _, setGovernance := range [2]bool{false, true} {
 		func() {
 			unsetEnvVars(t)
-			server, n := setup()
-			defer server.Close(context.Background()) //nolint:errcheck
+			_, n, base := setup(t)
 
 			if setGovernance {
 				t.Run("set governance", func(t *testing.T) {
-					postAndCheckCode(t, settings.SetGovernanceEndpoint, validBody, http.StatusOK)
+					postAndCheckCode(t, base, settings.SetGovernanceEndpoint, validBody, http.StatusOK)
 					checkGovernance(t, n, govSigners, govThreshold)
 				})
 
@@ -471,21 +489,21 @@ func TestEndpointGovernance(t *testing.T) {
 
 				for _, r := range reqs {
 					t.Run(r.name, func(t *testing.T) {
-						postAndCheckCode(t, settings.SetGovernanceEndpoint, r.body, r.expected)
+						postAndCheckCode(t, base, settings.SetGovernanceEndpoint, r.body, r.expected)
 						checkGovernance(t, n, govSigners, govThreshold)
 					})
 				}
 			} else {
 				for _, r := range requests {
 					t.Run(r.name, func(t *testing.T) {
-						postAndCheckCode(t, settings.SetGovernanceEndpoint, r.body, r.expected)
+						postAndCheckCode(t, base, settings.SetGovernanceEndpoint, r.body, r.expected)
 						checkGovernanceHash(t, n, defaultGovernanceHash)
 					})
 				}
 
 				t.Run("set governance 2", func(t *testing.T) {
 					body := `{"signers":["` + a2.Hex() + `"],"threshold":1}`
-					postAndCheckCode(t, settings.SetGovernanceEndpoint, body, http.StatusOK)
+					postAndCheckCode(t, base, settings.SetGovernanceEndpoint, body, http.StatusOK)
 					checkGovernance(t, n, govSigners2, govThreshold2)
 				})
 			}
@@ -520,12 +538,11 @@ func TestEndpointChainID(t *testing.T) {
 
 	for _, setChainID := range [2]bool{false, true} {
 		func() {
-			server, n := setup()
-			defer server.Close(context.Background()) //nolint:errcheck
+			_, n, base := setup(t)
 
 			if setChainID {
 				t.Run("set chain ID", func(t *testing.T) {
-					postAndCheckCode(t, settings.SetChainIDEndpoint, `{"chainId": 31337}`, http.StatusOK)
+					postAndCheckCode(t, base, settings.SetChainIDEndpoint, `{"chainId": 31337}`, http.StatusOK)
 					checkChainID(t, n, 31337)
 				})
 
@@ -537,23 +554,145 @@ func TestEndpointChainID(t *testing.T) {
 
 				for _, r := range reqs {
 					t.Run(r.name, func(t *testing.T) {
-						postAndCheckCode(t, settings.SetChainIDEndpoint, r.body, r.expected)
+						postAndCheckCode(t, base, settings.SetChainIDEndpoint, r.body, r.expected)
 						checkChainID(t, n, 31337)
 					})
 				}
 			} else {
 				for _, r := range requests {
 					t.Run(r.name, func(t *testing.T) {
-						postAndCheckCode(t, settings.SetChainIDEndpoint, r.body, r.expected)
+						postAndCheckCode(t, base, settings.SetChainIDEndpoint, r.body, r.expected)
 						checkChainIDUnset(t, n)
 					})
 				}
 
 				t.Run("set chain ID 2", func(t *testing.T) {
-					postAndCheckCode(t, settings.SetChainIDEndpoint, `{"chainId": 31337}`, http.StatusOK)
+					postAndCheckCode(t, base, settings.SetChainIDEndpoint, `{"chainId": 31337}`, http.StatusOK)
 					checkChainID(t, n, 31337)
 				})
 			}
 		}()
+	}
+}
+
+// TestValidateProxyURL checks that a proxy URL addressing one of the node's own
+// listeners is rejected, while an equivalent port on another host is not.
+func TestValidateProxyURL(t *testing.T) {
+	configPort := strconv.Itoa(settings.ConfigPort)
+
+	rejected := []string{
+		"http://localhost:" + configPort,
+		"http://127.0.0.1:" + configPort,
+		"http://127.0.0.2:" + configPort,
+		"http://[::1]:" + configPort,
+		"http://0.0.0.0:" + configPort,
+		"http://LocalHost:" + configPort,
+		"http://localhost:" + strconv.Itoa(settings.SignPort()),
+		"http://localhost:" + strconv.Itoa(settings.ExtensionPort()),
+		"not a url",
+		"http://localhost:99999999999999999999",
+	}
+
+	for _, u := range rejected {
+		t.Run("rejects "+u, func(t *testing.T) {
+			require.Error(t, settings.ValidateProxyURL(u))
+		})
+	}
+
+	accepted := []string{
+		proxyURL,
+		// The same port number elsewhere is somebody else's proxy.
+		"http://proxy.example.com:" + configPort,
+		"https://proxy.example.com",
+		// A local port the node does not listen on.
+		"http://localhost:9999",
+	}
+
+	for _, u := range accepted {
+		t.Run("accepts "+u, func(t *testing.T) {
+			require.NoError(t, settings.ValidateProxyURL(u))
+		})
+	}
+}
+
+// TestProxyURLFromEnvIsValidated checks that a self-referential PROXY_URL is
+// discarded rather than installed.
+func TestProxyURLFromEnvIsValidated(t *testing.T) {
+	unsetEnvVars(t)
+
+	require.NoError(t, os.Setenv(settings.ProxyURLEnvVar, "http://localhost:"+strconv.Itoa(settings.ConfigPort)))
+	defer unsetEnvVars(t)
+
+	server, _, _ := setup(t)
+
+	checkProxyURL(t, server, defaultProxyURL)
+}
+
+// TestPortsCannotCollide checks that no configurable port can be installed on
+// top of the fixed config port or of the other configurable port.
+func TestPortsCannotCollide(t *testing.T) {
+	sign, extension := settings.SignPort(), settings.ExtensionPort()
+	t.Cleanup(func() { require.NoError(t, settings.SetPorts(sign, extension)) })
+
+	t.Run("sign port on the config port", func(t *testing.T) {
+		require.Error(t, settings.SetPorts(settings.ConfigPort, extension))
+	})
+
+	t.Run("extension port on the config port", func(t *testing.T) {
+		require.Error(t, settings.SetPorts(sign, settings.ConfigPort))
+	})
+
+	t.Run("both on the config port", func(t *testing.T) {
+		require.Error(t, settings.SetPorts(settings.ConfigPort, settings.ConfigPort))
+	})
+
+	t.Run("ports equal to each other", func(t *testing.T) {
+		require.Error(t, settings.SetPorts(sign, sign))
+	})
+
+	t.Run("out of range", func(t *testing.T) {
+		require.Error(t, settings.SetPorts(0, extension))
+		require.Error(t, settings.SetPorts(sign, 65536))
+		require.Error(t, settings.SetPorts(-1, extension))
+	})
+
+	t.Run("a rejected set leaves the ports untouched", func(t *testing.T) {
+		require.Equal(t, sign, settings.SignPort())
+		require.Equal(t, extension, settings.ExtensionPort())
+	})
+
+	t.Run("a valid set is installed", func(t *testing.T) {
+		require.NoError(t, settings.SetPorts(9001, 9002))
+		require.Equal(t, 9001, settings.SignPort())
+		require.Equal(t, 9002, settings.ExtensionPort())
+	})
+
+	t.Run("exchanging two valid ports is accepted", func(t *testing.T) {
+		require.NoError(t, settings.SetPorts(9002, 9001))
+		require.Equal(t, 9002, settings.SignPort())
+		require.Equal(t, 9001, settings.ExtensionPort())
+	})
+}
+
+// TestPortsFromEnvAreValidated checks that the environment cannot install a
+// colliding port either.
+func TestPortsFromEnvAreValidated(t *testing.T) {
+	sign, extension := settings.SignPort(), settings.ExtensionPort()
+	t.Cleanup(func() { require.NoError(t, settings.SetPorts(sign, extension)) })
+
+	for _, envVar := range []string{"SIGN_PORT", "EXTENSION_PORT"} {
+		t.Run(envVar+" on the config port", func(t *testing.T) {
+			require.NoError(t, os.Setenv(envVar, strconv.Itoa(settings.ConfigPort)))
+			defer func() { require.NoError(t, os.Unsetenv(envVar)) }()
+
+			require.Error(t, settings.ConfigurePortsFromEnv())
+		})
+
+		t.Run(envVar+" not a number", func(t *testing.T) {
+			require.NoError(t, os.Setenv(envVar, "http"))
+			defer func() { require.NoError(t, os.Unsetenv(envVar)) }()
+
+			require.Error(t, settings.ConfigurePortsFromEnv())
+		})
 	}
 }

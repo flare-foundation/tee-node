@@ -15,9 +15,10 @@ import (
 )
 
 // initialize new node, wallet and policy storages, and start a config server.
-func initialize(configPort int) (*node.Node, *walletstorage.Storage, *policy.Storage, *settings.ConfigServer, error) {
+// The caller supplies the state source, which differs by mode.
+func initialize(configPort int, state node.State) (*node.Node, *walletstorage.Storage, *policy.Storage, *settings.ConfigServer, error) {
 	// Create a node, storages and a config server.
-	teeNode, err := node.Initialize(node.ZeroState{})
+	teeNode, err := node.Initialize(state)
 	if err != nil {
 		return nil, nil, nil, nil, fmt.Errorf("failed to initialize: %w", err)
 	}
@@ -39,8 +40,8 @@ func initialize(configPort int) (*node.Node, *walletstorage.Storage, *policy.Sto
 // StartServerPMW boots the PMW TEE node and exposes the configuration
 // endpoint on the provided port.
 func StartServerPMW(configPort int) {
-	// Initialize.
-	teeNode, ws, ps, cs, err := initialize(configPort)
+	// Initialize. A PMW node has no extension to read state from.
+	teeNode, ws, ps, cs, err := initialize(configPort, node.ZeroState{})
 	if err != nil {
 		logger.Errorf("node initialization failed: %v", err)
 		return
@@ -53,8 +54,9 @@ func StartServerPMW(configPort int) {
 // StartServerExtension runs the extension-enabled TEE node and supporting
 // HTTP servers for testing purposes.
 func StartServerExtension(configPort, signPort, extensionPort int) {
-	// Initialize.
-	teeNode, ws, ps, cs, err := initialize(configPort)
+	// Initialize. State is read from the extension on the same port unhandled
+	// actions are forwarded to, matching what cmd/extension does.
+	teeNode, ws, ps, cs, err := initialize(configPort, node.NewExtensionState(extensionPort))
 	if err != nil {
 		logger.Errorf("node initialization failed: %v", err)
 		return

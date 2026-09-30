@@ -47,7 +47,7 @@ Instructions go through preprocessing before reaching the handler:
 5. **Signature extraction** - Each signature recovered to a signer address; double signing rejected
 6. **Threshold checks**:
     - Cosigner threshold met
-    - Data provider weight threshold met (>50% for most operations, 0 for restore)
+    - Data provider weight strictly exceeds the signing policy's `threshold`; an FDC2 `PROVE` request with a non-zero `ThresholdBIPS` overrides that with `floor(totalWeight * ThresholdBIPS / 10000)`
     - All signers must be either cosigners or registered data providers
 
 ### 5. Sign Result

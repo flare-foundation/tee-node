@@ -5,11 +5,10 @@ import (
 	"crypto/ecdsa"
 	"crypto/rand"
 	"encoding/json"
-	"fmt"
 	"io"
-	"log"
 	"math/big"
 	"net/http"
+	"net/http/httptest"
 	"slices"
 	"testing"
 
@@ -294,7 +293,9 @@ func sign(r *instruction.Data, privKey *ecdsa.PrivateKey, chainID uint64) ([]byt
 	return signature, nil
 }
 
-func MockSignServerResult(t *testing.T, signPort int, actionResponseChan chan *types.ActionResult) {
+// StartMockSignServer serves a /result sink on an ephemeral loopback port until the test ends
+// and returns its base URL.
+func StartMockSignServer(t *testing.T, actionResponseChan chan *types.ActionResult) string {
 	t.Helper()
 
 	router := http.NewServeMux()
@@ -312,5 +313,8 @@ func MockSignServerResult(t *testing.T, signPort int, actionResponseChan chan *t
 		require.NoError(t, err)
 	})
 
-	log.Fatal(http.ListenAndServe(fmt.Sprintf(":%d", signPort), router))
+	srv := httptest.NewServer(router)
+	t.Cleanup(srv.Close)
+
+	return srv.URL
 }

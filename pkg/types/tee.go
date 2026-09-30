@@ -90,6 +90,12 @@ type PublicKey struct {
 	Y common.Hash `json:"y"`
 }
 
+// StateUnavailableVersion is the StateVersion reported when the node could not
+// read the state from its extension. It distinguishes an unreadable extension
+// from one that has no state, whose StateVersion is the zero hash. Consumers of
+// the attested state should treat it as "state unknown" rather than "no state".
+var StateUnavailableVersion = common.MaxHash
+
 type TeeState struct {
 	SystemState        hexutil.Bytes `json:"systemState"`
 	SystemStateVersion common.Hash   `json:"systemStateVersion"`

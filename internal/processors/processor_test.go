@@ -1,15 +1,13 @@
 package processors_test
 
 import (
-	"bytes"
 	"crypto/ecdsa"
 	"crypto/rand"
 	"encoding/json"
-	"fmt"
 	"io"
-	"log"
 	"math/big"
 	"net/http"
+	"net/http/httptest"
 	"testing"
 	"time"
 
@@ -133,19 +131,17 @@ func TestProcessorsEndToEnd(t *testing.T) {
 	mainActionInfoChan := make(chan *types.Action, 100)
 	readActionInfoChan := make(chan *types.Action, 100)
 	actionResponseChan := make(chan *types.ActionResponse, 100)
-	proxyPort := 8008 // Use different port for MockProxy
-	go MockProxy(t, proxyPort, mainActionInfoChan, readActionInfoChan, actionResponseChan)
+	proxy := MockProxy(t, mainActionInfoChan, readActionInfoChan, actionResponseChan)
+	proxyURL := &settings.ProxyURLMutex{URL: proxy.URL}
+	// Run has no cancellation hook: blank the URL so leftover pollers idle instead of hitting a closed server.
+	t.Cleanup(func() {
+		proxyURL.Lock()
+		proxyURL.URL = ""
+		proxyURL.Unlock()
+	})
 
-	pc := settings.NewConfigServer(settings.ConfigPort, testNode) // Use original port for ProxyConfigureServer
-
-	go pc.Serve() //nolint:errcheck
-
-	r := router.NewPMWRouter(testNode, wStorage, pStorage, pc.ProxyURL)
-
+	r := router.NewPMWRouter(testNode, wStorage, pStorage, proxyURL)
 	go r.Run(testNode)
-	time.Sleep(1 * time.Second)
-
-	setProxyURL(t, proxyPort, settings.ConfigPort)
 
 	teeID, teePubKey := getTeeInfo(t, readActionInfoChan, actionResponseChan)
 
@@ -231,7 +227,7 @@ func updatePolicy(t *testing.T,
 
 	// Sign the new policy with every provider from the active policy. The
 	// processor only needs > threshold, so all signing is well over the bar.
-	signed := testutils.BuildMultiSignedPolicy(t, newPolicy.RawBytes(), privKeys)
+	signed := testutils.BuildMultiSignedPolicy(t, testutils.DefaultTestChainID, newPolicy.RawBytes(), privKeys)
 
 	pubKeys := make([]types.PublicKey, len(privKeys))
 	for i, voter := range privKeys {
@@ -454,28 +450,6 @@ func keyDirectRestore(
 	require.NoError(t, err)
 
 	return proof
-}
-
-func setProxyURL(t *testing.T, proxyPort, setProxyPort int) {
-	t.Helper()
-
-	url := fmt.Sprintf("http://localhost:%d", proxyPort)
-	request := types.ConfigureProxyURLRequest{
-		URL: &url,
-	}
-
-	client := http.Client{
-		Timeout: settings.ProxyTimeout,
-	}
-	requestBody, err := json.Marshal(request)
-	require.NoError(t, err)
-
-	r, err := client.Post(fmt.Sprintf("http://localhost:%d%s", setProxyPort, settings.SetProxyURLEndpoint), "application/json", bytes.NewBuffer(requestBody))
-	require.NoError(t, err)
-	require.Equal(t, r.StatusCode, http.StatusOK)
-
-	err = r.Body.Close()
-	require.NoError(t, err)
 }
 
 func initializePolicy(t *testing.T,
@@ -1251,9 +1225,9 @@ func fdcProve(
 	messageHash, _, err := fdc.HashMessage(chainID, originalMessage, additionalFixedMessageEncoded, cosignerAddresses, cosignersThreshold, timestamp)
 	require.NoError(t, err)
 	// Data providers and cosigners sign the Relay Mode-2 prefixed hash, not
-	// messageHash directly — see fdc.RelayPrefixedHash docs and the
+	// messageHash directly — see fdc.ChainBoundRelayPrefixedHash docs and the
 	// Verification.toCosignersMessageHash on-chain helper.
-	dpSigningHash := fdc.RelayPrefixedHash(messageHash)
+	dpSigningHash := fdc.ChainBoundRelayPrefixedHash(testutils.DefaultTestChainID, messageHash)
 
 	variableMessages := make([][]byte, 0, len(providerPrivKeys)+len(cosignerPrivKeys))
 	privKeys := make([]*ecdsa.PrivateKey, 0, len(providerPrivKeys)+len(cosignerPrivKeys))
@@ -1308,7 +1282,7 @@ func fdcProve(
 		providerAddresses[i] = crypto.PubkeyToAddress(k.PublicKey)
 	}
 	testutils.VerifyEncodedDataProviderSignatures(
-		t, fdcResponse.DataProviderSignatures, messageHash, providerAddresses, len(providerPrivKeys),
+		t, testutils.DefaultTestChainID, fdcResponse.DataProviderSignatures, messageHash, providerAddresses, len(providerPrivKeys),
 	)
 
 	// generate action sent when voting closed
@@ -1332,7 +1306,8 @@ func fdcProve(
 	require.NoError(t, err)
 }
 
-func MockProxy(t *testing.T, proxyPort int, mainChan, readChan chan *types.Action, respChan chan *types.ActionResponse) {
+// MockProxy serves a proxy stub on an ephemeral loopback port until the test ends.
+func MockProxy(t *testing.T, mainChan, readChan chan *types.Action, respChan chan *types.ActionResponse) *httptest.Server {
 	t.Helper()
 
 	router := http.NewServeMux()
@@ -1389,5 +1364,8 @@ func MockProxy(t *testing.T, proxyPort int, mainChan, readChan chan *types.Actio
 		require.NoError(t, err)
 	})
 
-	log.Fatal(http.ListenAndServe(fmt.Sprintf(":%d", proxyPort), router))
+	proxy := httptest.NewServer(router)
+	t.Cleanup(proxy.Close)
+
+	return proxy
 }

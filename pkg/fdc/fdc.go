@@ -1,6 +1,8 @@
 package fdc
 
 import (
+	"encoding/binary"
+
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -58,18 +60,38 @@ func DecodeResponse(data []byte) (fdc2.IFdc2HubFdc2ResponseHeader, error) {
 var relayDirectSigningPrefix = []byte{0x01, 0x00, 0x00, 0x00, 0x00, 0x00}
 
 // RelayPrefixedHash returns keccak256(0x010000000000 || messageHash) — the
-// inner hash that both cosigner signatures (Verification.toCosignersMessageHash)
-// and signing-policy data-provider signatures (Relay.relay() Mode 2,
-// protocolId=1) are recovered against. eth_sign-wrap this value before
-// signing or recovering. Returns a 32-byte hash.
+// pre-cutover form of the digest, retired on chain by RLY-23 in favour of
+// ChainBoundRelayPrefixedHash.
 //
-// The TEE's own signature path (Verification._verifyTeeSignature) recovers
-// against the bare messageHash, so do not use this helper there.
+// No tee-node or tee-proxy code path computes it any more. It stays exported for
+// the relay client, which still signs this form for chains whose breaking reward
+// epoch has not arrived, and which gates between the two itself. Delete it once
+// that client no longer needs it.
 func RelayPrefixedHash(messageHash common.Hash) common.Hash {
 	buf := make([]byte, 0, len(relayDirectSigningPrefix)+32)
 	buf = append(buf, relayDirectSigningPrefix...)
 	buf = append(buf, messageHash[:]...)
 	return crypto.Keccak256Hash(buf)
+}
+
+// ChainBoundRelayPrefixedHash returns
+// keccak256(chainID || 0x010000000000 || messageHash) — the inner hash that both
+// cosigner signatures (Fdc2ProofVerification.toCosignersMessageHash) and
+// signing-policy data-provider signatures (Relay.relay() Mode 2, protocolId=1)
+// are recovered against. eth_sign-wrap this value before signing or recovering.
+//
+// The 70-byte preimage must stay byte-identical to
+// keccak256(bytes.concat(bytes32(block.chainid), hex"010000000000", messageHash)).
+// chainID is the Relay's sourceChainId; FDC2 only ships alongside a home Relay,
+// where that equals block.chainid.
+//
+// The TEE's own signature path (Verification._verifyTeeSignature) recovers
+// against the bare messageHash, so do not use this helper there.
+func ChainBoundRelayPrefixedHash(chainID uint64, messageHash common.Hash) common.Hash {
+	var chainIDWord [32]byte
+	binary.BigEndian.PutUint64(chainIDWord[24:], chainID)
+
+	return crypto.Keccak256Hash(chainIDWord[:], relayDirectSigningPrefix, messageHash[:])
 }
 
 // HashMessage returns the SignedPayload preimage the on-chain Verification

@@ -3,10 +3,14 @@ package settings
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
+	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -21,7 +25,10 @@ type ProxyURLMutex struct {
 	sync.RWMutex
 }
 
-// setProxyURLFromEnv sets the proxy url from the environment variable PROXY_URL if it was not already set.
+// setProxyURLFromEnv sets the proxy url from the environment variable PROXY_URL
+// if it was not already set. A URL that points back at the node itself is
+// discarded rather than installed, leaving the proxy unset as if the variable
+// were absent.
 func (u *ProxyURLMutex) setProxyURLFromEnv() {
 	u.Lock()
 	defer u.Unlock()
@@ -30,7 +37,17 @@ func (u *ProxyURLMutex) setProxyURLFromEnv() {
 		return
 	}
 
-	u.URL = os.Getenv(ProxyURLEnvVar)
+	fromEnv := os.Getenv(ProxyURLEnvVar)
+	if fromEnv == "" {
+		return
+	}
+
+	if err := ValidateProxyURL(fromEnv); err != nil {
+		logger.Errorf("ignoring %s: %v", ProxyURLEnvVar, err)
+		return
+	}
+
+	u.URL = fromEnv
 }
 
 type ConfigServer struct {
@@ -101,6 +118,73 @@ func limitRequestBody(h http.Handler, n int64) http.Handler {
 	})
 }
 
+// ValidateProxyURL checks a proxy URL before it is installed. Beyond being a
+// well-formed absolute URL, it must not address one of the node's own
+// listeners: the proxy is the node's link to the outside, so a URL pointing
+// back at the node would silently send its traffic to itself. Most damaging is
+// the config port, where the node would be posting to the very server an
+// operator configures it through.
+//
+// Only a loopback or unspecified host is rejected. A port number is not
+// reserved globally, so an unrelated proxy on another machine may legitimately
+// serve on it.
+func ValidateProxyURL(raw string) error {
+	parsed, err := url.ParseRequestURI(raw)
+	if err != nil {
+		return errors.New("invalid URL")
+	}
+
+	if !isLocalHost(parsed.Hostname()) {
+		return nil
+	}
+
+	port, err := urlPort(parsed)
+	if err != nil {
+		return err
+	}
+
+	if name, own := ownPorts()[port]; own {
+		return fmt.Errorf("proxy URL addresses the node's own %s (%d)", name, port)
+	}
+
+	return nil
+}
+
+// isLocalHost reports whether host addresses the machine the node runs on. An
+// empty host counts, since a URL without one cannot address anywhere else.
+func isLocalHost(host string) bool {
+	if host == "" || strings.EqualFold(host, "localhost") {
+		return true
+	}
+
+	ip := net.ParseIP(host)
+
+	return ip != nil && (ip.IsLoopback() || ip.IsUnspecified())
+}
+
+// urlPort resolves the port a URL addresses, falling back to the default for
+// its scheme when none is given explicitly.
+func urlPort(parsed *url.URL) (int, error) {
+	if explicit := parsed.Port(); explicit != "" {
+		port, err := strconv.Atoi(explicit)
+		if err != nil {
+			return 0, errors.New("invalid URL port")
+		}
+
+		return port, nil
+	}
+
+	switch strings.ToLower(parsed.Scheme) {
+	case "http":
+		return 80, nil
+	case "https":
+		return 443, nil
+	default:
+		// No default port to compare against, so nothing can collide.
+		return 0, nil
+	}
+}
+
 // proxyHandler handles requests to /proxy.
 func (u *ProxyURLMutex) proxyHandler(w http.ResponseWriter, r *http.Request) {
 	var request types.ConfigureProxyURLRequest
@@ -119,9 +203,8 @@ func (u *ProxyURLMutex) proxyHandler(w http.ResponseWriter, r *http.Request) {
 
 	URL := *request.URL
 
-	_, err := url.ParseRequestURI(URL)
-	if err != nil {
-		http.Error(w, "Invalid URL", http.StatusBadRequest)
+	if err := ValidateProxyURL(URL); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 

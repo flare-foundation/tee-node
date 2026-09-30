@@ -7,6 +7,8 @@ import (
 	"io"
 	"net/http"
 
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/flare-foundation/tee-node/internal/settings"
 	"github.com/flare-foundation/tee-node/pkg/types"
 )
@@ -41,4 +43,42 @@ func PostActionToExtension(url string, action *types.Action) (*types.ActionResul
 		return nil, err
 	}
 	return result, nil
+}
+
+// FetchState retrieves the extension's node state from its /state route.
+//
+// Only the extension half of the state is taken from the response. The system
+// half is always zeroed, so an extension cannot contribute system state to the
+// attestation the TEE signs.
+func FetchState(url string) (types.TeeState, error) {
+	client := http.Client{
+		Timeout: settings.ProxyTimeout,
+	}
+
+	res, err := client.Get(url)
+	if err != nil {
+		return types.TeeState{}, err
+	}
+
+	defer res.Body.Close() //nolint:errcheck
+	body, err := io.ReadAll(io.LimitReader(res.Body, settings.MaxFetchResponseSize))
+	if err != nil {
+		return types.TeeState{}, err
+	}
+	if res.StatusCode != http.StatusOK {
+		return types.TeeState{}, fmt.Errorf("unexpected status code: %d, response: %s", res.StatusCode, string(body))
+	}
+
+	var state types.TeeState
+	err = json.Unmarshal(body, &state)
+	if err != nil {
+		return types.TeeState{}, err
+	}
+
+	return types.TeeState{
+		SystemState:        hexutil.Bytes{},
+		SystemStateVersion: common.Hash{},
+		State:              state.State,
+		StateVersion:       state.StateVersion,
+	}, nil
 }

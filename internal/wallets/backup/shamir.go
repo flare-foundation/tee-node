@@ -3,6 +3,7 @@ package backup
 import (
 	"errors"
 	"fmt"
+	"slices"
 
 	"filippo.io/bigmod"
 
@@ -61,9 +62,9 @@ func evalPolynomial(field *backup.Field, polynomial []*bigmod.Nat, x uint64) *bi
 	// Starting from zero folds the leading coefficient in on the first
 	// iteration, so no separate copy of it is needed.
 	result := bigmod.NewNat().ExpandFor(field.Modulus)
-	for s := len(polynomial) - 1; s >= 0; s-- {
+	for _, coefficient := range slices.Backward(polynomial) {
 		result.Mul(xElem, field.Modulus)
-		result.Add(polynomial[s], field.Modulus)
+		result.Add(coefficient, field.Modulus)
 	}
 
 	return result

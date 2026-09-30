@@ -20,7 +20,7 @@ The FDC request is ABI-encoded in the instruction's `OriginalMessage` field and 
 
 FDC has custom threshold logic:
 
-- If `ThresholdBIPS == 0`: defaults to 50% of total voting weight
+- If `ThresholdBIPS == 0`: no override — the signing policy's own `threshold` applies, as on chain
 - Minimum threshold: 4000 BIPS (40%)
 - Maximum threshold: < 10000 BIPS (100%)
 - If DP threshold < 50%, then cosigner threshold must be > 50% (one-above-50 rule)
@@ -40,14 +40,14 @@ messageHash = signing.Payload{FDC2, chainID, keccak256(abi.encode(
 `chainID` comes from the node's configured `CHAIN_ID`. Two recovery preimages are derived from `messageHash`:
 
 - **TEE signature** recovers against `messageHash` directly (matching `Verification._verifyTeeSignature`).
-- **Data-provider and cosigner signatures** recover against the *relay-prefixed* hash `keccak256(0x01_00000000_00 || messageHash)` — the 6-byte Relay Mode-2 header (`protocolId=1`, `votingRoundId=0`, `isSecureRandom=0`) that the on-chain Relay/Verification prepend.
+- **Data-provider and cosigner signatures** recover against the *chain-bound relay-prefixed* hash `keccak256(chainID || 0x01_00000000_00 || messageHash)` — a 32-byte source chain id followed by the 6-byte Relay Mode-2 header (`protocolId=1`, `votingRoundId=0`, `isSecureRandom=0`), matching `Relay.relay()` Mode 2 and `Fdc2ProofVerification.toCosignersMessageHash`. `chainID` is the Relay's `sourceChainId`, which equals `block.chainid` on the home deployment FDC2 ships alongside.
 
 ## Processing Flow (Threshold Phase)
 
 1. Decode FDC request from original message
-2. Compute `messageHash` (above) and the relay-prefixed hash
+2. Compute `messageHash` (above) and the chain-bound relay-prefixed hash
 3. For each signer:
-    - Verify signature against the relay-prefixed hash
+    - Verify signature against the chain-bound relay-prefixed hash
     - Classify as data provider or cosigner
     - Data provider signatures: create indexed signature (sorted by voter index)
     - Cosigner signatures: collected separately

@@ -3,7 +3,6 @@ package direct
 import (
 	"context"
 	"testing"
-	"time"
 
 	"github.com/flare-foundation/go-flare-common/pkg/tee/op"
 	"github.com/flare-foundation/tee-node/internal/testutils"
@@ -12,16 +11,9 @@ import (
 )
 
 func TestDefaultDirectProcessor(t *testing.T) {
-	signPort := 8610
-	extensionPort := 8611
-
-	signServer := testutils.NewDummyExtensionServer(extensionPort, signPort)
-	go signServer.Serve()    //nolint:errcheck
-	defer signServer.Close() //nolint:errcheck
-
 	actionResponseChan := make(chan *types.ActionResult, 1)
-	go testutils.MockSignServerResult(t, signPort, actionResponseChan)
-	time.Sleep(500 * time.Millisecond)
+	signURL := testutils.StartMockSignServer(t, actionResponseChan)
+	extensionPort := testutils.StartDummyExtensionServer(t, signURL)
 
 	proc := NewDefaultProcessor(extensionPort)
 

@@ -53,7 +53,7 @@ func setupFDCProveTest(t *testing.T) *fdcProveTestSetup {
 	testNode, pStorage, _ := testutils.Setup(t)
 
 	numVoters, randSeed, epochID := 100, int64(12345), uint32(1)
-	policy, signers, privKeys := testutils.GenerateAndSetInitialPolicy(t, pStorage, numVoters, randSeed, epochID)
+	policy, signers, privKeys := testutils.GenerateAndSetInitialPolicy(t, testutils.DefaultTestChainID, pStorage, numVoters, randSeed, epochID)
 
 	// Setup cosigners (use first 10 providers as cosigners for simplicity)
 	numCosigners := 10
@@ -161,7 +161,7 @@ func (s *fdcProveTestSetup) signFDCMessage(t *testing.T, request fdc2.IFdc2HubFd
 	msgHash, _, err := fdc.HashMessage(uint64(31337), request, responseBody, cosigners, cosignersThreshold, timestamp)
 	require.NoError(t, err)
 
-	return s.signMessage(t, fdc.RelayPrefixedHash(msgHash), privKeys)
+	return s.signMessage(t, fdc.ChainBoundRelayPrefixedHash(testutils.DefaultTestChainID, msgHash), privKeys)
 }
 
 // buildActionWithPolicySigners creates an Action whose signatures are valid for
@@ -186,7 +186,7 @@ func (s *fdcProveTestSetup) buildActionWithPolicySigners(
 	// hash (matches Verification.toCosignersMessageHash + Relay.relay()).
 	fdcHash, _, err := fdc.HashMessage(uint64(31337), request, responseBody, cosigners, cosignersThreshold, instr.Timestamp)
 	require.NoError(t, err)
-	fdcDPSigningHash := fdc.RelayPrefixedHash(fdcHash)
+	fdcDPSigningHash := fdc.ChainBoundRelayPrefixedHash(testutils.DefaultTestChainID, fdcHash)
 
 	for _, pk := range privKeys {
 		// FDC signature by provider
@@ -374,7 +374,7 @@ func TestFDCProveThresholdsThroughProcessorProcess(t *testing.T) {
 	require.Equal(t, uint8(0), res.Status)
 	require.Contains(t, res.Log, "one threshold should be above 50%")
 
-	// Case 3: Zero BIPS (default 50%) should pass
+	// Case 3: Zero BIPS (signing policy threshold) should pass
 	request = setup.buildFDCRequest(utils.ToHash("TestAttestation"), utils.ToHash("XRP"), 0, setup.defaultRequestBody)
 	instr = setup.buildInstruction(t, request, setup.defaultResponseBody, []common.Address{}, 0, setup.defaultTimestamp)
 	action = setup.buildActionWithPolicySigners(t, instr, request, setup.defaultResponseBody, []common.Address{}, 0, setup.privKeys, chainID)
@@ -412,11 +412,11 @@ func TestFDCProveSignatureEdgeCases(t *testing.T) {
 	chainID, err := setup.testNode.ChainID()
 	require.NoError(t, err)
 
-	// Base request: default 50% DP threshold (BIPS=0), no cosigners
+	// Base request: signing policy DP threshold (BIPS=0), no cosigners
 	request := setup.buildFDCRequest(utils.ToHash("TestAttestation"), utils.ToHash("XRP"), 0, setup.defaultRequestBody)
 	instr := setup.buildInstruction(t, request, setup.defaultResponseBody, []common.Address{}, 0, setup.defaultTimestamp)
 
-	// 1) Not enough provider signatures (10% < 50%)
+	// 1) Not enough provider signatures (10% of weight is below the policy threshold)
 	pks1 := setup.privKeys[:10]
 	action := setup.buildActionWithPolicySigners(t, instr, request, setup.defaultResponseBody, []common.Address{}, 0, pks1, chainID)
 	res := proc.Process(context.Background(), action)
@@ -450,7 +450,7 @@ func TestFDCProveEncodedDataProviderSignatures(t *testing.T) {
 
 	msgHash, _, err := fdc.HashMessage(uint64(31337), request, setup.defaultResponseBody, setup.cosigners[:2], 1, setup.defaultTimestamp)
 	require.NoError(t, err)
-	dpSigningHash := fdc.RelayPrefixedHash(msgHash)
+	dpSigningHash := fdc.ChainBoundRelayPrefixedHash(testutils.DefaultTestChainID, msgHash)
 
 	// Sign with a non-sorted subset of providers to exercise the sort inside
 	// checkResponseSignatures through the final wire blob.
@@ -469,7 +469,7 @@ func TestFDCProveEncodedDataProviderSignatures(t *testing.T) {
 	require.NotNil(t, proveResponse)
 
 	testutils.VerifyEncodedDataProviderSignatures(
-		t, proveResponse.DataProviderSignatures, msgHash, setup.signers, len(order),
+		t, testutils.DefaultTestChainID, proveResponse.DataProviderSignatures, msgHash, setup.signers, len(order),
 	)
 }
 
@@ -480,7 +480,7 @@ func TestFDCProveDataProviderSignaturesAreSorted(t *testing.T) {
 	request := setup.buildFDCRequest(utils.ToHash("TestAttestation"), utils.ToHash("XRP"), 5000, setup.defaultRequestBody)
 	msgHash, _, err := fdc.HashMessage(uint64(31337), request, setup.defaultResponseBody, setup.cosigners[:3], 2, setup.defaultTimestamp)
 	require.NoError(t, err)
-	dpSigningHash := fdc.RelayPrefixedHash(msgHash)
+	dpSigningHash := fdc.ChainBoundRelayPrefixedHash(testutils.DefaultTestChainID, msgHash)
 
 	order := []int{10, 2, 25, 7, 0, 18, 3}
 	sigs := make([]hexutil.Bytes, 0, len(order))

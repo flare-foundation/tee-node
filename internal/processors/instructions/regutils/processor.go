@@ -53,7 +53,7 @@ func (p *Processor) TEEAttestation(
 	case types.Threshold:
 		nodeInfo := p.Info()
 		p.pStorage.RLock()
-		initialID, initialHash, activeID, activeHash := p.pStorage.Info()
+		initialID, initialHash, activeID, activeHash := p.pStorage.Info(nodeInfo.ChainID)
 		p.pStorage.RUnlock()
 
 		teeInfoResponse, err := attestation.ConstructTEEInfoResponse(challenge, &nodeInfo, initialID, initialHash, activeID, activeHash)

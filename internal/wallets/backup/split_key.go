@@ -11,13 +11,19 @@ import (
 
 // SplitSecret splits a secret into n additive parts over the field, such that
 // the parts sum to the secret. Each part is returned in the field's fixed-width
-// encoding. The secret must be smaller than the field modulus.
+// encoding. The secret must be exactly the field's secret width and smaller
+// than its modulus.
 //
 // Every part is uniformly distributed, so any proper subset reveals nothing
 // about the secret.
 func SplitSecret(field *backup.Field, secret []byte, n int) ([][]byte, error) {
 	if n < 2 {
 		return nil, errors.New("number of splits too low")
+	}
+	// Exactly the field's width, so the secret comes back byte for byte: a
+	// shorter one would be recovered with leading zeros it never had.
+	if len(secret) != field.SecretSize {
+		return nil, fmt.Errorf("secret is %d bytes, but the field shares %d-byte secrets", len(secret), field.SecretSize)
 	}
 
 	secretElem, err := field.Element(secret)
@@ -48,7 +54,7 @@ func SplitSecret(field *backup.Field, secret []byte, n int) ([][]byte, error) {
 }
 
 // JoinSecret recombines additive parts into the secret they were split from,
-// returned in the field's fixed-width encoding.
+// returned at the field's secret width.
 func JoinSecret(field *backup.Field, parts ...[]byte) ([]byte, error) {
 	if len(parts) == 0 {
 		return nil, errors.New("no parts")
@@ -63,5 +69,5 @@ func JoinSecret(field *backup.Field, parts ...[]byte) ([]byte, error) {
 		sum.Add(elem, field.Modulus)
 	}
 
-	return field.Bytes(sum), nil
+	return field.SecretBytes(sum)
 }

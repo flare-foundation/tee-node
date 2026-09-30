@@ -14,7 +14,7 @@ import (
 func main() {
 	logger.Set(logger.Config{Console: true, Level: settings.LogLevel})
 
-	teeNode, err := node.Initialize(node.ZeroState{})
+	teeNode, err := node.Initialize(node.NewExtensionState(settings.ExtensionPort()))
 	if err != nil {
 		logger.Fatalf("failed to initialize: %v", err)
 	}
@@ -30,7 +30,7 @@ func main() {
 		}
 	}()
 
-	extServer := server.NewSignServer(settings.SignPort, teeNode, ws, pc.ProxyURL)
+	extServer := server.NewSignServer(settings.SignPort(), teeNode, ws, pc.ProxyURL)
 	go func() {
 		err := extServer.Serve()
 		if err != nil {
@@ -38,7 +38,7 @@ func main() {
 		}
 	}()
 
-	r := router.NewForwardRouter(teeNode, ws, ps, settings.ExtensionPort, pc.ProxyURL)
+	r := router.NewForwardRouter(teeNode, ws, ps, settings.ExtensionPort(), pc.ProxyURL)
 
 	// Launch the json rpc server
 	r.Run(teeNode)

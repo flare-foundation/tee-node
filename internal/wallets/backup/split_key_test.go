@@ -93,12 +93,38 @@ func TestSplitSecretOverLargerFieldAcceptsAny32Bytes(t *testing.T) {
 		joined, err := JoinSecret(field, splits...)
 		require.NoError(t, err)
 
-		// The larger field encodes elements in 33 bytes; the secret is the
-		// low-order 32.
-		require.Equal(t, field.Size, len(joined))
-		require.True(t, bytes.Equal(secret, joined[field.Size-32:]))
-		require.Zero(t, joined[0])
+		// The field's elements are 33 bytes, but the secret comes back at its
+		// own width, byte for byte.
+		require.Equal(t, secret, joined)
 	}
+}
+
+// TestSplitSecretRequiresTheFieldsSecretWidth checks that a secret of another
+// width is refused: a shorter one would come back with leading zeros it never
+// had, which for a BIP-32 seed is a different wallet.
+func TestSplitSecretRequiresTheFieldsSecretWidth(t *testing.T) {
+	field, err := pkgbackup.FieldForID(pkgbackup.FieldPrimeAbove256ID)
+	require.NoError(t, err)
+
+	for _, n := range []int{31, 33} {
+		_, err := SplitSecret(field, randomBytes(t, n), 2)
+		require.ErrorContains(t, err, "field shares 32-byte secrets", "a %d-byte secret was accepted", n)
+	}
+}
+
+// TestJoinSecretRejectsAValueWiderThanASecret checks that parts which do not
+// sum to a secret-width value are refused rather than truncated. Only
+// inconsistent parts can produce one.
+func TestJoinSecretRejectsAValueWiderThanASecret(t *testing.T) {
+	field, err := pkgbackup.FieldForID(pkgbackup.FieldPrimeAbove256ID)
+	require.NoError(t, err)
+
+	twoTo256 := make([]byte, field.Size)
+	twoTo256[0] = 0x01
+	zero := make([]byte, field.Size)
+
+	_, err = JoinSecret(field, twoTo256, zero)
+	require.ErrorContains(t, err, "wider than the field's secrets")
 }
 
 func randomBytes(t *testing.T, n int) []byte {

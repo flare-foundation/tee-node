@@ -46,7 +46,7 @@ func (p *Processor) TEEInfo(_ context.Context, i *types.DirectInstruction) ([]by
 	info := p.Info()
 
 	p.pStorage.RLock()
-	initialID, initialHash, activeID, activeHash := p.pStorage.Info()
+	initialID, initialHash, activeID, activeHash := p.pStorage.Info(info.ChainID)
 	p.pStorage.RUnlock()
 
 	response, err := attestation.ConstructTEEInfoResponse(req.Challenge, &info, initialID, initialHash, activeID, activeHash)

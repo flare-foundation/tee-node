@@ -112,6 +112,26 @@ func TestBackupAndRecover(t *testing.T) {
 			assert.Equal(t, &givenWallet, recoveredWallet)
 		})
 	}
+
+	// Settings are not carried in the backup metadata
+	t.Run("Recovery clears wallet settings", func(t *testing.T) {
+		givenWallet := *baseWallet
+		givenWallet.SettingsVersion = common.HexToHash("0x1234")
+		givenWallet.Settings = hexutil.Bytes{0x01, 0x02, 0x03}
+
+		walletBackup, err := backup.BackupWallet(&givenWallet, providerPubKeys, weights, rewardEpochID, testNode.TeeID(), chainID, uint16(normalizationParam), dataProvidersBackupThreshold)
+		assert.NoError(t, err)
+
+		adminKeyShares, providerKeyShares := decryptAllShares(t, walletBackup.AdminEncryptedParts, walletBackup.ProviderEncryptedParts, adminKeys, providerKeys, chainID)
+
+		recoveredWallet, err := backup.RecoverWallet(
+			append(adminKeyShares, providerKeyShares...),
+			&walletBackup.WalletBackupMetaData,
+		)
+		assert.NoError(t, err)
+		assert.Equal(t, common.Hash{}, recoveredWallet.SettingsVersion)
+		assert.Empty(t, recoveredWallet.Settings)
+	})
 }
 
 // maxActionResponseSize is the budget every action response must stay under.

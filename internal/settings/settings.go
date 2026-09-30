@@ -1,6 +1,7 @@
 package settings
 
 import (
+	"fmt"
 	"os"
 	"strconv"
 	"time"
@@ -18,16 +19,8 @@ func init() {
 		LogLevel = logLevelEnv
 	}
 
-	if port, err := strconv.Atoi(os.Getenv("CONFIG_PORT")); err == nil && port > 0 && port <= 65535 {
-		ConfigPort = port
-	}
-
-	if port, err := strconv.Atoi(os.Getenv("SIGN_PORT")); err == nil && port > 0 && port <= 65535 {
-		SignPort = port
-	}
-
-	if port, err := strconv.Atoi(os.Getenv("EXTENSION_PORT")); err == nil && port > 0 && port <= 65535 {
-		ExtensionPort = port
+	if err := configurePorts(); err != nil {
+		panic(fmt.Sprintf("settings: %v", err))
 	}
 }
 
@@ -38,6 +31,111 @@ const EncodingVersion = "1.0.0"
 // within the TEE instance, per the security model. It is intentionally not
 // configurable.
 const SignHost = "127.0.0.1"
+
+// ConfigPort is the port the configuration server listens on. It is fixed
+// rather than configurable: the Confidential Space launch policy enumerates the
+// environment variables an operator may override, and this is not one of them,
+// so a deployment could not change it in production regardless.
+const ConfigPort = 5500
+
+const (
+	signPortEnvVar      = "SIGN_PORT"
+	extensionPortEnvVar = "EXTENSION_PORT"
+)
+
+// signPort and extensionPort are unexported so that every mutation goes through
+// configurePorts, which rejects a port the node cannot actually use. A caller
+// outside this package can read them but not install one.
+var (
+	signPort      = 8888 // For signing action results received from extensions.
+	extensionPort = 8889 // Extension's port that accepts actions.
+)
+
+// SignPort is the port the extension sign/decrypt server listens on.
+func SignPort() int {
+	return signPort
+}
+
+// ExtensionPort is the port the extension service listens on.
+func ExtensionPort() int {
+	return extensionPort
+}
+
+// configurePorts reads the configurable ports from the environment and installs
+// them only if the whole resulting set is usable, so that exchanging two valid
+// ports is accepted while any collision is not.
+func configurePorts() error {
+	sign, err := portFromEnv(signPortEnvVar, signPort)
+	if err != nil {
+		return err
+	}
+	extension, err := portFromEnv(extensionPortEnvVar, extensionPort)
+	if err != nil {
+		return err
+	}
+
+	return setPorts(sign, extension)
+}
+
+// portFromEnv reads a port from the named variable, returning fallback when it
+// is unset. A value that is present but unusable is an error rather than being
+// ignored, so a typo cannot silently leave the default in place.
+func portFromEnv(envVar string, fallback int) (int, error) {
+	raw := os.Getenv(envVar)
+	if raw == "" {
+		return fallback, nil
+	}
+
+	port, err := strconv.Atoi(raw)
+	if err != nil {
+		return 0, fmt.Errorf("%s=%q is not a number", envVar, raw)
+	}
+
+	return port, nil
+}
+
+// setPorts installs the configurable ports after checking the node can serve on
+// them. It is the only place they are assigned, so anything that reconfigures a
+// port later - including a configuration-server endpoint - goes through this
+// check rather than around it.
+//
+// A collision does not surface as a startup failure on its own: the config and
+// sign servers are served from goroutines that only log a bind error, and a
+// colliding extension port silently routes the node's own requests back at its
+// config server. Both are rejected here, before anything binds.
+func setPorts(sign, extension int) error {
+	for _, p := range []struct {
+		name  string
+		value int
+	}{
+		{signPortEnvVar, sign},
+		{extensionPortEnvVar, extension},
+	} {
+		if p.value <= 0 || p.value > 65535 {
+			return fmt.Errorf("%s=%d is not a valid port", p.name, p.value)
+		}
+		if p.value == ConfigPort {
+			return fmt.Errorf("%s=%d collides with the config port, which is fixed at %d", p.name, p.value, ConfigPort)
+		}
+	}
+
+	if sign == extension {
+		return fmt.Errorf("%s and %s are both %d", signPortEnvVar, extensionPortEnvVar, sign)
+	}
+
+	signPort, extensionPort = sign, extension
+
+	return nil
+}
+
+// ownPorts maps every port the node listens on to a name for error messages.
+func ownPorts() map[int]string {
+	return map[int]string{
+		ConfigPort:    "config port",
+		signPort:      signPortEnvVar,
+		extensionPort: extensionPortEnvVar,
+	}
+}
 
 // Processor configuration
 var QueuedActionsSleepTime = 2 * time.Second
@@ -114,10 +212,6 @@ var (
 	// - 1 local (no attestation)
 	Mode     = 1
 	LogLevel = "FATAL"
-
-	ConfigPort    = 5500 // For node configuration.
-	SignPort      = 8888 // For signing action results received from extensions.
-	ExtensionPort = 8889 // Extension's port that accepts actions.
 
 	TestPlatform, _ = convert.StringToCommonHash("TEST_PLATFORM")
 	TestCodeHash    = common.HexToHash("194844cf417dde867073e5ab7199fa4d21fd82b5dbe2bdea8b3d7fc18d10fdc2")

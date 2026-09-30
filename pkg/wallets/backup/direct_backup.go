@@ -137,8 +137,11 @@ func WalletFromKeyDirectBackupPayload(p *KeyDirectBackupPayload, privateKey []by
 		AdminsThreshold:    p.AdminsThreshold,
 		Cosigners:          append([]common.Address(nil), p.Cosigners...),
 		CosignersThreshold: p.CosignersThreshold,
-		SettingsVersion:    p.SettingsVersion,
-		Settings:           append(hexutil.Bytes(nil), p.Settings...),
-		Status:             &wallets.WalletStatus{Nonce: 0, StatusCode: 0},
+
+		// Cleared rather than carried over, since Settings is not yet supported
+		SettingsVersion: common.Hash{},
+		Settings:        hexutil.Bytes{},
+
+		Status: &wallets.WalletStatus{Nonce: 0, StatusCode: 0},
 	}, nil
 }

@@ -19,14 +19,21 @@ import (
 func TestComputeThreshold(t *testing.T) {
 	// exact division
 	assert.Equal(t, uint16(50), computeThreshold(100, maxBIPS/2))
-	// rounds up on remainder
-	assert.Equal(t, uint16(2), computeThreshold(3, maxBIPS/2))
+	// floors on remainder, matching Relay.sol's div(mul(total, bips), 10000);
+	// acceptance is strict (weight > threshold), so 2 of 3 still passes
+	assert.Equal(t, uint16(1), computeThreshold(3, maxBIPS/2))
+	assert.Equal(t, uint16(50), computeThreshold(101, maxBIPS/2))
+	// 9999 BIPS with all weight must remain reachable — a ceiling would make it
+	// impossible, which is why the contract floors
+	assert.Equal(t, uint16(99), computeThreshold(100, maxBIPS-1))
 	// zero bips
 	assert.Equal(t, uint16(0), computeThreshold(42, 0))
 }
 
 func TestDataProvidersThreshold(t *testing.T) {
-	totalWeight := uint16(100)
+	// 55 is neither floor nor ceil of half the total weight, so a recomputed
+	// threshold cannot be mistaken for the policy's own
+	sPolicy, _ := newPolicy(t, []uint16{50, 30, 20}, 55)
 	cosigners := []common.Address{
 		common.HexToAddress("0x15"),
 		common.HexToAddress("0x16"),
@@ -34,26 +41,26 @@ func TestDataProvidersThreshold(t *testing.T) {
 		common.HexToAddress("0x18"),
 	}
 
-	t.Run("wallet restore uses the default majority threshold", func(t *testing.T) {
+	t.Run("wallet restore uses the policy threshold", func(t *testing.T) {
 		data := &instruction.DataFixed{
 			OPType:    op.Wallet.Hash(),
 			OPCommand: op.KeyDataProviderRestore.Hash(),
 		}
 
-		threshold, err := dataProvidersThreshold(data, totalWeight)
+		threshold, err := dataProvidersThreshold(data, sPolicy)
 		assert.NoError(t, err)
-		assert.Equal(t, computeThreshold(totalWeight, maxBIPS/2), threshold)
+		assert.Equal(t, uint16(55), threshold)
 	})
 
-	t.Run("op different from F_FDC2/Prove should have threshold = computeThreshold(totalWeight, maxBIPS/2)", func(t *testing.T) {
+	t.Run("op different from F_FDC2/Prove uses the policy threshold", func(t *testing.T) {
 		data := &instruction.DataFixed{
 			OPType:    op.XRP.Hash(),
 			OPCommand: op.Pay.Hash(),
 		}
 
-		threshold, err := dataProvidersThreshold(data, totalWeight)
+		threshold, err := dataProvidersThreshold(data, sPolicy)
 		assert.NoError(t, err)
-		assert.Equal(t, computeThreshold(totalWeight, maxBIPS/2), threshold)
+		assert.Equal(t, uint16(55), threshold)
 	})
 
 	t.Run("FDC request with invalid message should fail", func(t *testing.T) {
@@ -63,46 +70,67 @@ func TestDataProvidersThreshold(t *testing.T) {
 			OriginalMessage: []byte("invalid"),
 		}
 
-		threshold, err := dataProvidersThreshold(data, totalWeight)
+		threshold, err := dataProvidersThreshold(data, sPolicy)
 		assert.Error(t, err)
 		assert.Equal(t, uint16(0), threshold)
 	})
 
-	t.Run("FDC message with zero threshold should fall back to computeThreshold(totalWeight, maxBIPS/2)", func(t *testing.T) {
+	t.Run("FDC message with zero threshold uses the policy threshold", func(t *testing.T) {
 		data := buildFDCData(t, 0, nil, 0)
 
-		threshold, err := dataProvidersThreshold(data, totalWeight)
+		threshold, err := dataProvidersThreshold(data, sPolicy)
 		assert.NoError(t, err)
-		assert.Equal(t, computeThreshold(totalWeight, maxBIPS/2), threshold)
+		assert.Equal(t, uint16(55), threshold)
 	})
 
 	t.Run("FDC request with threshold too low should fail", func(t *testing.T) {
 		data := buildFDCData(t, fdcMinimumThresholdBIPS-1, nil, 0)
 
-		_, err := dataProvidersThreshold(data, totalWeight)
+		_, err := dataProvidersThreshold(data, sPolicy)
 		assert.EqualError(t, err, "data providers threshold too low")
 	})
 
 	t.Run("FDC request with cosigner threshold below 50% should fail", func(t *testing.T) {
 		data := buildFDCData(t, maxBIPS/2-1, cosigners, 2)
 
-		_, err := dataProvidersThreshold(data, totalWeight)
+		_, err := dataProvidersThreshold(data, sPolicy)
 		assert.EqualError(t, err, "one threshold should be above 50%")
 	})
 
 	t.Run("FDC request with threshold too high should fail", func(t *testing.T) {
 		data := buildFDCData(t, maxBIPS, nil, 0)
 
-		_, err := dataProvidersThreshold(data, totalWeight)
+		_, err := dataProvidersThreshold(data, sPolicy)
 		assert.EqualError(t, err, "data providers threshold too high")
 	})
 
-	t.Run("FDC valid threshold uses provided bips", func(t *testing.T) {
+	t.Run("FDC valid threshold overrides the policy with the provided bips", func(t *testing.T) {
 		data := buildFDCData(t, maxBIPS*0.6, cosigners[:2], 1)
 
-		threshold, err := dataProvidersThreshold(data, totalWeight)
+		threshold, err := dataProvidersThreshold(data, sPolicy)
 		assert.NoError(t, err)
-		assert.Equal(t, computeThreshold(totalWeight, maxBIPS*0.6), threshold)
+		assert.Equal(t, uint16(60), threshold)
+	})
+
+	t.Run("zero policy threshold is rejected", func(t *testing.T) {
+		zeroPolicy, _ := newPolicy(t, []uint16{50, 30, 20}, 0)
+
+		_, err := dataProvidersThreshold(&instruction.DataFixed{
+			OPType:    op.XRP.Hash(),
+			OPCommand: op.Pay.Hash(),
+		}, zeroPolicy)
+		assert.EqualError(t, err, "signing policy threshold is zero")
+
+		_, err = dataProvidersThreshold(buildFDCData(t, 0, nil, 0), zeroPolicy)
+		assert.EqualError(t, err, "signing policy threshold is zero")
+	})
+
+	t.Run("a non-zero bips threshold does not consult the policy", func(t *testing.T) {
+		zeroPolicy, _ := newPolicy(t, []uint16{50, 30, 20}, 0)
+
+		threshold, err := dataProvidersThreshold(buildFDCData(t, maxBIPS*0.6, cosigners[:2], 1), zeroPolicy)
+		assert.NoError(t, err)
+		assert.Equal(t, uint16(60), threshold)
 	})
 }
 
@@ -123,7 +151,7 @@ func TestCheckCosigners(t *testing.T) {
 
 func TestCheckThresholds(t *testing.T) {
 	weights := []uint16{50, 30, 20}
-	policy, voters := newPolicy(t, weights)
+	policy, voters := newPolicy(t, weights, 55)
 	cosigners := []common.Address{common.HexToAddress("0x65"), common.HexToAddress("0x66")}
 
 	newData := func(cosignerThreshold uint64) *instruction.DataFixed {
@@ -145,9 +173,44 @@ func TestCheckThresholds(t *testing.T) {
 
 	t.Run("fails when data provider threshold not reached", func(t *testing.T) {
 		data := newData(0)
-		signers := []common.Address{voters[0]} // weight equals 50, threshold requires > 50
+		signers := []common.Address{voters[0]} // weight 50 does not exceed the policy threshold of 55
 
 		err := CheckThresholds(data, signers, policy)
+		assert.EqualError(t, err, "data providers threshold not reached")
+	})
+
+	t.Run("weight equal to the threshold is not enough", func(t *testing.T) {
+		boundary, boundaryVoters := newPolicy(t, weights, 80)
+
+		err := CheckThresholds(newData(0), []common.Address{boundaryVoters[0], boundaryVoters[1]}, boundary)
+		assert.EqualError(t, err, "data providers threshold not reached")
+
+		err = CheckThresholds(newData(0), boundaryVoters, boundary)
+		assert.NoError(t, err)
+	})
+
+	// the policy threshold may sit below half the total weight; a clamp to half would reject this
+	t.Run("succeeds below half the total weight when the policy threshold is lower", func(t *testing.T) {
+		low, lowVoters := newPolicy(t, []uint16{40, 30, 30}, 35)
+
+		err := CheckThresholds(newData(0), []common.Address{lowVoters[0]}, low)
+		assert.NoError(t, err)
+	})
+
+	// a zero threshold no longer disables the weight check; only the bips path can reach one
+	t.Run("zero computed threshold still requires data provider weight", func(t *testing.T) {
+		tiny, _ := newPolicy(t, []uint16{1, 1}, 1)
+		data := buildFDCData(t, fdcMinimumThresholdBIPS, cosigners[:1], 1)
+
+		err := CheckThresholds(data, cosigners[:1], tiny)
+		assert.EqualError(t, err, "data providers threshold not reached")
+	})
+
+	// the policy's threshold binds, not a recomputed share of total weight
+	t.Run("fails when weight exceeds half but not the policy threshold", func(t *testing.T) {
+		strictPolicy, strictVoters := newPolicy(t, []uint16{51, 49}, 60)
+
+		err := CheckThresholds(newData(0), []common.Address{strictVoters[0]}, strictPolicy)
 		assert.EqualError(t, err, "data providers threshold not reached")
 	})
 
@@ -176,10 +239,10 @@ func TestCheckThresholds(t *testing.T) {
 		assert.NoError(t, err)
 	})
 
-	// Restore requires a majority of the current policy's data-provider
-	// weight among signers — a filter by the current provider set on top of
-	// the cryptographic Shamir thresholds enforced at reconstruction.
-	t.Run("restore requires majority of current-policy weight", func(t *testing.T) {
+	// Restore requires the reward-epoch policy's threshold in data-provider
+	// weight among signers — a filter by that provider set on top of the
+	// cryptographic Shamir thresholds enforced at reconstruction.
+	t.Run("restore requires the policy threshold in weight", func(t *testing.T) {
 		data := &instruction.DataFixed{
 			OPType:             op.Wallet.Hash(),
 			OPCommand:          op.KeyDataProviderRestore.Hash(),
@@ -187,7 +250,7 @@ func TestCheckThresholds(t *testing.T) {
 			CosignersThreshold: 1,
 		}
 
-		// weight 50 of 100 is not strictly greater than the 50% threshold
+		// weight 50 is below the policy threshold of 55
 		err := CheckThresholds(data, []common.Address{voters[0], cosigners[0]}, policy)
 		assert.EqualError(t, err, "data providers threshold not reached")
 
@@ -197,7 +260,7 @@ func TestCheckThresholds(t *testing.T) {
 	})
 }
 
-func newPolicy(t *testing.T, weights []uint16) (*cpolicy.SigningPolicy, []common.Address) {
+func newPolicy(t *testing.T, weights []uint16, threshold uint16) (*cpolicy.SigningPolicy, []common.Address) {
 	t.Helper()
 
 	addresses := make([]common.Address, len(weights))
@@ -208,7 +271,7 @@ func newPolicy(t *testing.T, weights []uint16) (*cpolicy.SigningPolicy, []common
 	voterSet, err := voters.NewSet(addresses, weights, nil)
 	require.NoError(t, err)
 
-	return &cpolicy.SigningPolicy{Voters: voterSet}, addresses
+	return &cpolicy.SigningPolicy{Threshold: threshold, Voters: voterSet}, addresses
 }
 
 func buildFDCData(t *testing.T, threshold uint16, cosigners []common.Address, cosignersThreshold uint64) *instruction.DataFixed {

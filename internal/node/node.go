@@ -11,7 +11,6 @@ import (
 	"syscall"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/flare-foundation/go-flare-common/pkg/logger"
 	csigning "github.com/flare-foundation/go-flare-common/pkg/signing"
@@ -66,23 +65,6 @@ type governance struct {
 	// means plain governance.
 	safe       common.Address
 	teeManager common.Address
-}
-
-type State interface {
-	// State encodes the node state into its serialized representation.
-	State() (types.TeeState, error)
-}
-
-type ZeroState struct{}
-
-// State returns the zero-value node state.
-func (ZeroState) State() (types.TeeState, error) {
-	return types.TeeState{
-		SystemState:        hexutil.Bytes{},
-		SystemStateVersion: common.Hash{},
-		State:              hexutil.Bytes{},
-		StateVersion:       common.Hash{},
-	}, nil
 }
 
 // Initialize generates node's private key and sets the teeID.

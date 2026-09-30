@@ -70,3 +70,17 @@ func TestWalletFromKeyDirectBackupPayloadEmptyPublicKey(t *testing.T) {
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "does not match BackupID.PublicKey")
 }
+
+func TestWalletFromKeyDirectBackupPayloadClearsSettings(t *testing.T) {
+	priv, err := crypto.GenerateKey()
+	require.NoError(t, err)
+
+	payload := payloadFor(t, priv)
+	payload.SettingsVersion = common.HexToHash("0x1234")
+	payload.Settings = hexutil.Bytes{0x01, 0x02, 0x03}
+
+	w, err := WalletFromKeyDirectBackupPayload(payload, common.BigToHash(priv.D).Bytes())
+	require.NoError(t, err)
+	require.Equal(t, common.Hash{}, w.SettingsVersion)
+	require.Empty(t, w.Settings)
+}

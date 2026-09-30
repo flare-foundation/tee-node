@@ -82,7 +82,7 @@ func TestProcessorTEEAttestationThreshold(t *testing.T) {
 	require.Equal(t, nodeInfo.PublicKey, response.TeeInfo.PublicKey)
 	require.Equal(t, state, response.TeeInfo.State)
 
-	initialID, initialHash, activeID, activeHash := proc.pStorage.Info()
+	initialID, initialHash, activeID, activeHash := proc.pStorage.Info(testutils.DefaultTestChainID)
 	require.Equal(t, initialID, response.TeeInfo.InitialSigningPolicyID)
 	require.Equal(t, initialHash, response.TeeInfo.InitialSigningPolicyHash)
 	require.Equal(t, activeID, response.TeeInfo.LastSigningPolicyID)
@@ -141,7 +141,7 @@ func setupTEEAttestationProcessor(t *testing.T) (*Processor, instruction.DataFix
 		epochID   = uint32(3)
 	)
 
-	testutils.GenerateAndSetInitialPolicy(t, pStorage, numVoters, randSeed, epochID)
+	testutils.GenerateAndSetInitialPolicy(t, testutils.DefaultTestChainID, pStorage, numVoters, randSeed, epochID)
 
 	processor := NewProcessor(testNode, pStorage)
 

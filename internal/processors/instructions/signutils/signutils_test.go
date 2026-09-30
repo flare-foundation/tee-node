@@ -39,7 +39,7 @@ func TestSignPaymentTransaction(t *testing.T) {
 	testNode, pStorage, wStorage := testutils.Setup(t)
 
 	numVoters, randSeed, epochID := 100, int64(12345), uint32(1)
-	_, _, privKeys := testutils.GenerateAndSetInitialPolicy(t, pStorage, numVoters, randSeed, epochID)
+	_, _, privKeys := testutils.GenerateAndSetInitialPolicy(t, testutils.DefaultTestChainID, pStorage, numVoters, randSeed, epochID)
 
 	testutils.CreateMockWallet(t, testNode, pStorage, wStorage, mockWalletID, mockKeyID, epochID, []*ecdsa.PrivateKey{privKeys[0]}, nil)
 

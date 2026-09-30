@@ -6,7 +6,7 @@
 | ---------------- | ------- | --------------------------------------------------------------------- |
 | `MODE`           | `1`     | `0` = production (GCP attestation), `1` = local/test (no attestation) |
 | `LOG_LEVEL`      | `FATAL` | Logging level                                                         |
-| `PROXY_URL`      | (empty) | Initial proxy URL, can be updated at runtime via config server        |
+| `PROXY_URL`      | (empty) | Initial proxy URL, can be updated at runtime via config server. Must not address the node itself (see below). |
 | `INITIAL_OWNER`  | (empty) | Hex-encoded Ethereum address (20 bytes), optional `0x` prefix         |
 | `EXTENSION_ID`   | `MaxHash` | Hex-encoded 32-byte hash, optional `0x` prefix. Defaults to `MaxHash` if not set. |
 | `CHAIN_ID`       | (unset) | EVM chain ID (decimal or `0x`). Bound into every domain-separated signed payload (see [Cryptography](cryptography.md)). Set once via env or config server; `0` is rejected. |
@@ -14,9 +14,34 @@
 | `GOVERNANCE_THRESHOLD` | (unset) | Minimum number of *distinct* `GOVERNANCE_SIGNERS` signatures required per machine-path list. Must be `>= 1` and `<=` the number of signers. |
 | `GOVERNANCE_SAFE`      | (unset) | Optional. Governance Safe address for Safe-backed governance; a `SET_MACHINE_PATH_LIST` may then be authorized by the Safe's `approveMachinePathList` transaction instead of direct signatures. Must be set together with `GOVERNANCE_TEE_MANAGER`. |
 | `GOVERNANCE_TEE_MANAGER` | (unset) | Optional. `FlareTeeManager` address that the Safe's `approveMachinePathList` call targets. Must be set together with `GOVERNANCE_SAFE`. |
-| `CONFIG_PORT`    | `5500`  | Port for the configuration HTTP server                                |
 | `SIGN_PORT`      | `8888`  | Port for the extension sign/decrypt server                            |
 | `EXTENSION_PORT` | `8889`  | Port where the extension service listens                              |
+
+### Ports
+
+The configuration server's port is fixed at **5500** and is not configurable.
+
+No other port may be placed on top of it, by any route:
+
+- `SIGN_PORT` and `EXTENSION_PORT` must differ from **5500** and from each
+  other. A collision is rejected at startup, because the config and sign
+  servers are served from goroutines that only log a bind failure, and a
+  colliding extension port would route the node's own requests back at itself.
+  A value that is set but unusable - out of range, or not a number - is an error
+  rather than being ignored, so a typo cannot silently leave the default in
+  place. Exchanging two otherwise valid ports is accepted.
+- `PROXY_URL`, and the URL supplied to the config server's `/proxy` endpoint,
+  must not address **5500**, `SIGN_PORT`, or `EXTENSION_PORT` on a loopback or
+  unspecified host. The proxy is the node's link to the outside, so such a URL
+  would send the node's traffic to itself - to the very server an operator
+  configures it through, in the case of port 5500. `/proxy` answers `400` and
+  keeps the previous URL; an offending `PROXY_URL` is discarded, leaving the
+  proxy unset as if the variable were absent. The same port number on another
+  host is accepted, since a port is not reserved globally.
+
+Both checks live in `internal/settings`, where the ports are unexported and
+assigned only through a single guarded function, so a future configuration
+endpoint cannot install a port without passing them.
 
 ## Constants
 
@@ -56,7 +81,7 @@
 
 ## Config Server Endpoints
 
-The config server listens on `CONFIG_PORT` (default 5500) and accepts POST requests with JSON bodies.
+The config server listens on port 5500 and accepts POST requests with JSON bodies.
 
 ### POST /proxy
 
@@ -100,7 +125,7 @@ Sets the governance signer set and threshold that authorize `SET_MACHINE_PATH_LI
 { "signers": ["0xaabb...", "0xccdd..."], "threshold": 2 }
 ```
 
-> **Note:** As with the other config endpoints, these setters are unauthenticated; security relies on network-level access control of `CONFIG_PORT`. Each value can alternatively (and preferably) be fixed at deploy time via its environment variable, which is read during node initialization *before* the config server starts and therefore closes any post-start window. See [Security](security.md#config-server).
+> **Note:** As with the other config endpoints, these setters are unauthenticated; security relies on network-level access control of port 5500. Each value can alternatively (and preferably) be fixed at deploy time via its environment variable, which is read during node initialization *before* the config server starts and therefore closes any post-start window. See [Security](security.md#config-server).
 
 ## Startup Sequence
 
@@ -108,7 +133,7 @@ Sets the governance signer set and threshold that authorize `SET_MACHINE_PATH_LI
 2. TEE node initialized (generates key pair, reads env vars)
 3. Wallet storage initialized (empty)
 4. Policy storage initialized (empty)
-5. Config server started on CONFIG_PORT
+5. Config server started on port 5500
 6. Router created with all processors registered
 7. Queue processing started (Main, Direct, Backup queues)
 

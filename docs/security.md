@@ -26,7 +26,9 @@
 
 ### Config Server
 
-The config server (port `CONFIG_PORT`) exposes endpoints to set the proxy URL, initial owner, extension ID, chain ID, and the governance signer set. It is assumed that network access to this port is restricted to the node owner. No authentication is performed on these endpoints; security relies on network-level access control.
+The config server (fixed port 5500) exposes endpoints to set the proxy URL, initial owner, extension ID, chain ID, and the governance signer set. It is assumed that network access to this port is restricted to the node owner. No authentication is performed on these endpoints; security relies on network-level access control.
+
+`/proxy` is the only setter that carries a port, and it - like `PROXY_URL` - is rejected if it addresses one of the node's own listeners on a loopback or unspecified host: port 5500, `SIGN_PORT`, or `EXTENSION_PORT`. Otherwise a config-port reacher could point the node's only outward link at the node itself, most damagingly at the config server they are already talking to. The port variables are likewise barred from taking port 5500, and are not in `allow_env_override`, so in production the proxy URL is the only operator-settable value that names a port at all. See [Configuration](configuration.md#ports).
 
 All setters except `/proxy` are **one-shot** (a second call is rejected), and each value can instead be fixed at deploy time via its environment variable. The env vars are read during node initialization, _before_ the config server starts, so providing them at deploy time closes any window in which a config-port reacher could set the value first. This matters most for `/governance`: the governance signer set is the root of direct-key-transfer authorization, and it is committed into the node's attested `GovernanceHash` (registered via `TEE_MACHINE_REGISTER`), so a value set here is observable on-chain rather than silent. Setting governance does not by itself enable key exfiltration — direct backup/restore are independently gated by the data-provider quorum (see [Governance & Machine-Path Authorization](#governance--machine-path-authorization)).
 
@@ -69,7 +71,7 @@ The governance set is itself one-shot and committed into the attested `Governanc
 
 ### Layered Authorization for Key Transfer
 
-The machine-path list is **not** the only gate on direct backup/restore. Because both commands are instructions, they first pass the standard pipeline checks — including a `>50%` data-provider voting-weight quorum and cosigner thresholds. The machine-path list _narrows_ which TEE pairs may participate on top of that quorum; it cannot by itself authorize a transfer. Consequently, an actor who controls only governance (and thus the machine-path list) on a node still cannot cause a key to move without a quorum-signed instruction.
+The machine-path list is **not** the only gate on direct backup/restore. Because both commands are instructions, they first pass the standard pipeline checks — including data-provider voting weight strictly exceeding the signing policy's `threshold`, and cosigner thresholds. The machine-path list _narrows_ which TEE pairs may participate on top of that quorum; it cannot by itself authorize a transfer. Consequently, an actor who controls only governance (and thus the machine-path list) on a node still cannot cause a key to move without a quorum-signed instruction.
 
 ### Integrity & Confidentiality of Direct Backup
 
