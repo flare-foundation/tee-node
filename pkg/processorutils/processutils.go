@@ -64,25 +64,40 @@ func CheckForwardable(opType common.Hash) error {
 	return nil
 }
 
+// opOf returns a's op pair, or zero if its message does not parse.
+func opOf(a *types.Action) types.OpID {
+	id, err := types.GetOpID(a)
+	if err != nil {
+		return types.OpID{} // decoding may stop midway, leaving a partial pair
+	}
+	return id
+}
+
 // Invalid creates action result for invalid action.
 func Invalid(a *types.Action, err error) types.ActionResult {
+	id := opOf(a)
 	return types.ActionResult{
 		ID:            a.Data.ID,
 		SubmissionTag: a.Data.SubmissionTag,
 		Status:        0,
 		Version:       settings.EncodingVersion,
 		Log:           err.Error(),
+		OPType:        id.OPType,
+		OPCommand:     id.OPCommand,
 	}
 }
 
 // DeadlineExceeded creates an action result indicating the extension timed out.
 func DeadlineExceeded(a *types.Action, err error) types.ActionResult {
+	id := opOf(a)
 	return types.ActionResult{
 		ID:            a.Data.ID,
 		SubmissionTag: a.Data.SubmissionTag,
 		Status:        3,
 		Version:       settings.EncodingVersion,
 		Log:           err.Error(),
+		OPType:        id.OPType,
+		OPCommand:     id.OPCommand,
 	}
 }
 

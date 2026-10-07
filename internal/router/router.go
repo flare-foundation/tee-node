@@ -141,19 +141,17 @@ func (r *Router) fetchActionWithRetry(url string) (*types.Action, error) {
 	}
 }
 
-// errorResult constructs a Status-0 ActionResult. If action is non-nil, its ID
-// and SubmissionTag are included; otherwise the fields are left zero-valued.
+// errorResult constructs a Status-0 ActionResult. If action is non-nil, its ID,
+// SubmissionTag and op pair are included; otherwise the fields are left zero-valued.
 func (r *Router) errorResult(action *types.Action, log string) types.ActionResult {
-	result := types.ActionResult{
+	if action != nil {
+		return processorutils.Invalid(action, errors.New(log))
+	}
+	return types.ActionResult{
 		Status:  0,
 		Version: settings.EncodingVersion,
 		Log:     log,
 	}
-	if action != nil {
-		result.ID = action.Data.ID
-		result.SubmissionTag = action.Data.SubmissionTag
-	}
-	return result
 }
 
 // signAndPost signs the result and posts it to the proxy.
