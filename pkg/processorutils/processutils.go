@@ -1,6 +1,7 @@
 package processorutils
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -9,6 +10,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/instruction"
+	"github.com/flare-foundation/go-flare-common/pkg/tee/op"
 	"github.com/flare-foundation/tee-node/internal/settings"
 	"github.com/flare-foundation/tee-node/pkg/types"
 )
@@ -48,6 +50,18 @@ func Parse[T validRequestType](message []byte) (*T, error) {
 	}
 
 	return &req, nil
+}
+
+// flareOPPrefix marks Flare-reserved op types; these never reach an extension.
+const flareOPPrefix = "F_"
+
+// CheckForwardable rejects op types with the reserved F_ prefix.
+func CheckForwardable(opType common.Hash) error {
+	if bytes.HasPrefix(opType[:], []byte(flareOPPrefix)) {
+		return fmt.Errorf("reserved op type %s not supported in extension mode", op.HashToOPType(opType))
+	}
+
+	return nil
 }
 
 // Invalid creates action result for invalid action.

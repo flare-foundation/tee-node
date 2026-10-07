@@ -26,9 +26,9 @@ The following are handled directly by the TEE in both modes:
 
 ## Extension-Only Capabilities
 
-In extension mode, the extension server can define custom `(OpType, OpCommand)` handlers for any operation not listed above. It can use the TEE's sign/decrypt server to perform cryptographic operations with managed keys.
+In extension mode, the extension server can define custom `(OpType, OpCommand)` handlers for any OpType without the reserved `F_` prefix. It can use the TEE's sign/decrypt server to perform cryptographic operations with managed keys.
 
-In base mode (Extension 0), the following are built-in instead of delegated:
+In base mode (Extension 0), the following are built-in. They use `F_` op types, so in extension mode they are rejected, not delegated:
 
 | Operation         | Description                           |
 | ----------------- | ------------------------------------- |
@@ -59,7 +59,7 @@ TEE Node                        Extension Service
 
 ## Action Forwarding
 
-When an action's `(OpType, OpCommand)` does not match any registered processor, the router forwards it to the extension:
+When an action's `(OpType, OpCommand)` does not match any registered processor, the router forwards it to the extension, unless its OpType has the reserved `F_` prefix, in which case it is rejected:
 
 - **Direct actions**: Forwarded via the default direct processor.
 - **Instruction actions**: Preprocessed (signatures validated, thresholds checked), then forwarded via the default instruction processor.

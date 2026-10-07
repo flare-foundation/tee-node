@@ -47,8 +47,9 @@ TEE Node (Extension Mode)
   +-- Built-in: Wallet ops (incl. direct backup/restore), Policy, Governance, TEEInfo, TEEBackup, Attestation
   |
   +-- Forwarded to extension (port 8889):
-      +-- Unrecognized direct actions
-      +-- Unrecognized instruction actions (after signature validation)
+      +-- Unrecognized non-F_ direct actions
+      +-- Unrecognized non-F_ instruction actions (after signature validation)
+      +-- F_ op types are never forwarded; unregistered ones are rejected
 ```
 
 The extension server is a user-implemented HTTP service that:
@@ -59,7 +60,7 @@ The extension server is a user-implemented HTTP service that:
 
 This allows custom protocols to leverage the TEE's managed keys and attestation while implementing their own business logic. Each extension has a unique `ExtensionID` that is included in attestation responses and set once at startup.
 
-**Key difference**: In base mode, FDC proving, XRP signing, and VRF are built-in processors. In extension mode, these would need to be implemented by the extension server (or are not available).
+**Key difference**: In base mode, FDC proving, XRP signing, and VRF are built-in processors. In extension mode, they are not available: `F_`-prefixed op types are reserved for Flare and are never forwarded to the extension.
 
 ## Components
 
@@ -91,7 +92,7 @@ Each queue runs as an independent goroutine, polling the proxy continuously.
 
 ### Extension Server
 
-The extension server (port 8888) exposes wallet and TEE signing/decryption to external extension services running alongside the TEE. In extension mode, actions that do not match a registered processor are forwarded to the extension service (port 8889). See [Extensions](extensions.md) for details.
+The extension server (port 8888) exposes wallet and TEE signing/decryption to external extension services running alongside the TEE. In extension mode, non-`F_` actions that do not match a registered processor are forwarded to the extension service (port 8889). See [Extensions](extensions.md) for details.
 
 ### Config Server
 

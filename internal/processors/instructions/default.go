@@ -39,6 +39,12 @@ func (p DefaultProcessor) Process(_ context.Context, a *types.Action) types.Acti
 		return processorutils.Invalid(a, err)
 	}
 
+	// before the tag switch: End must not yield rewarding data either
+	err = processorutils.CheckForwardable(data.OPType)
+	if err != nil {
+		return processorutils.Invalid(a, err)
+	}
+
 	chainID, err := p.iSAndD.ChainID()
 	if err != nil {
 		return processorutils.Invalid(a, err)
