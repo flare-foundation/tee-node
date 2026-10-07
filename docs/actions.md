@@ -22,7 +22,7 @@ Before routing, every action is validated:
 
 ### 3. Route
 
-The OpType and OpCommand are extracted from the action message (first two JSON fields). The router looks up a registered processor for the `(OpType, OpCommand)` pair. If none exists, the behavior depends on the operating mode: in base mode the action is rejected, while in extension mode it is forwarded to the extension service via the default direct or instruction processor.
+The OpType and OpCommand are extracted from the action message (first two JSON fields). The router looks up a registered processor for the `(OpType, OpCommand)` pair. If none exists, the behavior depends on the operating mode: in base mode the action is rejected, while in extension mode it is forwarded to the extension service via the default direct or instruction processor. Actions with an `F_`-prefixed OpType are never forwarded; without a registered processor they are rejected in both modes.
 
 ### 4. Process
 

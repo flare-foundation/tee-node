@@ -161,18 +161,78 @@ func TestRouterUnregisteredExtension(t *testing.T) {
 	require.Contains(t, result.Log, "processor for UnregisteredExt, UnregisteredCmd not registered")
 }
 
-func TestRouterExtensionStartingWithF_NotConfigured(t *testing.T) {
+// TestForwardRouterFOpTypesNotForwarded checks that F_ actions without a
+// built-in processor are rejected and never reach the extension.
+func TestForwardRouterFOpTypesNotForwarded(t *testing.T) {
 	testNode, ps, ws := testutils.Setup(t)
-	r := NewForwardRouter(testNode, ws, ps, 8001, &settings.ProxyURLMutex{})
+	epochID := uint32(1)
+	_, _, privKeys := testutils.GenerateAndSetInitialPolicy(t, testutils.DefaultTestChainID, ps, 10, 12345, epochID)
+	chainID, err := testNode.ChainID()
+	require.NoError(t, err)
 
-	// Create a direct action for extension starting with F_ but not configured
-	action := testutils.BuildMockDirectAction(t, op.Type("F_CustomExtension"), op.Command("CustomCommand"), nil)
+	var hits atomic.Int32
+	ext := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		hits.Add(1)
+		_ = json.NewEncoder(w).Encode(types.ActionResult{Status: 2})
+	}))
+	defer ext.Close()
+	extAddr, ok := ext.Listener.Addr().(*net.TCPAddr)
+	require.True(t, ok)
 
-	// Process the action - should fail since no processor is registered
-	result := r.process(context.Background(), action, processorutils.Main)
+	r := NewForwardRouter(testNode, ws, ps, extAddr.Port, &settings.ProxyURLMutex{})
 
-	require.Equal(t, uint8(0), result.Status)
-	require.Contains(t, result.Log, "invalid OPType, OPCommand pair")
+	directAction := func(opt op.Type, opc op.Command, _ types.SubmissionTag) *types.Action {
+		return testutils.BuildMockDirectAction(t, opt, opc, nil)
+	}
+	instructionAction := func(opt op.Type, opc op.Command, tag types.SubmissionTag) *types.Action {
+		return testutils.BuildMockInstructionAction(
+			t, opt, opc, []byte("dummy"),
+			privKeys, chainID, testNode.TeeID(), epochID,
+			nil, nil, nil, 0, tag, uint64(time.Now().Unix()),
+		)
+	}
+	builds := []struct {
+		name  string
+		tag   types.SubmissionTag
+		build func(op.Type, op.Command, types.SubmissionTag) *types.Action
+	}{
+		{"direct", types.Submit, directAction},
+		{"instruction threshold", types.Threshold, instructionAction},
+		{"instruction end", types.End, instructionAction},
+	}
+
+	// built-in in PMW mode or unregistered in both modes
+	reserved := []struct {
+		opt op.Type
+		opc op.Command
+	}{
+		{op.XRP, op.Pay},
+		{op.XRP, op.Reissue},
+		{op.BTC, op.Pay},
+		{op.BTC, op.Reissue},
+		{op.FDC2, op.Prove},
+		{op.Wallet, op.VRF},
+		{op.Wallet, op.KeyDataProviderRestoreTest},
+		{op.Get, "UNKNOWN"},
+		{"F_CustomExtension", "CustomCommand"},
+	}
+
+	for _, b := range builds {
+		for _, p := range reserved {
+			result := r.process(context.Background(), b.build(p.opt, p.opc, b.tag), processorutils.Main)
+
+			require.Equal(t, uint8(0), result.Status, "%s %s %s", b.name, p.opt, p.opc)
+			require.Contains(t, result.Log, "reserved op type "+string(p.opt)+" not supported in extension mode", "%s %s %s", b.name, p.opt, p.opc)
+		}
+	}
+	require.Zero(t, hits.Load())
+
+	// non-F_ actions still reach the extension
+	for _, b := range builds[:2] {
+		result := r.process(context.Background(), b.build("CUSTOM", "CMD", b.tag), processorutils.Main)
+		require.Equal(t, uint8(2), result.Status, b.name)
+	}
+	require.Equal(t, int32(2), hits.Load())
 }
 
 // * ================================================================================================ *

@@ -17,7 +17,7 @@ func TestDefaultDirectProcessor(t *testing.T) {
 
 	proc := NewDefaultProcessor(extensionPort)
 
-	action := testutils.BuildMockDirectAction(t, op.Policy, op.InitializePolicy, "dummyAction")
+	action := testutils.BuildMockDirectAction(t, op.Type("someOpType"), op.Command("someOpCommand"), "dummyAction")
 	firstResult := proc.Process(context.Background(), action)
 	require.Equal(t, action.Data.ID, firstResult.ID)
 	require.Len(t, firstResult.Data, 0)

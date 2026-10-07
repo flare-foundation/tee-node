@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/flare-foundation/go-flare-common/pkg/tee/op"
 	"github.com/flare-foundation/tee-node/internal/extension"
 	"github.com/flare-foundation/tee-node/pkg/processorutils"
 	"github.com/flare-foundation/tee-node/pkg/types"
@@ -32,9 +31,9 @@ func (p DefaultProcessor) Process(_ context.Context, a *types.Action) types.Acti
 		return processorutils.Invalid(a, err)
 	}
 
-	isValid := op.IsValidPair(di.OPType, di.OPCommand)
-	if !isValid {
-		return processorutils.Invalid(a, errors.New("invalid OPType, OPCommand pair"))
+	err = processorutils.CheckForwardable(di.OPType)
+	if err != nil {
+		return processorutils.Invalid(a, err)
 	}
 
 	result, err := extension.PostActionToExtension(fmt.Sprintf("http://localhost:%d/action", p.extensionPort), a)
