@@ -159,6 +159,45 @@ func TestRouterUnregisteredExtension(t *testing.T) {
 	// Verify failure
 	require.Equal(t, uint8(0), result.Status)
 	require.Contains(t, result.Log, "processor for UnregisteredExt, UnregisteredCmd not registered")
+	require.Equal(t, op.Type("UnregisteredExt").Hash(), result.OPType)
+	require.Equal(t, op.Command("UnregisteredCmd").Hash(), result.OPCommand)
+}
+
+func TestRouterCheckAndAdaptErrorKeepsOp(t *testing.T) {
+	testNode, ps, ws := testutils.Setup(t)
+	r := NewPMWRouter(testNode, ws, ps, &settings.ProxyURLMutex{})
+
+	action := testutils.BuildMockDirectAction(t, op.Get, op.TEEInfo, types.TeeInfoRequest{Challenge: common.Hash{0x1}})
+	action.Timestamps = []uint64{1} // no matching signature
+
+	result := r.process(context.Background(), action, processorutils.Main)
+
+	require.Equal(t, uint8(0), result.Status)
+	require.Equal(t, "unaligned providers' data", result.Log)
+	require.Equal(t, op.Get.Hash(), result.OPType)
+	require.Equal(t, op.TEEInfo.Hash(), result.OPCommand)
+}
+
+func TestRouterErrorResultOp(t *testing.T) {
+	r := New(&settings.ProxyURLMutex{})
+	action := testutils.BuildMockDirectAction(t, op.Get, op.TEEInfo, nil)
+
+	res := r.errorResult(action, "internal error")
+	require.Equal(t, uint8(0), res.Status)
+	require.Equal(t, "internal error", res.Log)
+	require.Equal(t, action.Data.ID, res.ID)
+	require.Equal(t, action.Data.SubmissionTag, res.SubmissionTag)
+	require.Equal(t, settings.EncodingVersion, res.Version)
+	require.Equal(t, op.Get.Hash(), res.OPType)
+	require.Equal(t, op.TEEInfo.Hash(), res.OPCommand)
+
+	res = r.errorResult(nil, "fetch error")
+	require.Equal(t, uint8(0), res.Status)
+	require.Equal(t, "fetch error", res.Log)
+	require.Equal(t, settings.EncodingVersion, res.Version)
+	require.Zero(t, res.ID)
+	require.Zero(t, res.OPType)
+	require.Zero(t, res.OPCommand)
 }
 
 // TestForwardRouterFOpTypesNotForwarded checks that F_ actions without a
@@ -223,6 +262,8 @@ func TestForwardRouterFOpTypesNotForwarded(t *testing.T) {
 
 			require.Equal(t, uint8(0), result.Status, "%s %s %s", b.name, p.opt, p.opc)
 			require.Contains(t, result.Log, "reserved op type "+string(p.opt)+" not supported in extension mode", "%s %s %s", b.name, p.opt, p.opc)
+			require.Equal(t, p.opt.Hash(), result.OPType, "%s %s %s", b.name, p.opt, p.opc)
+			require.Equal(t, p.opc.Hash(), result.OPCommand, "%s %s %s", b.name, p.opt, p.opc)
 		}
 	}
 	require.Zero(t, hits.Load())

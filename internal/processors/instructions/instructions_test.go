@@ -9,6 +9,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/instruction"
+	"github.com/flare-foundation/go-flare-common/pkg/tee/op"
 	"github.com/flare-foundation/tee-node/internal/testutils"
 	"github.com/flare-foundation/tee-node/pkg/processorutils"
 	"github.com/flare-foundation/tee-node/pkg/types"
@@ -83,6 +84,8 @@ func TestProcessorsRejectUnsetChainID(t *testing.T) {
 		res := proc.Process(context.Background(), action)
 		require.Equal(t, uint8(0), res.Status)
 		require.Equal(t, "chainID not set", res.Log)
+		require.Equal(t, op.Type("someOpType").Hash(), res.OPType)
+		require.Equal(t, op.Command("someOpCommand").Hash(), res.OPCommand)
 	})
 
 	t.Run("DefaultProcessor", func(t *testing.T) {
@@ -90,5 +93,7 @@ func TestProcessorsRejectUnsetChainID(t *testing.T) {
 		res := proc.Process(context.Background(), action)
 		require.Equal(t, uint8(0), res.Status)
 		require.Equal(t, "chainID not set", res.Log)
+		require.Equal(t, op.Type("someOpType").Hash(), res.OPType)
+		require.Equal(t, op.Command("someOpCommand").Hash(), res.OPCommand)
 	})
 }
