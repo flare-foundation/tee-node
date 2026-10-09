@@ -276,6 +276,70 @@ func TestForwardRouterFOpTypesNotForwarded(t *testing.T) {
 	require.Equal(t, int32(2), hits.Load())
 }
 
+// TestRouterDirectInstructionTagsRejected checks that direct actions tagged
+// threshold or end are rejected in both routers, whatever their declared type,
+// and never reach the extension.
+func TestRouterDirectInstructionTagsRejected(t *testing.T) {
+	testNode, ps, ws := testutils.Setup(t)
+
+	var hits atomic.Int32
+	ext := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		hits.Add(1)
+		_ = json.NewEncoder(w).Encode(types.ActionResult{Status: 2})
+	}))
+	defer ext.Close()
+	extAddr, ok := ext.Listener.Addr().(*net.TCPAddr)
+	require.True(t, ok)
+
+	pmw := NewPMWRouter(testNode, ws, ps, &settings.ProxyURLMutex{})
+	fwd := NewForwardRouter(testNode, ws, ps, extAddr.Port, &settings.ProxyURLMutex{})
+
+	builtIn := func() *types.Action {
+		return testutils.BuildMockDirectAction(t, op.Get, op.TEEInfo, types.TeeInfoRequest{Challenge: common.Hash{0x1}})
+	}
+	// registered processors are picked by op pair, not declared type
+	spoofed := func() *types.Action {
+		a := builtIn()
+		a.Data.Type = types.Instruction
+		return a
+	}
+	forwarded := func() *types.Action {
+		return testutils.BuildMockDirectAction(t, "CUSTOM", "CMD", nil)
+	}
+
+	cases := []struct {
+		name  string
+		r     *Router
+		build func() *types.Action
+	}{
+		{"pmw built-in", &pmw, builtIn},
+		{"pmw built-in spoofed type", &pmw, spoofed},
+		{"forward built-in", &fwd, builtIn},
+		{"forward built-in spoofed type", &fwd, spoofed},
+		{"forward forwarded", &fwd, forwarded},
+	}
+
+	for _, c := range cases {
+		for _, tag := range []types.SubmissionTag{types.Threshold, types.End} {
+			a := c.build()
+			a.Data.SubmissionTag = tag
+
+			result := c.r.process(context.Background(), a, processorutils.Main)
+
+			require.Equal(t, uint8(0), result.Status, "%s %s", c.name, tag)
+			require.Contains(t, result.Log, "submission tag "+string(tag)+" not allowed for direct actions", "%s %s", c.name, tag)
+		}
+	}
+	require.Zero(t, hits.Load())
+
+	// other direct tags still reach the extension
+	a := forwarded()
+	a.Data.SubmissionTag = "custom"
+	result := fwd.process(context.Background(), a, processorutils.Main)
+	require.Equal(t, uint8(2), result.Status)
+	require.Equal(t, int32(1), hits.Load())
+}
+
 // * ================================================================================================ *
 
 // TestRouterRun verifies that the Run function spawns a goroutine for Main queue

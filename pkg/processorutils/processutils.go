@@ -64,6 +64,17 @@ func CheckForwardable(opType common.Hash) error {
 	return nil
 }
 
+// CheckDirectTag rejects instruction tags on direct actions: the result hash
+// omits type and op pair, so the result could pass as an instruction's under a
+// proxy-chosen ID.
+func CheckDirectTag(tag types.SubmissionTag) error {
+	if tag == types.Threshold || tag == types.End {
+		return fmt.Errorf("submission tag %s not allowed for direct actions", tag)
+	}
+
+	return nil
+}
+
 // opOf returns a's op pair, or zero if its message does not parse.
 func opOf(a *types.Action) types.OpID {
 	id, err := types.GetOpID(a)
