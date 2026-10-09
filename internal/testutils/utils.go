@@ -92,7 +92,7 @@ func GenerateRandomPolicyData(t *testing.T, rewardEpochID uint32, voters []commo
 	t.Helper()
 
 	// Use specific seed for deterministic results
-	rgen := rand.New(rand.NewSource(seed)) //nolint:gosec // only used for tests
+	rgen := rand.New(rand.NewSource(seed))
 
 	startVotingRoundID := rgen.Uint32()
 
@@ -128,7 +128,7 @@ func GenerateRandomPolicyData(t *testing.T, rewardEpochID uint32, voters []commo
 func randomNormalizedArray(n int, seed int64) []float64 {
 	// Initialize random source with seed
 	source := rand.NewSource(seed)
-	r := rand.New(source) //nolint:gosec // only used for tests
+	r := rand.New(source)
 
 	// Generate random numbers
 	numbers := make([]float64, n)

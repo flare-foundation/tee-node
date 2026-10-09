@@ -39,21 +39,9 @@ linters:
           - staticcheck
         # matches the crypto/ecdsa X/Y/D deprecation text, which staticcheck versions quote differently
         text: 'SA1019: .*modifying the raw (coordinates|value) can produce invalid keys'
-exclusions:
-  generated: lax
-  paths:
-    - third_party$
-    - builtin$
-    - examples$
 formatters:
   enable:
     - gofmt
-  exclusions:
-    generated: lax
-    paths:
-      - third_party$
-      - builtin$
-      - examples$
 
 issues:
   max-same-issues: 3
