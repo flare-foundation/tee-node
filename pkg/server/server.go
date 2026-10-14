@@ -78,5 +78,5 @@ func StartServerExtension(configPort, signPort, extensionPort int) {
 // testing. It mirrors what a real extension exposes without booting a full node.
 func StartExampleExtension(signPort, extensionPort int) {
 	ext := testutils.NewDummyExtensionServer(extensionPort, signPort)
-	ext.Serve() //nolint:errcheck,gosec // example/test helper; serve error is non-fatal here
+	ext.Serve() //nolint:errcheck // example/test helper; serve error is non-fatal here
 }

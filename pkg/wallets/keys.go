@@ -225,7 +225,7 @@ func ToECDSAUnsafe(sk []byte) *ecdsa.PrivateKey {
 	priv := new(ecdsa.PrivateKey)
 	priv.Curve = crypto.S256()
 	priv.D = new(big.Int).SetBytes(sk)
-	priv.PublicKey.X, priv.PublicKey.Y = priv.Curve.ScalarBaseMult(sk) //nolint:staticcheck // we keep PublicKey for clarity
+	priv.PublicKey.X, priv.PublicKey.Y = priv.Curve.ScalarBaseMult(sk) //nolint:staticcheck // QF1008: explicit PublicKey; SA1019 ScalarBaseMult: crypto/ecdh lacks secp256k1
 
 	return priv
 }

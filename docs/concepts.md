@@ -91,6 +91,8 @@ A message fetched from the proxy containing:
 - **End** — Sent after the Threshold phase. The TEE verifies the operation was performed and produces rewarding data for the participating entities.
 - **Submit** — Used for direct actions (no two-phase protocol).
 
+Direct actions tagged Threshold or End are rejected: the signed result hash omits the action type and op pair, so the tag is what keeps a direct result from passing as an instruction's.
+
 ### OpID
 
 A pair of (OpType, OpCommand) that determines which processor handles an action. Each pair is a keccak256 hash of a string identifier.

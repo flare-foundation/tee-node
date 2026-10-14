@@ -27,6 +27,26 @@ func TestProcessorErrorKeepsOp(t *testing.T) {
 	require.Equal(t, op.Command("someOpCommand").Hash(), res.OPCommand)
 }
 
+// instruction tags are rejected before the handler runs
+func TestProcessorRejectsInstructionTags(t *testing.T) {
+	called := false
+	proc := Processor(func(context.Context, *types.DirectInstruction) ([]byte, error) {
+		called = true
+		return nil, nil
+	})
+
+	for _, tag := range []types.SubmissionTag{types.Threshold, types.End} {
+		action := testutils.BuildMockDirectAction(t, op.Type("someOpType"), op.Command("someOpCommand"), "dummyAction")
+		action.Data.SubmissionTag = tag
+
+		res := proc.Process(context.Background(), action)
+
+		require.Equal(t, uint8(0), res.Status, string(tag))
+		require.Contains(t, res.Log, "submission tag "+string(tag)+" not allowed for direct actions", string(tag))
+	}
+	require.False(t, called)
+}
+
 // op is reported even when the processor can't parse the rest of the message.
 func TestProcessorParseErrorKeepsOp(t *testing.T) {
 	proc := Processor(func(context.Context, *types.DirectInstruction) ([]byte, error) {

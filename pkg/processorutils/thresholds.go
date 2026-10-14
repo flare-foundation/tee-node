@@ -132,5 +132,5 @@ func computeThreshold(total uint16, bips uint16) uint16 {
 	t64 := uint64(total)
 	b64 := uint64(bips)
 
-	return uint16(t64 * b64 / maxBIPS) //nolint:gosec
+	return uint16(t64 * b64 / maxBIPS)
 }

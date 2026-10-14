@@ -13,6 +13,11 @@ type Processor func(ctx context.Context, i *types.DirectInstruction) ([]byte, er
 // Process parses the direct instruction and executes the wrapped processor
 // function, returning the action result payload.
 func (p Processor) Process(ctx context.Context, a *types.Action) types.ActionResult {
+	err := processorutils.CheckDirectTag(a.Data.SubmissionTag)
+	if err != nil {
+		return processorutils.Invalid(a, err)
+	}
+
 	di, err := processorutils.Parse[types.DirectInstruction](a.Data.Message)
 	if err != nil {
 		return processorutils.Invalid(a, err)
