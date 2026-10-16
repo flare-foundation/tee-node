@@ -12,7 +12,7 @@ import (
 )
 
 func main() {
-	logger.Set(logger.Config{Console: true, Level: settings.LogLevel})
+	logger.Set(logger.Config{Level: settings.LogLevel})
 
 	teeNode, err := node.Initialize(node.NewExtensionState(settings.ExtensionPort()))
 	if err != nil {
@@ -26,7 +26,7 @@ func main() {
 	go func() {
 		err := pc.Serve()
 		if err != nil {
-			logger.Errorf("config server: %w", err)
+			logger.Errorf("config server: %v", err)
 		}
 	}()
 
@@ -34,7 +34,7 @@ func main() {
 	go func() {
 		err := extServer.Serve()
 		if err != nil {
-			logger.Errorf("extension server: %w", err)
+			logger.Errorf("extension server: %v", err)
 		}
 	}()
 

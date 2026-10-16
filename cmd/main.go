@@ -12,7 +12,7 @@ import (
 )
 
 func main() {
-	logger.Set(logger.Config{Console: true, Level: settings.LogLevel})
+	logger.Set(logger.Config{Level: settings.LogLevel})
 
 	teeNode, err := node.Initialize(node.ZeroState{})
 	if err != nil {
@@ -26,7 +26,7 @@ func main() {
 	go func() {
 		err := pc.Serve()
 		if err != nil {
-			logger.Errorf("config server: %w", err)
+			logger.Errorf("config server: %v", err)
 		}
 	}()
 
