@@ -5,6 +5,7 @@
 ### Changed
 
 - go-flare-common bumped to v1.5.0.
+- Go bumped to 1.26.9, fixing reachable `net/http` and `crypto/tls` vulnerabilities, and go-ethereum to v1.17.8.
 - Log timestamps change from `[01-02|15:04:05.000]` to RFC 3339 in UTC with milliseconds, and ERROR lines no longer carry a stack trace; anything parsing the logs needs updating. `LOG_LEVEL` values are unchanged.
 - Instruction messages with a truncated or non-canonical ABI encoding are rejected.
 

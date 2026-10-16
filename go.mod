@@ -1,11 +1,11 @@
 module github.com/flare-foundation/tee-node
 
-go 1.26.8
+go 1.26.9
 
 require (
 	filippo.io/bigmod v0.1.0
 	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.4.1
-	github.com/ethereum/go-ethereum v1.17.6
+	github.com/ethereum/go-ethereum v1.17.8
 	github.com/flare-foundation/go-flare-common v1.5.0
 	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/pkg/errors v0.9.1
@@ -80,10 +80,10 @@ require (
 	github.com/minio/sha256-simd v1.0.0 // indirect
 	github.com/mitchellh/mapstructure v1.4.1 // indirect
 	github.com/mitchellh/pointerstructure v1.2.0 // indirect
-	github.com/pion/dtls/v3 v3.1.2 // indirect
+	github.com/pion/dtls/v3 v3.1.5 // indirect
 	github.com/pion/logging v0.2.4 // indirect
-	github.com/pion/stun/v3 v3.1.2 // indirect
-	github.com/pion/transport/v4 v4.0.1 // indirect
+	github.com/pion/stun/v3 v3.1.7 // indirect
+	github.com/pion/transport/v4 v4.1.0 // indirect
 	github.com/prometheus/client_golang v1.16.0 // indirect
 	github.com/prometheus/client_model v0.3.0 // indirect
 	github.com/prometheus/common v0.42.0 // indirect
