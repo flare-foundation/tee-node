@@ -1,6 +1,12 @@
 # Changelog
 
-## [Unreleased]
+## [v0.0.29](https://github.com/flare-foundation/tee-node/tree/v0.0.29) - 2026-10-19
+
+### Changed
+
+- go-flare-common bumped to v1.5.0.
+- Log timestamps change from `[01-02|15:04:05.000]` to RFC 3339 in UTC with milliseconds, and ERROR lines no longer carry a stack trace; anything parsing the logs needs updating. `LOG_LEVEL` values are unchanged.
+- Instruction messages with a truncated or non-canonical ABI encoding are rejected.
 
 ### Fixed
 
