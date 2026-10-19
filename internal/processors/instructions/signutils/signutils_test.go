@@ -21,6 +21,7 @@ import (
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/flare-foundation/go-flare-common/pkg/abicoder"
 	"github.com/flare-foundation/go-flare-common/pkg/random"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/instruction"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/op"
@@ -423,7 +424,7 @@ func TestSignXRPLInvalidInstructionParsing(t *testing.T) {
 
 	_, _, err := setup.processor.SignXRPLPayment(context.Background(), types.Threshold, instr, nil, nil, nil)
 	require.Error(t, err)
-	require.Contains(t, err.Error(), "abi: cannot marshal in to go type")
+	require.ErrorIs(t, err, abicoder.ErrTruncated)
 }
 
 // Invalid Key Type Rejection and Invalid Signing Algorithm Rejection
