@@ -55,16 +55,14 @@ func BackupWallet(wallet *wallets.Wallet, providerPubKeys []*ecdsa.PublicKey, si
 	}
 
 	metaData := backup.WalletBackupMetaData{
-		WalletBackupID: wallets.WalletBackupID{
-			TeeID:         teeID,
-			WalletID:      wallet.WalletID,
-			KeyID:         wallet.KeyID,
-			PublicKey:     walletPubKey,
-			KeyType:       wallet.KeyType,
-			SigningAlgo:   wallet.SigningAlgo,
-			RewardEpochID: rewardEpochID,
-			RandomNonce:   randomNonce,
-		},
+		TeeID:              teeID,
+		WalletID:           wallet.WalletID,
+		KeyID:              wallet.KeyID,
+		PublicKey:          walletPubKey,
+		KeyType:            wallet.KeyType,
+		SigningAlgo:        wallet.SigningAlgo,
+		RewardEpochID:      rewardEpochID,
+		RandomNonce:        randomNonce,
 		FieldID:            field.ID,
 		AdminsPublicKeys:   adminPubKeys,
 		AdminsThreshold:    wallet.AdminsThreshold,

@@ -7,9 +7,14 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/flare-foundation/go-flare-common/pkg/abicoder"
 	csigning "github.com/flare-foundation/go-flare-common/pkg/signing"
-	"github.com/flare-foundation/go-flare-common/pkg/tee/structs"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/structs/fdc2"
+)
+
+var (
+	requestCoder        = abicoder.MustNew[fdc2.IFdc2HubFdc2AttestationRequest](fdc2.AttestationRequestArg)
+	responseHeaderCoder = abicoder.MustNew[fdc2.IFdc2HubFdc2ResponseHeader](fdc2.ResponseHeaderArg)
 )
 
 // ProveResponse represents the response structure for F_FDC2 PROVE opCommand.
@@ -24,13 +29,12 @@ type ProveResponse struct {
 
 // EncodeRequest encodes an FDC2 attestation request to bytes.
 func EncodeRequest(req fdc2.IFdc2HubFdc2AttestationRequest) (hexutil.Bytes, error) {
-	return structs.Encode(fdc2.AttestationRequestArg, &req)
+	return requestCoder.Encode(req)
 }
 
 // DecodeRequest decodes bytes into an FDC2 attestation request.
 func DecodeRequest(data []byte) (fdc2.IFdc2HubFdc2AttestationRequest, error) {
-	var req fdc2.IFdc2HubFdc2AttestationRequest
-	err := structs.DecodeTo(fdc2.AttestationRequestArg, data, &req)
+	req, err := requestCoder.Decode(data)
 	if err != nil {
 		return fdc2.IFdc2HubFdc2AttestationRequest{}, err
 	}
@@ -39,13 +43,12 @@ func DecodeRequest(data []byte) (fdc2.IFdc2HubFdc2AttestationRequest, error) {
 
 // EncodeResponseHeader encodes an FDC2 response header to bytes.
 func EncodeResponseHeader(header fdc2.IFdc2HubFdc2ResponseHeader) (hexutil.Bytes, error) {
-	return structs.Encode(fdc2.ResponseHeaderArg, &header)
+	return responseHeaderCoder.Encode(header)
 }
 
 // DecodeResponse decodes bytes into an FDC2 response header.
 func DecodeResponse(data []byte) (fdc2.IFdc2HubFdc2ResponseHeader, error) {
-	var header fdc2.IFdc2HubFdc2ResponseHeader
-	err := structs.DecodeTo(fdc2.ResponseHeaderArg, data, &header)
+	header, err := responseHeaderCoder.Decode(data)
 	if err != nil {
 		return fdc2.IFdc2HubFdc2ResponseHeader{}, err
 	}

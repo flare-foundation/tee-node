@@ -16,13 +16,13 @@ include:
   - component: gitlab.com/flarenetwork/ci-components-private/lint-github-actions@2
   - component: gitlab.com/flarenetwork/ci-components-private/lint-go@2
     inputs:
-      go_version: "1.26.9"
-      golangci_version: "v2.14.0"
+      go_version: "1.27.4"
+      golangci_version: "v2.15.0"
       golangci_config_file: ".golangci.yml"
       tags: ["flarenetwork-lg"]
   - component: gitlab.com/flarenetwork/ci-components-private/test-go@2
     inputs:
-      go_version: "1.26.9"
-      cobertura_go_version: "1.26.9"
+      go_version: "1.27.4"
+      cobertura_go_version: "1.27.4"
       go_test_command: "go test -race -timeout 20m -covermode=atomic -coverprofile=coverage.out -coverpkg=github.com/flare-foundation/tee-node/... ./..."
       tags: ["flarenetwork-lg"]

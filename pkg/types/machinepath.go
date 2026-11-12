@@ -6,10 +6,13 @@ import (
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/flare-foundation/go-flare-common/pkg/contracts"
 	"github.com/flare-foundation/go-flare-common/pkg/contracts/tee/machinepathmanager"
 	"github.com/flare-foundation/go-flare-common/pkg/safe"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/structs/machinepath"
 )
+
+var machinePathManagerABI = contracts.MustABI(machinepathmanager.MachinePathManagerMetaData)
 
 // SetMachinePathListRequest is the JSON payload of a SET_MACHINE_PATH_LIST
 // direct instruction: the active list of authorized machine paths, its
@@ -47,11 +50,7 @@ func ApproveMachinePathListCalldata(
 	// Derive both the selector and the argument encoding from the generated
 	// MachinePathManager ABI, so a change to the on-chain signature is picked
 	// up by regenerating the binding rather than editing this by hand.
-	parsed, err := machinepathmanager.MachinePathManagerMetaData.GetAbi()
-	if err != nil {
-		return nil, err
-	}
-	return parsed.Pack("approveMachinePathList",
+	return machinePathManagerABI.Pack("approveMachinePathList",
 		new(big.Int).SetBytes(extensionID[:]),
 		new(big.Int).SetUint64(nonce),
 		[32]byte(messageHash),

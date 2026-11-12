@@ -1,9 +1,9 @@
 package types
 
 import (
+	"github.com/flare-foundation/go-flare-common/pkg/abicoder"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/instruction"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/op"
-	"github.com/flare-foundation/go-flare-common/pkg/tee/structs"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/structs/payments"
 )
 
@@ -13,7 +13,7 @@ func ParsePaymentInstruction(data *instruction.DataFixed) (payments.ITeePayments
 	arg := payments.MessageArguments[op.Pay]
 
 	var instruction payments.ITeePaymentsPaymentInstructionMessage
-	err := structs.DecodeTo(arg, data.OriginalMessage, &instruction)
+	err := abicoder.DecodeTo(arg, data.OriginalMessage, &instruction)
 	if err != nil {
 		return payments.ITeePaymentsPaymentInstructionMessage{}, err
 	}

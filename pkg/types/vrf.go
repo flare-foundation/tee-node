@@ -3,9 +3,9 @@ package types
 import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/flare-foundation/go-flare-common/pkg/abicoder"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/instruction"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/op"
-	"github.com/flare-foundation/go-flare-common/pkg/tee/structs"
 	vrfstruct "github.com/flare-foundation/go-flare-common/pkg/tee/structs/vrf"
 	walletsvrf "github.com/flare-foundation/tee-node/pkg/wallets/vrf"
 )
@@ -16,7 +16,7 @@ func ParseVRFInstruction(data *instruction.DataFixed) (vrfstruct.IVrfVrfInstruct
 	arg := vrfstruct.MessageArguments[op.VRF]
 
 	var inst vrfstruct.IVrfVrfInstructionMessage
-	err := structs.DecodeTo(arg, data.OriginalMessage, &inst)
+	err := abicoder.DecodeTo(arg, data.OriginalMessage, &inst)
 	if err != nil {
 		return vrfstruct.IVrfVrfInstructionMessage{}, err
 	}

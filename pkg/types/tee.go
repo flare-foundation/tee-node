@@ -8,8 +8,8 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/flare-foundation/go-flare-common/pkg/abicoder"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/op"
-	"github.com/flare-foundation/go-flare-common/pkg/tee/structs"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/structs/machine"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/structs/tee"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/structs/verification"
@@ -53,7 +53,7 @@ type TeeInfo struct {
 
 // Hash encodes and hashes the TEE attestation payload.
 func (ti *TeeInfo) Hash() ([]byte, error) {
-	enc, err := structs.Encode(tee.StructArg[tee.Attestation], ti.prepareForEncoding())
+	enc, err := abicoder.Encode(tee.StructArg[tee.Attestation], ti.prepareForEncoding())
 	if err != nil {
 		return nil, err
 	}
@@ -155,7 +155,7 @@ type SignedTeeInfoResponse struct {
 // generated struct ABI.
 func EncodeTeeAttestationRequest(req *verification.IVerificationTeeAttestation) (hexutil.Bytes, error) {
 	arg := verification.MessageArguments[op.TEEAttestation]
-	return structs.Encode(arg, &req)
+	return abicoder.Encode(arg, req)
 }
 
 // DecodeTeeAttestationRequest decodes the attestation request bytes into the
@@ -164,7 +164,7 @@ func DecodeTeeAttestationRequest(attReq []byte) (verification.IVerificationTeeAt
 	arg := verification.MessageArguments[op.TEEAttestation]
 
 	var unpacked verification.IVerificationTeeAttestation
-	err := structs.DecodeTo(arg, attReq, &unpacked)
+	err := abicoder.DecodeTo(arg, attReq, &unpacked)
 	if err != nil {
 		return verification.IVerificationTeeAttestation{}, err
 	}

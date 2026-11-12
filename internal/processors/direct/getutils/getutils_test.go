@@ -10,7 +10,6 @@ import (
 	"time"
 
 	csigning "github.com/flare-foundation/go-flare-common/pkg/signing"
-	"github.com/flare-foundation/go-flare-common/pkg/tee/structs"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/structs/wallet"
 	"github.com/flare-foundation/tee-node/internal/node"
 	"github.com/flare-foundation/tee-node/internal/policy"
@@ -175,7 +174,7 @@ func TestKeysProof(t *testing.T) {
 		require.Len(t, existenceProofs, len(requested))
 
 		for i, proof := range existenceProofs {
-			walletExistenceProof, err := structs.Decode[wallet.IWalletKeyManagerKeyExistence](wallet.KeyExistenceStructArg, proof.KeyExistence)
+			walletExistenceProof, err := pwallets.KeyExistenceCoder.Decode(proof.KeyExistence)
 			require.NoError(t, err)
 
 			dataHash, err := types.KeyExistenceDataHash(&walletExistenceProof)

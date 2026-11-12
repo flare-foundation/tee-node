@@ -7,22 +7,14 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/flare-foundation/go-flare-common/pkg/contracts"
 	"github.com/flare-foundation/go-flare-common/pkg/contracts/relay"
 	"github.com/flare-foundation/go-flare-common/pkg/encoding"
 	"github.com/flare-foundation/go-flare-common/pkg/voters"
 	"github.com/flare-foundation/tee-node/pkg/utils"
 )
 
-var relayFunctionSelector []byte
-
-func init() {
-	relayABI, err := relay.RelayMetaData.GetAbi()
-	if err != nil {
-		panic(err)
-	}
-
-	relayFunctionSelector = relayABI.Methods["relay"].ID
-}
+var relayFunctionSelector = contracts.MustMethod(contracts.MustABI(relay.RelayMetaData), "relay").ID
 
 func checkResponseSignatures(
 	msgHash common.Hash,
