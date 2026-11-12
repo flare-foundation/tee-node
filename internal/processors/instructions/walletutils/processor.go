@@ -11,7 +11,6 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/flare-foundation/go-flare-common/pkg/abicoder"
 	cpolicy "github.com/flare-foundation/go-flare-common/pkg/policy"
 	"github.com/flare-foundation/go-flare-common/pkg/random"
 	csigning "github.com/flare-foundation/go-flare-common/pkg/signing"
@@ -97,7 +96,7 @@ func (p *Processor) KeyGenerate(
 	if err != nil {
 		return nil, nil, err
 	}
-	existenceProofEncoded, err := abicoder.Encode(wallet.KeyExistenceStructArg, existenceProof)
+	existenceProofEncoded, err := wallets.KeyExistenceCoder.Encode(*existenceProof)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -270,7 +269,7 @@ func (p *Processor) KeyDataProviderRestore(
 		if err != nil {
 			return nil, nil, err
 		}
-		existenceProofEncoded, err := abicoder.Encode(wallet.KeyExistenceStructArg, ep)
+		existenceProofEncoded, err := wallets.KeyExistenceCoder.Encode(*ep)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -610,7 +609,7 @@ func (p *Processor) KeyDirectRestore(
 		if err != nil {
 			return nil, nil, err
 		}
-		epEncoded, err := abicoder.Encode(wallet.KeyExistenceStructArg, ep)
+		epEncoded, err := wallets.KeyExistenceCoder.Encode(*ep)
 		if err != nil {
 			return nil, nil, err
 		}

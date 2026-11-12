@@ -463,7 +463,7 @@ func TestExtractKeyExistence(t *testing.T) {
 		// Construct key existence proof
 		keyExistence, err := w.KeyExistenceProof(teeID)
 		require.NoError(t, err)
-		keyExistenceBytes, err := abicoder.Encode(wallet.KeyExistenceStructArg, keyExistence)
+		keyExistenceBytes, err := KeyExistenceCoder.Encode(*keyExistence)
 		require.NoError(t, err)
 
 		// Sign the canonical chain-bound preimage matching what

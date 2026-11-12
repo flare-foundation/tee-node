@@ -27,6 +27,11 @@ var Algos = []common.Hash{EVMSignAlgo, XRPSignAlgo, VRFAlgo}
 var XRPType = utils.ToHash("XRP")
 var EVMType = utils.ToHash("EVM")
 
+// KeyExistenceCoder ABI-encodes and decodes key existence proofs.
+var KeyExistenceCoder = abicoder.MustNew[wallet.IWalletKeyManagerKeyExistence](wallet.KeyExistenceStructArg)
+
+var backupIDCoder = abicoder.MustNew[wallet.IWalletBackupManagerBackupId](wallet.BackupIdStructArg)
+
 // ParseKeyGenerate decodes the key generation instruction payload.
 func ParseKeyGenerate(instructionData *instruction.DataFixed) (wallet.IWalletKeyManagerKeyGenerate, error) {
 	arg := wallet.MessageArguments[op.KeyGenerate]
@@ -225,7 +230,7 @@ func (wid *WalletBackupID) encodeABI() ([]byte, error) {
 		RandomNonce:   wid.RandomNonce,
 	}
 
-	return abicoder.Encode(wallet.BackupIdStructArg, sStruct)
+	return backupIDCoder.Encode(sStruct)
 }
 
 // Hash returns the keccak hash of the wallet backup identifier.
@@ -257,7 +262,7 @@ func ExtractKeyExistence(b []byte, teeID common.Address, chainID uint64) (*walle
 		return nil, err
 	}
 
-	keyExistence, err := abicoder.Decode[wallet.IWalletKeyManagerKeyExistence](wallet.KeyExistenceStructArg, wskep.KeyExistence)
+	keyExistence, err := KeyExistenceCoder.Decode(wskep.KeyExistence)
 	if err != nil {
 		return nil, err
 	}
