@@ -7,8 +7,8 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/flare-foundation/go-flare-common/pkg/abicoder"
 	csigning "github.com/flare-foundation/go-flare-common/pkg/signing"
-	"github.com/flare-foundation/go-flare-common/pkg/tee/structs"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/structs/fdc2"
 )
 
@@ -24,13 +24,13 @@ type ProveResponse struct {
 
 // EncodeRequest encodes an FDC2 attestation request to bytes.
 func EncodeRequest(req fdc2.IFdc2HubFdc2AttestationRequest) (hexutil.Bytes, error) {
-	return structs.Encode(fdc2.AttestationRequestArg, &req)
+	return abicoder.Encode(fdc2.AttestationRequestArg, &req)
 }
 
 // DecodeRequest decodes bytes into an FDC2 attestation request.
 func DecodeRequest(data []byte) (fdc2.IFdc2HubFdc2AttestationRequest, error) {
 	var req fdc2.IFdc2HubFdc2AttestationRequest
-	err := structs.DecodeTo(fdc2.AttestationRequestArg, data, &req)
+	err := abicoder.DecodeTo(fdc2.AttestationRequestArg, data, &req)
 	if err != nil {
 		return fdc2.IFdc2HubFdc2AttestationRequest{}, err
 	}
@@ -39,13 +39,13 @@ func DecodeRequest(data []byte) (fdc2.IFdc2HubFdc2AttestationRequest, error) {
 
 // EncodeResponseHeader encodes an FDC2 response header to bytes.
 func EncodeResponseHeader(header fdc2.IFdc2HubFdc2ResponseHeader) (hexutil.Bytes, error) {
-	return structs.Encode(fdc2.ResponseHeaderArg, &header)
+	return abicoder.Encode(fdc2.ResponseHeaderArg, &header)
 }
 
 // DecodeResponse decodes bytes into an FDC2 response header.
 func DecodeResponse(data []byte) (fdc2.IFdc2HubFdc2ResponseHeader, error) {
 	var header fdc2.IFdc2HubFdc2ResponseHeader
-	err := structs.DecodeTo(fdc2.ResponseHeaderArg, data, &header)
+	err := abicoder.DecodeTo(fdc2.ResponseHeaderArg, data, &header)
 	if err != nil {
 		return fdc2.IFdc2HubFdc2ResponseHeader{}, err
 	}

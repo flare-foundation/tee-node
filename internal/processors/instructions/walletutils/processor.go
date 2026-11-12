@@ -11,11 +11,11 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/flare-foundation/go-flare-common/pkg/abicoder"
 	cpolicy "github.com/flare-foundation/go-flare-common/pkg/policy"
 	"github.com/flare-foundation/go-flare-common/pkg/random"
 	csigning "github.com/flare-foundation/go-flare-common/pkg/signing"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/instruction"
-	"github.com/flare-foundation/go-flare-common/pkg/tee/structs"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/structs/machinepath"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/structs/wallet"
 	"github.com/flare-foundation/tee-node/internal/node"
@@ -97,7 +97,7 @@ func (p *Processor) KeyGenerate(
 	if err != nil {
 		return nil, nil, err
 	}
-	existenceProofEncoded, err := structs.Encode(wallet.KeyExistenceStructArg, existenceProof)
+	existenceProofEncoded, err := abicoder.Encode(wallet.KeyExistenceStructArg, existenceProof)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -270,7 +270,7 @@ func (p *Processor) KeyDataProviderRestore(
 		if err != nil {
 			return nil, nil, err
 		}
-		existenceProofEncoded, err := structs.Encode(wallet.KeyExistenceStructArg, ep)
+		existenceProofEncoded, err := abicoder.Encode(wallet.KeyExistenceStructArg, ep)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -610,7 +610,7 @@ func (p *Processor) KeyDirectRestore(
 		if err != nil {
 			return nil, nil, err
 		}
-		epEncoded, err := structs.Encode(wallet.KeyExistenceStructArg, ep)
+		epEncoded, err := abicoder.Encode(wallet.KeyExistenceStructArg, ep)
 		if err != nil {
 			return nil, nil, err
 		}

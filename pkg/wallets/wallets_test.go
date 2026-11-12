@@ -11,10 +11,10 @@ import (
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/crypto/ecies"
+	"github.com/flare-foundation/go-flare-common/pkg/abicoder"
 	csigning "github.com/flare-foundation/go-flare-common/pkg/signing"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/instruction"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/op"
-	"github.com/flare-foundation/go-flare-common/pkg/tee/structs"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/structs/wallet"
 	"github.com/flare-foundation/tee-node/internal/settings"
 	"github.com/flare-foundation/tee-node/pkg/types"
@@ -416,7 +416,7 @@ func TestParseKeyGenerate(t *testing.T) {
 			[]common.Address{common.HexToAddress("0xF1")},
 		)
 
-		data, err := structs.Encode(wallet.MessageArguments[op.KeyGenerate], &kg)
+		data, err := abicoder.Encode(wallet.MessageArguments[op.KeyGenerate], &kg)
 		require.NoError(t, err)
 
 		i := &instruction.DataFixed{
@@ -463,7 +463,7 @@ func TestExtractKeyExistence(t *testing.T) {
 		// Construct key existence proof
 		keyExistence, err := w.KeyExistenceProof(teeID)
 		require.NoError(t, err)
-		keyExistenceBytes, err := structs.Encode(wallet.KeyExistenceStructArg, keyExistence)
+		keyExistenceBytes, err := abicoder.Encode(wallet.KeyExistenceStructArg, keyExistence)
 		require.NoError(t, err)
 
 		// Sign the canonical chain-bound preimage matching what
@@ -523,7 +523,7 @@ func TestParseKeyDelete(t *testing.T) {
 		Nonce:    nonce,
 	}
 
-	encBytes, err := structs.Encode(wallet.MessageArguments[op.KeyDelete], kgDelete)
+	encBytes, err := abicoder.Encode(wallet.MessageArguments[op.KeyDelete], kgDelete)
 	require.NoError(t, err)
 
 	instructionData := &instruction.DataFixed{
@@ -563,7 +563,7 @@ func TestParseKeyDataProviderRestore(t *testing.T) {
 			Nonce:     nonce,
 		}
 
-		enc, err := structs.Encode(wallet.MessageArguments[op.KeyDataProviderRestore], restoreReq)
+		enc, err := abicoder.Encode(wallet.MessageArguments[op.KeyDataProviderRestore], restoreReq)
 		require.NoError(t, err)
 		data := &instruction.DataFixed{OriginalMessage: enc}
 

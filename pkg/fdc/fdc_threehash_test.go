@@ -7,8 +7,8 @@ import (
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/flare-foundation/go-flare-common/pkg/abicoder"
 	csigning "github.com/flare-foundation/go-flare-common/pkg/signing"
-	"github.com/flare-foundation/go-flare-common/pkg/tee/structs"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/structs/fdc2"
 	"github.com/stretchr/testify/require"
 )
@@ -28,7 +28,7 @@ func TestPerBodyHash_MatchesSolidity(t *testing.T) {
 	require.NoError(t, err)
 	solRequestHash := crypto.Keccak256Hash(solRequestEnc)
 
-	requestBytes, err := structs.Encode(requestArg, pmwRequest)
+	requestBytes, err := abicoder.Encode(requestArg, pmwRequest)
 	require.NoError(t, err)
 	directDynamicHash := crypto.Keccak256Hash(requestBytes)
 	require.Equal(t, solRequestHash, directDynamicHash,
@@ -47,7 +47,7 @@ func TestPerBodyHash_MatchesSolidity(t *testing.T) {
 	require.NoError(t, err)
 	solResponseHash := crypto.Keccak256Hash(solResponseEnc)
 
-	responseBytes, err := structs.Encode(responseArg, pmwResponse)
+	responseBytes, err := abicoder.Encode(responseArg, pmwResponse)
 	require.NoError(t, err)
 	require.Equal(t, solResponseHash, crypto.Keccak256Hash(responseBytes),
 		"direct keccak256 of static body bytes must equal Solidity keccak256(abi.encode(struct))")

@@ -167,7 +167,7 @@ func TestXRPLSigning(t *testing.T) {
 			KeyId: wal.KeyID,
 		}},
 		SenderAddress:    "rHb9CJAWyB4rj91VRWn96DkukG4bwdtyTh",
-		RecipientAddress: "rrrrrrrrrrrrrrrrrrrrrhoLvTp",
+		RecipientAddress: "rPT1Sjq2YGrBMTttX4GZHjKu9dyfzbpAYe",
 		Amount:           big.NewInt(1000000000),
 		MaxFee:           big.NewInt(1000),
 		FeeSchedule:      []byte{0x27, 0x10, 0x00, 0x00}, // 100% of MaxFee, 0s delay

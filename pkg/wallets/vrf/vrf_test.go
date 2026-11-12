@@ -158,7 +158,7 @@ func TestVerifiableRandomnessErrorsWithTooLargeSecretKey(t *testing.T) {
 	pk, err := vrf.ScalarBaseMult(big.NewInt(1))
 	require.NoError(t, err)
 
-	key := &ecdsa.PrivateKey{PublicKey: ecdsa.PublicKey{X: pk.X, Y: pk.Y}, D: bigInt257Bits()}
+	key := &ecdsa.PrivateKey{X: pk.X, Y: pk.Y, D: bigInt257Bits()}
 
 	_, err = vrf.VerifiableRandomness(key, randomNonce(t))
 	require.Error(t, err)
@@ -182,14 +182,14 @@ func TestVerifiableRandomnessErrorsWhenSecretKeyNil(t *testing.T) {
 	pk, err := vrf.ScalarBaseMult(big.NewInt(1))
 	require.NoError(t, err)
 
-	key := &ecdsa.PrivateKey{PublicKey: ecdsa.PublicKey{X: pk.X, Y: pk.Y}}
+	key := &ecdsa.PrivateKey{X: pk.X, Y: pk.Y}
 	_, err = vrf.VerifiableRandomness(key, randomNonce(t))
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "scalar is nil")
 }
 
 func TestVerifiableRandomnessErrorsWhenPublicKeyNotOnCurve(t *testing.T) {
-	key := &ecdsa.PrivateKey{PublicKey: ecdsa.PublicKey{X: big.NewInt(1), Y: big.NewInt(1)}, D: big.NewInt(1)}
+	key := &ecdsa.PrivateKey{X: big.NewInt(1), Y: big.NewInt(1), D: big.NewInt(1)}
 	_, err := vrf.VerifiableRandomness(key, randomNonce(t))
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "point not on curve")

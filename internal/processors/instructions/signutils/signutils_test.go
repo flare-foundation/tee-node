@@ -53,7 +53,7 @@ func TestSignPaymentTransaction(t *testing.T) {
 		OPType:        op.XRP.Hash(),
 		OPCommand:     op.Pay.Hash(),
 		OriginalMessage: testutils.BuildMockPaymentOriginalMessage(
-			t, mockWalletID, testNode.TeeID(), mockKeyID, 1000000000, 1000, []byte{0x27, 0x10, 0x00, 0x00}, "rHb9CJAWyB4rj91VRWn96DkukG4bwdtyTh", "rrrrrrrrrrrrrrrrrrrrrhoLvTp",
+			t, mockWalletID, testNode.TeeID(), mockKeyID, 1000000000, 1000, []byte{0x27, 0x10, 0x00, 0x00}, "rHb9CJAWyB4rj91VRWn96DkukG4bwdtyTh", "rPT1Sjq2YGrBMTttX4GZHjKu9dyfzbpAYe",
 		),
 		AdditionalFixedMessage: nil,
 	}
@@ -68,7 +68,8 @@ func TestSignPaymentTransaction(t *testing.T) {
 	// Nullification is triggered by a negative-BIPS fee schedule entry (0xFFFF).
 	// The lib's nullify path produces an AccountSet transaction signed by the
 	// sender; the recipient field is unused but still has to pass the
-	// PaymentTxFromInstruction sender != recipient precondition. MaxFee must
+	// PaymentTxFromInstruction sender != recipient precondition. The zero-account
+	// recipient is deliberate: it is refused on every try except a nullify. MaxFee must
 	// be at least 10000 so the schedule's |BIPS|/10000 scaling lands on a
 	// nonzero drop count (the lib rejects a zero-Fee AccountSet).
 	iDataFixed.OriginalMessage = testutils.BuildMockPaymentOriginalMessage(
@@ -140,7 +141,7 @@ func (s *signXRPLTestSetup) createWallet(t *testing.T, keyID uint64, keyType, al
 // If feeSchedule is nil, a single-entry 100%-of-MaxFee schedule with no delay is used.
 func (s *signXRPLTestSetup) buildPaymentInstruction(t *testing.T, teeKeyPairs []payments.TeeIdKeyIdPair, cosigners []common.Address, cosignerThreshold uint64, feeSchedule []byte) *instruction.DataFixed {
 	t.Helper()
-	return s.buildPaymentInstructionTo(t, "rrrrrrrrrrrrrrrrrrrrrhoLvTp", teeKeyPairs, cosigners, cosignerThreshold, feeSchedule)
+	return s.buildPaymentInstructionTo(t, "rPT1Sjq2YGrBMTttX4GZHjKu9dyfzbpAYe", teeKeyPairs, cosigners, cosignerThreshold, feeSchedule)
 }
 
 // buildPaymentInstructionTo is buildPaymentInstruction with an explicit recipient
@@ -300,7 +301,7 @@ func TestSignXRPLPaymentToXAddress(t *testing.T) {
 	setup := setupSignXRPLTest(t)
 	wal := setup.createWallet(t, 1, wallets.XRPType, wallets.XRPSignAlgo, []common.Address{}, 0)
 
-	const classicRecipient = "rrrrrrrrrrrrrrrrrrrrrhoLvTp"
+	const classicRecipient = "rPT1Sjq2YGrBMTttX4GZHjKu9dyfzbpAYe"
 	const destinationTag = uint32(13371337)
 	tag := destinationTag
 	xRecipient, err := address.ClassicToX(classicRecipient, &tag, false)
@@ -347,6 +348,20 @@ func TestSignXRPLPaymentRejectsInvalidRecipient(t *testing.T) {
 
 	_, _, err := proc.SignXRPLPayment(context.Background(), types.Threshold, instr, nil, nil, nil)
 	require.ErrorContains(t, err, "address")
+}
+
+// rippled rejects a payment to the zero account (temDST_NEEDED), so it must not be signed.
+func TestSignXRPLPaymentRejectsZeroAccountRecipient(t *testing.T) {
+	setup := setupSignXRPLTest(t)
+	setup.createWallet(t, 1, wallets.XRPType, wallets.XRPSignAlgo, []common.Address{}, 0)
+
+	proxyMux, _ := startMockResultServer(t)
+	proc := signutils.NewProcessor(setup.testNode, setup.wStorage, proxyMux)
+	instr := setup.buildPaymentInstructionTo(t, "rrrrrrrrrrrrrrrrrrrrrhoLvTp",
+		[]payments.TeeIdKeyIdPair{{TeeId: setup.teeID, KeyId: 1}}, nil, 0, nil)
+
+	_, _, err := proc.SignXRPLPayment(context.Background(), types.Threshold, instr, nil, nil, nil)
+	require.ErrorContains(t, err, "destination is the zero account")
 }
 
 // Multi-Key Multisig Signing
@@ -479,7 +494,7 @@ func TestSignXRPLInvalidXRPParameters(t *testing.T) {
 
 	instr.OriginalMessage = testutils.BuildMockPaymentOriginalMessage(
 		t, setup.walletID, setup.teeID, 1, 0, 10, []byte{0x27, 0x10, 0x00, 0x00},
-		"rHb9CJAWyB4rj91VRWn96DkukG4bwdtyTh", "rrrrrrrrrrrrrrrrrrrrrhoLvTp",
+		"rHb9CJAWyB4rj91VRWn96DkukG4bwdtyTh", "rPT1Sjq2YGrBMTttX4GZHjKu9dyfzbpAYe",
 	)
 	_, _, err := setup.processor.SignXRPLPayment(context.Background(), types.Threshold, instr, nil, nil, nil)
 	require.Error(t, err)
@@ -487,7 +502,7 @@ func TestSignXRPLInvalidXRPParameters(t *testing.T) {
 
 	instr.OriginalMessage = testutils.BuildMockPaymentOriginalMessage(
 		t, setup.walletID, setup.teeID, 1, 0, 0, []byte{0x27, 0x10, 0x00, 0x00},
-		"rHb9CJAWyB4rj91VRWn96DkukG4bwdtyTh", "rrrrrrrrrrrrrrrrrrrrrhoLvTp",
+		"rHb9CJAWyB4rj91VRWn96DkukG4bwdtyTh", "rPT1Sjq2YGrBMTttX4GZHjKu9dyfzbpAYe",
 	)
 	_, _, err = setup.processor.SignXRPLPayment(context.Background(), types.Threshold, instr, nil, nil, nil)
 	require.Error(t, err)

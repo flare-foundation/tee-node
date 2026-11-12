@@ -5,8 +5,8 @@ import (
 	"encoding/json"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/flare-foundation/go-flare-common/pkg/abicoder"
 	csigning "github.com/flare-foundation/go-flare-common/pkg/signing"
-	"github.com/flare-foundation/go-flare-common/pkg/tee/structs"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/structs/wallet"
 	"github.com/flare-foundation/tee-node/internal/attestation"
 	"github.com/flare-foundation/tee-node/internal/node"
@@ -134,7 +134,7 @@ func (p *Processor) KeysProof(ctx context.Context, i *types.DirectInstruction) (
 			p.wStorage.RUnlock()
 			return nil, err
 		}
-		epEncoded, err := structs.Encode(wallet.KeyExistenceStructArg, ep)
+		epEncoded, err := abicoder.Encode(wallet.KeyExistenceStructArg, ep)
 		if err != nil {
 			p.wStorage.RUnlock()
 			return nil, err

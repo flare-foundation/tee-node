@@ -10,10 +10,10 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/flare-foundation/go-flare-common/pkg/abicoder"
 	csigning "github.com/flare-foundation/go-flare-common/pkg/signing"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/instruction"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/op"
-	"github.com/flare-foundation/go-flare-common/pkg/tee/structs"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/structs/wallet"
 	"github.com/flare-foundation/tee-node/internal/settings"
 	"github.com/flare-foundation/tee-node/pkg/types"
@@ -32,7 +32,7 @@ func ParseKeyGenerate(instructionData *instruction.DataFixed) (wallet.IWalletKey
 	arg := wallet.MessageArguments[op.KeyGenerate]
 
 	var unpacked wallet.IWalletKeyManagerKeyGenerate
-	err := structs.DecodeTo(arg, instructionData.OriginalMessage, &unpacked)
+	err := abicoder.DecodeTo(arg, instructionData.OriginalMessage, &unpacked)
 	if err != nil {
 		return wallet.IWalletKeyManagerKeyGenerate{}, err
 	}
@@ -104,7 +104,7 @@ func ValidateWalletMemberCounts(adminCount, cosignerCount int) error {
 func ParseKeyDelete(instructionData *instruction.DataFixed) (wallet.IWalletKeyManagerKeyDelete, error) {
 	arg := wallet.MessageArguments[op.KeyDelete]
 	var unpacked wallet.IWalletKeyManagerKeyDelete
-	err := structs.DecodeTo(arg, instructionData.OriginalMessage, &unpacked)
+	err := abicoder.DecodeTo(arg, instructionData.OriginalMessage, &unpacked)
 	if err != nil {
 		return wallet.IWalletKeyManagerKeyDelete{}, err
 	}
@@ -120,7 +120,7 @@ func ParseKeyDelete(instructionData *instruction.DataFixed) (wallet.IWalletKeyMa
 func ParseKeyDataProviderRestore(instructionData *instruction.DataFixed) (wallet.IWalletBackupManagerKeyDataProviderRestore, error) {
 	arg := wallet.MessageArguments[op.KeyDataProviderRestore]
 	var unpacked wallet.IWalletBackupManagerKeyDataProviderRestore
-	err := structs.DecodeTo(arg, instructionData.OriginalMessage, &unpacked)
+	err := abicoder.DecodeTo(arg, instructionData.OriginalMessage, &unpacked)
 	if err != nil {
 		return wallet.IWalletBackupManagerKeyDataProviderRestore{}, err
 	}
@@ -137,7 +137,7 @@ func ParseKeyDataProviderRestore(instructionData *instruction.DataFixed) (wallet
 func ParseKeyDirectBackup(instructionData *instruction.DataFixed) (wallet.IWalletBackupManagerKeyDirectBackup, error) {
 	arg := wallet.MessageArguments[op.KeyDirectBackup]
 	var unpacked wallet.IWalletBackupManagerKeyDirectBackup
-	if err := structs.DecodeTo(arg, instructionData.OriginalMessage, &unpacked); err != nil {
+	if err := abicoder.DecodeTo(arg, instructionData.OriginalMessage, &unpacked); err != nil {
 		return wallet.IWalletBackupManagerKeyDirectBackup{}, err
 	}
 	if err := nonceCheck(unpacked.MachinePathListNonce); err != nil {
@@ -150,7 +150,7 @@ func ParseKeyDirectBackup(instructionData *instruction.DataFixed) (wallet.IWalle
 func ParseKeyDirectRestore(instructionData *instruction.DataFixed) (wallet.IWalletBackupManagerKeyDirectRestore, error) {
 	arg := wallet.MessageArguments[op.KeyDirectRestore]
 	var unpacked wallet.IWalletBackupManagerKeyDirectRestore
-	if err := structs.DecodeTo(arg, instructionData.OriginalMessage, &unpacked); err != nil {
+	if err := abicoder.DecodeTo(arg, instructionData.OriginalMessage, &unpacked); err != nil {
 		return wallet.IWalletBackupManagerKeyDirectRestore{}, err
 	}
 	if err := nonceCheck(unpacked.DestinationNonce); err != nil {
@@ -225,7 +225,7 @@ func (wid *WalletBackupID) encodeABI() ([]byte, error) {
 		RandomNonce:   wid.RandomNonce,
 	}
 
-	return structs.Encode(wallet.BackupIdStructArg, sStruct)
+	return abicoder.Encode(wallet.BackupIdStructArg, sStruct)
 }
 
 // Hash returns the keccak hash of the wallet backup identifier.
@@ -257,7 +257,7 @@ func ExtractKeyExistence(b []byte, teeID common.Address, chainID uint64) (*walle
 		return nil, err
 	}
 
-	keyExistence, err := structs.Decode[wallet.IWalletKeyManagerKeyExistence](wallet.KeyExistenceStructArg, wskep.KeyExistence)
+	keyExistence, err := abicoder.Decode[wallet.IWalletKeyManagerKeyExistence](wallet.KeyExistenceStructArg, wskep.KeyExistence)
 	if err != nil {
 		return nil, err
 	}
