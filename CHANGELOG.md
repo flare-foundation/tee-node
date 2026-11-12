@@ -1,11 +1,11 @@
 # Changelog
 
-## [Unreleased]
+## [v0.0.30](https://github.com/flare-foundation/tee-node/tree/v0.0.30) - 2026-11-12
 
 ### Changed
 
 - go-flare-common bumped to v1.6.0, which requires Go 1.27.4; Go bumped to 1.27.4.
-- XRP payment instructions from or to the zero account `rrrrrrrrrrrrrrrrrrrrrhoLvTp` are rejected, as rippled would reject the transaction. A nullify try to the zero account still signs its `AccountSet`.
+- XRP payment instructions from or to the zero account `rrrrrrrrrrrrrrrrrrrrrhoLvTp` are rejected, as rippled would reject the transaction. Only an instruction whose fee schedule is all nullify tries still signs its `AccountSet`s.
 
 ## [v0.0.29](https://github.com/flare-foundation/tee-node/tree/v0.0.29) - 2026-10-19
 
