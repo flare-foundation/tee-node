@@ -155,7 +155,7 @@ type SignedTeeInfoResponse struct {
 // generated struct ABI.
 func EncodeTeeAttestationRequest(req *verification.IVerificationTeeAttestation) (hexutil.Bytes, error) {
 	arg := verification.MessageArguments[op.TEEAttestation]
-	return abicoder.Encode(arg, &req)
+	return abicoder.Encode(arg, req)
 }
 
 // DecodeTeeAttestationRequest decodes the attestation request bytes into the
