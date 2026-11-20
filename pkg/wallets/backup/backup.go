@@ -17,12 +17,19 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 )
 
+// TEEBackupResponse is the result of a TEE_BACKUP direct action: the wallet's
+// backup and its identifier.
+type TEEBackupResponse struct {
+	BackupID     wallets.WalletBackupID `json:"backupId"`
+	WalletBackup *WalletBackup          `json:"walletBackup"`
+}
+
 type WalletBackup struct {
 	WalletBackupMetaData
-	AdminEncryptedParts    *EncryptedShares
-	ProviderEncryptedParts *EncryptedShares
-	Signature              hexutil.Bytes
-	TEESignature           hexutil.Bytes
+	AdminEncryptedParts    *EncryptedShares `json:"adminEncryptedParts"`
+	ProviderEncryptedParts *EncryptedShares `json:"providerEncryptedParts"`
+	Signature              hexutil.Bytes    `json:"signature"`
+	TEESignature           hexutil.Bytes    `json:"teeSignature"`
 }
 
 type WalletBackupMetaData struct {
@@ -31,20 +38,23 @@ type WalletBackupMetaData struct {
 	// FieldID identifies the prime field the key was shared over. It is
 	// recorded rather than re-derived at restore so that a backup stays
 	// readable if the mapping from key metadata to field ever changes.
-	FieldID common.Hash
+	FieldID common.Hash `json:"fieldId"`
 
-	AdminsPublicKeys   []types.PublicKey
-	AdminsThreshold    uint64
-	ProvidersThreshold uint64
-	Cosigners          []common.Address
-	CosignersThreshold uint64
+	AdminsPublicKeys   []types.PublicKey `json:"adminsPublicKeys"`
+	AdminsThreshold    uint64            `json:"adminsThreshold"`
+	ProvidersThreshold uint64            `json:"providersThreshold"`
+	Cosigners          []common.Address  `json:"cosigners"`
+	CosignersThreshold uint64            `json:"cosignersThreshold"`
 }
 
+// EncryptedShares holds one ECIES-encrypted KeySplit per owner. The splits are
+// most of a backup's size, so they and the share values and signatures inside
+// them are base64 in JSON.
 type EncryptedShares struct {
-	Splits           []hexutil.Bytes
-	OwnersPublicKeys []types.PublicKey
-	Threshold        uint64
-	Weights          []uint16
+	Splits           [][]byte          `json:"splits"`
+	OwnersPublicKeys []types.PublicKey `json:"ownersPublicKeys"`
+	Threshold        uint64            `json:"threshold"`
+	Weights          []uint16          `json:"weights"`
 }
 
 // ShamirShare is one point on the sharing polynomial. X is the evaluation
@@ -52,8 +62,8 @@ type EncryptedShares struct {
 // that index, serialized to the field's fixed width so that a share's encoded
 // length never reveals anything about its value.
 type ShamirShare struct {
-	X uint64
-	Y []byte
+	X uint64 `json:"x"`
+	Y []byte `json:"y"`
 }
 
 // ID returns the string identifier for the Shamir share.
@@ -63,13 +73,13 @@ func (s *ShamirShare) ID() string {
 
 type KeySplit struct {
 	KeySplitData
-	Signature []byte
+	Signature []byte `json:"signature"`
 }
 
 type KeySplitData struct {
-	Shares []ShamirShare
+	Shares []ShamirShare `json:"shares"`
 	PartialWalletBackupID
-	OwnerPublicKey types.PublicKey
+	OwnerPublicKey types.PublicKey `json:"ownerPublicKey"`
 }
 
 // PartialWalletBackupID identifies one of the two additive parts of a backed-up
@@ -77,7 +87,7 @@ type KeySplitData struct {
 // the group it was issued to.
 type PartialWalletBackupID struct {
 	wallets.WalletBackupID
-	IsAdmin bool
+	IsAdmin bool `json:"isAdmin"`
 }
 
 func (pwid *PartialWalletBackupID) Equal(w *PartialWalletBackupID) bool {
@@ -134,8 +144,8 @@ func (ks *KeySplit) VerifySignature(chainID uint64) error {
 func (wb *WalletBackup) HashForSigning() (common.Hash, error) {
 	type WalletBackupForHashing struct {
 		WalletBackupMetaData
-		AdminEncryptedParts    *EncryptedShares
-		ProviderEncryptedParts *EncryptedShares
+		AdminEncryptedParts    *EncryptedShares `json:"adminEncryptedParts"`
+		ProviderEncryptedParts *EncryptedShares `json:"providerEncryptedParts"`
 	}
 
 	walletBackupBytes, err := json.Marshal(WalletBackupForHashing{

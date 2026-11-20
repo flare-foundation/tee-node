@@ -28,7 +28,7 @@ cmd/main.go
 Wallet data types and key operations. Defines the `Wallet` struct and signing methods for all three algorithms (ECDSA-Keccak256, ECDSA-SHA512Half, VRF).
 
 ### pkg/wallets/backup
-Data types for backup structures: `WalletBackup`, `WalletBackupMetaData`, `EncryptedShares`, `KeySplit`, `KeySplitData`, `ShamirShare`. Also contains signature verification and hash computation methods.
+Data types for backup structures: `WalletBackup`, `WalletBackupMetaData`, `EncryptedShares`, `KeySplit`, `KeySplitData`, `ShamirShare`, and the `TEEBackupResponse` a TEE backup returns. Also contains signature verification and hash computation methods.
 
 ### pkg/wallets/vrf
 VRF (Verifiable Random Function) implementation. Proof generation and verification using secp256k1. Includes `HashToCurve`, `HashToZn`, and on-chain-compatible proof structure.

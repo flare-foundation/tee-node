@@ -261,7 +261,7 @@ func (d *DummyExtensionServer) mockActionResult(action *types.Action) types.Acti
 		OPType:        oi.OPType,
 		OPCommand:     oi.OPCommand,
 		Version:       d.version,
-		Data:          action.Data.Message,
+		Data:          hexutil.Bytes(action.Data.Message),
 	}
 }
 

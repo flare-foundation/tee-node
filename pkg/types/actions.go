@@ -1,6 +1,8 @@
 package types
 
 import (
+	"encoding/json"
+
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/crypto"
@@ -34,7 +36,9 @@ type ActionData struct {
 	ID            common.Hash   `json:"id"`
 	Type          ActionType    `json:"type"`
 	SubmissionTag SubmissionTag `json:"submissionTag"`
-	Message       hexutil.Bytes `json:"message"`
+	// Message is the JSON object of the action: an instruction.DataFixed for an
+	// instruction, a DirectInstruction for a direct action.
+	Message json.RawMessage `json:"message"`
 }
 
 type ActionResponse struct {
@@ -54,8 +58,9 @@ type ActionResult struct {
 	OPCommand              common.Hash   `json:"opCommand"`
 	AdditionalResultStatus hexutil.Bytes `json:"additionalResultStatus"`
 
-	Version string        `json:"version"`
-	Data    hexutil.Bytes `json:"data"`
+	Version string `json:"version"`
+	// Data is base64 in JSON, unlike the hex fields: it is most of a response.
+	Data []byte `json:"data"`
 }
 
 // Hash returns keccak256(keccak256(data) || id || keccak256(submissionTag) || status).

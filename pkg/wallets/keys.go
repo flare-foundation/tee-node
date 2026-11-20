@@ -38,9 +38,9 @@ type Wallet struct {
 }
 
 type WalletStatus struct {
-	Nonce        uint64
-	PausingNonce common.Hash
-	StatusCode   uint8
+	Nonce        uint64      `json:"nonce"`
+	PausingNonce common.Hash `json:"pausingNonce"`
+	StatusCode   uint8       `json:"statusCode"`
 }
 
 // GenerateNewKey creates a wallet from the key generate instruction payload.

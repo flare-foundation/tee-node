@@ -911,18 +911,15 @@ func getBackup(
 	err := utils.VerifySignature(actionResultSignHash(t, actionResponse.Result), actionResponse.Signature, teeID)
 	require.NoError(t, err)
 
-	var backupResponse wallets.TEEBackupResponse
+	var backupResponse backup.TEEBackupResponse
 	err = json.Unmarshal(actionResponse.Result.Data, &backupResponse)
 	require.NoError(t, err)
+	require.NotNil(t, backupResponse.WalletBackup)
 
-	var backup backup.WalletBackup
-	err = json.Unmarshal(backupResponse.WalletBackup, &backup)
+	err = backupResponse.WalletBackup.Check(uint64(31337))
 	require.NoError(t, err)
 
-	err = backup.Check(uint64(31337))
-	require.NoError(t, err)
-
-	return &backup
+	return backupResponse.WalletBackup
 }
 
 func recoverWallet(

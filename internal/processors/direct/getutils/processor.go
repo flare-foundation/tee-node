@@ -14,6 +14,7 @@ import (
 
 	walletstorage "github.com/flare-foundation/tee-node/internal/wallets"
 	wallets "github.com/flare-foundation/tee-node/pkg/wallets"
+	pkgbackup "github.com/flare-foundation/tee-node/pkg/wallets/backup"
 )
 
 type Processor struct {
@@ -233,13 +234,8 @@ func (p *Processor) TEEBackup(_ context.Context, i *types.DirectInstruction) ([]
 		return nil, err
 	}
 
-	walletBackupBytes, err := json.Marshal(walletBackup)
-	if err != nil {
-		return nil, err
-	}
-
 	res, err := json.Marshal(
-		wallets.TEEBackupResponse{WalletBackup: walletBackupBytes, BackupID: walletBackup.WalletBackupID},
+		pkgbackup.TEEBackupResponse{WalletBackup: walletBackup, BackupID: walletBackup.WalletBackupID},
 	)
 	if err != nil {
 		return nil, err

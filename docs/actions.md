@@ -10,6 +10,8 @@ Proxy Queue -> Fetch -> Validate -> Route -> Process -> Sign -> Post Response
 
 The TEE polls each queue endpoint (`POST /queue/{main|direct|backup}`) with a timeout controlled by `ProxyTimeout` (default 2 s). The response size is bounded by `MaxFetchResponseSize` (default 10 MB) via `io.LimitReader`.
 
+An action's `data.message` is the JSON object of the action itself, embedded as a JSON object rather than as an encoded string: an `instruction.DataFixed` for an instruction, a `DirectInstruction` for a direct action. A message that is not a JSON object is rejected. The object's exact bytes are not preserved: when the TEE forwards an action to an extension, it re-encodes it. Byte strings inside the message, such as `originalMessage`, `additionalFixedMessage` and a direct instruction's `message`, are 0x-prefixed hex.
+
 A poll that fails with a transport timeout is retried up to `QueueFetchRetries` times (default 2), `QueueFetchRetryDelay` (default 300 ms) apart. Only timeouts are retried; any other error — and a timeout that persists through the retries — surfaces immediately on the normal error path (error log, delivery-failure result posted to the proxy). Retrying a fetch is safe: the proxy requeues an action whose delivery provably failed, and the node never processes a response it did not fully read.
 
 ### 2. Validate (CheckAndAdapt)
@@ -52,7 +54,7 @@ Instructions go through preprocessing before reaching the handler:
 
 ### 5. Sign Result
 
-The action result is signed with the TEE's private key over the domain-separated preimage `signing.Payload{TEE_ACTION_RESULT, chainID, ActionResult.Hash()}.Hash()` (see [Cryptography](cryptography.md#domain-separated-signed-payloads)); the proxy must recover against the same preimage. The signed response is posted to `{proxyURL}/result`. (Because signing now requires the chain ID, `CHAIN_ID` must be configured — see [Security](security.md).)
+The action result is signed with the TEE's private key over the domain-separated preimage `signing.Payload{TEE_ACTION_RESULT, chainID, ActionResult.Hash()}.Hash()` (see [Cryptography](cryptography.md#domain-separated-signed-payloads)); the proxy must recover against the same preimage. The signed response is posted to `{proxyURL}/result`. In JSON the result's `data` is base64, unlike its other byte strings, which are 0x-prefixed hex; `ActionResult.Hash()` covers the decoded bytes. (Because signing now requires the chain ID, `CHAIN_ID` must be configured — see [Security](security.md).)
 
 ### 6. Error Handling
 
