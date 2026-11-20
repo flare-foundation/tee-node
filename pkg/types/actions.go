@@ -58,8 +58,9 @@ type ActionResult struct {
 	OPCommand              common.Hash   `json:"opCommand"`
 	AdditionalResultStatus hexutil.Bytes `json:"additionalResultStatus"`
 
-	Version string        `json:"version"`
-	Data    hexutil.Bytes `json:"data"`
+	Version string `json:"version"`
+	// Data is base64 in JSON, unlike the hex fields: it is most of a response.
+	Data []byte `json:"data"`
 }
 
 // Hash returns keccak256(keccak256(data) || id || keccak256(submissionTag) || status).

@@ -85,12 +85,12 @@ Measured with the test suite at the supported maximums (50 admins, 50 cosigners,
 
 | Wallet Type | WalletBackup JSON | TEEBackupResponse | Posted ActionResponse |
 |-------------|-------------------|-------------------|-----------------------|
-| ECDSA (XRP/EVM) | ~304 KB | ~305 KB | ~610 KB |
-| VRF | ~534 KB | ~534 KB | ~1069 KB |
+| ECDSA (XRP/EVM) | ~304 KB | ~305 KB | ~407 KB |
+| VRF | ~534 KB | ~534 KB | ~713 KB |
 
 `TEEBackupResponse` (`pkg/wallets/backup`) carries the `WalletBackup` as a JSON
-object next to its `backupId`. It is posted hex-encoded in `ActionResult.Data`,
-which doubles its size. VRF backups are larger because VRF signatures are
+object next to its `backupId`. It is posted base64-encoded in `ActionResult.Data`,
+which adds a third to its size. VRF backups are larger because VRF signatures are
 ~939 bytes vs 65 bytes for ECDSA.
 
 Every posted action response must stay under a 1.5 MB budget; `TestBackupSizes`

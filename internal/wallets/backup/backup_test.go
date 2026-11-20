@@ -141,7 +141,7 @@ const maxActionResponseSize = 1_500_000 // 1.5 MB
 // TestBackupSizes guards the serialized size of wallet backups with the
 // maximum supported numbers of admins and cosigners, 100 providers, and the
 // production normalization and provider threshold. The TEEBackupResponse
-// envelope becomes the action result's data, hex-encoded in the posted
+// envelope becomes the action result's data, base64-encoded in the posted
 // ActionResponse, and every posted action response must stay under 1.5 MB.
 func TestBackupSizes(t *testing.T) {
 	testNode, _, _ := testutils.Setup(t)

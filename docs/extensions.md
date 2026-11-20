@@ -64,7 +64,7 @@ When an action's `(OpType, OpCommand)` does not match any registered processor, 
 - **Direct actions**: Forwarded via the default direct processor.
 - **Instruction actions**: Preprocessed (signatures validated, thresholds checked), then forwarded via the default instruction processor.
 
-The extension receives the full `Action` as JSON via `POST http://localhost:{EXTENSION_PORT}/action` and must return an `ActionResult`.
+The extension receives the full `Action` as JSON via `POST http://localhost:{EXTENSION_PORT}/action` and must return an `ActionResult`. Its `data` is base64 in JSON; its other byte strings, such as `additionalResultStatus`, are 0x-prefixed hex.
 
 For instructions, the Threshold result is forwarded directly. At End, the TEE computes rewarding data.
 

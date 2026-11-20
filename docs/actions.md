@@ -54,7 +54,7 @@ Instructions go through preprocessing before reaching the handler:
 
 ### 5. Sign Result
 
-The action result is signed with the TEE's private key over the domain-separated preimage `signing.Payload{TEE_ACTION_RESULT, chainID, ActionResult.Hash()}.Hash()` (see [Cryptography](cryptography.md#domain-separated-signed-payloads)); the proxy must recover against the same preimage. The signed response is posted to `{proxyURL}/result`. (Because signing now requires the chain ID, `CHAIN_ID` must be configured — see [Security](security.md).)
+The action result is signed with the TEE's private key over the domain-separated preimage `signing.Payload{TEE_ACTION_RESULT, chainID, ActionResult.Hash()}.Hash()` (see [Cryptography](cryptography.md#domain-separated-signed-payloads)); the proxy must recover against the same preimage. The signed response is posted to `{proxyURL}/result`. In JSON the result's `data` is base64, unlike its other byte strings, which are 0x-prefixed hex; `ActionResult.Hash()` covers the decoded bytes. (Because signing now requires the chain ID, `CHAIN_ID` must be configured — see [Security](security.md).)
 
 ### 6. Error Handling
 
