@@ -9,6 +9,7 @@ import (
 	"github.com/flare-foundation/tee-node/internal/settings"
 	"github.com/flare-foundation/tee-node/internal/testutils"
 	"github.com/flare-foundation/tee-node/internal/wallets/backup"
+	"github.com/flare-foundation/tee-node/pkg/types"
 	"github.com/flare-foundation/tee-node/pkg/utils"
 	"github.com/flare-foundation/tee-node/pkg/wallets"
 	pbackup "github.com/flare-foundation/tee-node/pkg/wallets/backup"
@@ -140,8 +141,8 @@ const maxActionResponseSize = 1_500_000 // 1.5 MB
 // TestBackupSizes guards the serialized size of wallet backups with the
 // maximum supported numbers of admins and cosigners, 100 providers, and the
 // production normalization and provider threshold. The TEEBackupResponse
-// envelope becomes the action result's data, and every action response must
-// stay under 1.5 MB.
+// envelope becomes the action result's data, hex-encoded in the posted
+// ActionResponse, and every posted action response must stay under 1.5 MB.
 func TestBackupSizes(t *testing.T) {
 	testNode, _, _ := testutils.Setup(t)
 	chainID, err := testNode.ChainID()
@@ -210,16 +211,22 @@ func TestBackupSizes(t *testing.T) {
 			encoded, err := json.Marshal(walletBackup)
 			require.NoError(t, err)
 
-			response, err := json.Marshal(wallets.TEEBackupResponse{
+			response, err := json.Marshal(pbackup.TEEBackupResponse{
 				BackupID:     walletBackup.WalletBackupID,
-				WalletBackup: encoded,
+				WalletBackup: walletBackup,
 			})
 			require.NoError(t, err)
 
-			t.Logf("%s wallet backup JSON: %d bytes (%.0f KB), TEEBackupResponse: %d bytes (%.0f KB)",
-				tc.name, len(encoded), float64(len(encoded))/1024, len(response), float64(len(response))/1024)
-			require.Less(t, len(response), maxActionResponseSize,
-				"%s backup response exceeds the 1.5 MB action-response budget; check the format and refresh docs/backup-restore.md", tc.name)
+			posted, err := json.Marshal(types.ActionResponse{
+				Result:    types.ActionResult{Status: 1, Version: settings.EncodingVersion, Data: response},
+				Signature: make([]byte, 65),
+			})
+			require.NoError(t, err)
+
+			t.Logf("%s wallet backup JSON: %d bytes (%.0f KB), TEEBackupResponse: %d bytes (%.0f KB), posted ActionResponse: %d bytes (%.0f KB)",
+				tc.name, len(encoded), float64(len(encoded))/1024, len(response), float64(len(response))/1024, len(posted), float64(len(posted))/1024)
+			require.Less(t, len(posted), maxActionResponseSize,
+				"%s backup's posted response exceeds the 1.5 MB action-response budget; check the format and refresh docs/backup-restore.md", tc.name)
 		})
 	}
 }

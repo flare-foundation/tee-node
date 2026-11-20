@@ -163,7 +163,7 @@ func SplitAndEncrypt(
 		encryptionPubKeysApi[i] = types.PubKeyToStruct(pubKey)
 	}
 	encryptedShares := backup.EncryptedShares{
-		Splits:           make([]hexutil.Bytes, numSplits),
+		Splits:           make([][]byte, numSplits),
 		OwnersPublicKeys: encryptionPubKeysApi,
 		Threshold:        threshold,
 		Weights:          make([]uint16, numSplits),

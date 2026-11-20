@@ -34,7 +34,7 @@ func KeyExistenceDataHash(proof *wallet.IWalletKeyManagerKeyExistence) (common.H
 }
 
 type TeeInfoRequest struct {
-	Challenge common.Hash
+	Challenge common.Hash `json:"challenge"`
 }
 
 type TeeInfo struct {

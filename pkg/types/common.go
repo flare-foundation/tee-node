@@ -1,6 +1,7 @@
 package types
 
 import (
+	"bytes"
 	"crypto/ecdsa"
 	"encoding/json"
 	"errors"
@@ -19,8 +20,23 @@ type OpID struct {
 // GetOpID extracts OpID from the action.
 func GetOpID(a *Action) (OpID, error) {
 	var id OpID
+	if err := CheckMessage(a.Data.Message); err != nil {
+		return id, err
+	}
 	err := json.Unmarshal(a.Data.Message, &id)
 	return id, err
+}
+
+// CheckMessage checks that an action's message is a JSON object, the form of
+// both instruction.DataFixed and DirectInstruction. A JSON null would otherwise
+// decode without error into zero values.
+func CheckMessage(message json.RawMessage) error {
+	// The trim set is exactly JSON's whitespace.
+	trimmed := bytes.TrimLeft(message, " \t\r\n")
+	if len(trimmed) == 0 || trimmed[0] != '{' {
+		return errors.New("action message is not a JSON object")
+	}
+	return nil
 }
 
 // String returns the textual representation of the operation identifiers.

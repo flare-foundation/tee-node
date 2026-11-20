@@ -686,7 +686,7 @@ func TestProcessRoutIDError(t *testing.T) {
 	// Verify the result indicates an error
 	require.Equal(t, uint8(0), result.Status)
 	require.Equal(t, action.Data.ID, result.ID)
-	require.Contains(t, result.Log, "invalid character")
+	require.Contains(t, result.Log, "action message is not a JSON object")
 }
 
 // shrinkActionTimeouts swaps the package-level action timeouts to small values

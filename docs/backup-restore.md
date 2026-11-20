@@ -74,21 +74,28 @@ WalletBackup
   TEESignature        (TEE-key signature, signing.Payload{TEE_WALLET_BACKUP, chainID, contentHash}.Hash())
 ```
 
+In JSON the backup, its key splits and their shares use camelCase keys. The
+encrypted splits, which are most of a backup's size, and the share values and
+signatures inside them are base64; the other byte strings are 0x-prefixed hex.
+
 ### Backup Sizes
 
 Measured with the test suite at the supported maximums (50 admins, 50 cosigners,
 100 providers, `NormalizationConstant` 1000):
 
-| Wallet Type | WalletBackup JSON | TEEBackupResponse |
-|-------------|-------------------|-------------------|
-| ECDSA (XRP/EVM) | ~440 KB | ~587 KB |
-| VRF | ~783 KB | ~1045 KB |
+| Wallet Type | WalletBackup JSON | TEEBackupResponse | Posted ActionResponse |
+|-------------|-------------------|-------------------|-----------------------|
+| ECDSA (XRP/EVM) | ~304 KB | ~305 KB | ~610 KB |
+| VRF | ~534 KB | ~534 KB | ~1069 KB |
 
-VRF backups are larger because VRF signatures are ~939 bytes vs 65 bytes for ECDSA.
+`TEEBackupResponse` (`pkg/wallets/backup`) carries the `WalletBackup` as a JSON
+object next to its `backupId`. It is posted hex-encoded in `ActionResult.Data`,
+which doubles its size. VRF backups are larger because VRF signatures are
+~939 bytes vs 65 bytes for ECDSA.
 
-Every action response must stay under a 1.5 MB budget; `TestBackupSizes` enforces
-that bound, so consumers fetching a backup should size their limits against the
-VRF row rather than the ECDSA one.
+Every posted action response must stay under a 1.5 MB budget; `TestBackupSizes`
+enforces that bound on the posted size, so consumers fetching a backup should size
+their limits against the VRF row's posted size rather than the ECDSA one.
 
 ## Data-Provider Restore (Shamir)
 

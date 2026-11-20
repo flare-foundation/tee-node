@@ -75,7 +75,7 @@ Each instruction references a `RewardEpochID`. The TEE verifies that the referen
 
 A message fetched from the proxy containing:
 
-- **ActionData** - ID, type, submission tag, and encoded message
+- **ActionData** - ID, type, submission tag, and message: the JSON object of the instruction (`instruction.DataFixed`) or of the direct instruction (`DirectInstruction`), embedded as a JSON object
 - **AdditionalVariableMessages** - Per-signer variable data (e.g., encrypted key splits)
 - **Timestamps** - Per-signer timestamps
 - **Signatures** - Per-signer ECDSA signatures

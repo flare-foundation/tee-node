@@ -42,6 +42,9 @@ func Parse[T validRequestType](message []byte) (*T, error) {
 	if len(message) > maxBodySize {
 		return nil, errors.New("request too large")
 	}
+	if err := types.CheckMessage(message); err != nil {
+		return nil, err
+	}
 
 	var req T
 	err := json.Unmarshal(message, &req)

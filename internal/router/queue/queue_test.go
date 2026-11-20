@@ -50,7 +50,7 @@ func createMockAction() *types.Action {
 			ID:            common.HexToHash("0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef"),
 			Type:          types.Instruction,
 			SubmissionTag: types.Threshold,
-			Message:       hexutil.Bytes{0x01, 0x02, 0x03},
+			Message:       json.RawMessage(`{"opType":"0x01"}`),
 		},
 		AdditionalVariableMessages: []hexutil.Bytes{{0x04, 0x05}},
 		Timestamps:                 []uint64{1234567890},

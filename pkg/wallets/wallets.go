@@ -183,11 +183,6 @@ type KeyIDPair struct {
 	KeyID    uint64      `json:"keyId"`
 }
 
-type TEEBackupResponse struct {
-	BackupID     WalletBackupID `json:"backupId"`
-	WalletBackup []byte         `json:"walletBackup"`
-}
-
 type WalletBackupID struct {
 	TeeID     common.Address `json:"teeId"`
 	WalletID  common.Hash    `json:"walletId"`
@@ -283,8 +278,8 @@ func ExtractKeyExistence(b []byte, teeID common.Address, chainID uint64) (*walle
 }
 
 type KeyDataProviderRestoreResultStatus struct {
-	ErrorPositions []int
-	ErrorLogs      []string
+	ErrorPositions []int    `json:"errorPositions"`
+	ErrorLogs      []string `json:"errorLogs"`
 }
 
 // NewKeyDataProviderRestoreResultStatus returns an empty restore result status tracker.

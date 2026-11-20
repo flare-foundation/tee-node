@@ -1,6 +1,8 @@
 package types
 
 import (
+	"encoding/json"
+
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/crypto"
@@ -34,7 +36,9 @@ type ActionData struct {
 	ID            common.Hash   `json:"id"`
 	Type          ActionType    `json:"type"`
 	SubmissionTag SubmissionTag `json:"submissionTag"`
-	Message       hexutil.Bytes `json:"message"`
+	// Message is the JSON object of the action: an instruction.DataFixed for an
+	// instruction, a DirectInstruction for a direct action.
+	Message json.RawMessage `json:"message"`
 }
 
 type ActionResponse struct {

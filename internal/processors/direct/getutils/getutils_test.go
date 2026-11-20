@@ -18,6 +18,7 @@ import (
 	"github.com/flare-foundation/tee-node/pkg/types"
 	"github.com/flare-foundation/tee-node/pkg/utils"
 	pwallets "github.com/flare-foundation/tee-node/pkg/wallets"
+	pkgbackup "github.com/flare-foundation/tee-node/pkg/wallets/backup"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
@@ -290,10 +291,10 @@ func TestTEEBackup(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, res)
 
-		var outer pwallets.TEEBackupResponse
+		var outer pkgbackup.TEEBackupResponse
 		require.NoError(t, json.Unmarshal(res, &outer))
-		require.NotEmpty(t, outer.WalletBackup)
-		require.Equal(t, outer.BackupID, outer.BackupID)
+		require.NotNil(t, outer.WalletBackup)
+		require.Equal(t, outer.WalletBackup.WalletBackupID, outer.BackupID)
 	})
 
 	t.Run("TEEBackup should fail on malformed instruction", func(t *testing.T) {
