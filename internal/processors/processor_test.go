@@ -356,11 +356,7 @@ func keyDirectBackup(
 	envelope := append([]byte(nil), response.Result.Data...)
 	require.NotEmpty(t, envelope)
 
-	action = testutils.BuildMockInstructionAction(
-		t, op.Wallet, op.KeyDirectBackup, originalMessageEncoded,
-		providerPrivKeys, chainID, teeID, rewardEpochID,
-		nil, nil, nil, 0, types.End, uint64(time.Now().Unix()),
-	)
+	action = testutils.EndAction(action)
 	response = submitAction(t, actionInfoChan, actionResponseChan, action)
 	err = utils.VerifySignature(actionResultSignHash(t, response.Result), response.Signature, teeID)
 	require.NoError(t, err)
@@ -441,11 +437,7 @@ func keyDirectRestore(
 	require.NoError(t, err)
 	require.True(t, stored.Restored)
 
-	action = testutils.BuildMockInstructionAction(
-		t, op.Wallet, op.KeyDirectRestore, originalMessageEncoded,
-		providerPrivKeys, chainID, teeID, rewardEpochID,
-		envelopeBytes, nil, nil, 0, types.End, uint64(time.Now().Unix()),
-	)
+	action = testutils.EndAction(action)
 	response = submitAction(t, actionInfoChan, actionResponseChan, action)
 	err = utils.VerifySignature(actionResultSignHash(t, response.Result), response.Signature, teeID)
 	require.NoError(t, err)
@@ -575,9 +567,7 @@ func generateWallet(
 	require.Equal(t, newWallet.KeyID, walletExistenceProof.KeyId)
 
 	// generate action sent when voting closed
-	action = testutils.BuildMockInstructionAction(
-		t, op.Wallet, op.KeyGenerate, originalMessageEncoded, privKeys, chainID, teeID, rewardEpochID, nil, nil, nil, 0, types.End, uint64(time.Now().Unix()),
-	)
+	action = testutils.EndAction(action)
 	response = submitAction(t, actionInfoChan, actionResponseChan, action)
 
 	err = utils.VerifySignature(actionResultSignHash(t, response.Result), response.Signature, teeID)
@@ -642,9 +632,7 @@ func proveVRFRandomness(
 	require.NoError(t, err)
 	require.NotEqual(t, common.Hash{}, randomness)
 
-	action = testutils.BuildMockInstructionAction(
-		t, op.Wallet, op.Command("VRF"), originalMessageEncoded, privKeys, chainID, teeID, rewardEpochID, nil, nil, nil, 0, types.End, uint64(time.Now().Unix()),
-	)
+	action = testutils.EndAction(action)
 	actionResponse = submitAction(t, actionInfoChan, actionResponseChan, action)
 	err = utils.VerifySignature(actionResultSignHash(t, actionResponse.Result), actionResponse.Signature, teeID)
 	require.NoError(t, err)
@@ -727,9 +715,7 @@ func signTransaction(
 	verifyXRPSignatures(t, txs, signedWallet)
 
 	// generate action sent when voting closed
-	action = testutils.BuildMockInstructionAction(
-		t, op.XRP, op.Pay, originalMessageEncoded, signingKeys, chainID, teeID, rewardEpochID, []byte{}, nil, cosignerAddresses, cosignersThreshold, types.End, uint64(time.Now().Unix()),
-	)
+	action = testutils.EndAction(action)
 	actionResponse = submitAction(t, actionInfoChan, actionResponseChan, action)
 	err = utils.VerifySignature(actionResultSignHash(t, actionResponse.Result), actionResponse.Signature, teeID)
 	require.NoError(t, err)
@@ -875,9 +861,7 @@ func deleteWallet(
 	require.Error(t, err)
 
 	// generate action sent when voting closed
-	action = testutils.BuildMockInstructionAction(
-		t, op.Wallet, op.KeyDelete, originalMessageEncoded, privKeys, chainID, teeID, rewardEpochID, nil, nil, nil, 0, types.End, uint64(time.Now().Unix()),
-	)
+	action = testutils.EndAction(action)
 	actionResponse := submitAction(t, actionInfoChan, actionResponseChan, action)
 	err = utils.VerifySignature(actionResultSignHash(t, actionResponse.Result), actionResponse.Signature, teeID)
 	require.NoError(t, err)
@@ -1047,11 +1031,7 @@ func recoverWallet(
 	require.Equal(t, keyID, commonwallet.KeyID)
 
 	// generate action sent when voting closed
-	action = testutils.BuildMockInstructionAction(
-		t, op.Wallet, op.KeyDataProviderRestore, originalMessageEncoded, privKeys, chainID, teeID,
-		rewardEpochID, additionalFixedMessage, additionalVariableMessages, adminAddresses, adminsThreshold,
-		types.End, uint64(time.Now().Unix()),
-	)
+	action = testutils.EndAction(action)
 	response = submitAction(t, actionInfoChan, actionResponseChan, action)
 	err = utils.VerifySignature(actionResultSignHash(t, response.Result), response.Signature, teeID)
 	require.NoError(t, err)
@@ -1113,9 +1093,7 @@ func getTeeAttestation(
 	require.Equal(t, receivedTeeID, teeID)
 
 	// generate action sent when voting closed
-	action = testutils.BuildMockInstructionAction(
-		t, op.Reg, op.TEEAttestation, originalMessageEncoded, privKeys, chainID, teeID, rewardEpochId, nil, nil, nil, 0, types.End, uint64(time.Now().Unix()),
-	)
+	action = testutils.EndAction(action)
 	actionResponse = submitAction(t, actionInfoChan, actionResponseChan, action)
 	err = utils.VerifySignature(actionResultSignHash(t, actionResponse.Result), actionResponse.Signature, teeID)
 	require.NoError(t, err)
@@ -1241,11 +1219,7 @@ func fdcProve(
 	)
 
 	// generate action sent when voting closed
-	action = testutils.BuildMockInstructionAction(
-		t, op.FDC2, op.Prove, originalMessageEncoded, privKeys, chainID, teeID, rewardEpochID,
-		additionalFixedMessageEncoded, variableMessages, cosignerAddresses, cosignersThreshold,
-		types.End, timestamp,
-	)
+	action = testutils.EndAction(action)
 	actionResponse = submitAction(t, actionInfoChan, actionResponseChan, action)
 	err = utils.VerifySignature(actionResultSignHash(t, actionResponse.Result), actionResponse.Signature, teeID)
 	require.NoError(t, err)

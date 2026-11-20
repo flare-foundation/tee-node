@@ -8,6 +8,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/flare-foundation/go-flare-common/pkg/policy"
+	"github.com/flare-foundation/tee-node/pkg/types"
 )
 
 // Storage holds policies. Since policies are being added and the active policy is being modified,
@@ -19,6 +20,8 @@ type Storage struct {
 	active           *policy.SigningPolicy // Current policy that is being used for signing
 	activePublicKeys map[common.Address]*ecdsa.PublicKey
 	signingPolicies  map[uint32]*policy.SigningPolicy // map of rewardEpochID to policy
+
+	instructions acceptedInstructions
 
 	sync.RWMutex
 }
@@ -106,7 +109,14 @@ func (s *Storage) SetActiveSigningPolicy(policy *policy.SigningPolicy) error {
 
 	s.active = policy
 	s.signingPolicies[policy.RewardEpochID] = policy
+	s.instructions.startEpoch(policy.RewardEpochID)
 	return nil
+}
+
+// RecordInstruction records that the instruction id, which references the
+// signing policy of epochID, has been accepted with tag.
+func (s *Storage) RecordInstruction(epochID uint32, id common.Hash, tag types.SubmissionTag) error {
+	return s.instructions.record(epochID, id, tag)
 }
 
 // SetActiveSigningPolicyPublicKeys stores the public keys for the active policy.
@@ -138,6 +148,16 @@ func toSigningPolicyPublicKeysSlice(policy *policy.SigningPolicy, pubKeysMap map
 	return pubKeys, nil
 }
 
+// OldestAcceptedEpoch returns the oldest reward epoch whose signing policy an
+// instruction may reference while the policy of activeEpochID is active: the
+// active epoch and the one before it are accepted.
+func OldestAcceptedEpoch(activeEpochID uint32) uint32 {
+	if activeEpochID == 0 {
+		return 0
+	}
+	return activeEpochID - 1
+}
+
 // WeightOfSigners returns the weight of the signers in slice.
 //
 // If a signer is duplicated, the weight is considered only once.
@@ -160,4 +180,6 @@ func (s *Storage) DestroyState() {
 
 	s.initialPolicyID = 0
 	s.initialPolicyHash = common.Hash{}
+
+	s.instructions.reset()
 }

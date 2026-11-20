@@ -352,3 +352,9 @@ func TestPolicyLifecycle_CompleteFlow(t *testing.T) {
 	assert.NotEqual(t, initialHash, activeHash)
 	assert.Equal(t, common.Hash(policy2.ChainBoundHash(testutils.DefaultTestChainID)), activeHash)
 }
+
+func TestOldestAcceptedEpoch(t *testing.T) {
+	require.Equal(t, uint32(0), policy.OldestAcceptedEpoch(0))
+	require.Equal(t, uint32(0), policy.OldestAcceptedEpoch(1))
+	require.Equal(t, uint32(6), policy.OldestAcceptedEpoch(7))
+}

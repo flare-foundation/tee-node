@@ -7,6 +7,7 @@ import (
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/instruction"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/op"
+	"github.com/flare-foundation/tee-node/internal/policy"
 )
 
 func checkInstructionData(data *instruction.DataFixed) error {
@@ -56,7 +57,7 @@ func voteHash(instructionDataFixed *instruction.DataFixed, signatures, variableM
 }
 
 func checkPolicyValidity(policyID, activePolicyID uint32) error {
-	if activePolicyID > 0 && policyID < activePolicyID-1 {
+	if policyID < policy.OldestAcceptedEpoch(activePolicyID) {
 		return errors.New("signing policy too old")
 	}
 

@@ -7,7 +7,9 @@ import (
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/crypto"
+	cpolicy "github.com/flare-foundation/go-flare-common/pkg/policy"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/instruction"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/op"
 	"github.com/flare-foundation/tee-node/internal/testutils"
@@ -96,4 +98,58 @@ func TestProcessorsRejectUnsetChainID(t *testing.T) {
 		require.Equal(t, op.Type("someOpType").Hash(), res.OPType)
 		require.Equal(t, op.Command("someOpCommand").Hash(), res.OPCommand)
 	})
+}
+
+// TestProcessorAcceptsInstructionOncePerTag checks that an instruction is
+// processed once at threshold and then once at end, and that an action failing
+// authentication does not use up the instruction's ID.
+func TestProcessorAcceptsInstructionOncePerTag(t *testing.T) {
+	testNode, pStorage, _ := testutils.Setup(t)
+	epochID := uint32(1)
+	_, _, privKeys := testutils.GenerateAndSetInitialPolicy(t, testutils.DefaultTestChainID, pStorage, 100, 12345, epochID)
+
+	calls := 0
+	handler := func(context.Context, types.SubmissionTag, *instruction.DataFixed, []hexutil.Bytes, []common.Address, *cpolicy.SigningPolicy) ([]byte, []byte, error) {
+		calls++
+		return []byte("done"), nil, nil
+	}
+	proc := NewProcessor(handler, testNode, pStorage, true)
+
+	threshold := testutils.BuildMockInstructionAction(
+		t,
+		"someOpType", "someOpCommand", []byte("dummyAction"),
+		privKeys, testutils.DefaultTestChainID, testNode.TeeID(), epochID,
+		nil, make([][]byte, len(privKeys)), nil, 0, types.Threshold, uint64(time.Now().Unix()),
+	)
+
+	// Signed by one provider only: below the threshold.
+	underSigned := *threshold
+	underSigned.Signatures = threshold.Signatures[:1]
+	underSigned.AdditionalVariableMessages = threshold.AdditionalVariableMessages[:1]
+	underSigned.Timestamps = threshold.Timestamps[:1]
+	res := proc.Process(context.Background(), &underSigned)
+	require.Equal(t, uint8(0), res.Status)
+	require.Equal(t, "data providers threshold not reached", res.Log)
+
+	// End before the threshold.
+	end := testutils.EndAction(threshold)
+	res = proc.Process(context.Background(), end)
+	require.Equal(t, uint8(0), res.Status)
+	require.Contains(t, res.Log, "not accepted with submission tag threshold")
+
+	res = proc.Process(context.Background(), threshold)
+	require.Equal(t, uint8(1), res.Status, res.Log)
+
+	res = proc.Process(context.Background(), threshold)
+	require.Equal(t, uint8(0), res.Status)
+	require.Contains(t, res.Log, "already accepted with submission tag threshold")
+
+	res = proc.Process(context.Background(), end)
+	require.Equal(t, uint8(1), res.Status, res.Log)
+
+	res = proc.Process(context.Background(), end)
+	require.Equal(t, uint8(0), res.Status)
+	require.Contains(t, res.Log, "already accepted with submission tag end")
+
+	require.Equal(t, 2, calls)
 }

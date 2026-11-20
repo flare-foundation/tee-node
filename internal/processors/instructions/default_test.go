@@ -48,11 +48,7 @@ func TestDefaultInstructionProcessor(t *testing.T) {
 	require.Equal(t, uint8(1), finalResult.Status)
 	require.Equal(t, action.Data.SubmissionTag, finalResult.SubmissionTag)
 
-	endAction := testutils.BuildMockInstructionAction(
-		t,
-		"someOpType", "someOpCommand", []byte("dummyAction"),
-		privKeys, chainID, testNode.TeeID(), epochID, nil, variableMessages, nil, 0, types.End, uint64(time.Now().Unix()),
-	)
+	endAction := testutils.EndAction(action)
 	endResult := proc.Process(context.Background(), endAction)
 
 	require.Equal(t, endAction.Data.ID, endResult.ID)
