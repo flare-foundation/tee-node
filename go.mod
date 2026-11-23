@@ -6,7 +6,7 @@ require (
 	filippo.io/bigmod v0.1.0
 	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.4.1
 	github.com/ethereum/go-ethereum v1.17.8
-	github.com/flare-foundation/go-flare-common v1.6.0
+	github.com/flare-foundation/go-flare-common v1.6.1
 	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/pkg/errors v0.9.1
 	github.com/stretchr/testify v1.12.1
