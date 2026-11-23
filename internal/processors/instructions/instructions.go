@@ -136,6 +136,13 @@ func preprocess(a *types.Action, data *instruction.DataFixed, pStorage *policy.S
 		return nil, nil, err
 	}
 
+	// Recorded last, so that only an instruction signed by a quorum uses up its
+	// ID. It stays recorded whatever the outcome of processing.
+	err = pStorage.RecordInstruction(data.RewardEpochID, data.InstructionID, a.Data.SubmissionTag)
+	if err != nil {
+		return nil, nil, err
+	}
+
 	return signers, signingPolicy, nil
 }
 

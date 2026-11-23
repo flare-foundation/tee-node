@@ -241,6 +241,14 @@ func BuildMockInstructionAction(
 	return &action
 }
 
+// EndAction returns a copy of the threshold action a with the End submission
+// tag: the action of the same instruction sent when voting closes.
+func EndAction(a *types.Action) *types.Action {
+	end := *a
+	end.Data.SubmissionTag = types.End
+	return &end
+}
+
 // BuildMockDirectAction fabricates a direct action with a random ID for tests.
 func BuildMockDirectAction(t *testing.T, opType op.Type, opCommand op.Command, messageRaw any) *types.Action {
 	t.Helper()

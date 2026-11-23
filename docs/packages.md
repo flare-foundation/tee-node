@@ -69,7 +69,7 @@ TEE node identity management. Generates the ECDSA key pair, provides signing and
 Wallet storage. Defines `Storage` with dual-tier active and permanent maps.
 
 ### internal/policy
-Signing policy storage. Stores policies by reward epoch ID, tracks active policy and associated voter public keys. Thread-safe with RWMutex.
+Signing policy storage. Stores policies by reward epoch ID, tracks active policy and associated voter public keys. Thread-safe with RWMutex. Also records the accepted instructions (`RecordInstruction`), so that each instruction ID is accepted once at threshold and then once at end, grouped by reward epoch and dropped once their epoch is no longer accepted.
 
 ### internal/processors/direct
 Direct action processors (no signing policy required):

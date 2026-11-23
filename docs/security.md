@@ -15,6 +15,7 @@
 - **Signing policy thresholds**: Cosigner and data provider weight thresholds checked
 - **TEE ID matching**: Instructions must target this specific TEE
 - **Instruction/Action ID consistency**: Prevents cross-action replay
+- **Instruction replay**: Each instruction ID is accepted once at threshold and then once at end, for as long as its reward epoch is accepted (see [Actions](actions.md#instruction-replay))
 - **Message sizes**: All inputs bounded by constants
 - **Nonce ordering**: Delete and restore operations require strictly increasing nonces; the machine-path list requires a strictly increasing nonce
 - **Policy freshness**: Instructions can only reference recent policies (within 1 epoch)

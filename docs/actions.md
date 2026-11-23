@@ -51,6 +51,7 @@ Instructions go through preprocessing before reaching the handler:
     - Cosigner threshold met
     - Data provider weight strictly exceeds the signing policy's `threshold`; an FDC2 `PROVE` request with a non-zero `ThresholdBIPS` overrides that with `floor(totalWeight * ThresholdBIPS / 10000)`
     - All signers must be either cosigners or registered data providers
+7. **Replay check** - The instruction ID is recorded with the submission tag; an instruction is accepted once at `threshold` and then once at `end`, and any other tag is rejected. See [Instruction Replay](#instruction-replay).
 
 ### 5. Sign Result
 
@@ -63,6 +64,12 @@ The action result is signed with the TEE's private key over the domain-separated
 - Successful Threshold returns status `1` (immediate) or `2` (deferred)
 - Successful End returns status `1` with rewarding data
 - Panics in queue processing are recovered; the queue continues
+
+## Instruction Replay
+
+A node processes each instruction ID once with the `threshold` tag and then once with the `end` tag; a repeated action is rejected with status `0`, and so is an `end` for an instruction the node has not accepted at `threshold`. The ID is recorded once the instruction passes the checks above, before its handler runs, and stays recorded whatever the outcome of processing, so a failed instruction is not retried under the same ID and tag. An action that fails the checks, for example one without enough signatures, does not use up the ID.
+
+The records live in memory, grouped by the instruction's `RewardEpochID`. Only instructions of the active epoch and the one before it are accepted (see step 3), so when a new signing policy becomes active, the records of its epoch are started and those of older epochs are dropped. An ID is matched against both retained epochs, so presenting it with the other epoch does not get it accepted again. Each record maps the 32-byte ID to a bool: `false` once the instruction is accepted at `threshold`, `true` once it is also accepted at `end`. A record takes about 52-84 bytes of memory with the map's overhead. The records do not survive a restart, so after one the node rejects the `end` of an instruction it accepted at `threshold` before the restart.
 
 ## Per-Command Size Constraints
 
