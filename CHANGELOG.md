@@ -1,5 +1,19 @@
 # Changelog
 
+## [v0.1.0](https://github.com/flare-foundation/tee-node/tree/v0.1.0) - 2026-11-24
+
+### Changed
+
+- Breaking wire-format changes; the proxy, relay client, CLI and extensions need matching updates:
+  - An action's `data.message` is the JSON object of the instruction's `DataFixed` or of the `DirectInstruction` instead of the hex of that JSON. A message that is not a JSON object is rejected.
+  - An action result's `data` is base64 in JSON instead of hex; its other byte strings stay 0x-prefixed hex. Extensions must return `data` as base64. `ActionResult.Hash()` is unchanged, as it covers the decoded bytes.
+  - A `TEE_BACKUP` result carries `walletBackup` as a JSON object instead of the base64 of its JSON, its encrypted splits are base64 instead of hex, and the backup, key split and share keys are camelCase. This roughly halves a backup response.
+  - Policy initialize and update requests, TEE info requests, wallet statuses and restore statuses use camelCase JSON keys.
+- Wallet backups made before this release no longer verify, as their signatures cover the backup's JSON.
+- `TEEBackupResponse` moves from `pkg/wallets` to `pkg/wallets/backup`.
+- Each instruction is accepted once with the `threshold` tag and then once with `end`; a repeated action, an `end` before its `threshold` and any other tag are rejected with status `0`. Only a quorum-signed action uses up the instruction ID.
+- go-flare-common bumped to v1.6.1.
+
 ## [v0.0.30](https://github.com/flare-foundation/tee-node/tree/v0.0.30) - 2026-11-12
 
 ### Changed
