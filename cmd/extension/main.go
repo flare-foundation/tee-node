@@ -1,12 +1,12 @@
 package main
 
 import (
-	"github.com/flare-foundation/tee-node/internal/extension/server"
-	"github.com/flare-foundation/tee-node/internal/node"
-	"github.com/flare-foundation/tee-node/internal/policy"
-	"github.com/flare-foundation/tee-node/internal/router"
-	"github.com/flare-foundation/tee-node/internal/settings"
-	"github.com/flare-foundation/tee-node/internal/wallets"
+	"github.com/flare-foundation/fcc-node/internal/extension/server"
+	"github.com/flare-foundation/fcc-node/internal/node"
+	"github.com/flare-foundation/fcc-node/internal/policy"
+	"github.com/flare-foundation/fcc-node/internal/router"
+	"github.com/flare-foundation/fcc-node/internal/settings"
+	"github.com/flare-foundation/fcc-node/internal/wallets"
 
 	"github.com/flare-foundation/go-flare-common/pkg/logger"
 )

@@ -1,4 +1,4 @@
-# TEE Node Documentation
+# FCC Node Documentation
 
 ## Reading Guide
 

@@ -7,7 +7,7 @@
 - **Its own key material**: Generated internally, never exported
 - **Google Cloud Confidential Space**: Hardware-level isolation and attestation
 - **Cryptographic primitives**: secp256k1, Keccak256, SHA512-Half, ECIES, Shamir
-- **Extension server**: In extension mode, the TEE node and the user-implemented extension are expected to run inside the same trusted TEE instance. Communication between them occurs over localhost and is protected by the TEE's hardware isolation — no external entity can observe or tamper with this traffic. The extension server API (sign, decrypt) does not perform authentication, as security relies on the shared TEE boundary. To enforce that boundary in code, the sign/decrypt server always binds to loopback (`127.0.0.1`) rather than all interfaces; this is fixed and not configurable.
+- **Extension server**: In extension mode, the FCC node and the user-implemented extension are expected to run inside the same trusted TEE instance. Communication between them occurs over localhost and is protected by the TEE's hardware isolation — no external entity can observe or tamper with this traffic. The extension server API (sign, decrypt) does not perform authentication, as security relies on the shared TEE boundary. To enforce that boundary in code, the sign/decrypt server always binds to loopback (`127.0.0.1`) rather than all interfaces; this is fixed and not configurable.
 
 ### What the TEE Validates
 

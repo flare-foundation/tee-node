@@ -2,7 +2,7 @@
 
 ## Overview
 
-The TEE node supports VRF as a wallet signing algorithm, enabling generation of provably random values. The scheme is based on "Making NSEC5 Practical for DNSSEC" (Cryptology ePrint Archive, Report 2017/099, Section 2.3).
+The FCC node supports VRF as a wallet signing algorithm, enabling generation of provably random values. The scheme is based on "Making NSEC5 Practical for DNSSEC" (Cryptology ePrint Archive, Report 2017/099, Section 2.3).
 
 - **Signing algorithm**: `keccak256-secp256k1-vrf` (`wallets.VRFAlgo`)
 - **Curve**: secp256k1

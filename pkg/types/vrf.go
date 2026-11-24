@@ -3,11 +3,11 @@ package types
 import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
+	walletsvrf "github.com/flare-foundation/fcc-node/pkg/wallets/vrf"
 	"github.com/flare-foundation/go-flare-common/pkg/abicoder"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/instruction"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/op"
 	vrfstruct "github.com/flare-foundation/go-flare-common/pkg/tee/structs/vrf"
-	walletsvrf "github.com/flare-foundation/tee-node/pkg/wallets/vrf"
 )
 
 // ParseVRFInstruction decodes the VRF instruction payload into the shared

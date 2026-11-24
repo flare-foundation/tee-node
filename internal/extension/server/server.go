@@ -13,14 +13,14 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/flare-foundation/fcc-node/internal/node"
+	"github.com/flare-foundation/fcc-node/internal/router"
+	"github.com/flare-foundation/fcc-node/internal/router/queue"
+	"github.com/flare-foundation/fcc-node/internal/settings"
+	walletstorage "github.com/flare-foundation/fcc-node/internal/wallets"
+	"github.com/flare-foundation/fcc-node/pkg/types"
+	wallets "github.com/flare-foundation/fcc-node/pkg/wallets"
 	"github.com/flare-foundation/go-flare-common/pkg/logger"
-	"github.com/flare-foundation/tee-node/internal/node"
-	"github.com/flare-foundation/tee-node/internal/router"
-	"github.com/flare-foundation/tee-node/internal/router/queue"
-	"github.com/flare-foundation/tee-node/internal/settings"
-	walletstorage "github.com/flare-foundation/tee-node/internal/wallets"
-	"github.com/flare-foundation/tee-node/pkg/types"
-	wallets "github.com/flare-foundation/tee-node/pkg/wallets"
 )
 
 const (
@@ -410,7 +410,7 @@ func addContentType(h http.Handler, contentType string) http.Handler {
 
 // recoverPanic catches panics in downstream handlers, logs them, and returns a
 // 500 to the caller. Without this, a panic in any handler goroutine crashes
-// the entire tee-node process.
+// the entire fcc-node process.
 func recoverPanic(h http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		defer func() {

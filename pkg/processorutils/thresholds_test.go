@@ -13,7 +13,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/flare-foundation/tee-node/pkg/fdc"
+	"github.com/flare-foundation/fcc-node/pkg/fdc"
 )
 
 func TestComputeThreshold(t *testing.T) {

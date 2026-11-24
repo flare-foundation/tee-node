@@ -6,12 +6,12 @@ import (
 	"errors"
 	"slices"
 
+	"github.com/flare-foundation/fcc-node/pkg/wallets"
+	"github.com/flare-foundation/fcc-node/pkg/wallets/backup"
 	"github.com/flare-foundation/go-flare-common/pkg/random"
-	"github.com/flare-foundation/tee-node/pkg/wallets"
-	"github.com/flare-foundation/tee-node/pkg/wallets/backup"
 
-	"github.com/flare-foundation/tee-node/pkg/types"
-	"github.com/flare-foundation/tee-node/pkg/utils"
+	"github.com/flare-foundation/fcc-node/pkg/types"
+	"github.com/flare-foundation/fcc-node/pkg/utils"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"

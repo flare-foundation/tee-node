@@ -66,7 +66,7 @@ var relayDirectSigningPrefix = []byte{0x01, 0x00, 0x00, 0x00, 0x00, 0x00}
 // pre-cutover form of the digest, retired on chain by RLY-23 in favour of
 // ChainBoundRelayPrefixedHash.
 //
-// No tee-node or tee-proxy code path computes it any more. It stays exported for
+// No fcc-node or fcc-proxy code path computes it any more. It stays exported for
 // the relay client, which still signs this form for chains whose breaking reward
 // epoch has not arrived, and which gates between the two itself. Delete it once
 // that client no longer needs it.

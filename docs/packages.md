@@ -63,7 +63,7 @@ HTTP client for proxy communication. `FetchAction` polls a queue, `PostActionRes
 Runtime configuration. Constants (size limits, timeouts, safety bounds), environment variable reading, config HTTP server (/proxy, /initial-owner, /extension-id).
 
 ### internal/node
-TEE node identity management. Generates the ECDSA key pair, provides signing and decryption, manages initial owner and extension ID.
+FCC node identity management. Generates the ECDSA key pair, provides signing and decryption, manages initial owner and extension ID.
 
 ### internal/wallets
 Wallet storage. Defines `Storage` with dual-tier active and permanent maps.

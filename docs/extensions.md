@@ -2,7 +2,7 @@
 
 ## Overview
 
-The TEE node can run in two modes (see [Architecture](architecture.md)):
+The FCC node can run in two modes (see [Architecture](architecture.md)):
 
 - **Base mode (Extension 0)**: All operations (wallet management, XRP signing, VRF, FDC) are handled by built-in processors. No extension delegation. This is the default `cmd/main.go` configuration using `NewPMWRouter`.
 
@@ -39,7 +39,7 @@ In base mode (Extension 0), the following are built-in. They use `F_` op types, 
 ## Architecture
 
 ```
-TEE Node                        Extension Service
+FCC Node                        Extension Service
   |                                   |
   |-- POST /action ------------------>|  (forward unrecognized action)
   |<-- ActionResult ------------------|

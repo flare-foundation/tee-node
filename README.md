@@ -10,14 +10,14 @@
   <a href="CHANGELOG.md">Changelog</a>
 </div>
 
-# Flare TEE Server Node
+# FCC Node
 
-A secure server running inside a Trusted Execution Environment (TEE) on GCP Confidential Space. It provides protocol managed wallets and serves as a base for extensions.
+The Flare Confidential Compute (FCC) node is a secure server running inside a Trusted Execution Environment (TEE) on GCP Confidential Space. It provides protocol managed wallets and serves as a base for extensions.
 
-The TEE node runs behind a proxy service — external clients communicate exclusively through the proxy.
+The FCC node runs behind a proxy service — external clients communicate exclusively through the proxy.
 
-[![API Reference](https://pkg.go.dev/badge/github.com/flare-foundation/tee-node)](https://pkg.go.dev/github.com/flare-foundation/tee-node?tab=doc)
-[![Reproducible Build](https://github.com/flare-foundation/tee-node/actions/workflows/verify-repro.yml/badge.svg)](https://github.com/flare-foundation/tee-node/actions/workflows/verify-repro.yml)
+[![API Reference](https://pkg.go.dev/badge/github.com/flare-foundation/fcc-node)](https://pkg.go.dev/github.com/flare-foundation/fcc-node?tab=doc)
+[![Reproducible Build](https://github.com/flare-foundation/fcc-node/actions/workflows/verify-repro.yml/badge.svg)](https://github.com/flare-foundation/fcc-node/actions/workflows/verify-repro.yml)
 
 ## Documentation
 

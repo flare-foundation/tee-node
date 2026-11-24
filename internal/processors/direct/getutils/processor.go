@@ -5,16 +5,16 @@ import (
 	"encoding/json"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/flare-foundation/fcc-node/internal/attestation"
+	"github.com/flare-foundation/fcc-node/internal/node"
+	"github.com/flare-foundation/fcc-node/internal/policy"
+	"github.com/flare-foundation/fcc-node/internal/wallets/backup"
+	"github.com/flare-foundation/fcc-node/pkg/types"
 	csigning "github.com/flare-foundation/go-flare-common/pkg/signing"
-	"github.com/flare-foundation/tee-node/internal/attestation"
-	"github.com/flare-foundation/tee-node/internal/node"
-	"github.com/flare-foundation/tee-node/internal/policy"
-	"github.com/flare-foundation/tee-node/internal/wallets/backup"
-	"github.com/flare-foundation/tee-node/pkg/types"
 
-	walletstorage "github.com/flare-foundation/tee-node/internal/wallets"
-	wallets "github.com/flare-foundation/tee-node/pkg/wallets"
-	pkgbackup "github.com/flare-foundation/tee-node/pkg/wallets/backup"
+	walletstorage "github.com/flare-foundation/fcc-node/internal/wallets"
+	wallets "github.com/flare-foundation/fcc-node/pkg/wallets"
+	pkgbackup "github.com/flare-foundation/fcc-node/pkg/wallets/backup"
 )
 
 type Processor struct {

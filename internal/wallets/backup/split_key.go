@@ -6,7 +6,7 @@ import (
 
 	"filippo.io/bigmod"
 
-	"github.com/flare-foundation/tee-node/pkg/wallets/backup"
+	"github.com/flare-foundation/fcc-node/pkg/wallets/backup"
 )
 
 // SplitSecret splits a secret into n additive parts over the field, such that

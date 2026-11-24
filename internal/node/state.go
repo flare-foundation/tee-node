@@ -7,8 +7,8 @@ import (
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/flare-foundation/go-flare-common/pkg/logger"
 
-	"github.com/flare-foundation/tee-node/internal/extension"
-	"github.com/flare-foundation/tee-node/pkg/types"
+	"github.com/flare-foundation/fcc-node/internal/extension"
+	"github.com/flare-foundation/fcc-node/pkg/types"
 )
 
 // State supplies the node state carried in the attested TEE info response.

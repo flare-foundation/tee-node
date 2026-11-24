@@ -2,7 +2,7 @@
 
 ## Overview
 
-The TEE node supports two independent mechanisms for moving a wallet's private key:
+The FCC node supports two independent mechanisms for moving a wallet's private key:
 
 1. **Data-provider backup & restore** (Shamir-based) — the key is split into encrypted shares distributed among admins and data providers. Restoring requires collecting enough shares from both groups to reconstruct the key via Shamir secret sharing. This is the default, quorum-recoverable backup.
 

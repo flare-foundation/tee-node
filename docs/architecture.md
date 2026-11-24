@@ -2,14 +2,14 @@
 
 ## System Context
 
-The Flare TEE node is a secure server running inside a Google Cloud Confidential Space (Trusted Execution Environment). It manages protocol-controlled wallets and provides cryptographic operations for the Flare network.
+The Flare Confidential Compute (FCC) node is a secure server running inside a Google Cloud Confidential Space (Trusted Execution Environment). It manages protocol-controlled wallets and provides cryptographic operations for the Flare network.
 
 ```
 External Clients
        |
        v
   +---------+        +----------+
-  |  Proxy  | <----> | TEE Node |
+  |  Proxy  | <----> | FCC Node |
   +---------+  HTTP  +----------+
        |                  |
        v                  v
@@ -18,11 +18,11 @@ External Clients
                     Extension Server
 ```
 
-The TEE node never communicates directly with external clients. All communication is routed through a proxy service. The TEE node polls the proxy for actions and posts results back.
+The FCC node never communicates directly with external clients. All communication is routed through a proxy service. The FCC node polls the proxy for actions and posts results back.
 
 ## Operating Modes
 
-The TEE node can run in two modes, determined by which router is used at startup.
+The FCC node can run in two modes, determined by which router is used at startup.
 
 ### Base Mode (Extension 0)
 
@@ -35,14 +35,14 @@ Used by `cmd/main.go` with `NewPMWRouter`. This is the **Protocol Managed Wallet
 - FDC attestation proving
 - TEE registration/attestation
 
-In this mode, all supported OpType/OpCommand pairs are handled directly by the TEE node. There is no extension delegation — unrecognized actions are rejected.
+In this mode, all supported OpType/OpCommand pairs are handled directly by the FCC node. There is no extension delegation — unrecognized actions are rejected.
 
 ### Extension Mode
 
 Used with `NewForwardRouter`. This mode provides **base wallet management capabilities** (generate, delete, backup, restore, attestation) but delegates all other actions to an external **extension server**.
 
 ```
-TEE Node (Extension Mode)
+FCC Node (Extension Mode)
   |
   +-- Built-in: Wallet ops (incl. direct backup/restore), Policy, Governance, TEEInfo, TEEBackup, Attestation
   |
@@ -66,11 +66,11 @@ This allows custom protocols to leverage the TEE's managed keys and attestation 
 
 ### Proxy
 
-The proxy is an external intermediary that manages action queues and routes messages between external clients and the TEE node. The TEE node connects to the proxy via HTTP and continuously polls for new actions.
+The proxy is an external intermediary that manages action queues and routes messages between external clients and the FCC node. The FCC node connects to the proxy via HTTP and continuously polls for new actions.
 
-### TEE Node
+### FCC Node
 
-The TEE node is the core component. On startup it:
+The FCC node is the core component. On startup it:
 
 1. Generates a fresh ECDSA private key (TEE identity)
 2. Initializes empty wallet and policy storage
@@ -80,7 +80,7 @@ The TEE node is the core component. On startup it:
 
 ### Three Processing Queues
 
-The TEE node processes actions from three separate queues:
+The FCC node processes actions from three separate queues:
 
 | Queue      | Purpose                                                        |
 | ---------- | -------------------------------------------------------------- |
@@ -119,7 +119,7 @@ The config server (port 5500) accepts runtime configuration:
 
 ## Trust Model
 
-**The proxy is trusted for transport, not content.** The TEE node validates:
+**The proxy is trusted for transport, not content.** The FCC node validates:
 
 - All instruction signatures cryptographically
 - Cosigner and data provider thresholds against signing policies
@@ -168,14 +168,14 @@ All limits are defined as constants in `internal/settings/settings.go`. See [Con
 
 | Repository                                                               | Description                                                                                                                                                                      |
 | ------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| [tee-proxy](https://github.com/flare-foundation/tee-proxy)               | Proxy service that sits between external clients and the TEE node. Manages action queues and provides the `POST /direct` endpoint for direct instructions.                       |
-| [tee-relay-client](https://github.com/flare-foundation/tee-relay-client) | Listens for `TeeInstructionsSent` events from the on-chain `TeeExtensionRegistry` contract and forwards instructions to the TEE proxy. Supports provider mode and cosigner mode. |
+| [fcc-proxy](https://github.com/flare-foundation/fcc-proxy)               | Proxy service that sits between external clients and the FCC node. Manages action queues and provides the `POST /direct` endpoint for direct instructions.                       |
+| [fcc-relay-client](https://github.com/flare-foundation/fcc-relay-client) | Listens for `TeeInstructionsSent` events from the on-chain `TeeExtensionRegistry` contract and forwards instructions to the TEE proxy. Supports provider mode and cosigner mode. |
 
 ### Shared Libraries and Contracts
 
 | Repository                                                                               | Description                                                                                 |
 | ---------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
-| [go-flare-common](https://github.com/flare-foundation/go-flare-common)                   | Shared Go library used by tee-node (signing policies, instruction types, logging)           |
+| [go-flare-common](https://github.com/flare-foundation/go-flare-common)                   | Shared Go library used by fcc-node (signing policies, instruction types, logging)           |
 | [flare-smart-contracts-v2](https://github.com/flare-foundation/flare-smart-contracts-v2) | On-chain protocol contracts (signing policy management, VRF verification, TEE registration) |
 | [flare-system-client](https://github.com/flare-foundation/flare-system-client)           | System client for FSO smart contract interactions, voter registration, and data submission  |
 | [fdc-client](https://github.com/flare-foundation/fdc-client)                             | Flare Data Connector client                                                                 |

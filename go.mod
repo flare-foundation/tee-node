@@ -1,4 +1,4 @@
-module github.com/flare-foundation/tee-node
+module github.com/flare-foundation/fcc-node
 
 go 1.27.4
 

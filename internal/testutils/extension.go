@@ -12,9 +12,9 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/flare-foundation/fcc-node/pkg/processorutils"
+	"github.com/flare-foundation/fcc-node/pkg/types"
 	"github.com/flare-foundation/go-flare-common/pkg/logger"
-	"github.com/flare-foundation/tee-node/pkg/processorutils"
-	"github.com/flare-foundation/tee-node/pkg/types"
 	"github.com/stretchr/testify/require"
 )
 
@@ -30,7 +30,7 @@ type DummyExtensionServer struct {
 }
 
 // NewDummyExtensionServer spins up a mock signing server that exercises the
-// TEE-node interface for local development.
+// FCC-node interface for local development.
 func NewDummyExtensionServer(port, signPort int) *DummyExtensionServer {
 	e := newDummyExtensionServer(fmt.Sprintf("http://localhost:%d", signPort))
 	e.server.Addr = fmt.Sprintf(":%d", port)

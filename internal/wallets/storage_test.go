@@ -8,8 +8,8 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/require"
 
-	"github.com/flare-foundation/tee-node/internal/settings"
-	publicwallets "github.com/flare-foundation/tee-node/pkg/wallets"
+	"github.com/flare-foundation/fcc-node/internal/settings"
+	publicwallets "github.com/flare-foundation/fcc-node/pkg/wallets"
 )
 
 func TestInitializeStorage(t *testing.T) {
