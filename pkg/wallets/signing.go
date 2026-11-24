@@ -6,10 +6,10 @@ import (
 	"errors"
 
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/flare-foundation/fcc-node/pkg/types"
+	"github.com/flare-foundation/fcc-node/pkg/utils"
+	"github.com/flare-foundation/fcc-node/pkg/wallets/vrf"
 	"github.com/flare-foundation/go-flare-common/pkg/xrpl/hash"
-	"github.com/flare-foundation/tee-node/pkg/types"
-	"github.com/flare-foundation/tee-node/pkg/utils"
-	"github.com/flare-foundation/tee-node/pkg/wallets/vrf"
 )
 
 type Signer interface {

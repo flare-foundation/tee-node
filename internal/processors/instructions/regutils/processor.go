@@ -11,10 +11,10 @@ import (
 	csigning "github.com/flare-foundation/go-flare-common/pkg/signing"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/instruction"
 
-	"github.com/flare-foundation/tee-node/internal/attestation"
-	"github.com/flare-foundation/tee-node/internal/node"
-	"github.com/flare-foundation/tee-node/internal/policy"
-	"github.com/flare-foundation/tee-node/pkg/types"
+	"github.com/flare-foundation/fcc-node/internal/attestation"
+	"github.com/flare-foundation/fcc-node/internal/node"
+	"github.com/flare-foundation/fcc-node/internal/policy"
+	"github.com/flare-foundation/fcc-node/pkg/types"
 )
 
 type Processor struct {

@@ -5,7 +5,7 @@ import (
 	"log"
 	"net/http"
 
-	"github.com/flare-foundation/tee-node/internal/testutils"
+	"github.com/flare-foundation/fcc-node/internal/testutils"
 )
 
 func main() {

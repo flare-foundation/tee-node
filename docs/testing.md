@@ -37,7 +37,7 @@ go test ./... -v -count=1
 
 `internal/processors/processor_test.go` contains `TestProcessorsEndToEnd`, which exercises the full action processing pipeline:
 
-1. Initialize TEE node, wallet storage, policy storage
+1. Initialize FCC node, wallet storage, policy storage
 2. Start mock proxy server
 3. Configure proxy URL via config server
 4. Fetch TEE info (direct action)

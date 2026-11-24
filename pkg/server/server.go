@@ -3,13 +3,13 @@ package server
 import (
 	"fmt"
 
-	"github.com/flare-foundation/tee-node/internal/extension/server"
-	"github.com/flare-foundation/tee-node/internal/node"
-	"github.com/flare-foundation/tee-node/internal/policy"
-	"github.com/flare-foundation/tee-node/internal/router"
-	"github.com/flare-foundation/tee-node/internal/settings"
-	"github.com/flare-foundation/tee-node/internal/testutils"
-	walletstorage "github.com/flare-foundation/tee-node/internal/wallets"
+	"github.com/flare-foundation/fcc-node/internal/extension/server"
+	"github.com/flare-foundation/fcc-node/internal/node"
+	"github.com/flare-foundation/fcc-node/internal/policy"
+	"github.com/flare-foundation/fcc-node/internal/router"
+	"github.com/flare-foundation/fcc-node/internal/settings"
+	"github.com/flare-foundation/fcc-node/internal/testutils"
+	walletstorage "github.com/flare-foundation/fcc-node/internal/wallets"
 
 	"github.com/flare-foundation/go-flare-common/pkg/logger"
 )
@@ -37,7 +37,7 @@ func initialize(configPort int, state node.State) (*node.Node, *walletstorage.St
 	return teeNode, ws, ps, cs, nil
 }
 
-// StartServerPMW boots the PMW TEE node and exposes the configuration
+// StartServerPMW boots the PMW FCC node and exposes the configuration
 // endpoint on the provided port.
 func StartServerPMW(configPort int) {
 	// Initialize. A PMW node has no extension to read state from.
@@ -51,7 +51,7 @@ func StartServerPMW(configPort int) {
 	router.NewPMWRouter(teeNode, ws, ps, cs.ProxyURL).Run(teeNode)
 }
 
-// StartServerExtension runs the extension-enabled TEE node and supporting
+// StartServerExtension runs the extension-enabled FCC node and supporting
 // HTTP servers for testing purposes.
 func StartServerExtension(configPort, signPort, extensionPort int) {
 	// Initialize. State is read from the extension on the same port unhandled

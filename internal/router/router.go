@@ -8,16 +8,16 @@ import (
 	"net"
 	"time"
 
+	"github.com/flare-foundation/fcc-node/internal/processors/direct"
+	"github.com/flare-foundation/fcc-node/internal/processors/instructions"
+	"github.com/flare-foundation/fcc-node/internal/router/queue"
 	"github.com/flare-foundation/go-flare-common/pkg/logger"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/op"
-	"github.com/flare-foundation/tee-node/internal/processors/direct"
-	"github.com/flare-foundation/tee-node/internal/processors/instructions"
-	"github.com/flare-foundation/tee-node/internal/router/queue"
 
-	"github.com/flare-foundation/tee-node/internal/node"
-	"github.com/flare-foundation/tee-node/internal/settings"
-	"github.com/flare-foundation/tee-node/pkg/processorutils"
-	"github.com/flare-foundation/tee-node/pkg/types"
+	"github.com/flare-foundation/fcc-node/internal/node"
+	"github.com/flare-foundation/fcc-node/internal/settings"
+	"github.com/flare-foundation/fcc-node/pkg/processorutils"
+	"github.com/flare-foundation/fcc-node/pkg/types"
 )
 
 type Processor interface {

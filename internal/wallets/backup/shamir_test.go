@@ -8,9 +8,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/flare-foundation/tee-node/internal/wallets/backup"
-	"github.com/flare-foundation/tee-node/pkg/wallets"
-	pkgbackup "github.com/flare-foundation/tee-node/pkg/wallets/backup"
+	"github.com/flare-foundation/fcc-node/internal/wallets/backup"
+	"github.com/flare-foundation/fcc-node/pkg/wallets"
+	pkgbackup "github.com/flare-foundation/fcc-node/pkg/wallets/backup"
 )
 
 func shamirTestField(t *testing.T) *pkgbackup.Field {

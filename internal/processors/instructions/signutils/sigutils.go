@@ -6,15 +6,15 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
+	walletstorage "github.com/flare-foundation/fcc-node/internal/wallets"
+	"github.com/flare-foundation/fcc-node/pkg/processorutils"
+	wallets "github.com/flare-foundation/fcc-node/pkg/wallets"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/instruction"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/structs/payments"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/xrpl"
 	"github.com/flare-foundation/go-flare-common/pkg/xrpl/signing"
 	"github.com/flare-foundation/go-flare-common/pkg/xrpl/signing/secp256k1"
 	"github.com/flare-foundation/go-flare-common/pkg/xrpl/signing/signer"
-	walletstorage "github.com/flare-foundation/tee-node/internal/wallets"
-	"github.com/flare-foundation/tee-node/pkg/processorutils"
-	wallets "github.com/flare-foundation/tee-node/pkg/wallets"
 )
 
 // loadPrivateKeys fetches and validates private keys for the given keyIDs.

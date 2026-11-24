@@ -7,7 +7,7 @@ import (
 
 	"filippo.io/bigmod"
 
-	"github.com/flare-foundation/tee-node/pkg/wallets/backup"
+	"github.com/flare-foundation/fcc-node/pkg/wallets/backup"
 )
 
 // SplitToShamirShares generates Shamir secret shares for the provided value

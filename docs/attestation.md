@@ -2,7 +2,7 @@
 
 ## Overview
 
-TEE attestation allows the TEE node to prove its identity and integrity to external verifiers. It produces a signed attestation response containing the TEE's public key, policy state, and a Google Cloud Confidential Space attestation token.
+TEE attestation allows the FCC node to prove its identity and integrity to external verifiers. It produces a signed attestation response containing the TEE's public key, policy state, and a Google Cloud Confidential Space attestation token.
 
 ## Route
 

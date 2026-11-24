@@ -10,16 +10,16 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/flare-foundation/fcc-node/internal/node"
+	"github.com/flare-foundation/fcc-node/internal/router/queue"
+	"github.com/flare-foundation/fcc-node/internal/settings"
+	"github.com/flare-foundation/fcc-node/internal/wallets"
+	"github.com/flare-foundation/fcc-node/pkg/types"
 	"github.com/flare-foundation/go-flare-common/pkg/logger"
 	"github.com/flare-foundation/go-flare-common/pkg/policy"
 	csigning "github.com/flare-foundation/go-flare-common/pkg/signing"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/instruction"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/xrpl"
-	"github.com/flare-foundation/tee-node/internal/node"
-	"github.com/flare-foundation/tee-node/internal/router/queue"
-	"github.com/flare-foundation/tee-node/internal/settings"
-	"github.com/flare-foundation/tee-node/internal/wallets"
-	"github.com/flare-foundation/tee-node/pkg/types"
 )
 
 type Processor struct {
@@ -30,7 +30,7 @@ type Processor struct {
 }
 
 // NewProcessor creates a signing instruction processor backed by the provided
-// wallet storage and TEE node.
+// wallet storage and FCC node.
 func NewProcessor(iAndS node.IdentifierAndSigner, wStorage *wallets.Storage, proxyURL *settings.ProxyURLMutex) Processor {
 	return Processor{
 		Storage:             wStorage,

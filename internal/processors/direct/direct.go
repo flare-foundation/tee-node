@@ -3,9 +3,9 @@ package direct
 import (
 	"context"
 
-	"github.com/flare-foundation/tee-node/internal/settings"
-	"github.com/flare-foundation/tee-node/pkg/processorutils"
-	"github.com/flare-foundation/tee-node/pkg/types"
+	"github.com/flare-foundation/fcc-node/internal/settings"
+	"github.com/flare-foundation/fcc-node/pkg/processorutils"
+	"github.com/flare-foundation/fcc-node/pkg/types"
 )
 
 type Processor func(ctx context.Context, i *types.DirectInstruction) ([]byte, error)

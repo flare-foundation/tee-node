@@ -7,11 +7,11 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/flare-foundation/fcc-node/pkg/utils"
 	"github.com/flare-foundation/go-flare-common/pkg/contracts"
 	"github.com/flare-foundation/go-flare-common/pkg/contracts/relay"
 	"github.com/flare-foundation/go-flare-common/pkg/encoding"
 	"github.com/flare-foundation/go-flare-common/pkg/voters"
-	"github.com/flare-foundation/tee-node/pkg/utils"
 )
 
 var relayFunctionSelector = contracts.MustMethod(contracts.MustABI(relay.RelayMetaData), "relay").ID

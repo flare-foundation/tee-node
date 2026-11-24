@@ -4,8 +4,8 @@ import (
 	"testing"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/flare-foundation/fcc-node/internal/settings"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/structs/machinepath"
-	"github.com/flare-foundation/tee-node/internal/settings"
 	"github.com/stretchr/testify/require"
 )
 

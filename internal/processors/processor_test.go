@@ -29,20 +29,20 @@ import (
 	"github.com/flare-foundation/go-flare-common/pkg/xrpl/signing/secp256k1"
 	"github.com/flare-foundation/go-flare-common/pkg/xrpl/signing/signer"
 
+	"github.com/flare-foundation/fcc-node/internal/router"
+	"github.com/flare-foundation/fcc-node/internal/settings"
+	"github.com/flare-foundation/fcc-node/internal/testutils"
+	"github.com/flare-foundation/fcc-node/pkg/fdc"
+	"github.com/flare-foundation/fcc-node/pkg/types"
+	"github.com/flare-foundation/fcc-node/pkg/wallets/backup"
+	"github.com/flare-foundation/fcc-node/pkg/wallets/vrf"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/structs/machinepath"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/structs/wallet"
-	"github.com/flare-foundation/tee-node/internal/router"
-	"github.com/flare-foundation/tee-node/internal/settings"
-	"github.com/flare-foundation/tee-node/internal/testutils"
-	"github.com/flare-foundation/tee-node/pkg/fdc"
-	"github.com/flare-foundation/tee-node/pkg/types"
-	"github.com/flare-foundation/tee-node/pkg/wallets/backup"
-	"github.com/flare-foundation/tee-node/pkg/wallets/vrf"
 
-	walletstorage "github.com/flare-foundation/tee-node/internal/wallets"
-	wallets "github.com/flare-foundation/tee-node/pkg/wallets"
+	walletstorage "github.com/flare-foundation/fcc-node/internal/wallets"
+	wallets "github.com/flare-foundation/fcc-node/pkg/wallets"
 
-	"github.com/flare-foundation/tee-node/pkg/utils"
+	"github.com/flare-foundation/fcc-node/pkg/utils"
 	"github.com/stretchr/testify/require"
 )
 

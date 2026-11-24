@@ -130,7 +130,7 @@ Sets the governance signer set and threshold that authorize `SET_MACHINE_PATH_LI
 ## Startup Sequence
 
 1. Logger initialized with configured level
-2. TEE node initialized (generates key pair, reads env vars)
+2. FCC node initialized (generates key pair, reads env vars)
 3. Wallet storage initialized (empty)
 4. Policy storage initialized (empty)
 5. Config server started on port 5500
@@ -139,7 +139,7 @@ Sets the governance signer set and threshold that authorize `SET_MACHINE_PATH_LI
 
 During node initialization the env vars for the initial owner, extension ID, chain ID, and governance (signers + threshold) are read; each takes precedence over the corresponding config-server endpoint.
 
-The TEE node will not process any actions until:
+The FCC node will not process any actions until:
 
 - A proxy URL is configured (via env var or config server)
 - A signing policy is initialized (via `INITIALIZE_POLICY` direct action)

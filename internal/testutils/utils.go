@@ -8,12 +8,12 @@ import (
 	"math/rand"
 	"testing"
 
-	"github.com/flare-foundation/tee-node/pkg/fdc"
-	"github.com/flare-foundation/tee-node/pkg/types"
-	"github.com/flare-foundation/tee-node/pkg/utils"
+	"github.com/flare-foundation/fcc-node/pkg/fdc"
+	"github.com/flare-foundation/fcc-node/pkg/types"
+	"github.com/flare-foundation/fcc-node/pkg/utils"
 	"github.com/stretchr/testify/require"
 
-	ppolicy "github.com/flare-foundation/tee-node/internal/policy"
+	ppolicy "github.com/flare-foundation/fcc-node/internal/policy"
 
 	"github.com/flare-foundation/go-flare-common/pkg/contracts/relay"
 	commonpolicy "github.com/flare-foundation/go-flare-common/pkg/policy"

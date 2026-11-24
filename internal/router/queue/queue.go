@@ -9,8 +9,8 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/flare-foundation/tee-node/internal/settings"
-	"github.com/flare-foundation/tee-node/pkg/types"
+	"github.com/flare-foundation/fcc-node/internal/settings"
+	"github.com/flare-foundation/fcc-node/pkg/types"
 )
 
 // FetchAction sends an empty POST request to the url and expect an action as a response.

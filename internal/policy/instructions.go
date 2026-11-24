@@ -5,7 +5,7 @@ import (
 	"sync"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/flare-foundation/tee-node/pkg/types"
+	"github.com/flare-foundation/fcc-node/pkg/types"
 )
 
 // acceptedInstructions records the instructions accepted by the node, so that

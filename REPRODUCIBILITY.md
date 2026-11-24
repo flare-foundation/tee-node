@@ -46,8 +46,8 @@ Clone the repository, checkout the tag you want to verify, build locally and
 compare the image ID against the registry image:
 
 ```sh
-git clone https://github.com/flare-foundation/tee-node.git
-cd tee-node
+git clone https://github.com/flare-foundation/fcc-node.git
+cd fcc-node
 
 TAG=$(git describe --tags --abbrev=0)
 git checkout "$TAG"
@@ -58,14 +58,14 @@ docker buildx build \
   --no-cache \
   --build-arg SOURCE_DATE_EPOCH=$(git log -1 --format=%ct) \
   --output "type=docker,rewrite-timestamp=true" \
-  -t local/tee-node:verify --load -f Dockerfile .
+  -t local/fcc-node:verify --load -f Dockerfile .
 
-# inspect the local image's config hash (docker inspect --format='{{.Id}}' local/tee-node:verify also returns it on some systems)
-docker image save local/tee-node:verify | tar -xOf - manifest.json | sed -nE 's/.*"Config":"(blobs\/sha256\/)?([a-f0-9]{64})(\.json)?".*/sha256:\2/p' | head -n1
+# inspect the local image's config hash (docker inspect --format='{{.Id}}' local/fcc-node:verify also returns it on some systems)
+docker image save local/fcc-node:verify | tar -xOf - manifest.json | sed -nE 's/.*"Config":"(blobs\/sha256\/)?([a-f0-9]{64})(\.json)?".*/sha256:\2/p' | head -n1
 
 # compare with remote config hash
-docker pull --platform linux/amd64 ghcr.io/flare-foundation/tee-node:"$TAG"
-docker image save ghcr.io/flare-foundation/tee-node:"$TAG" | tar -xOf - manifest.json | sed -nE 's/.*"Config":"(blobs\/sha256\/)?([a-f0-9]{64})(\.json)?".*/sha256:\2/p' | head -n1
+docker pull --platform linux/amd64 ghcr.io/flare-foundation/fcc-node:"$TAG"
+docker image save ghcr.io/flare-foundation/fcc-node:"$TAG" | tar -xOf - manifest.json | sed -nE 's/.*"Config":"(blobs\/sha256\/)?([a-f0-9]{64})(\.json)?".*/sha256:\2/p' | head -n1
 ```
 
 Both values should be identical.

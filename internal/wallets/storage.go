@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/flare-foundation/tee-node/internal/settings"
-	publicwallets "github.com/flare-foundation/tee-node/pkg/wallets"
+	"github.com/flare-foundation/fcc-node/internal/settings"
+	publicwallets "github.com/flare-foundation/fcc-node/pkg/wallets"
 )
 
 type Storage struct {

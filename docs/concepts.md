@@ -2,17 +2,17 @@
 
 ## Core Entities
 
-### TEE Node
+### FCC Node
 
 A server running inside a Trusted Execution Environment (GCP Confidential Space). It generates a fresh ECDSA key pair on each boot, which serves as its identity (`teeID`). The private key never leaves the TEE.
 
 ### Proxy
 
-An external service that bridges external clients and the TEE node. The TEE polls the proxy for actions and posts results back. The proxy manages action queues. See [tee-proxy](https://github.com/flare-foundation/tee-proxy).
+An external service that bridges external clients and the FCC node. The TEE polls the proxy for actions and posts results back. The proxy manages action queues. See [fcc-proxy](https://github.com/flare-foundation/fcc-proxy).
 
 ### Relay Client
 
-Monitors the on-chain `TeeExtensionRegistry` contract for `TeeInstructionsSent` events and forwards instructions to the TEE proxy. Operates in provider mode (for signing policy participants) or cosigner mode (for external cosigners). See [tee-relay-client](https://github.com/flare-foundation/tee-relay-client).
+Monitors the on-chain `TeeExtensionRegistry` contract for `TeeInstructionsSent` events and forwards instructions to the TEE proxy. Operates in provider mode (for signing policy participants) or cosigner mode (for external cosigners). See [fcc-relay-client](https://github.com/flare-foundation/fcc-relay-client).
 
 ### Wallet
 
@@ -20,7 +20,7 @@ A key pair managed by the TEE. Each wallet is identified by a `KeyIDPair` (Walle
 
 ### Extension
 
-The TEE node supports two operating modes. In **base mode** (Extension 0, `NewPMWRouter`), all operations — wallet management, XRP signing, VRF, FDC — are handled by built-in processors. In **extension mode** (`NewForwardRouter`), the TEE provides base wallet management and attestation, but delegates unrecognized actions to a user-implemented external **extension server**. The extension server can call back to the TEE's sign/decrypt API to use managed keys. Each extension is identified by an `ExtensionID` included in attestation responses. See [Extensions](extensions.md) for details.
+The FCC node supports two operating modes. In **base mode** (Extension 0, `NewPMWRouter`), all operations — wallet management, XRP signing, VRF, FDC — are handled by built-in processors. In **extension mode** (`NewForwardRouter`), the TEE provides base wallet management and attestation, but delegates unrecognized actions to a user-implemented external **extension server**. The extension server can call back to the TEE's sign/decrypt API to use managed keys. Each extension is identified by an `ExtensionID` included in attestation responses. See [Extensions](extensions.md) for details.
 
 ### Chain ID
 
@@ -63,7 +63,7 @@ A time period identified by a `RewardEpochID` (uint32). Each epoch has an associ
 
 ### Signing Policy
 
-Defines the set of authorized voters (data providers) and their weights for a reward epoch. Policies are stored by epoch ID and must be initialized before any instruction processing. Signing policies are managed on-chain by the contracts in [flare-smart-contracts-v2](https://github.com/flare-foundation/flare-smart-contracts-v2). The policy data types used by the TEE node are defined in [go-flare-common](https://github.com/flare-foundation/go-flare-common).
+Defines the set of authorized voters (data providers) and their weights for a reward epoch. Policies are stored by epoch ID and must be initialized before any instruction processing. Signing policies are managed on-chain by the contracts in [flare-smart-contracts-v2](https://github.com/flare-foundation/flare-smart-contracts-v2). The policy data types used by the FCC node are defined in [go-flare-common](https://github.com/flare-foundation/go-flare-common).
 
 ### Policy Validity
 
@@ -118,7 +118,7 @@ The following OpID pairs are built-in:
 | F_POLICY | UPDATE_POLICY             | UpdatePolicy           |
 | F_GOVERNANCE | SET_MACHINE_PATH_LIST | SetMachinePathList    |
 
-In extension mode, user-implemented extensions may define custom OpType and OpCommand values. Actions with OpID pairs that do not match any built-in processor are forwarded to the extension server for handling. This allows extensions to introduce new operation types without modifying the TEE node itself.
+In extension mode, user-implemented extensions may define custom OpType and OpCommand values. Actions with OpID pairs that do not match any built-in processor are forwarded to the extension server for handling. This allows extensions to introduce new operation types without modifying the FCC node itself.
 
 ## Roles
 

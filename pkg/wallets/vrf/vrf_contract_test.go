@@ -9,8 +9,8 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient/simulated"
+	"github.com/flare-foundation/fcc-node/pkg/wallets/vrf"
 	"github.com/flare-foundation/go-flare-common/pkg/contracts/tee/vrfverifier"
-	"github.com/flare-foundation/tee-node/pkg/wallets/vrf"
 	"github.com/stretchr/testify/require"
 )
 

@@ -1,21 +1,21 @@
 package router
 
 import (
+	"github.com/flare-foundation/fcc-node/internal/policy"
+	"github.com/flare-foundation/fcc-node/internal/processors/direct"
+	"github.com/flare-foundation/fcc-node/internal/processors/direct/getutils"
+	"github.com/flare-foundation/fcc-node/internal/processors/direct/policyutils"
+	"github.com/flare-foundation/fcc-node/internal/processors/instructions"
+	"github.com/flare-foundation/fcc-node/internal/processors/instructions/fdcutils"
+	"github.com/flare-foundation/fcc-node/internal/processors/instructions/regutils"
+	"github.com/flare-foundation/fcc-node/internal/processors/instructions/signutils"
+	"github.com/flare-foundation/fcc-node/internal/processors/instructions/vrfutils"
+	"github.com/flare-foundation/fcc-node/internal/processors/instructions/walletutils"
+	"github.com/flare-foundation/fcc-node/internal/settings"
+	"github.com/flare-foundation/fcc-node/internal/wallets"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/op"
-	"github.com/flare-foundation/tee-node/internal/policy"
-	"github.com/flare-foundation/tee-node/internal/processors/direct"
-	"github.com/flare-foundation/tee-node/internal/processors/direct/getutils"
-	"github.com/flare-foundation/tee-node/internal/processors/direct/policyutils"
-	"github.com/flare-foundation/tee-node/internal/processors/instructions"
-	"github.com/flare-foundation/tee-node/internal/processors/instructions/fdcutils"
-	"github.com/flare-foundation/tee-node/internal/processors/instructions/regutils"
-	"github.com/flare-foundation/tee-node/internal/processors/instructions/signutils"
-	"github.com/flare-foundation/tee-node/internal/processors/instructions/vrfutils"
-	"github.com/flare-foundation/tee-node/internal/processors/instructions/walletutils"
-	"github.com/flare-foundation/tee-node/internal/settings"
-	"github.com/flare-foundation/tee-node/internal/wallets"
 
-	pnode "github.com/flare-foundation/tee-node/internal/node"
+	pnode "github.com/flare-foundation/fcc-node/internal/node"
 )
 
 // NewPMWRouter wires direct and instruction processors for the Protocol Managed

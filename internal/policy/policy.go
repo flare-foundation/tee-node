@@ -7,8 +7,8 @@ import (
 	"sync"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/flare-foundation/fcc-node/pkg/types"
 	"github.com/flare-foundation/go-flare-common/pkg/policy"
-	"github.com/flare-foundation/tee-node/pkg/types"
 )
 
 // Storage holds policies. Since policies are being added and the active policy is being modified,

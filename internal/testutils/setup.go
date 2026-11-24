@@ -3,9 +3,9 @@ package testutils
 import (
 	"testing"
 
-	"github.com/flare-foundation/tee-node/internal/node"
-	"github.com/flare-foundation/tee-node/internal/policy"
-	"github.com/flare-foundation/tee-node/internal/wallets"
+	"github.com/flare-foundation/fcc-node/internal/node"
+	"github.com/flare-foundation/fcc-node/internal/policy"
+	"github.com/flare-foundation/fcc-node/internal/wallets"
 	"github.com/stretchr/testify/require"
 )
 

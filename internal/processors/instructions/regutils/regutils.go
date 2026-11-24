@@ -4,8 +4,8 @@ import (
 	"errors"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/flare-foundation/fcc-node/pkg/types"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/structs/verification"
-	"github.com/flare-foundation/tee-node/pkg/types"
 )
 
 // ValidateTeeAttestationRequest decodes the attestation payload and verifies it

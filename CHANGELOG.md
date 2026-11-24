@@ -1,9 +1,10 @@
 # Changelog
 
-## [v0.1.0](https://github.com/flare-foundation/tee-node/tree/v0.1.0) - 2026-11-24
+## [v0.1.0](https://github.com/flare-foundation/fcc-node/tree/v0.1.0) - 2026-11-24
 
 ### Changed
 
+- Module renamed from `github.com/flare-foundation/tee-node` to `github.com/flare-foundation/fcc-node`; importers must update their import paths.
 - Breaking wire-format changes; the proxy, relay client, CLI and extensions need matching updates:
   - An action's `data.message` is the JSON object of the instruction's `DataFixed` or of the `DirectInstruction` instead of the hex of that JSON. A message that is not a JSON object is rejected.
   - An action result's `data` is base64 in JSON instead of hex; its other byte strings stay 0x-prefixed hex. Extensions must return `data` as base64. `ActionResult.Hash()` is unchanged, as it covers the decoded bytes.
@@ -14,14 +15,14 @@
 - Each instruction is accepted once with the `threshold` tag and then once with `end`; a repeated action, an `end` before its `threshold` and any other tag are rejected with status `0`. Only a quorum-signed action uses up the instruction ID.
 - go-flare-common bumped to v1.6.1.
 
-## [v0.0.30](https://github.com/flare-foundation/tee-node/tree/v0.0.30) - 2026-11-12
+## [v0.0.30](https://github.com/flare-foundation/fcc-node/tree/v0.0.30) - 2026-11-12
 
 ### Changed
 
 - go-flare-common bumped to v1.6.0, which requires Go 1.27.4; Go bumped to 1.27.4.
 - XRP payment instructions from or to the zero account `rrrrrrrrrrrrrrrrrrrrrhoLvTp` are rejected, as rippled would reject the transaction. Only an instruction whose fee schedule is all nullify tries still signs its `AccountSet`s.
 
-## [v0.0.29](https://github.com/flare-foundation/tee-node/tree/v0.0.29) - 2026-10-19
+## [v0.0.29](https://github.com/flare-foundation/fcc-node/tree/v0.0.29) - 2026-10-19
 
 ### Changed
 

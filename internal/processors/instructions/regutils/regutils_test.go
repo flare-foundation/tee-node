@@ -6,12 +6,12 @@ import (
 	"testing"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/flare-foundation/fcc-node/internal/testutils"
+	"github.com/flare-foundation/fcc-node/pkg/attestation"
+	"github.com/flare-foundation/fcc-node/pkg/types"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/instruction"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/op"
 	"github.com/flare-foundation/go-flare-common/pkg/tee/structs/verification"
-	"github.com/flare-foundation/tee-node/internal/testutils"
-	"github.com/flare-foundation/tee-node/pkg/attestation"
-	"github.com/flare-foundation/tee-node/pkg/types"
 	"github.com/stretchr/testify/require"
 )
 

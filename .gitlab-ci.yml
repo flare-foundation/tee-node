@@ -24,5 +24,5 @@ include:
     inputs:
       go_version: "1.27.4"
       cobertura_go_version: "1.27.4"
-      go_test_command: "go test -race -timeout 20m -covermode=atomic -coverprofile=coverage.out -coverpkg=github.com/flare-foundation/tee-node/... ./..."
+      go_test_command: "go test -race -timeout 20m -covermode=atomic -coverprofile=coverage.out -coverpkg=github.com/flare-foundation/fcc-node/... ./..."
       tags: ["flarenetwork-lg"]

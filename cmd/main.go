@@ -1,14 +1,14 @@
 package main
 
 import (
-	"github.com/flare-foundation/tee-node/internal/node"
-	"github.com/flare-foundation/tee-node/internal/router"
-	"github.com/flare-foundation/tee-node/internal/settings"
+	"github.com/flare-foundation/fcc-node/internal/node"
+	"github.com/flare-foundation/fcc-node/internal/router"
+	"github.com/flare-foundation/fcc-node/internal/settings"
 
 	"github.com/flare-foundation/go-flare-common/pkg/logger"
 
-	"github.com/flare-foundation/tee-node/internal/policy"
-	"github.com/flare-foundation/tee-node/internal/wallets"
+	"github.com/flare-foundation/fcc-node/internal/policy"
+	"github.com/flare-foundation/fcc-node/internal/wallets"
 )
 
 func main() {
@@ -20,7 +20,7 @@ func main() {
 	}
 	ws := wallets.InitializeStorage()
 	ps := policy.InitializeStorage()
-	logger.Info("tee node initialized")
+	logger.Info("fcc node initialized")
 
 	pc := settings.NewConfigServer(settings.ConfigPort, teeNode)
 	go func() {

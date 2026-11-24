@@ -10,8 +10,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/flare-foundation/tee-node/internal/settings"
-	"github.com/flare-foundation/tee-node/pkg/attestation"
+	"github.com/flare-foundation/fcc-node/internal/settings"
+	"github.com/flare-foundation/fcc-node/pkg/attestation"
 )
 
 // attestationClient is a shared HTTP client for the launcher's teeserver unix

@@ -10,8 +10,8 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto/secp256k1"
 
-	"github.com/flare-foundation/tee-node/pkg/utils"
-	"github.com/flare-foundation/tee-node/pkg/wallets"
+	"github.com/flare-foundation/fcc-node/pkg/utils"
+	"github.com/flare-foundation/fcc-node/pkg/wallets"
 )
 
 // Field is the prime field a wallet's secret is shared over. Secret sharing is

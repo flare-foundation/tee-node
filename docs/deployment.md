@@ -35,8 +35,8 @@ docker buildx create \
 #### Build from Tag
 
 ```sh
-git clone https://github.com/flare-foundation/tee-node.git
-cd tee-node
+git clone https://github.com/flare-foundation/fcc-node.git
+cd fcc-node
 
 TAG=$(git describe --tags --abbrev=0)
 git checkout "$TAG"
@@ -47,16 +47,16 @@ docker buildx build \
   --no-cache \
   --build-arg SOURCE_DATE_EPOCH=$(git log -1 --format=%ct) \
   --output "type=docker,rewrite-timestamp=true" \
-  -t local/tee-node:verify --load -f Dockerfile .
+  -t local/fcc-node:verify --load -f Dockerfile .
 ```
 
 #### Verify Against Registry
 
 ```sh
-docker pull --platform linux/amd64 ghcr.io/flare-foundation/tee-node:"$TAG"
+docker pull --platform linux/amd64 ghcr.io/flare-foundation/fcc-node:"$TAG"
 
-docker inspect --format='{{.Id}}' local/tee-node:verify
-docker inspect --format='{{.Id}}' ghcr.io/flare-foundation/tee-node:"$TAG"
+docker inspect --format='{{.Id}}' local/fcc-node:verify
+docker inspect --format='{{.Id}}' ghcr.io/flare-foundation/fcc-node:"$TAG"
 ```
 
 Both IDs must be identical. If they differ, the image in the registry does not match the source at that tag.
@@ -70,7 +70,7 @@ The image exposes port 5500 and sets `MODE=0` (production) by default. Allowed e
 ### Transfer Image to Server
 
 ```bash
-docker save local/tee-node | gzip | ssh user@server 'docker load'
+docker save local/fcc-node | gzip | ssh user@server 'docker load'
 ```
 
 ## GCP Confidential Space
@@ -80,7 +80,7 @@ docker save local/tee-node | gzip | ssh user@server 'docker load'
 1. Build a reproducible Docker image
 2. Push to Google Artifact Registry
 3. Create a Confidential VM instance with the image
-4. The TEE node automatically connects to the Confidential Space attestation service via Unix socket
+4. The FCC node automatically connects to the Confidential Space attestation service via Unix socket
 
 ### Attestation
 
@@ -99,7 +99,7 @@ These are included in the TEE's registration attestation response. The code hash
 
 ## Operating Modes
 
-The TEE node supports two operating modes determined by which router is used at startup:
+The FCC node supports two operating modes determined by which router is used at startup:
 
 - **Base mode (Extension 0)**: `cmd/main.go` uses `NewPMWRouter`. All Flare protocol operations (wallet management, XRP signing, VRF, FDC) are built-in. No extension server needed.
 
@@ -128,7 +128,7 @@ The proxy URL can also be set at runtime via `POST /proxy` on port 5500.
 go run cmd/main.go
 
 # Docker
-docker run -p 5500:5500 -p 8888:8888 --env-file .env local/tee-node
+docker run -p 5500:5500 -p 8888:8888 --env-file .env local/fcc-node
 
 # Verify the node is running
 curl -v -X POST http://localhost:5500/proxy \
